@@ -70,6 +70,12 @@ make -C tests/bootloader sanitize
 The synthetic fixture is a 64 KiB HFS+ image with a catalog file at
 `/.firmware/current.img`; no device or disk image is involved.
 
+## DFU
+
+The future install procedure is in [`DFU.md`](DFU.md). It is **blocked**: there
+is no flashable Helikon-OS image or hash yet. Do not substitute the donor V3.0
+hash or image.
+
 ## Not done
 
 - Hardware entry point and display driver.

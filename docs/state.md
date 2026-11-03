@@ -45,6 +45,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | UTF-16BE name decode | `in progress` | `firmware/hfs/hfs_unicode.c`; 8 host tests |
 | Extents-overflow file read | `in progress` | `firmware/hfs/hfs_extents.c`; 2 host tests |
 | Diagnostic bootloader core | `in progress` | `bootloader/diagnostics.c`, `report.c`, `splash.c`; 7 host tests; read-only |
+| DFU install runbook | stub | [`bootloader/DFU.md`](../bootloader/DFU.md); blocked, no image/hash |
 | Host test harness | `in progress` | 41 tests total (34 HFS+, 7 bootloader); sanitizer clean; no device run |
 
 ## What does not exist

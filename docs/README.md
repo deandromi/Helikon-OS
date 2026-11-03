@@ -99,6 +99,7 @@ status.
 | [`../assets/logo/README.md`](../assets/logo/README.md) | Logo source notes and the owner-supplied mountain reference image. | living |
 | [`../assets/branding/README.md`](../assets/branding/README.md) | Owner-supplied poster and 320×240 startup crop. | living |
 | [`../bootloader/README.md`](../bootloader/README.md) | Read-only diagnostic bootloader core and splash; not flashable. | living |
+| [`../bootloader/DFU.md`](../bootloader/DFU.md) | Blocked DFU install runbook for the future bootloader image. | stub |
 | [`log/README.md`](log/README.md) | What the dated work log is for. | living |
 | [`log/TEMPLATE.md`](log/TEMPLATE.md) | Dated log entry template. | template |
 | [`log/2026-11-03.md`](log/2026-11-03.md) | Documentation setup session. | living |

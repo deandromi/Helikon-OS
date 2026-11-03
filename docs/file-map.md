@@ -27,6 +27,7 @@ Helikon-OS/
   assets/startup/           320×240 startup crop; not wired into boot yet
   bootloader/
     README.md               diagnostic bootloader scope and integration order
+    DFU.md                  blocked DFU install runbook; no image/hash yet
     diagnostics.c/.h        read-only volume/catalog/file diagnostic
     report.c/.h             on-screen report formatter
     splash.c/.h             320×240 1-bit splash data
