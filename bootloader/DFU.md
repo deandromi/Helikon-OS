@@ -293,6 +293,9 @@ journal as a repair.
   ./utils/mks5lboot/mks5lboot --bl-uninst ipod6g
   ```
 
+- To return to the donor Rockbox bootloader, reinstall the donor V3.2
+  `bootloader-ipod6g.ipod` from its own release after removing the Helikon
+  bootloader. Do not use the donor image or hash for Helikon.
 - Apple restore through Finder/iTunes is the last resort. It can erase the music
   library.
 - Never use `--single`.
