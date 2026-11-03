@@ -51,7 +51,8 @@ Helikon-OS/
       hfs_journal.c/.h      Apple HFS+ journal append/replay and validation
       hfs_txn.c/.h          bounded staged-block transaction engine
       hfs_bitmap.c/.h       allocation bitmap alloc/free and header staging
-      hfs_btree_write.c/.h  node-level record insert/delete and offset tables
+      hfs_btree_write.c/.h  node-level record insert/delete/split and offset tables
+      hfs_btree_tree.c/.h   tree-level insert, parent/root split, free-node map
       hfs_fork_io.c/.h      fork block staging into a transaction
   tests/
     hfsplus/

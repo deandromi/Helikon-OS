@@ -4,7 +4,7 @@
 > transaction ordering and `fsck_hfs` compatibility.
 > Status: living design document; D-03/D-04 accepted; writer interface frozen.
 > The journal append/replay path, bounded transaction engine, allocation bitmap,
-> node-level B-tree insert/delete/split and fork staging are implemented host-only;
+> node-level B-tree insert/delete/split, tree-level insert with parent/root splits, and fork staging are implemented host-only;
 > tree-level split/merge, catalog/extents mutation and the write diagnostic do
 > not exist.
 > Owner: HFS+ lead; journal lead
@@ -25,9 +25,10 @@ it the largest single change from the donor and the critical path of the product
 **Current status:** D-03 (journaled writes) and D-04 (Helikon-OS owns replay)
 are accepted; the interface and failure model in §10 are frozen. The Apple HFS+
 journal append/replay path, a bounded transaction engine, the allocation bitmap,
-node-level B-tree insert/delete/split and fork block staging are implemented and
-host-tested. Tree-level split/merge, catalog/extents mutation, file operations
-and the write diagnostic are not implemented. Do not infer a device write or a complete writer
+node-level B-tree insert/delete/split, tree-level insert with parent/root
+splits, and fork block staging are implemented and host-tested. Delete/merge,
+catalog/extents mutation, file operations and the write diagnostic are not
+implemented. Do not infer a device write or a complete writer
 from this document.
 
 ## 2. Minimum surface

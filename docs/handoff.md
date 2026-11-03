@@ -11,6 +11,70 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (B-tree tree insertion)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the B-tree tree-insert commit; check `git log -1`.
+
+## What changed
+
+- Added `firmware/hfs/hfs_btree_tree.c/.h`: root-to-leaf traversal, free-node
+  allocation from the header map, leaf/index split, parent record insertion,
+  recursive split, new-root creation, leaf/index sibling link updates and
+  header staging.
+- Added a 20-record model test that forces multiple leaf/index splits and walks
+  the leaf chain in order.
+- Below-minimum keys fail closed with `HFS_ERR_UNSUPPORTED` rather than leaving
+  a stale parent key.
+- Total host tests: 75 (67 HFS+, 8 bootloader), sanitizer-clean.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 67/67 pass.
+- `make -C tests/hfsplus sanitize` — 67/67 pass with ASan/UBSan.
+- The model test inserts 20 records, forces a multi-level tree, and checks
+  `leafRecords`, depth, first/last leaf and sorted leaf-chain keys.
+- No device write and no write-capable bootloader image.
+
+## What failed
+
+- The first traversal used the wrong comparison direction (`cmp >= 0` instead of
+  `cmp <= 0`), routing every key above an index key to the first child. The model
+  test caught the resulting unsorted root/leaf chain before commit.
+- The split helper initially forgot to initialize the empty right node's free
+  offset.
+- Below-minimum insertion and fork growth are not implemented.
+
+## What is next
+
+1. B-tree delete/merge/redistribution.
+2. Below-minimum key update path.
+3. Catalog/extents fork growth when the free-node map is exhausted.
+4. D-06 / FastUnicodeCompare before catalog keys.
+5. Catalog records, disposable image, `fsck_hfs`, write diagnostic.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- No byte-order substitution for HFS+ catalog keys.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- D-06 Unicode policy / FastUnicodeCompare.
+- Delete/merge policy and fork growth.
+
+## Device/test evidence
+
+- No new device run. The writer is host-only.
+
+---
+
 # Handoff — 2026-11-03 (B-tree node split)
 
 ## Branch / commit
