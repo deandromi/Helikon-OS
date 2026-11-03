@@ -7,6 +7,12 @@
 
 ## File
 
+This is the **Helikon-OS** diagnostic image. It is not the donor
+`bootloader-ipod6g.ipod` from `hfsplus-rockboxed-ipod`. The donor checkout
+supplies `mks5lboot` and the build-time S5L8702/ATA/LCD bring-up only; the
+installed image is built from this repository's diagnostic core, HFS+ reader,
+report and splash.
+
 | Field | Value |
 |---|---|
 | Image | `bootloader-ipod6g.ipod` |

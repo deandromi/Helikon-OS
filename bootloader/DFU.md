@@ -11,6 +11,28 @@ image shows the owner-supplied splash, runs a **read-only** HFS+ diagnostic and
 then waits for a button and powers off. It never loads firmware and never writes
 the volume.
 
+## Which file is installed
+
+The installed file is the **Helikon-OS** image committed in this repository:
+
+```text
+bootloader/artifacts/bootloader-ipod6g.ipod
+```
+
+It is **not** the donor `bootloader-ipod6g.ipod` from
+`hfsplus-rockboxed-ipod`, and it is not the donor V3.0/V3.2 release. Do not
+flash the donor image or compare against the donor hash `78cf...`.
+
+The donor checkout is used for two things only:
+
+1. `mks5lboot`, the DFU installer tool;
+2. build-time S5L8702 clocking/PMU/ATA/LCD bring-up and the read-only partition
+   scanner.
+
+The installed image contains the Helikon diagnostic core, HFS+ reader, report
+and splash. It contains no donor overlay, FAT mount, firmware-loading path or
+HFS+ write code.
+
 | Field | Value |
 |---|---|
 | Image | [`artifacts/bootloader-ipod6g.ipod`](artifacts/bootloader-ipod6g.ipod) |
