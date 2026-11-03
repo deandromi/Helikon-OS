@@ -147,6 +147,8 @@ tools/
   build-diagnostic-bootloader.sh  pinned donor export, patch, Thumb build, checks
   build-write-diagnostic-bootloader.sh  separate write-diagnostic build
   make-write-diag-image.sh  create the disposable inner HFS+ image
+  install-write-diagnostic.sh  send the write-diagnostic DFU with hash check
+  uninstall-bootloader.sh   send the 6G bootloader uninstaller DFU
   gen-hfs-unicode-table.py  generate the HFS+ fold/decomposition tables
   hfsplus/                  host inspector, fixtures, tests
   db/                       host database builder

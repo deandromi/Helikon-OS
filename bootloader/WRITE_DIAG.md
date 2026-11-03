@@ -70,25 +70,27 @@ volume name from `ls /Volumes`.
 3. Put the iPod into DFU: hold **Menu + Select** for about 12 seconds and
    release at the black screen.
 
-4. Send the prebuilt DFU installer:
+4. With the iPod still in DFU, send the prebuilt installer:
 
    ```sh
-   ./build/write-diagnostic-bootloader/src/utils/mks5lboot/mks5lboot \
-     --dfusend bootloader/artifacts/bootloader-ipod6g-write-diag.dfu
+   tools/install-write-diagnostic.sh
    ```
 
-   If that `mks5lboot` path is missing, use the donor checkout:
+   The script verifies the DFU hash, scans for the DFU device and sends
+   `bootloader-ipod6g-write-diag.dfu`. It never uses `--single`.
+
+   If `mks5lboot` is missing, set `MKS5LBOOT=/path/to/mks5lboot`, or build it
+   from the donor checkout:
 
    ```sh
    cd /path/to/hfsplus-rockboxed-ipod
    git checkout 55603bd4bc2524ded900fa17feae99a223b04349
    make -C utils/mks5lboot -j"$(sysctl -n hw.ncpu)" CC=clang \
      LDOPTS="-framework IOKit -framework CoreFoundation"
-   ./utils/mks5lboot/mks5lboot --dfusend \
-     /path/to/Helikon-OS/bootloader/artifacts/bootloader-ipod6g-write-diag.dfu
+   cd /path/to/Helikon-OS
+   MKS5LBOOT=/path/to/hfsplus-rockboxed-ipod/utils/mks5lboot/mks5lboot \
+     tools/install-write-diagnostic.sh
    ```
-
-   Never add `--single`.
 
 5. The iPod reboots into the write diagnostic. Read the report on screen. It
    waits for a button and powers off.

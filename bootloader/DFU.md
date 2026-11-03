@@ -99,10 +99,17 @@ Extra preconditions for this image:
 - [ ] You have read [`WRITE_DIAG.md`](WRITE_DIAG.md) and can copy the inner
       image back to macOS for `fsck_hfs -fn`.
 
-The backup, DFU and recovery rules are otherwise identical. Never use
-`--single`. If the diagnostic reports FAIL, preserve the inner image and do not
-retry writes until it has been recreated and checked on macOS. No hardware run
-of this image is recorded.
+The backup, DFU and recovery rules are otherwise identical. The write image has
+a one-command sender:
+
+```sh
+tools/install-write-diagnostic.sh
+```
+
+It verifies the DFU hash, scans for the device and sends the installer. Never
+use `--single`. If the diagnostic reports FAIL, preserve the inner image and do
+not retry writes until it has been recreated and checked on macOS. No hardware
+run of this image is recorded.
 
 ## 1. Back up the Rockbox state
 
@@ -350,7 +357,7 @@ journal as a repair.
     /path/to/Helikon-OS/bootloader/artifacts/bootloader-ipod6g-uninstall.dfu
   ```
 
-  Or, equivalently, `--bl-uninst ipod6g`.
+  Or run `tools/uninstall-bootloader.sh`, or use `--bl-uninst ipod6g`.
 
 - To return to the donor Rockbox bootloader, reinstall the donor V3.2
   `bootloader-ipod6g.ipod` from its own release after removing the Helikon
