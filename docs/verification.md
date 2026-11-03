@@ -11,7 +11,7 @@ boots, "looks right", or passed on another device. Verification is the recorded
 command output, device run, image hash and oracle result that match the claim.
 
 Helikon-OS has a small host code/test tree and no device build yet. The host
-volume/B-tree checks are current; device and writer commands must be added when
+read-core checks are current; device and writer commands must be added when
 those trees exist, not invented now. Donor commands are reference only and do
 not verify Helikon-OS.
 

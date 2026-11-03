@@ -29,7 +29,10 @@ Helikon-OS/
       hfs_volume.c          HFS+ volume header/journal probe
       hfs_volume.h          read-only volume API and error taxonomy
       hfs_btree.c           generic B-tree header/node validation
-      hfs_btree.h           B-tree handle and node-record API
+      hfs_btree.h           B-tree handle and leaf/node-record API
+      hfs_unicode.c/.h      exact UTF-16BE to UTF-8 name decode
+      hfs_catalog.c/.h      catalog iteration, path lookup, inline file read
+      hfs_extents.c/.h      extents-overflow collection and file read
   tests/
     hfsplus/
       Makefile              host test build/sanitizer targets
@@ -37,6 +40,9 @@ Helikon-OS/
       test_check.h          shared test assertion macro
       test_volume.c         volume header/journal tests
       test_btree.c          B-tree header/node tests
+      test_unicode.c        UTF-16BE/UTF-8 tests
+      test_catalog.c        catalog iteration/lookup tests
+      test_extents.c        extents-overflow tests
   docs/
     README.md               documentation index and reading order
     state.md                current phase and blockers
@@ -115,7 +121,7 @@ is created; do not let it drift.
 | `bootloader/` | Rescue loader; native HFS+ read-only; manifest verify | boot lead | `docs/architecture.md`, paper §5, §16 | boot, manifest, recovery, no-write hash | No filesystem writes; no overlay; no `--single`; no write modules linked |
 | `firmware/hal/` | S5L8702 clocks, GPIO, PMU, ATA, LCD, codec | hardware lead | paper §6–§7, `docs/architecture.md` | register-level bring-up, sleep/wake | No filesystem, UI or policy; no unmeasured overclock/undervolt |
 | `firmware/block/` | Sector I/O, flush, power state | storage lead | paper §7, `docs/architecture.md` | read/write/flush, 512/4096, error injection | No paths/files/caches; a flush error must propagate |
-| `firmware/hfs/` | HFS+ read core: volume + B-tree validation implemented; catalog/extents/Unicode planned | HFS+ lead | paper §8, §10.4, `docs/hfsplus-write-engine.md` | 21 host tests now; unit/fuzz/malformed/macOS differential planned | Read-only; no write path; never hide unsupported entries |
+| `firmware/hfs/` | HFS+ read core: volume, B-tree, catalog, Unicode and extents implemented | HFS+ lead | paper §8, §10.4, `docs/hfsplus-write-engine.md` | 34 host tests now; unit/fuzz/malformed/macOS differential planned | Read-only; no write path; never hide unsupported entries |
 | `firmware/hfs/write/` | Catalog/bitmap/extents mutation | HFS+ lead | `docs/hfsplus-write-engine.md`, invariants I-03–I-15 | model/property/crash tests, `fsck_hfs` | No journal format, UI or boot policy; no direct writes outside a transaction |
 | `firmware/journal/` | Journal append, commit, replay, barriers | journal lead | paper §9.3–§9.4, `docs/hfsplus-write-engine.md` | crash injection, idempotent replay | No product policy/UI; never delete/disable/zero the journal |
 | `firmware/vfs/` | Lookup, handles, capabilities, path rules | VFS lead | paper §10, `docs/architecture.md` | path/name tests, capability tests | No hardware registers; no overlay branch; no errno guessing |

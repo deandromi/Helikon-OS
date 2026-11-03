@@ -177,3 +177,54 @@ int hfs_btree_read_node(struct hfs_btree *btree, uint32_t node,
     *node_data = btree->scratch;
     return HFS_OK;
 }
+
+int hfs_btree_leaf_init(const struct hfs_btree *btree,
+                        struct hfs_btree_leaf_iterator *iterator)
+{
+    if (btree == NULL || iterator == NULL)
+        return HFS_ERR_ARGUMENT;
+    memset(iterator, 0, sizeof(*iterator));
+    iterator->node = btree->first_leaf;
+    return HFS_OK;
+}
+
+int hfs_btree_leaf_next(struct hfs_btree *btree,
+                        struct hfs_btree_leaf_iterator *iterator,
+                        const uint8_t **record, size_t *length)
+{
+    if (btree == NULL || iterator == NULL || record == NULL || length == NULL)
+        return HFS_ERR_ARGUMENT;
+
+    while (iterator->node != 0) {
+        if (iterator->visited >= btree->total_nodes)
+            return HFS_ERR_FORMAT;
+
+        const uint8_t *node;
+        int rc = hfs_btree_read_node(btree, iterator->node, &node);
+        if (rc != HFS_OK)
+            return rc;
+        if (node[8] != 0xff || node[9] != 1)
+            return HFS_ERR_FORMAT;
+
+        uint16_t count = be16(node + 10);
+        uint32_t next = be32(node);
+        uint32_t previous = be32(node + 4);
+        if (count == 0 || previous != iterator->previous ||
+            next == iterator->node ||
+            (next != 0 && next >= btree->total_nodes))
+            return HFS_ERR_FORMAT;
+
+        if (iterator->record < count) {
+            rc = hfs_btree_node_record(node, btree->node_size,
+                                       iterator->record++, record, length);
+            return rc == HFS_OK ? 1 : rc;
+        }
+
+        iterator->previous = iterator->node;
+        iterator->node = next;
+        iterator->record = 0;
+        ++iterator->visited;
+    }
+
+    return 0;
+}

@@ -41,15 +41,19 @@ Helikon-OS poster above the goals on 2026-11-03.
 |---|---|---|
 | HFS+ volume header/journal probe | `in progress` | `firmware/hfs/hfs_volume.c`; 12 host tests |
 | Generic HFS+ B-tree header/node validation | `in progress` | `firmware/hfs/hfs_btree.c`; 9 host tests |
-| Host test harness | `in progress` | `tests/hfsplus/`; 21 tests total; sanitizer clean; no device run |
+| HFS+ catalog iteration/lookup | `in progress` | `firmware/hfs/hfs_catalog.c`; 3 host tests |
+| UTF-16BE name decode | `in progress` | `firmware/hfs/hfs_unicode.c`; 8 host tests |
+| Extents-overflow file read | `in progress` | `firmware/hfs/hfs_extents.c`; 2 host tests |
+| Host test harness | `in progress` | `tests/hfsplus/`; 34 tests total; sanitizer clean; no device run |
 
 ## What does not exist
 
 | Item | Status | Note |
 |---|---|---|
-| Helikon-OS firmware source tree | `in progress` | Host HFS+ volume/B-tree modules only; no bootloader/kernel yet |
+| Helikon-OS firmware source tree | `in progress` | Host HFS+ read core exists; no bootloader/kernel yet |
 | Helikon-OS bootloader source/image | `planned` | No `bootloader/` directory or image |
-| HFS+ catalog/extents reader | `planned` | B-tree header/node validation exists; catalog/extents not parsed |
+| Bootloader manifest/boot state | `planned` | D-01/D-02 still open |
+| VFS, player, UI, database | `planned` | No implementation |
 | HFS+ write engine | `planned` | No writer |
 | Journal/transaction engine | `planned` | Design requirements only |
 | Installer or desktop app | `planned` | No host application |
@@ -66,7 +70,7 @@ Helikon-OS poster above the goals on 2026-11-03.
   (`Updated README.MD`, 2026-11-03)
 - **Documentation branch:** `docs/agent-handbook`, fast-forwarded to `main` on
   2026-11-03.
-- **Last known-good code commit:** the host HFS+ volume/B-tree commit; check
+- **Last known-good code commit:** the host HFS+ read-core commit; check
   `git log -- firmware/hfs tests/hfsplus`. No device code exists.
 - **Last known-good documentation commit:** `6df63ef63bacc93d253db40d1bb7f2efdd289a6c`
   on `main` (license/COC/issue-template follow-up, fast-forwarded). Any later
@@ -87,9 +91,9 @@ writes, the transaction engine, the bootloader, or any goal in
 
 ## Current blockers
 
-1. **No firmware implementation.** There are only host HFS+ volume/B-tree
-   validation modules; bootloader, kernel, writer, journal, VFS, player, UI,
-   database, installer and host app do not exist.
+1. **No firmware implementation.** There is only a host HFS+ read core
+   (volume, B-tree, catalog, Unicode, extents); bootloader, kernel, writer,
+   journal, VFS, player, UI, database, installer and host app do not exist.
 2. **Journal decisions are unresolved.** D-03 (journal strategy) and D-04
    (journal ownership) must be recorded before phase 2 starts. The paper
    recommends journaled release writes and Helikon-OS-owned replay; neither is

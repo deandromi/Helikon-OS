@@ -17,7 +17,7 @@ Helikon-OS is a planned native-HFS+ bootloader and firmware for the iPod Classic
 greenfield design, not a working firmware release.
 
 - **Design stage:** no bootloader/kernel/firmware tree, installer, release
-  artifact or Helikon-OS device run exists. Host HFS+ volume/B-tree probes exist.
+  artifact or Helikon-OS device run exists. A host HFS+ read core exists.
 - **Current repository content:** the owner-authored root `README.md`, this
   documentation set, `firmware/hfs/` and `tests/hfsplus/`.
 - **Donor release:** the V3.2 release of `hfsplus-rockboxed-ipod` is an
@@ -105,7 +105,7 @@ docs/                     agent documentation (current)
   architecture.md         layers, boundaries, memory, security
   file-map.md             where to change what
 bootloader/               planned: rescue bootloader (no source yet)
-firmware/                 host volume/B-tree probes exist; HAL/VFS/player/UI planned
+firmware/                 host HFS+ read core exists; HAL/VFS/player/UI planned
   hfs/                    HFS+ read core; volume header/journal probe implemented
 tools/                    planned: host tools, inspectors, migration
 tests/                    host HFS+ volume tests exist; device/writer tests planned
@@ -118,7 +118,7 @@ docs/prompts/             reusable task prompts
 the paper. A directory shown as planned does not exist yet.
 ## 6. Build and test commands
 **No firmware or bootloader can be built yet.** The only Helikon-OS code is the
-host HFS+ volume/B-tree validation:
+host HFS+ read core:
 ```sh
 make -C tests/hfsplus test
 make -C tests/hfsplus sanitize

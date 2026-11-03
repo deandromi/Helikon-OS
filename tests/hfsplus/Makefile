@@ -4,7 +4,7 @@ CFLAGS ?= -O2 -g
 CFLAGS += -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow
 CPPFLAGS += -I../../firmware/hfs
 HFS = ../../firmware/hfs
-TESTS = test_volume test_btree
+TESTS = test_volume test_btree test_unicode test_catalog test_extents
 
 .PHONY: all test sanitize clean
 
@@ -21,9 +21,35 @@ test_btree: test_btree.c test_image.c test_image.h test_check.h \
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_btree.c test_image.c \
 	  $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
 
+test_unicode: test_unicode.c test_check.h \
+              $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode.h \
+              $(HFS)/hfs_volume.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) test_unicode.c \
+	  $(HFS)/hfs_unicode.c $(LDFLAGS) -o $@
+
+test_catalog: test_catalog.c test_image.c test_image.h test_check.h \
+              $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog.h \
+              $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode.h \
+              $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h \
+              $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) test_catalog.c test_image.c \
+	  $(HFS)/hfs_catalog.c $(HFS)/hfs_unicode.c $(HFS)/hfs_btree.c \
+	  $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
+
+test_extents: test_extents.c test_image.c test_image.h test_check.h \
+              $(HFS)/hfs_extents.c $(HFS)/hfs_extents.h \
+              $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h \
+              $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) test_extents.c test_image.c \
+	  $(HFS)/hfs_extents.c $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c \
+	  $(LDFLAGS) -o $@
+
 test: $(TESTS)
 	./test_volume
 	./test_btree
+	./test_unicode
+	./test_catalog
+	./test_extents
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)

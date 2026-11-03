@@ -22,6 +22,13 @@ struct hfs_btree {
     uint8_t key_compare;
 };
 
+struct hfs_btree_leaf_iterator {
+    uint32_t node;
+    uint32_t previous;
+    uint32_t visited;
+    uint16_t record;
+};
+
 /*
  * Open an inline HFS+ B-tree. The caller owns the scratch buffer and must keep
  * both the volume and fork alive for the lifetime of the handle.
@@ -32,6 +39,14 @@ int hfs_btree_open(struct hfs_btree *btree, struct hfs_volume *volume,
 
 int hfs_btree_read_node(struct hfs_btree *btree, uint32_t node,
                         const uint8_t **node_data);
+
+int hfs_btree_leaf_init(const struct hfs_btree *btree,
+                        struct hfs_btree_leaf_iterator *iterator);
+
+/* Returns 1 for a record, 0 at the end of the leaf chain, or a negative error. */
+int hfs_btree_leaf_next(struct hfs_btree *btree,
+                        struct hfs_btree_leaf_iterator *iterator,
+                        const uint8_t **record, size_t *length);
 
 /*
  * Validate a node's offset table and return one record. This is the shared

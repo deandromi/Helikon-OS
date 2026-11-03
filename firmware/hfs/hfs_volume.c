@@ -57,8 +57,8 @@ static int read_volume(const struct hfs_volume *volume, uint64_t offset,
                : HFS_OK;
 }
 
-static int parse_fork(const struct hfs_volume *volume, const uint8_t *p,
-                      struct hfs_fork *fork)
+int hfs_fork_parse(const struct hfs_volume *volume, const uint8_t *p,
+                   struct hfs_fork *fork)
 {
     uint64_t sum = 0;
     int ended = 0;
@@ -268,7 +268,7 @@ static int parse_header(struct hfs_volume *volume, const uint8_t *header,
     };
 
     for (size_t i = 0; i < sizeof(forks) / sizeof(forks[0]); ++i) {
-        int rc = parse_fork(volume, header + fork_offsets[i], forks[i]);
+        int rc = hfs_fork_parse(volume, header + fork_offsets[i], forks[i]);
         if (rc != HFS_OK)
             return rc;
     }
@@ -336,6 +336,10 @@ const char *hfs_strerror(int error)
     case HFS_ERR_DIRTY: return "volume is dirty or needs journal replay";
     case HFS_ERR_ARGUMENT: return "invalid argument";
     case HFS_ERR_BUFFER: return "buffer too small";
+    case HFS_ERR_NOT_FOUND: return "entry not found";
+    case HFS_ERR_NOT_DIR: return "not a directory";
+    case HFS_ERR_IS_DIR: return "is a directory";
+    case HFS_ERR_NAME_INVALID: return "invalid HFS+ name";
     default: return "unknown HFS+ error";
     }
 }

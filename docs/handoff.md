@@ -16,27 +16,33 @@ file grows. Do not rely on chat history for current state.
 ## Branch / commit
 
 - Branch: `main`
-- Current head: the host HFS+ volume/B-tree commit on `main`; check `git log -1`.
+- Current head: the host HFS+ read-core commit on `main`; check `git log -1`.
 
 ## What changed
 
 - Added `firmware/hfs/hfs_volume.{c,h}`: read-only HFS+ primary/alternate
   volume-header and journal probe with an explicit error taxonomy.
-- Added `firmware/hfs/hfs_btree.{c,h}`: generic B-tree header-node and reverse
-  offset-table validation.
-- Added `tests/hfsplus/`: host test harness, shared fixtures and 12
-  volume/journal plus 9 B-tree tests.
+- Added `firmware/hfs/hfs_btree.{c,h}`: generic B-tree header-node, reverse
+  offset-table and leaf-chain validation.
+- Added `firmware/hfs/hfs_unicode.{c,h}`: exact UTF-16BE to UTF-8 decoding.
+- Added `firmware/hfs/hfs_catalog.{c,h}`: catalog iteration, path lookup and
+  inline file reads.
+- Added `firmware/hfs/hfs_extents.{c,h}`: inline plus extents-overflow file
+  reads.
+- Added `tests/hfsplus/`: shared fixtures and 34 tests across volume, B-tree,
+  Unicode, catalog and extents.
 - Added the owner-supplied poster to the root README and a 320×240 startup crop
   under `assets/startup/`; the startup crop is not wired into firmware yet.
 - Added `.gitignore` for the host test binaries and macOS metadata.
-- Applied the thermo-nuclear quality pass: removed the unused buffer error,
-  extracted `volume_reset`, named the max node size, and removed dead code.
+- Applied the thermo-nuclear quality pass: shared leaf iteration, removed dead
+  code and named structural bounds.
 - No device code, bootloader, kernel or writer exists yet.
 
 ## What was verified
 
-- `make -C tests/hfsplus test` — 21/21 pass (12 volume, 9 B-tree).
-- `make -C tests/hfsplus sanitize` — 21/21 pass with ASan/UBSan.
+- `make -C tests/hfsplus test` — 34/34 pass (12 volume, 9 B-tree, 8 Unicode,
+  3 catalog, 2 extents).
+- `make -C tests/hfsplus sanitize` — 34/34 pass with ASan/UBSan.
 - Test count and output are in `docs/log/2026-11-03.md`.
 - No device write, bootloader install, DFU action or `--single` was attempted.
 - Root `README.md` now includes the owner-supplied poster; the 25 goals are
@@ -48,14 +54,16 @@ file grows. Do not rely on chat history for current state.
   corrected to `1|4` to match the HFS+ journal-info semantics.
 - The first B-tree fixture stored the reverse offset table in forward order; it
   was corrected to HFS+ reverse order.
+- The first extents fixture used an 8-byte file with a second allocated block;
+  it was corrected to a 516-byte file so the overflow boundary is meaningful.
 
 ## What is next
 
-1. Add catalog record parsing and directory iteration.
-2. Add extents/extents-overflow read support.
-3. Wire the 320×240 startup image into the phase 0 display path when it exists.
-4. Keep the writer blocked until D-03/D-04 and T-002/T-004 are settled.
-5. Phase 0 bootloader remains the first device code, after recovery rehearsal.
+1. Define the bootloader manifest/boot-state flow and host image-loading core
+   (T-027); D-01/D-02 remain owner decisions.
+2. Wire the 320×240 startup image into the phase 0 display path when it exists.
+3. Keep the writer blocked until D-03/D-04 and T-002/T-004 are settled.
+4. Phase 0 bootloader remains the first device code, after recovery rehearsal.
 
 ## What must not be touched
 
@@ -69,7 +77,8 @@ file grows. Do not rely on chat history for current state.
 
 - D-03/D-04 (journal strategy/ownership) still block the writer.
 - D-01/D-02 (manifest/boot state) still block the bootloader design.
-- The next reader slice is catalog/extents; no owner decision needed yet.
+- The next slice is the bootloader manifest/boot-state flow; D-01/D-02 must be
+  recorded before any hardware boot path.
 
 ## Device/test evidence
 

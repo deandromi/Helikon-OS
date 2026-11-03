@@ -1,4 +1,7 @@
 .DS_Store
 tests/hfsplus/test_volume
 tests/hfsplus/test_btree
+tests/hfsplus/test_unicode
+tests/hfsplus/test_catalog
+tests/hfsplus/test_extents
 tests/hfsplus/*.dSYM/
