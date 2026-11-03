@@ -64,7 +64,12 @@ It keeps the outer HFS+ volume read-only and writes only inside a root-level
 `helikon-test.img` (16 MiB, journaled HFS+). The host core test creates an outer
 HFS+ image, copies an inner HFS+ image into it, runs the same writer sequence,
 and verifies both images with `fsck_hfs`; it passes, including a second run.
-No hardware run exists.
+
+One owner-reported 6G run on 2026-11-03 reported every screen stage PASS. The
+extracted inner image (SHA-256
+`156060075eef60c463f421ce459c2138a00e1c43de44da802b77ce89c79ca0e8`) passed
+`fsck_hfs -fn` exit 0, the `diag` folder was gone, and the outer volume passed
+`diskutil verifyVolume` exit 0. This is not a library-write or release claim.
 
 ## What it does
 

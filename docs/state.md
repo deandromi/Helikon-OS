@@ -61,7 +61,8 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Private NUL names | `implemented` | Directory iteration escapes NUL as U+2400 and marks the entry `name_escaped`/`unsupported`; path lookup skips the escaped entry and continues instead of aborting the directory; 1 catalog test |
 | Extents-overflow record | `implemented` | `hfs_extents_write.c`; data-fork records keyed by fork/file/startBlock, up to eight extents each; insert/get/delete; multiple records supported |
 | Inner-image mapping | `implemented` | `bootloader/inner_image.c` maps a root-level outer file's data-fork extents into a block device, rejects out-of-range writes, and guards against overlap with outer metadata, journal, volume headers and forks; 4 host tests |
-| Separate write diagnostic | `unproven` | `bootloader-ipod6g-write-diag.ipod` (109,320 bytes, `9e3881…`, 19,712 bytes headroom) keeps the outer HFS+ volume read-only and runs the writer inside `helikon-test.img`; the host outer/inner image test passes twice, but there is no device run |
+| Separate write diagnostic | `implemented` | `bootloader-ipod6g-write-diag.ipod` (109,320 bytes, `9e3881…`, 19,712 bytes headroom) keeps the outer HFS+ volume read-only and runs the writer inside `helikon-test.img`; host outer/inner test passes twice, and one owner-reported 6G run reported every stage PASS; inner `fsck_hfs` and outer `diskutil verifyVolume` both exited 0 |
+| Write diagnostic 6G run | `pass` | One owner-reported run, 2026-11-03: all stages PASS, extracted inner image SHA-256 `156060…`, `fsck_hfs -fn` exit 0, no `diag` folder, outer `diskutil verifyVolume` exit 0; not a library-write or support claim |
 | Journal crash injection | `implemented` | `tests/image/run-crash-macos.sh` injects a failed write at every cut point of create (25), append (43), truncate (34) and delete (25) transactions, reopens the image, replays the journal and runs `fsck_hfs -fn`; all 127 cuts recover to a consistent state and an fsck-clean volume; rename, partial-sector writes, fsync failures and power-loss timing remain |
 | Disposable-image writer validation | `implemented` | `tests/image/run-macos.sh` creates a 16 MiB journaled HFS+ image, creates/appends/truncates/deletes a file, mounts it in macOS to read back 4096 bytes, and `fsck_hfs -fn` reports the volume OK after create and after delete; host-only, no device or library write |
 | B-tree fork growth | `implemented` | `hfs_btree_grow()` allocates a volume block, extends the catalog/extents fork in the primary/alternate headers, adds a free node to the header map and updates `totalNodes`; requires `node_size == block_size` and an inline fork extent slot; 1 host test |
@@ -85,7 +86,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Journal replay on a real dirty volume | `unproven` | Replay is host-tested on synthetic journals; no macOS-created dirty volume or device run |
 | Installer or desktop app | `planned` | No host application |
 | Build system, CI, release artifacts | `in progress` | Host test Makefiles and the diagnostic bootloader script; no CI or firmware release |
-| Helikon-OS device run | `unproven` | One owner-reported diagnostic boot: splash shown, volume/catalog PASS, read FAIL `-11`; fixed image not rerun |
+| Helikon-OS device run | `unproven` | Three owner-reported diagnostic runs: two read-only-image boots and one write-diagnostic run with every stage PASS; no firmware or library-write run |
 | Supported device list | `unproven` | 6G is the reference; 7G needs a board audit |
 | Code of conduct | `rejected` | Owner deleted Contributor Covenant 2.1 on 2026-11-03; no replacement |
 | Signing policy and key ownership | `planned` | D-20 is still open |
@@ -109,7 +110,7 @@ overlay-based product.
 
 ## Last recorded device run
 
-**Two owner-reported diagnostic runs, 2026-11-03.**
+**Three owner-reported diagnostic runs, 2026-11-03.**
 
 The first image (`bd0ebc92…`, 66,920 bytes) booted on the owner's 6G and showed
 the splash. `HFS+ volume: PASS` and `HFS+ catalog: PASS`. The read probe failed
@@ -122,8 +123,16 @@ partition size displayed as expected. `HFS+ read` reported `-8`
 (`HFS_ERR_NOT_FOUND`) because `/rockbox.ipod` is not a file on this iPod; the
 lookup itself worked. No write was requested or reported.
 
-This is a partial bring-up run, not a support claim. The file-read path is not
-hardware-exercised yet. See [`device-matrix.md`](device-matrix.md) §2.1.
+The separate write diagnostic (`9e3881…`, 109,320 bytes) was then installed by
+DFU with `--dfusend` and no `--single`. The owner reports every screen stage
+PASS. The extracted inner image (16,777,216 bytes, SHA-256
+`156060075eef60c463f421ce459c2138a00e1c43de44da802b77ce89c79ca0e8`) passed
+`fsck_hfs -fn` with exit 0, the `diag` folder was gone, and
+`diskutil verifyVolume` exited 0 on the outer volume.
+
+The read-only runs are a partial bring-up; the write run covers only the
+inner-image sequence. No library write, power-cut, adapter or release claim.
+See [`device-matrix.md`](device-matrix.md) §2.1 and §2.2.
 
 The donor project has owner-reported hardware use for its V3.2 release. That is
 donor evidence, not Helikon-OS evidence, and it does not validate native HFS+
@@ -132,11 +141,11 @@ writes, the transaction engine, the bootloader, or any goal in
 
 ## Current blockers
 
-1. **No firmware implementation.** There is a host HFS+ read core and an
-   unproven read-only diagnostic bootloader image; the firmware-loading
-   bootloader, kernel, writer, journal, VFS, player, UI, database, installer and
-   host app do not exist. The first diagnostic boot is owner-reported and the
-   fixed image has not been rerun.
+1. **No firmware implementation.** There is a host HFS+ read/write core, a
+   read-only diagnostic image and a separate inner-image write diagnostic. The
+   firmware-loading bootloader, kernel, VFS, player, UI, database, installer and
+   host app do not exist. The write diagnostic's library, power-cut, adapter and
+   release paths are not tested.
 2. **Journal decisions are settled; the writer is not implemented.** D-03
    requires journaled writes and D-04 makes Helikon-OS own replay. The
    transaction engine, journal record format, replay and crash tests do not

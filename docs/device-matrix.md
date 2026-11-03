@@ -7,10 +7,13 @@
 > Last updated: 2026-11-03
 > Source: design paper §1, §24, §28.2.4, §28.4.5; `docs/verification.md`
 
-**Helikon-OS has one owner-reported diagnostic run.** It is a partial/failed
-bring-up run, not support. Every unrun or failed row below is `planned`,
-`unproven` or `fail`. Do not add a device to a supported list because it has the
-same SoC, because the donor ran on it, or because a build links.
+**Helikon-OS has three owner-reported diagnostic runs on one 6G:** two
+read-only-image runs (one partial/failed, one corrected report) and one
+write-diagnostic run that reported every stage PASS and whose inner image passed
+`fsck_hfs`. This is recorded evidence for those tests, not a support claim.
+Every unrun row below is `planned`, `unproven` or `fail`. Do not add a device to
+a supported list because it has the same SoC, because the donor ran on it, or
+because a build links.
 
 ## 1. Target policy
 
@@ -81,10 +84,32 @@ The file-read path is therefore not hardware-exercised yet. The next diagnostic
 probe should target a real root file such as `/.rockpod-rw`. This does not block
 the writer design.
 
-The separate write diagnostic (`9e3881…`, 109,320 bytes) is built and its host
-outer/inner image test passes, but it has **no hardware run**. Do not add a
-write, journal or support row until a 6G run records the on-screen report and an
-extracted `helikon-test.img` passes `fsck_hfs -fn`.
+The separate write diagnostic (`9e3881…`, 109,320 bytes) now has one recorded
+6G run; see §2.2. The inner image passed `fsck_hfs` and the outer volume passed
+`diskutil verifyVolume`. This is not a library-write, power-cut, adapter or
+release claim; those rows remain unrun.
+
+### 2.2 Write diagnostic run — owner-reported, 2026-11-03
+
+The separate write-diagnostic image (`9e3881…`, 109,320 bytes) was installed by
+DFU with `--dfusend` (never `--single`) on the owner's 6G. The inner image
+`helikon-test.img` was present at the root. The owner reports that **every stage
+on screen passed**: outer HFS+, test image, inner HFS+, inner catalog, inner
+journal, folder, create, append, readback, rename, truncate, delete and splash.
+
+Post-run verification on macOS:
+
+- Extracted inner image `helikon-test.img`, 16,777,216 bytes, SHA-256
+  `156060075eef60c463f421ce459c2138a00e1c43de44da802b77ce89c79ca0e8`.
+- `fsck_hfs -fn` (hfs-751) exited 0 and reported:
+  `The volume HelikonInner appears to be OK.`
+- Mounting the inner image showed no `diag` folder, so the diagnostic cleaned up
+  its own create/delete sequence.
+- `diskutil verifyVolume /Volumes/IPOD` exited 0; the outer volume was OK.
+
+This proves the inner-image write path and the outer-metadata guard on one 6G
+run. It is not a library-write, power-cut, adapter or release claim. The outer
+volume's metadata was not written; only `helikon-test.img` data blocks changed.
 
 ## 3. Storage and adapter matrix
 

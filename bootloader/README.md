@@ -118,5 +118,5 @@ flashing.
 - Manifest/signature verification and boot state (D-01/D-02).
 - Firmware loading.
 - The separate write diagnostic is built (`bootloader-ipod6g-write-diag.ipod`)
-  but has no hardware run. The read-only image remains the production
-  diagnostic.
+  and has one owner-reported 6G run with every stage PASS and a clean inner
+  `fsck_hfs`. The read-only image remains the production diagnostic.

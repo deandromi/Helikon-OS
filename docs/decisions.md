@@ -453,6 +453,11 @@ diagnostic. See C-08.
 - **Follow-up:** run it on the owner's 6G with a verified backup, record the
   report and extracted-image fsck in `docs/device-matrix.md`; if it fails,
   preserve the image and stop. The production bootloader stays read-only.
+- **Evidence:** first owner-reported 6G run, 2026-11-03: every screen stage
+  PASS; extracted inner image SHA-256
+  `156060075eef60c463f421ce459c2138a00e1c43de44da802b77ce89c79ca0e8`;
+  `fsck_hfs -fn` exit 0; no `diag` folder; outer `diskutil verifyVolume` exit 0.
+  One run only; not a library-write, power-cut or support claim.
 
 
 ## Conflicts and source separation

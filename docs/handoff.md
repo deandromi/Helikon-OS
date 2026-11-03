@@ -11,6 +11,70 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (write diagnostic hardware pass)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the hardware-evidence commit; check `git log -1`.
+
+## What happened
+
+- The separate write diagnostic was installed on the owner's 6G by DFU with
+  `--dfusend`; `--single` was not used.
+- The owner reports **every screen stage PASS**: outer HFS+, test image, inner
+  HFS+, inner catalog, inner journal, folder, create, append, readback, rename,
+  truncate, delete and splash.
+- The inner image was extracted after the run:
+  - size 16,777,216 bytes;
+  - SHA-256 `156060075eef60c463f421ce459c2138a00e1c43de44da802b77ce89c79ca0e8`;
+  - `fsck_hfs -fn` (hfs-751) exit 0, "The volume HelikonInner appears to be OK.";
+  - no `diag` folder remained;
+  - outer `diskutil verifyVolume /Volumes/IPOD` exit 0.
+- This is the first hardware proof of the inner-image writer sequence and the
+  outer-metadata guard. It is not a library-write, power-cut, adapter or release
+  claim.
+
+## What was verified
+
+- `fsck_hfs -fn` on the extracted inner image: exit 0.
+- Inner root after run: only the normal HFS+ private entries; `diag` absent.
+- `diskutil verifyVolume /Volumes/IPOD`: exit 0.
+- The owner's on-screen report was all PASS.
+- The outer volume still contains the 16 MiB `helikon-test.img`.
+
+## What is next
+
+1. Record the exact adapter/storage model for this 6G run if known; the current
+   matrix still says `open question`.
+2. Test a second run without recreating the inner image (the host test says it
+   is reusable).
+3. Add power-cut injection on the inner image, then a disposable library-write
+   plan with backup/recovery.
+4. Continue metadata parity and the wider macOS name corpus.
+
+## What must not be touched
+
+- Do not treat this one run as support for library writes or other devices.
+- Do not write the outer HFS+ metadata or the library.
+- Never use `--single`.
+- Do not retry writes after a failed `fsck_hfs` or dirty journal.
+
+## Open questions
+
+- Adapter and storage model of the tested 6G (`open question` in the matrix).
+- Behavior on a fragmented outer file (guard currently fails closed on
+  metadata-fork overflow).
+- D-05 cache/dirty-set budget and metadata parity.
+
+## Device/test evidence
+
+- 6G write-diagnostic run, 2026-11-03, owner-reported all PASS.
+- Inner image SHA-256 `156060…`; `fsck_hfs -fn` exit 0; outer verify exit 0.
+- Recorded in `docs/device-matrix.md` §2.2.
+
+---
+
 # Handoff — 2026-11-03 (separate write diagnostic image)
 
 ## Branch / commit

@@ -1,6 +1,6 @@
 # Write diagnostic image — separate, DFU-only, unproven
 
-> Status: **host-tested core, unproven on hardware.**
+> Status: **host-tested; first 6G run passed on 2026-11-03.**
 > This is not the production bootloader, not a release and not a support claim.
 > Owner: boot/release lead
 > Last updated: 2026-11-03
@@ -188,11 +188,23 @@ If `fsck_hfs` reports a repair, any error, or a dirty journal, **stop**. Preserv
 the image, record the report and do not run the write diagnostic again on that
 image. Recreate `helikon-test.img` from macOS before another attempt.
 
+## First hardware run — 2026-11-03
+
+The owner installed the image on a 6G by DFU with `--dfusend` and no
+`--single`. **Every screen stage passed.** The extracted inner image
+`helikon-test.img` was 16,777,216 bytes, SHA-256
+`156060075eef60c463f421ce459c2138a00e1c43de44da802b77ce89c79ca0e8`.
+`fsck_hfs -fn` exited 0 and reported `The volume HelikonInner appears to be
+OK`; the inner `diag` folder was gone, and `diskutil verifyVolume` exited 0 on
+the outer `IPOD` volume.
+
+This proves the inner-image write sequence and the outer-metadata guard on one
+6G run. It does not prove library writes, power-cut recovery, adapter
+compatibility or release readiness.
+
 ## What is not claimed
 
-- No hardware run of this image is recorded.
-- The host core passes the outer/inner image test, but that is not a device
-  validation.
+- Only one hardware run of this image is recorded.
 - The writer still lacks metadata parity, a wider macOS name corpus and a
   device power-cut matrix.
 - The production bootloader remains read-only; this image does not change that.

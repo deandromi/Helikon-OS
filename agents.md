@@ -18,8 +18,10 @@ greenfield design, not a working firmware release.
 
 - **Design stage:** a host HFS+ read/write core, a read-only diagnostic
   bootloader image and a separate write-diagnostic image exist. There is no
-  kernel/firmware, firmware-loading bootloader, installer, release artifact or
-  Helikon-OS write device run. Both diagnostic images are unproven on hardware.
+  kernel/firmware, firmware-loading bootloader, installer or release artifact.
+  The read-only image has two owner-reported 6G runs; the write image has one
+  owner-reported 6G run with every stage PASS and a clean inner `fsck_hfs`.
+  These are diagnostic runs, not firmware support claims.
 - **Current repository content:** the owner-authored root `README.md`, this
   documentation set, `firmware/hfs/`, `bootloader/` (diagnostic core, hardware
   glue and built image) and `tests/`.
