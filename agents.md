@@ -16,10 +16,10 @@ Helikon-OS is a planned native-HFS+ bootloader and firmware for the iPod Classic
 6th generation, with the 7th generation as the next named port. It is a
 greenfield design, not a working firmware release.
 
-- **Design stage:** a host HFS+ read core and a read-only diagnostic bootloader
-  image exist. There is no kernel/firmware, firmware-loading bootloader,
-  installer, release artifact or Helikon-OS device run. The diagnostic image is
-  unproven on hardware.
+- **Design stage:** a host HFS+ read/write core, a read-only diagnostic
+  bootloader image and a separate write-diagnostic image exist. There is no
+  kernel/firmware, firmware-loading bootloader, installer, release artifact or
+  Helikon-OS write device run. Both diagnostic images are unproven on hardware.
 - **Current repository content:** the owner-authored root `README.md`, this
   documentation set, `firmware/hfs/`, `bootloader/` (diagnostic core, hardware
   glue and built image) and `tests/`.
@@ -71,8 +71,11 @@ writes in `/.rockpod-rw`) is the opposite of Helikon-OS by design.
    first write.
 5. **No destructive repair.** Never format, erase, restore, repartition, delete
    the journal, or zero catalog/bitmap/metadata to "fix" a software error.
-6. **Bootloader is read-only.** It reads native HFS+, verifies a firmware
-   manifest, reads boot state, and never writes the filesystem.
+6. **The production bootloader is read-only.** It reads native HFS+, verifies
+   a firmware manifest, reads boot state, and never writes the filesystem. The
+   separate DFU-only write diagnostic (D-22) may write only inside a
+   preallocated inner HFS+ image file; it never writes the outer volume's
+   metadata, catalog, bitmap or journal.
 7. **Never install a bootloader with `--single`.** It destroys the Apple NOR
    path. Bootloader changes are DFU-only.
 8. **Never test writes on the only copy of the library.** A verified backup and
@@ -107,9 +110,10 @@ docs/                     agent documentation (current)
   verification.md         per-change proof checklist
   architecture.md         layers, boundaries, memory, security
   file-map.md             where to change what
-bootloader/               read-only diagnostic bootloader; image unproven on hardware
-  hardware/               S5L8702/ATA/LCD glue and donor integration patch
-  artifacts/              built image, SHA256SUMS and provenance
+bootloader/               read-only diagnostic and separate write diagnostic
+  hardware/               S5L8702/ATA/LCD glue and donor integration patches
+  artifacts/              built images, hashes and provenance
+  WRITE_DIAG.md            separate inner-image write diagnostic runbook
 firmware/                 host HFS+ read core exists; HAL/VFS/player/UI planned
   hfs/                    HFS+ read core; volume header/journal probe implemented
 tools/                    diagnostic build script; host tools/inspectors planned
@@ -130,16 +134,24 @@ make -C tests/hfsplus test
 make -C tests/hfsplus sanitize
 make -C tests/bootloader test
 make -C tests/bootloader sanitize
+make -C tests/image test
+make -C tests/image crash-test
+make -C tests/image write-diag-test
 
 DONOR_DIR=/path/to/hfsplus-rockboxed-ipod \
   ./tools/build-diagnostic-bootloader.sh
+
+DONOR_DIR=/path/to/hfsplus-rockboxed-ipod \
+  ./tools/build-write-diagnostic-bootloader.sh
 ```
 
-The script exports the pinned donor commit, applies
-`bootloader/hardware/donor-bootloader.patch`, builds Thumb, checks `_moveend`
-against `MOVE_AREA`, copies the image to `bootloader/artifacts/` and prints its
-SHA-256. The image is unproven on hardware; a successful link is not a device
-run. Do not invent firmware commands, images, test counts or device results. The
+The scripts export the pinned donor commit, apply the corresponding patch,
+build Thumb, check `_moveend` against `MOVE_AREA`, copy the image to
+`bootloader/artifacts/` and print its SHA-256. The read-only image and the
+separate write diagnostic are both unproven on hardware; a successful link is
+not a device run. The write image may write only inside a preallocated
+`helikon-test.img`; see `bootloader/WRITE_DIAG.md`. Do not invent firmware
+commands, images, test counts or device results. The
 donor repository's commands are reference material only and do not test
 Helikon-OS:
 
@@ -245,9 +257,22 @@ image hash and `MOVE_AREA` headroom in the artifact README and DFU runbook.
 **Test:** both host test suites with sanitizers; rebuild with the pinned donor
 commit; check `_moveend` and headroom; run the `mks5lboot --mkdfu-inst` dry run;
 install only after a verified `.rockbox` + `/.rockpod-rw` backup and a clean
-eject. **Evidence:** commit, image hash/size, `MOVE_AREA` values, DFU dry-run
+eject. The separate write diagnostic follows `bootloader/WRITE_DIAG.md` and
+writes only inside its preallocated inner image; it never relaxes this recipe. **Evidence:** commit, image hash/size, `MOVE_AREA` values, DFU dry-run
 output, device screen/report and power-off result. **Rollback:** DFU uninstall
 or Apple restore; never `--single`, format, erase or delete the journal.
+
+### 7.9 Write diagnostic image change
+
+**Read first:** `bootloader/WRITE_DIAG.md`, `bootloader/DFU.md`,
+`docs/decisions.md` D-22, `docs/state.md`. **Do:** keep the outer volume
+read-only; write only through `inner_image` inside `helikon-test.img`; keep the
+extent/metadata guard; never add `--single` or a firmware load. **Test:** the
+host write-diagnostic integration test, `fsck_hfs` on the outer and inner
+images, the build size/headroom check, and a recorded device run before any
+claim. **Evidence:** image hash, report screenshot/notes, extracted-inner
+`fsck_hfs` output, printer state. **Rollback:** DFU uninstall or Apple restore;
+do not format, erase or delete the journal.
 
 ## 8. Release policy
 - Channels: **stable**, **beta**, **development**.
@@ -287,7 +312,8 @@ Full entries and status are in `docs/decisions.md`.
 D-04 Helikon-OS-owned replay, D-06 Apple FastUnicodeCompare and HFS+
 normalization with generated Unicode 2.1.9 tables, D-17 product name
 (clearance open), D-18
-GPL-2.0-or-later, D-21 read-only diagnostic-first bootloader scope.
+GPL-2.0-or-later, D-21 read-only diagnostic-first bootloader scope, D-22
+separate inner-image write diagnostic scope.
 **Rejected:** D-19 Contributor Covenant (owner deleted the file; no replacement).
 
 **Open:** D-01 boot image verification and key storage · D-02 boot state and
@@ -331,4 +357,4 @@ The handoff template is in `docs/handoff.md`. A dated log entry belongs in
 [Failures](docs/failures.md) · [device matrix](docs/device-matrix.md) · [handoff](docs/handoff.md) · [conventions](docs/conventions.md) · [glossary](docs/glossary.md) · [testing](docs/testing.md) · [validation](docs/validation.md) · [goals](docs/goals.md).
 [Roadmap](docs/roadmap.md) · [write engine](docs/hfsplus-write-engine.md) · [release](docs/release.md) · [security](docs/security.md) · [FAQ](docs/faq.md) · [design paper](docs/design-paper.md) · [logo assets](assets/logo/README.md) · [branding assets](assets/branding/README.md) · [bootloader](bootloader/README.md) · [ADRs](docs/adr/README.md) · [ADR template](docs/adr/0001-template.md).
 [Log](docs/log/README.md) · [log template](docs/log/TEMPLATE.md) · [latest log](docs/log/2026-11-03.md) · [prompts](docs/prompts/README.md) · [writer review](docs/prompts/review-hfsplus-writer.md) · [device matrix prompt](docs/prompts/run-device-matrix.md) · [docs audit](docs/prompts/audit-docs-for-contradictions.md).
-[Contributing](CONTRIBUTING.md) · [security policy](SECURITY.md) · [license](LICENSE) · [notice](NOTICE) · [issue templates](.github/ISSUE_TEMPLATE/) · [DFU runbook](bootloader/DFU.md).
+[Contributing](CONTRIBUTING.md) · [security policy](SECURITY.md) · [license](LICENSE) · [notice](NOTICE) · [issue templates](.github/ISSUE_TEMPLATE/) · [DFU runbook](bootloader/DFU.md) · [write diagnostic](bootloader/WRITE_DIAG.md).

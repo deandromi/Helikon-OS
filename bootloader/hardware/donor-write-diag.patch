@@ -1,0 +1,280 @@
+diff --git a/bootloader/SOURCES b/bootloader/SOURCES
+index 8510479..16ce133 100644
+--- a/bootloader/SOURCES
++++ b/bootloader/SOURCES
+@@ -79,3 +79,25 @@ x1000/utils.c
+ #elif defined(ECHO_R1)
+ echoplayer.c
+ #endif
++
++helikon/helikon_write_diag_hw.c
++helikon/write_report.c
++helikon/splash.c
++helikon/write_diag.c
++helikon/inner_image.c
++helikon/hfs_volume.c
++helikon/hfs_btree.c
++helikon/hfs_catalog.c
++helikon/hfs_extents.c
++helikon/hfs_unicode.c
++helikon/hfs_unicode_data.c
++helikon/hfs_catalog_compare.c
++helikon/hfs_catalog_write.c
++helikon/hfs_btree_tree.c
++helikon/hfs_btree_write.c
++helikon/hfs_fork_io.c
++helikon/hfs_volume_write.c
++helikon/hfs_bitmap.c
++helikon/hfs_extents_write.c
++helikon/hfs_txn.c
++helikon/hfs_journal.c
+diff --git a/bootloader/bootloader.make b/bootloader/bootloader.make
+index 25c49da..2401824 100644
+--- a/bootloader/bootloader.make
++++ b/bootloader/bootloader.make
+@@ -8,6 +8,7 @@
+ #
+
+ INCLUDES += -I$(APPSDIR)
++INCLUDES += -I$(ROOTDIR)/firmware/hfsplus
+ SRC += $(call preprocess, $(APPSDIR)/SOURCES)
+
+ CONFIGFILE := $(FIRMDIR)/export/config/$(MODELNAME).h
+diff --git a/bootloader/ipod-s5l87xx.c b/bootloader/ipod-s5l87xx.c
+index 002f6b8..cc3f735 100644
+--- a/bootloader/ipod-s5l87xx.c
++++ b/bootloader/ipod-s5l87xx.c
+@@ -85,68 +85,10 @@ extern uint32_t start_loc;
+
+ extern int line;
+
+-#ifndef S5L87XX_DEVELOPMENT_BOOTLOADER
+-#ifdef HAVE_BOOTLOADER_USB_MODE
+-static void usb_mode(void)
+-{
+-    int button;
+-
+-    verbose = true;
+-
+-    printf("Entering USB mode...");
+-
+-    powermgmt_init();
+-
+-    /* The code will ask for the maximum possible value */
+-    usb_charging_enable(USB_CHARGING_ENABLE);
+-
+-    usb_init();
+-    usb_start_monitoring();
+-
+-    /* Wait until USB is plugged */
+-    while (usb_detect() != USB_INSERTED)
+-    {
+-        printf("Plug USB cable");
+-        line--;
+-        sleep(HZ/10);
+-    }
+-
+-    while(1)
+-    {
+-        button = button_get_w_tmo(HZ/10);
++void helikon_splash_show(void);
++void helikon_write_diagnostic(void);
+
+-        if (button == SYS_USB_CONNECTED)
+-            break; /* Hit */
+-
+-        if (usb_detect() == USB_EXTRACTED)
+-            break; /* Cable pulled */
+-
+-        /* Wait for threads to connect or cable is pulled */
+-        printf("USB: Connecting...");
+-        line--;
+-    }
+-
+-    if (button == SYS_USB_CONNECTED)
+-    {
+-        /* Got the message - wait for disconnect */
+-        printf("Bootloader USB mode");
+-
+-        /* Ack the SYS_USB_CONNECTED polled from the button queue */
+-        usb_acknowledge(SYS_USB_CONNECTED_ACK, button_get_data());
+-
+-        while(1)
+-        {
+-            button = button_get_w_tmo(HZ/2);
+-            if (button == SYS_USB_DISCONNECTED)
+-                break;
+-        }
+-    }
+-
+-    /* We don't want the HDD to spin up if the USB is attached again */
+-    usb_close();
+-    printf("USB mode exit     ");
+-}
+-#endif /* HAVE_BOOTLOADER_USB_MODE */
++#ifndef S5L87XX_DEVELOPMENT_BOOTLOADER
+
+ void fatal_error(int err)
+ {
+@@ -157,11 +99,8 @@ void fatal_error(int err)
+     switch (err)
+     {
+         case ERR_RB:
+-#ifdef HAVE_BOOTLOADER_USB_MODE
+-            usb_mode();
+             printf("Hold MENU+SELECT to reboot");
+             break;
+-#endif
+         case ERR_STORAGE:
+             printf("Hold MENU+SELECT to reboot");
+             printf("then SELECT+PLAY for disk mode");
+@@ -850,8 +789,7 @@ void main(void)
+
+     verbose = true;
+
+-    printf("Rockbox boot loader");
+-    printf("Version: %s", rbversion);
++    helikon_splash_show();
+
+     backlight_init(); /* Turns on the backlight */
+
+@@ -875,7 +813,6 @@ void main(void)
+ #endif /* S5L87XX_DEVELOPMENT_BOOTLOADER */
+
+ #ifndef S5L87XX_DEVELOPMENT_BOOTLOADER
+-    if (rc == 0) {
+ #if (CONFIG_STORAGE & STORAGE_ATA)
+         /* Wait until there is enought power to spin-up HDD */
+         battery_trap();
+@@ -887,130 +824,6 @@ void main(void)
+             fatal_error(ERR_STORAGE);
+         }
+
+-        filesystem_init();
+-
+-        /* We wait until HDD spins up to check for hold button */
+-        if (button_hold()) {
+-#ifdef SYSCFG_MAX_ENTRIES
+-            bool lba48 = false;
+-            struct SysCfg syscfg;
+-            const ssize_t result = syscfg_read(&syscfg);
+-            if (result != -1) {
+-                const size_t syscfg_num_entries = MIN(syscfg.header.num_entries, SYSCFG_MAX_ENTRIES);
+-                for (size_t i = 0; i < syscfg_num_entries; i++) {
+-                    const struct SysCfgEntry* entry = &syscfg.entries[i];
+-                    const uint32_t* data32 = (uint32_t *)entry->data;
+-                    if (entry->tag == SYSCFG_TAG_HWVR) {
+-                        lba48 = (data32[1] >= 0x130200);
+-                        break;
+-                    }
+-                }
+-
+-                int btn = button_read_device();
+-
+-                struct storage_info sinfo;
+-                storage_get_info(0, &sinfo);
+-                if (sinfo.num_sectors < (1 << 28) || lba48 || btn & BUTTON_LEFT) {
+-                    printf("Executing OF...");
+-#if (CONFIG_STORAGE & STORAGE_ATA)
+-                    ata_sleepnow();
+-#endif
+-                    rc = kernel_launch_onb();
+-                } else {
+-                    printf("OF does not support LBA48");
+-                    fatal_error(ERR_LBA28);
+-                }
+-            }
+-#else
+-            printf("Executing OF...");
+-#if (CONFIG_STORAGE & STORAGE_ATA)
+-            ata_sleepnow();
+-#endif
+-            rc = kernel_launch_onb();
+-#endif /* SYSCFG_MAX_ENTRIES */
+-        }
+-    }
+-
+-    if (rc != 0) {
+-        printf("Load OF error: %d", rc);
+-        fatal_error(ERR_OF);
+-    }
+-
+-#ifdef HAVE_BOOTLOADER_USB_MODE
+-    /* Enter USB mode if SELECT+RIGHT are pressed */
+-    if (button_read_device() == (BUTTON_SELECT|BUTTON_RIGHT)) {
+-#if defined(MAX_VIRT_SECTOR_SIZE) && defined(DEFAULT_VIRT_SECTOR_SIZE)
+-#ifdef HAVE_MULTIDRIVE
+-            for (int i = 0 ; i < NUM_DRIVES ; i++)
+-#endif
+-                disk_set_sector_multiplier(IF_MD(i,) DEFAULT_VIRT_SECTOR_SIZE/SECTOR_SIZE);
+-#endif
+-        usb_mode();
+-    }
+-#endif
+-
+-    rc = disk_mount_all();
+-    if (rc <= 0) {
+-#ifdef STORAGE_GET_INFO
+-        struct storage_info sinfo;
+-        storage_get_info(0, &sinfo);
+-#ifdef MAX_PHYS_SECTOR_SIZE
+-        printf("id: '%s' s:%u*%u", sinfo.product, sinfo.sector_size, sinfo.phys_sector_mult);
+-#else
+-        printf("id: '%s' s:%u", sinfo.product, sinfo.sector_size);
+-#endif
+-#endif
+-        struct partinfo pinfo;
+-#ifdef HAVE_HFSPLUS_RO
+-        if (hfsplus_had_hfs_candidate() && hfsplus_last_error()) {
+-            if (hfsplus_last_stage() == 1)
+-                printf("HFS+ v8 scan error: %d", hfsplus_last_error());
+-            else if (hfsplus_last_stage() == 2)
+-                printf("HFS+ v8 mount error: %d", hfsplus_last_error());
+-            else
+-                printf("HFS+ error: %d", hfsplus_last_error());
+-            printf("%s", hfs_ro_strerror(hfsplus_last_error()));
+-        } else
+-#endif
+-        printf("No partition found");
+-        for (int i = 0 ; i < NUM_VOLUMES ; i++) {
+-            disk_partinfo(i, &pinfo);
+-            if (pinfo.type)
+-                printf("P%d T%02x A%llx S%llx",
+-                       i, pinfo.type,
+-                       (unsigned long long)pinfo.start,
+-                       (unsigned long long)pinfo.size);
+-        }
+-        fatal_error(ERR_RB);
+-    }
+-
+-#ifdef HAVE_HFSPLUS_RO
+-    if (hfsplus_mounted(0))
+-        printf("HFS+ native mount");
+-#endif
+-    printf("Loading Rockbox...");
+-    unsigned char *loadbuffer = (unsigned char *)DRAM_ORIG;
+-    rc = load_firmware(loadbuffer, BOOTFILE, MAX_LOADSIZE);
+-
+-    if (rc <= EFILE_EMPTY) {
+-        printf("Error!");
+-        printf("Can't load " BOOTFILE ": ");
+-        printf(loader_strerror(rc));
+-        fatal_error(ERR_RB);
+-    }
+-
+-    printf("Rockbox loaded.");
+-
+-    /* If we get here, we have a new firmware image at 0x08000000, run it */
+-    disable_irq();
+-
+-    int (*kernel_entry)(void) = (void*)loadbuffer;
+-    commit_discard_idcache();
+-    rc = kernel_entry();
+-
+-    /* End stop - should not get here */
+-    enable_irq();
+-    printf("ERR: Failed to boot");
+-    while(1);
++        helikon_write_diagnostic();
+ #endif
+ }

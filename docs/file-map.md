@@ -40,6 +40,13 @@ Helikon-OS/
       bootloader-ipod6g.ipod  built diagnostic image (unproven on hardware)
       SHA256SUMS            hash for the committed image
   firmware/
+    inner_image.c/.h      outer-file extent mapping + metadata guard
+    write_diag.c/.h       inner-image writer sequence and result
+    write_report.c/.h     write-diagnostic screen formatter
+    hardware/
+      helikon_write_diag_hw.c  ATA read/write/flush, splash, report, power-off
+      donor-write-diag.patch   separate write-diagnostic donor integration
+    WRITE_DIAG.md         separate DFU-only write diagnostic runbook
     hfs/
       hfs_volume.c          HFS+ volume header/journal probe
       hfs_volume.h          read-only volume API and error taxonomy
@@ -84,9 +91,12 @@ Helikon-OS/
       hfs_crash_test.c      journal write-failure injection and recovery
       run-macos.sh          hdiutil + fsck_hfs + macOS mount driver
       run-crash-macos.sh    per-cut crash/replay/fsck driver
+      write_diag_host.c     host outer/inner write-diagnostic runner
+      run-write-diag-macos.sh  outer/inner image fsck integration test
     bootloader/
       Makefile              bootloader host test target
       test_diag.c           diagnostic core/splash tests
+      test_inner_image.c    inner-image extent mapping/metadata guard tests
   docs/
     README.md               documentation index and reading order
     state.md                current phase and blockers
@@ -135,6 +145,8 @@ firmware/
   diagnostics/              events, counters, recovery screens
 tools/
   build-diagnostic-bootloader.sh  pinned donor export, patch, Thumb build, checks
+  build-write-diagnostic-bootloader.sh  separate write-diagnostic build
+  make-write-diag-image.sh  create the disposable inner HFS+ image
   gen-hfs-unicode-table.py  generate the HFS+ fold/decomposition tables
   hfsplus/                  host inspector, fixtures, tests
   db/                       host database builder

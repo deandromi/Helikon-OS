@@ -71,6 +71,34 @@ Do not begin until all are true:
 
 If any box is unchecked, stop.
 
+## 0. Separate write diagnostic image
+
+The read-only image above is the production diagnostic. A separate DFU-only
+write diagnostic exists for the native writer:
+
+| Field | Value |
+|---|---|
+| Image | [`artifacts/bootloader-ipod6g-write-diag.ipod`](artifacts/bootloader-ipod6g-write-diag.ipod) |
+| Size | 109,320 bytes |
+| SHA-256 | `9e3881297d8a793d6c0589e9779f1d624685f001b6e1cf12814c06c8b7b2aa99` |
+| Marker | `HELIKON-OS WRITE DIAG` |
+| `MOVE_AREA` | `0x22020800`–`0x22040000`; `_moveend` `0x2203b300`; 19,712 bytes headroom |
+
+Extra preconditions for this image:
+
+- [ ] `helikon-test.img` (16 MiB, journaled HFS+) is at the iPod root and was
+      created by [`../tools/make-write-diag-image.sh`](../tools/make-write-diag-image.sh).
+- [ ] The outer volume has at least 16 MiB free and its journal is clean.
+- [ ] You accept that only the test image's data blocks are written; outer
+      metadata is not.
+- [ ] You have read [`WRITE_DIAG.md`](WRITE_DIAG.md) and can copy the inner
+      image back to macOS for `fsck_hfs -fn`.
+
+The backup, DFU and recovery rules are otherwise identical. Never use
+`--single`. If the diagnostic reports FAIL, preserve the inner image and do not
+retry writes until it has been recreated and checked on macOS. No hardware run
+of this image is recorded.
+
 ## 1. Back up the Rockbox state
 
 Connect the iPod in **Apple Disk Mode**. Music is deliberately not copied. If

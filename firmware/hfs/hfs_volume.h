@@ -8,7 +8,7 @@
 #define HFS_VOLUME_HEADER_OFFSET 1024u
 #define HFS_VOLUME_HEADER_SIZE 512u
 #define HFS_EXTENT_COUNT 8u
-#define HFS_MAX_NODE_SIZE 32768u
+#define HFS_MAX_NODE_SIZE 8192u
 
 enum hfs_error {
     HFS_OK = 0,

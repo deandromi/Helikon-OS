@@ -14,15 +14,27 @@ HEADERS = ../../bootloader/diagnostics.h ../../bootloader/report.h ../../bootloa
           ../hfsplus/test_check.h $(HFS)/hfs_catalog.h $(HFS)/hfs_unicode.h \
           $(HFS)/hfs_extents.h $(HFS)/hfs_btree.h $(HFS)/hfs_volume.h
 
+INNER_SOURCES = test_inner_image.c ../../bootloader/inner_image.c \
+                $(HFS)/hfs_catalog.c $(HFS)/hfs_extents.c \
+                $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c \
+                $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c
+INNER_HEADERS = ../../bootloader/inner_image.h \
+                $(HFS)/hfs_catalog.h $(HFS)/hfs_extents.h \
+                $(HFS)/hfs_unicode.h $(HFS)/hfs_btree.h $(HFS)/hfs_volume.h
+
 .PHONY: all test sanitize clean
 
-all: test_diag
+all: test_diag test_inner_image
 
 test_diag: $(SOURCES) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SOURCES) $(LDFLAGS) -o $@
 
-test: test_diag
+test_inner_image: $(INNER_SOURCES) $(INNER_HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(INNER_SOURCES) $(LDFLAGS) -o $@
+
+test: test_diag test_inner_image
 	./test_diag
+	./test_inner_image
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
@@ -40,4 +52,4 @@ sanitize:
 	$(MAKE) CFLAGS='$(SAN_CFLAGS)' LDFLAGS='$(SAN_LDFLAGS)' test
 
 clean:
-	rm -rf test_diag *.dSYM
+	rm -rf test_diag test_inner_image *.dSYM

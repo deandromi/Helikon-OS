@@ -52,11 +52,13 @@ re-litigate them.
 | D-19 | Code of conduct | rejected | owner | §18, §28.4.4 |
 | D-20 | Signing-key ownership | proposed | owner | §25.1, §16, §28.2.5 |
 | D-21 | First diagnostic bootloader scope | accepted | owner | §5, §24, §27 |
+| D-22 | Separate write diagnostic scope | accepted | owner | §5, §24, §27; D-21 |
 
 The paper's §25 lists 17 decisions. D-18, D-19 and D-20 are added from §18 and
 §28.4.4. D-18 is accepted; D-19 was adopted and then rejected when the owner
 deleted `CODE_OF_CONDUCT.md` on 2026-11-03; D-20 remains open. D-21 records the
-first diagnostic bootloader scope. See C-08.
+first diagnostic bootloader scope. D-22 records the separate inner-image write
+diagnostic. See C-08.
 
 ## D-01 — Boot image verification
 
@@ -423,8 +425,35 @@ first diagnostic bootloader scope. See C-08.
   read probe failed; both are fixed in the current image. The fixed image is
   still unproven; record the reflash in
   [`device-matrix.md`](device-matrix.md) using
-  [`../bootloader/DFU.md`](../bootloader/DFU.md). Add write diagnostics later on
-  a disposable volume (T-030) after the writer and D-03/D-04.
+  [`../bootloader/DFU.md`](../bootloader/DFU.md). The separate inner-image write
+  diagnostic is D-22 and [`../bootloader/WRITE_DIAG.md`](../bootloader/WRITE_DIAG.md).
+
+
+## D-22 — Separate write diagnostic scope
+
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §5, §24, §27; D-21.
+- **Context:** the read-only diagnostic cannot exercise the native writer. The
+  owner asked for a read/write diagnostic while preserving the rule that the
+  production bootloader and the library volume are never written.
+- **Decision:** build a **separate DFU-only write diagnostic**. It keeps the
+  splash and the outer HFS+ volume read-only, finds a preallocated root-level
+  `helikon-test.img` (16 MiB, journaled HFS+), maps only that file's data-fork
+  extents, and runs create folder/file, append, readback, rename, truncate and
+  delete through the real writer inside the inner image. It rejects a dirty
+  outer journal, a missing/small/non-journaled inner image, and an extent map
+  that overlaps outer metadata. It reports PASS/FAIL and leaves the inner image
+  for macOS `fsck_hfs`. The production bootloader remains read-only; this image
+  does not load firmware, does not write the outer filesystem and is never
+  installed with `--single`.
+- **Consequences:** the write image contains `ata_write_sectors` and is
+  experimental. The outer file's data blocks change; outer metadata does not.
+  The test image is disposable and must be created by the user. No device or
+  support claim is allowed until a recorded run and an external `fsck_hfs`
+  pass.
+- **Follow-up:** run it on the owner's 6G with a verified backup, record the
+  report and extracted-image fsck in `docs/device-matrix.md`; if it fails,
+  preserve the image and stop. The production bootloader stays read-only.
+
 
 ## Conflicts and source separation
 

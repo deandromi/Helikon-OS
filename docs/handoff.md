@@ -11,6 +11,77 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (separate write diagnostic image)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the write-diagnostic commit; check `git log -1`.
+
+## What changed
+
+- Added `bootloader/inner_image.c/.h`: maps a root-level outer HFS+ file's
+  data-fork extents to a block device, rejects out-of-range writes, and guards
+  against overlap with outer volume headers, journal, catalog/extents/
+  allocation forks. The outer volume remains read-only.
+- Added `bootloader/write_diag.c/.h`: finds `helikon-test.img`, probes the inner
+  volume, replays its journal, and runs create folder/file, append, readback,
+  rename, truncate and delete through the real writer. Reports PASS/FAIL.
+- Added `bootloader/hardware/helikon_write_diag_hw.c`, a separate donor patch
+  and `tools/build-write-diagnostic-bootloader.sh`. The image keeps the splash
+  and the outer read-only path; `ata_write_sectors` is used only through the
+  inner-image mapping.
+- Refactored the writer's large work buffers from the stack into static BSS
+  (the bootloader stack is only 8 KiB). `HFS_MAX_NODE_SIZE` is now 8192; the
+  writer remains single-threaded.
+- Built `bootloader-ipod6g-write-diag.ipod`: 109,320 bytes,
+  SHA-256 `9e3881297d8a793d6c0589e9779f1d624685f001b6e1cf12814c06c8b7b2aa99`,
+  `_moveend` `0x2203b300`, 19,712 bytes below `MOVE_AREA`.
+- Added `tools/make-write-diag-image.sh` and `bootloader/WRITE_DIAG.md`.
+- Host tests: inner-image mapping/guard (4), write-diagnostic outer/inner image
+  test (twice, inner and outer fsck clean, no leftover `diag`).
+- Total portable host tests: 107 (95 HFS+, 12 bootloader), sanitizer-clean.
+
+## What was verified
+
+- `make -C tests/bootloader test` — 12/12 pass (8 diag + 4 inner-image).
+- `make -C tests/image write-diag-test` — PASS twice; outer and extracted inner
+  images fsck-clean; no `diag` folder left.
+- `make -C tests/hfsplus test` / `sanitize` — 95/95.
+- `make -C tests/image test` and `crash-test` — still pass.
+- The write image builds, fits `MOVE_AREA`, and `mks5lboot --mkdfu-inst`
+  accepts it as Classic 6G. No hardware run.
+
+## What is next
+
+1. Record one 6G run with `helikon-test.img`, capture the on-screen report,
+   copy the inner image back and run `fsck_hfs -fn`. Do not claim support until
+   it passes.
+2. If it fails, preserve the inner image and stop; recreate it before another
+   attempt.
+3. Continue metadata parity, wider macOS corpus and power-loss matrices.
+
+## What must not be touched
+
+- Never use `--single`.
+- Never write the outer HFS+ metadata or the library.
+- Do not add a write path to the production read-only image.
+- Do not retry writes after a failed `fsck_hfs` or dirty journal.
+
+## Open questions
+
+- Actual 6G report and inner-image fsck result.
+- Outer metadata overlap guard behavior on a fragmented real catalog (it fails
+  closed if metadata forks have overflow extents).
+- D-05 cache/dirty-set budget and metadata parity.
+
+## Device/test evidence
+
+- No hardware run of the write image. Host outer/inner image test only.
+- Artifact hash and `MOVE_AREA` headroom are recorded in `bootloader/WRITE_DIAG.md`.
+
+---
+
 # Handoff — 2026-11-03 (folders, rename, below-minimum insert)
 
 ## Branch / commit

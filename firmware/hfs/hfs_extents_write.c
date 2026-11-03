@@ -68,7 +68,7 @@ int hfs_extents_overflow_set(struct hfs_volume *volume, struct hfs_txn *tx,
     if (volume == NULL || tx == NULL || extents == NULL || count == 0 ||
         count > 8u)
         return HFS_ERR_ARGUMENT;
-    uint8_t scratch[32768];
+    static uint8_t scratch[32768];
     struct hfs_btree btree;
     int rc = open_extents(volume, &btree, scratch);
     if (rc != HFS_OK)
@@ -101,7 +101,7 @@ int hfs_extents_overflow_get(struct hfs_volume *volume, struct hfs_txn *tx,
     if (volume == NULL || tx == NULL || extents == NULL || count == NULL ||
         capacity == 0)
         return HFS_ERR_ARGUMENT;
-    uint8_t scratch[32768];
+    static uint8_t scratch[32768];
     struct hfs_btree btree;
     int rc = open_extents(volume, &btree, scratch);
     if (rc != HFS_OK)
@@ -140,7 +140,7 @@ int hfs_extents_overflow_clear(struct hfs_volume *volume, struct hfs_txn *tx,
 {
     if (volume == NULL || tx == NULL)
         return HFS_ERR_ARGUMENT;
-    uint8_t scratch[32768];
+    static uint8_t scratch[32768];
     struct hfs_btree btree;
     int rc = open_extents(volume, &btree, scratch);
     if (rc != HFS_OK)

@@ -9,6 +9,7 @@ tests/hfsplus/test_txn
 tests/hfsplus/test_bitmap
 tests/hfsplus/*.dSYM/
 tests/bootloader/test_diag
+tests/bootloader/test_inner_image
 tests/bootloader/*.dSYM/
 build/
 tests/hfsplus/test_btree_write
@@ -20,3 +21,4 @@ tests/hfsplus/test_catalog_write
 tests/image/hfs_image_test
 tests/image/*.dSYM/
 tests/image/hfs_crash_test
+tests/image/write_diag_host

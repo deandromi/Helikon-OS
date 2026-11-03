@@ -2,7 +2,7 @@
 CC ?= cc
 CFLAGS ?= -O2 -g
 CFLAGS += -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow
-CPPFLAGS += -I../../firmware/hfs
+CPPFLAGS += -I../../firmware/hfs -I../../bootloader
 HFS = ../../firmware/hfs
 
 COMMON = $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog_compare.c \
@@ -23,15 +23,22 @@ HEADERS = $(HFS)/hfs_catalog.h $(HFS)/hfs_catalog_compare.h \
 	  $(HFS)/hfs_extents_write.h $(HFS)/hfs_txn.h \
 	  $(HFS)/hfs_journal.h $(HFS)/hfs_btree.h $(HFS)/hfs_volume.h
 
-.PHONY: all test crash-test clean
+.PHONY: all test crash-test write-diag-test clean
 
-all: hfs_image_test hfs_crash_test
+all: hfs_image_test hfs_crash_test write_diag_host
 
 hfs_image_test: hfs_image_test.c $(COMMON) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) hfs_image_test.c $(COMMON) $(LDFLAGS) -o $@
 
 hfs_crash_test: hfs_crash_test.c $(COMMON) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) hfs_crash_test.c $(COMMON) $(LDFLAGS) -o $@
+
+write_diag_host: write_diag_host.c ../../bootloader/write_diag.c \
+                 ../../bootloader/write_diag.h ../../bootloader/inner_image.c \
+                 ../../bootloader/inner_image.h $(COMMON) $(HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) write_diag_host.c \
+	  ../../bootloader/write_diag.c ../../bootloader/inner_image.c \
+	  $(COMMON) $(LDFLAGS) -o $@
 
 # The shell drivers create their own disposable images. Never point them at a
 # library or a mounted device.
@@ -41,5 +48,8 @@ test: hfs_image_test
 crash-test: hfs_crash_test
 	./run-crash-macos.sh
 
+write-diag-test: write_diag_host
+	./run-write-diag-macos.sh
+
 clean:
-	rm -rf hfs_image_test hfs_crash_test *.dSYM
+	rm -rf hfs_image_test hfs_crash_test write_diag_host *.dSYM

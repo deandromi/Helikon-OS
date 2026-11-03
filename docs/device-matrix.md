@@ -34,7 +34,7 @@ images, backups or serial numbers to the repository.
 | iPod Classic 6G (reference) | `open question` | `open question` | diagnostic `280ed7ae…` | boot + splash + report | `pass` | Owner report 2026-11-03: report formatting correct; volume PASS, catalog PASS, splash PASS, write NOT IMPLEMENTED, no write | owner |
 | iPod Classic 6G (reference) | `open question` | `open question` | diagnostic `280ed7ae…` | native HFS+ file read | `blocked` | Owner report 2026-11-03: `read error: -8` (`NOT_FOUND`) because `/rockbox.ipod` is not a disk file; probe target needs a real root file | owner |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | playback | `not run` | none | test lead |
-| iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | native HFS+ write (disposable) | `not run` | none | HFS+ lead |
+| iPod Classic 6G (reference) | `open question` | `open question` | write diagnostic `9e3881…` | native HFS+ write inside `helikon-test.img` | `not run` | host outer/inner image test passes twice; no hardware run | boot/HFS+ |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | journal replay | `not run` | none | journal lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | sleep/wake 100 cycles | `not run` | none | test lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | USB read-only | `not run` | none | USB lead |
@@ -80,6 +80,11 @@ lookup itself worked. No write was requested or reported.
 The file-read path is therefore not hardware-exercised yet. The next diagnostic
 probe should target a real root file such as `/.rockpod-rw`. This does not block
 the writer design.
+
+The separate write diagnostic (`9e3881…`, 109,320 bytes) is built and its host
+outer/inner image test passes, but it has **no hardware run**. Do not add a
+write, journal or support row until a 6G run records the on-screen report and an
+extracted `helikon-test.img` passes `fsck_hfs -fn`.
 
 ## 3. Storage and adapter matrix
 

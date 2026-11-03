@@ -152,7 +152,7 @@ int hfs_bitmap_find(struct hfs_bitmap *bitmap, uint32_t start_hint,
         return HFS_ERR_NO_SPACE;
     uint32_t first_bitmap = start_hint / bits_per_block;
     uint32_t last_bitmap = (bitmap->total_blocks - 1u) / bits_per_block;
-    uint8_t buffer[32768];
+    static uint8_t buffer[32768];
     if (bitmap->block_size > sizeof(buffer))
         return HFS_ERR_UNSUPPORTED;
 
@@ -199,7 +199,7 @@ int hfs_bitmap_alloc(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
 
     uint32_t first_bitmap = start_hint / bits_per_block;
     uint32_t last_bitmap = (bitmap->total_blocks - 1u) / bits_per_block;
-    uint8_t buffer[32768];
+    static uint8_t buffer[32768];
 
     if (bitmap->block_size > sizeof(buffer))
         return HFS_ERR_UNSUPPORTED;
@@ -258,7 +258,7 @@ int hfs_bitmap_free(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
         return HFS_ERR_FORMAT;
 
     uint32_t bits_per_block = bitmap->block_size * 8u;
-    uint8_t buffer[32768];
+    static uint8_t buffer[32768];
     if (bitmap->block_size > sizeof(buffer))
         return HFS_ERR_UNSUPPORTED;
 

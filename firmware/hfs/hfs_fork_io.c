@@ -39,7 +39,7 @@ int hfs_fork_stage(struct hfs_txn *tx, const struct hfs_volume *volume,
         volume->block_size % tx->journal->sector_size != 0)
         return HFS_ERR_UNSUPPORTED;
 
-    uint8_t bounce[32768];
+    static uint8_t bounce[32768];
     const uint8_t *source = data;
     uint64_t end = offset + length;
     uint64_t extent_start = 0;

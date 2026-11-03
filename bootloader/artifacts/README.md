@@ -29,6 +29,37 @@ The committed `SHA256SUMS` is authoritative for this file. A rebuild may
 produce a different hash if the toolchain or build environment changes; verify
 the hash printed by the build script in that case.
 
+## Two images
+
+This directory now contains two separate artifacts:
+
+| Image | Purpose | Status |
+|---|---|---|
+| `bootloader-ipod6g.ipod` | Read-only HFS+ diagnostic + splash | unproven on hardware |
+| `bootloader-ipod6g-write-diag.ipod` | Separate write diagnostic inside a preallocated inner image file | host-tested, unproven on hardware |
+
+The production diagnostic remains read-only. The write image is a separate,
+DFU-only experiment governed by D-22 and
+[`../WRITE_DIAG.md`](../WRITE_DIAG.md); it is never installed with `--single`.
+
+### Write diagnostic artifact
+
+| Field | Value |
+|---|---|
+| Image | `bootloader-ipod6g-write-diag.ipod` |
+| Size | 109,320 bytes |
+| SHA-256 | `9e3881297d8a793d6c0589e9779f1d624685f001b6e1cf12814c06c8b7b2aa99` |
+| Marker | `HELIKON-OS WRITE DIAG` |
+| `_moveend` | `0x2203b300` |
+| `MOVE_AREA` | `0x22020800`–`0x22040000`; 19,712 bytes headroom |
+| Build | `tools/build-write-diagnostic-bootloader.sh` |
+
+It keeps the outer HFS+ volume read-only and writes only inside a root-level
+`helikon-test.img` (16 MiB, journaled HFS+). The host core test creates an outer
+HFS+ image, copies an inner HFS+ image into it, runs the same writer sequence,
+and verifies both images with `fsck_hfs`; it passes, including a second run.
+No hardware run exists.
+
 ## What it does
 
 - Shows the owner-supplied 320×240 splash.

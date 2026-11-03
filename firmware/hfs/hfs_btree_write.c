@@ -4,7 +4,7 @@
 #include <string.h>
 
 #define HFS_BTREE_DESCRIPTOR 14u
-#define HFS_BTREE_MAX_NODE 32768u
+#define HFS_BTREE_MAX_NODE HFS_MAX_NODE_SIZE
 
 static uint16_t be16(const uint8_t *p)
 {
@@ -107,7 +107,7 @@ int hfs_btree_node_insert(uint8_t *node, uint16_t node_size, uint16_t index,
                                                       free_offset,
                                                       (uint16_t)(index - 1u)));
 
-    uint8_t temp[HFS_BTREE_MAX_NODE];
+    static uint8_t temp[HFS_BTREE_MAX_NODE];
     memcpy(temp, node, node_size);
     memmove(temp + insert_offset + length, temp + insert_offset,
             (size_t)(free_offset - insert_offset));
@@ -166,7 +166,7 @@ int hfs_btree_node_split(uint8_t *left, uint8_t *right, uint16_t node_size,
     if (split_index == 0 || split_index >= count)
         return HFS_ERR_ARGUMENT;
 
-    uint8_t old[HFS_BTREE_MAX_NODE];
+    static uint8_t old[HFS_BTREE_MAX_NODE];
     memcpy(old, left, node_size);
 
     memcpy(right, left, HFS_BTREE_DESCRIPTOR);
@@ -225,7 +225,7 @@ int hfs_btree_node_delete(uint8_t *node, uint16_t node_size, uint16_t index)
                    free_offset;
     size_t length = (size_t)(end - start);
 
-    uint8_t temp[HFS_BTREE_MAX_NODE];
+    static uint8_t temp[HFS_BTREE_MAX_NODE];
     memcpy(temp, node, node_size);
     memmove(temp + start, temp + end, (size_t)(free_offset - end));
 

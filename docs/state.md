@@ -60,6 +60,8 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Volume header staging | `implemented` | `hfs_volume_write.c`; primary/alternate header file/folder counts, next CNID and write count; no `modifyDate` update |
 | Private NUL names | `implemented` | Directory iteration escapes NUL as U+2400 and marks the entry `name_escaped`/`unsupported`; path lookup skips the escaped entry and continues instead of aborting the directory; 1 catalog test |
 | Extents-overflow record | `implemented` | `hfs_extents_write.c`; data-fork records keyed by fork/file/startBlock, up to eight extents each; insert/get/delete; multiple records supported |
+| Inner-image mapping | `implemented` | `bootloader/inner_image.c` maps a root-level outer file's data-fork extents into a block device, rejects out-of-range writes, and guards against overlap with outer metadata, journal, volume headers and forks; 4 host tests |
+| Separate write diagnostic | `unproven` | `bootloader-ipod6g-write-diag.ipod` (109,320 bytes, `9e3881…`, 19,712 bytes headroom) keeps the outer HFS+ volume read-only and runs the writer inside `helikon-test.img`; the host outer/inner image test passes twice, but there is no device run |
 | Journal crash injection | `implemented` | `tests/image/run-crash-macos.sh` injects a failed write at every cut point of create (25), append (43), truncate (34) and delete (25) transactions, reopens the image, replays the journal and runs `fsck_hfs -fn`; all 127 cuts recover to a consistent state and an fsck-clean volume; rename, partial-sector writes, fsync failures and power-loss timing remain |
 | Disposable-image writer validation | `implemented` | `tests/image/run-macos.sh` creates a 16 MiB journaled HFS+ image, creates/appends/truncates/deletes a file, mounts it in macOS to read back 4096 bytes, and `fsck_hfs -fn` reports the volume OK after create and after delete; host-only, no device or library write |
 | B-tree fork growth | `implemented` | `hfs_btree_grow()` allocates a volume block, extends the catalog/extents fork in the primary/alternate headers, adds a free node to the header map and updates `totalNodes`; requires `node_size == block_size` and an inline fork extent slot; 1 host test |
@@ -68,7 +70,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Data-fork append/truncate (eight inline + multiple overflow records) | `implemented` | `hfs_catalog_append_file` appends to empty or non-empty files, stages data before metadata, allocates individual free blocks, merges inline extents and writes multiple extents-overflow records; truncate frees all records; the transaction block budget caps very large fragmented writes |
 | Fork block staging | `implemented` | `firmware/hfs/hfs_fork_io.c`; full/partial block write staging into `hfs_txn`; inline extents only; 4 host tests |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
-| Host test harness | `in progress` | 103 portable tests (95 HFS+, 8 bootloader), sanitizer clean, plus the macOS disposable-image and crash-injection tests; first diagnostic boot is owner-reported |
+| Host test harness | `in progress` | 107 portable tests (95 HFS+, 12 bootloader), sanitizer clean, plus the macOS disposable-image, crash-injection and write-diagnostic tests; first diagnostic boot is owner-reported |
 
 ## What does not exist
 
@@ -76,7 +78,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 |---|---|---|
 | Helikon-OS firmware source tree | `in progress` | Host HFS+ read core and a diagnostic bootloader exist; no kernel, VFS or player |
 | Helikon-OS firmware-loading bootloader | `planned` | The diagnostic image does not load firmware; D-01/D-02 still open |
-| Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; no device run and no firmware loading |
+| Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; separate write diagnostic built; neither image loads firmware, and the write image has no device run |
 | Bootloader manifest/boot state | `planned` | D-01/D-02 still open |
 | VFS, player, UI, database | `planned` | No implementation |
 | HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete/growth/below-minimum, fork staging, file/folder create/delete/rename, multi-extent/overflow data append/truncate, FastUnicodeCompare, HFS+ normalization and disposable-image `fsck_hfs` validation exist; metadata parity, the broader macOS name corpus and any device write do not |
@@ -182,6 +184,9 @@ The next writer tasks are:
 - **T-010** — the create/append/truncate/delete write-failure matrices pass
   (127 cuts, fsck clean). Rename, partial-sector/fsync failures, power-loss
   timing and the evidence format remain.
+- **D-22** — the separate write diagnostic is built and host-tested. Next: a
+  recorded 6G run with `helikon-test.img`, then extract the inner image and run
+  `fsck_hfs -fn` before any support claim.
 
 The bootloader path resumes afterwards; D-01/D-02/D-20 remain open.
 

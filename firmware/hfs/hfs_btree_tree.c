@@ -353,17 +353,44 @@ static int compare_record(const uint8_t *record, size_t length,
     return HFS_OK;
 }
 
+static int insert_parent_impl(struct hfs_btree *btree,
+                              struct tree_header *header,
+                              struct hfs_txn *tx,
+                              const struct insert_path *path,
+                              unsigned int level, uint32_t right_node,
+                              const uint8_t *key, size_t key_length,
+                              hfs_btree_key_compare_fn compare,
+                              void *context);
+
 static int insert_parent(struct hfs_btree *btree, struct tree_header *header,
                          struct hfs_txn *tx, const struct insert_path *path,
                          unsigned int level, uint32_t right_node,
                          const uint8_t *key, size_t key_length,
                          hfs_btree_key_compare_fn compare, void *context)
 {
+    static int active;
+    if (active)
+        return HFS_ERR_UNSUPPORTED;
+    active = 1;
+    int rc = insert_parent_impl(btree, header, tx, path, level, right_node,
+                                key, key_length, compare, context);
+    active = 0;
+    return rc;
+}
+
+static int insert_parent_impl(struct hfs_btree *btree,
+                              struct tree_header *header,
+                              struct hfs_txn *tx,
+                              const struct insert_path *path,
+                         unsigned int level, uint32_t right_node,
+                         const uint8_t *key, size_t key_length,
+                         hfs_btree_key_compare_fn compare, void *context)
+{
     uint32_t parent_node = path[level - 1u].node;
     uint16_t child = path[level - 1u].child;
-    uint8_t parent[HFS_MAX_NODE_SIZE];
-    uint8_t right[HFS_MAX_NODE_SIZE];
-    uint8_t index_record[HFS_MAX_NODE_SIZE];
+    static uint8_t parent[HFS_MAX_NODE_SIZE];
+    static uint8_t right[HFS_MAX_NODE_SIZE];
+    static uint8_t index_record[HFS_MAX_NODE_SIZE];
 
     int rc = read_node(btree, tx, parent_node, parent);
     if (rc != HFS_OK)
@@ -443,7 +470,7 @@ static int insert_parent(struct hfs_btree *btree, struct tree_header *header,
 
     uint32_t next_index = be32(right);
     if (next_index != 0) {
-        uint8_t next[HFS_MAX_NODE_SIZE];
+        static uint8_t next[HFS_MAX_NODE_SIZE];
         rc = read_node(btree, tx, next_index, next);
         if (rc != HFS_OK)
             return rc;
@@ -462,7 +489,7 @@ static int insert_parent(struct hfs_btree *btree, struct tree_header *header,
         rc = alloc_node(btree, tx, header, &new_root);
         if (rc != HFS_OK)
             return rc;
-        uint8_t root[HFS_MAX_NODE_SIZE];
+        static uint8_t root[HFS_MAX_NODE_SIZE];
         memset(root, 0, btree->node_size);
         root[8] = 0;
         root[9] = (uint8_t)(parent[9] + 1u);
@@ -501,7 +528,7 @@ static int update_index_key(struct hfs_btree *btree, struct hfs_txn *tx,
                              uint32_t parent_node, uint16_t child,
                              const uint8_t *key, size_t key_length)
 {
-    uint8_t parent[HFS_MAX_NODE_SIZE];
+    static uint8_t parent[HFS_MAX_NODE_SIZE];
     int rc = read_node(btree, tx, parent_node, parent);
     if (rc != HFS_OK)
         return rc;
@@ -523,7 +550,7 @@ static int update_index_key(struct hfs_btree *btree, struct hfs_txn *tx,
         HFS_MAX_NODE_SIZE)
         return HFS_ERR_NO_SPACE;
 
-    uint8_t index_record[HFS_MAX_NODE_SIZE];
+    static uint8_t index_record[HFS_MAX_NODE_SIZE];
     put16(index_record, (uint16_t)key_length);
     memcpy(index_record + HFS_BTREE_KEY_LENGTH, key, key_length);
     put32(index_record + HFS_BTREE_KEY_LENGTH + key_length, child_node);
@@ -570,7 +597,7 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
         return HFS_ERR_ARGUMENT;
     const uint8_t *new_key = new_record + HFS_BTREE_KEY_LENGTH;
 
-    struct tree_header header;
+    static struct tree_header header;
     int rc = load_header(btree, tx, &header);
     if (rc != HFS_OK)
         return rc;
@@ -578,7 +605,7 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
     struct insert_path path[HFS_BTREE_MAX_DEPTH];
     uint32_t node_number = header.root_node;
     unsigned int level = 0;
-    uint8_t node[HFS_MAX_NODE_SIZE];
+    static uint8_t node[HFS_MAX_NODE_SIZE];
 
     while (1) {
         rc = read_node(btree, tx, node_number, node);
@@ -673,7 +700,7 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
     if (rc != HFS_OK)
         return rc;
 
-    uint8_t right[HFS_MAX_NODE_SIZE];
+    static uint8_t right[HFS_MAX_NODE_SIZE];
     uint16_t split = (uint16_t)(count / 2u);
     const uint8_t *separator;
     size_t separator_length;
@@ -731,7 +758,7 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
 
     uint32_t next_leaf = be32(right);
     if (next_leaf != 0) {
-        uint8_t next[HFS_MAX_NODE_SIZE];
+        static uint8_t next[HFS_MAX_NODE_SIZE];
         rc = read_node(btree, tx, next_leaf, next);
         if (rc != HFS_OK)
             return rc;
@@ -753,7 +780,7 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
         rc = alloc_node(btree, tx, &header, &new_root);
         if (rc != HFS_OK)
             return rc;
-        uint8_t root[HFS_MAX_NODE_SIZE];
+        static uint8_t root[HFS_MAX_NODE_SIZE];
         memset(root, 0, btree->node_size);
         root[8] = 0;
         root[9] = (uint8_t)(node[9] + 1u);
@@ -765,7 +792,7 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
         rc = first_key(node, btree->node_size, &left_key, &left_key_length);
         if (rc != HFS_OK)
             return rc;
-        uint8_t index_record[HFS_MAX_NODE_SIZE];
+        static uint8_t index_record[HFS_MAX_NODE_SIZE];
         size_t left_record = build_index(index_record, left_key,
                                          left_key_length, node_number);
         rc = hfs_btree_node_insert(root, btree->node_size, 0, index_record,
@@ -812,7 +839,7 @@ static int rebalance_leaf_prev(struct hfs_btree *btree,
     if (prev == 0)
         return 0;
 
-    uint8_t prev_node[HFS_MAX_NODE_SIZE];
+    static uint8_t prev_node[HFS_MAX_NODE_SIZE];
     int rc = read_node(btree, tx, prev, prev_node);
     if (rc != HFS_OK)
         return rc;
@@ -823,7 +850,7 @@ static int rebalance_leaf_prev(struct hfs_btree *btree,
     uint16_t child = path[level - 1u].child;
     if (child == 0)
         return 0;
-    uint8_t parent[HFS_MAX_NODE_SIZE];
+    static uint8_t parent[HFS_MAX_NODE_SIZE];
     rc = read_node(btree, tx, parent_node, parent);
     if (rc != HFS_OK)
         return rc;
@@ -831,7 +858,7 @@ static int rebalance_leaf_prev(struct hfs_btree *btree,
     if (parent_count <= 1)
         return 0;
 
-    uint8_t merged[HFS_MAX_NODE_SIZE];
+    static uint8_t merged[HFS_MAX_NODE_SIZE];
     memcpy(merged, prev_node, btree->node_size);
     uint16_t current_count = be16(node + 10);
     int fits = 1;
@@ -857,7 +884,7 @@ static int rebalance_leaf_prev(struct hfs_btree *btree,
         memcpy(prev_node, merged, btree->node_size);
         put32(prev_node, after);
         if (after != 0) {
-            uint8_t after_node[HFS_MAX_NODE_SIZE];
+            static uint8_t after_node[HFS_MAX_NODE_SIZE];
             rc = read_node(btree, tx, after, after_node);
             if (rc != HFS_OK)
                 return rc;
@@ -930,7 +957,7 @@ static int unlink_leaf(struct hfs_btree *btree, struct tree_header *header,
     uint32_t next = be32(node);
     int rc;
     if (previous != 0) {
-        uint8_t prev_node[HFS_MAX_NODE_SIZE];
+        static uint8_t prev_node[HFS_MAX_NODE_SIZE];
         rc = read_node(btree, tx, previous, prev_node);
         if (rc != HFS_OK)
             return rc;
@@ -942,7 +969,7 @@ static int unlink_leaf(struct hfs_btree *btree, struct tree_header *header,
         header->first_leaf = next;
     }
     if (next != 0) {
-        uint8_t next_node[HFS_MAX_NODE_SIZE];
+        static uint8_t next_node[HFS_MAX_NODE_SIZE];
         rc = read_node(btree, tx, next, next_node);
         if (rc != HFS_OK)
             return rc;
@@ -989,7 +1016,7 @@ static int set_parent_key(uint8_t *parent, uint16_t node_size,
     uint32_t child_node = be32(old_record + HFS_BTREE_KEY_LENGTH +
                                old_key_length);
 
-    uint8_t index_record[HFS_MAX_NODE_SIZE];
+    static uint8_t index_record[HFS_MAX_NODE_SIZE];
     if (new_key_length + HFS_BTREE_KEY_LENGTH + HFS_BTREE_CHILD_SIZE >
         sizeof(index_record))
         return HFS_ERR_NO_SPACE;
@@ -1017,14 +1044,14 @@ static int merge_leaf_next(struct hfs_btree *btree,
     if (next == 0)
         return 0;
 
-    uint8_t next_node[HFS_MAX_NODE_SIZE];
+    static uint8_t next_node[HFS_MAX_NODE_SIZE];
     int rc = read_node(btree, tx, next, next_node);
     if (rc != HFS_OK)
         return rc;
     if (next_node[8] != 0xff)
         return 0;
 
-    uint8_t merged[HFS_MAX_NODE_SIZE];
+    static uint8_t merged[HFS_MAX_NODE_SIZE];
     memcpy(merged, node, btree->node_size);
     uint16_t next_count = be16(next_node + 10);
     int fits = 1;
@@ -1047,7 +1074,7 @@ static int merge_leaf_next(struct hfs_btree *btree,
 
     uint32_t parent_node = path[level - 1u].node;
     uint16_t child = path[level - 1u].child;
-    uint8_t parent[HFS_MAX_NODE_SIZE];
+    static uint8_t parent[HFS_MAX_NODE_SIZE];
     rc = read_node(btree, tx, parent_node, parent);
     if (rc != HFS_OK)
         return rc;
@@ -1112,7 +1139,7 @@ static int merge_leaf_next(struct hfs_btree *btree,
             return HFS_ERR_FORMAT;
         uint32_t child_node = be32(old_record + HFS_BTREE_KEY_LENGTH +
                                    old_key_length);
-        uint8_t index_record[HFS_MAX_NODE_SIZE];
+        static uint8_t index_record[HFS_MAX_NODE_SIZE];
         size_t index_length = build_index(index_record, new_key,
                                            new_key_length, child_node);
         rc = hfs_btree_node_delete(parent, btree->node_size, child);
@@ -1149,7 +1176,7 @@ static int merge_leaf_next(struct hfs_btree *btree,
     put32(node, be32(next_node));
     uint32_t after = be32(next_node);
     if (after != 0) {
-        uint8_t after_node[HFS_MAX_NODE_SIZE];
+        static uint8_t after_node[HFS_MAX_NODE_SIZE];
         rc = read_node(btree, tx, after, after_node);
         if (rc != HFS_OK)
             return rc;
@@ -1178,8 +1205,8 @@ static int update_parent_key(struct hfs_btree *btree,
         return HFS_OK;
     uint32_t parent_node = path[level - 1u].node;
     uint16_t child = path[level - 1u].child;
-    uint8_t parent[HFS_MAX_NODE_SIZE];
-    uint8_t index_record[HFS_MAX_NODE_SIZE];
+    static uint8_t parent[HFS_MAX_NODE_SIZE];
+    static uint8_t index_record[HFS_MAX_NODE_SIZE];
 
     int rc = read_node(btree, tx, parent_node, parent);
     if (rc != HFS_OK)
@@ -1236,7 +1263,7 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
     if (btree == NULL || tx == NULL || key == NULL || compare == NULL)
         return HFS_ERR_ARGUMENT;
 
-    struct tree_header header;
+    static struct tree_header header;
     int rc = load_header(btree, tx, &header);
     if (rc != HFS_OK)
         return rc;
@@ -1244,7 +1271,7 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
     struct insert_path path[HFS_BTREE_MAX_DEPTH];
     uint32_t node_number = header.root_node;
     unsigned int level = 0;
-    uint8_t node[HFS_MAX_NODE_SIZE];
+    static uint8_t node[HFS_MAX_NODE_SIZE];
 
     while (1) {
         rc = read_node(btree, tx, node_number, node);
@@ -1327,7 +1354,7 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
         /* If the root index has this leaf as its only child, collapse the
          * root to the leaf instead of keeping a one-record index root. */
         if (level == 1) {
-            uint8_t root[HFS_MAX_NODE_SIZE];
+            static uint8_t root[HFS_MAX_NODE_SIZE];
             rc = read_node(btree, tx, path[0].node, root);
             if (rc != HFS_OK)
                 return rc;
@@ -1399,7 +1426,7 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
 
     uint16_t child = path[level - 1u].child;
 
-    uint8_t parent[HFS_MAX_NODE_SIZE];
+    static uint8_t parent[HFS_MAX_NODE_SIZE];
     rc = read_node(btree, tx, path[level - 1u].node, parent);
     if (rc != HFS_OK)
         return rc;
@@ -1408,7 +1435,7 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
     if (parent_count == 1) {
         if (level == 1)
             return HFS_ERR_UNSUPPORTED;
-        uint8_t grandparent[HFS_MAX_NODE_SIZE];
+        static uint8_t grandparent[HFS_MAX_NODE_SIZE];
         uint32_t grandparent_node = path[level - 2u].node;
         uint16_t grandparent_child = path[level - 2u].child;
         rc = read_node(btree, tx, grandparent_node, grandparent);
@@ -1492,13 +1519,13 @@ int hfs_btree_find(struct hfs_btree *btree, struct hfs_txn *tx,
         record == NULL || record_length == NULL)
         return HFS_ERR_ARGUMENT;
 
-    struct tree_header header;
+    static struct tree_header header;
     int rc = load_header(btree, tx, &header);
     if (rc != HFS_OK)
         return rc;
 
     uint32_t node_number = header.root_node;
-    uint8_t node[HFS_MAX_NODE_SIZE];
+    static uint8_t node[HFS_MAX_NODE_SIZE];
     unsigned int level = 0;
     while (1) {
         rc = read_node(btree, tx, node_number, node);
@@ -1577,7 +1604,7 @@ int hfs_btree_grow(struct hfs_btree *btree, struct hfs_txn *tx)
 {
     if (btree == NULL || tx == NULL)
         return HFS_ERR_ARGUMENT;
-    struct tree_header header;
+    static struct tree_header header;
     int rc = load_header(btree, tx, &header);
     if (rc != HFS_OK)
         return rc;

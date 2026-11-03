@@ -107,6 +107,17 @@ commit header was written; every case must be fsck-clean. The create/append/trun
 matrices currently cover 127 cuts. Rename, partial-sector writes, fsync
 failures and power-loss timing remain T-010.
 
+### 5.3 Write-diagnostic outer/inner image test
+
+`tests/image/run-write-diag-macos.sh` creates a 32 MiB journaled outer HFS+
+image and a 16 MiB journaled inner HFS+ image, copies the inner file into the
+outer root as `helikon-test.img`, and runs the same core as the bootloader.
+The core maps only the inner file's extents, runs folder/file create, append,
+readback, rename, truncate and delete, and the test extracts the inner image and
+runs `fsck_hfs -fn` on both images. It runs the sequence twice to check that the
+inner image is reusable and leaves no `diag` folder. This is host evidence for
+the separate write diagnostic; it is not a device run.
+
 ## 6. Device tests
 
 Device tests require a recorded inventory and backup. Minimum matrix:

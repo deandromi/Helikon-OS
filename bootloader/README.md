@@ -29,7 +29,9 @@ overlay, FAT mount and write-capable HFS+ paths are not linked into the image.
 
 ## Safety boundary
 
-- The diagnostic is **read-only**. It never writes to the HFS+ volume.
+- This image is **read-only**. It never writes to the HFS+ volume. A separate
+  DFU-only write diagnostic is documented in [`WRITE_DIAG.md`](WRITE_DIAG.md);
+  it writes only inside a preallocated inner image file and is not this image.
 - `HFS+ write` is always reported as `NOT IMPLEMENTED`; the HFS+ transaction
   engine does not exist yet. Do not turn this into a write test on a real
   library.
@@ -95,8 +97,13 @@ make -C tests/bootloader sanitize
 ```
 
 The bootloader test includes a round-trip check of the Rockbox mono-bitmap
-packing. The synthetic HFS+ fixture is 64 KiB; no device or disk image is
-involved. These are host tests only.
+packing and the inner-image extent mapping/metadata guard. The synthetic HFS+
+fixture is 64 KiB; no device or disk image is involved. These are host tests
+only. The separate write diagnostic also has a macOS outer/inner image test:
+
+```sh
+make -C tests/image write-diag-test
+```
 
 ## DFU install
 
@@ -110,4 +117,6 @@ flashing.
   probe failed.
 - Manifest/signature verification and boot state (D-01/D-02).
 - Firmware loading.
-- Any HFS+ write diagnostic or write path (T-030).
+- The separate write diagnostic is built (`bootloader-ipod6g-write-diag.ipod`)
+  but has no hardware run. The read-only image remains the production
+  diagnostic.

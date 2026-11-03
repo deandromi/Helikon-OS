@@ -73,8 +73,8 @@ static int update_valence(struct hfs_catalog *catalog, struct hfs_txn *tx,
                           hfs_btree_key_compare_fn compare,
                           void *compare_context)
 {
-    uint8_t key[CATALOG_MAX_RECORD];
-    uint8_t record[CATALOG_MAX_RECORD];
+    static uint8_t key[CATALOG_MAX_RECORD];
+    static uint8_t record[CATALOG_MAX_RECORD];
     size_t record_length;
     size_t key_length = build_key(key, parent, NULL, 0);
     int rc = hfs_btree_find(&catalog->btree, tx, key + 2, key_length,
@@ -92,7 +92,7 @@ static int update_valence(struct hfs_catalog *catalog, struct hfs_txn *tx,
     if ((size_t)units * 2u + 10u > record_length - 2u - key_length)
         return HFS_ERR_FORMAT;
 
-    uint8_t folder_key[CATALOG_MAX_RECORD];
+    static uint8_t folder_key[CATALOG_MAX_RECORD];
     size_t folder_key_length = build_key(folder_key, folder_parent,
                                          thread + 10, units);
     rc = hfs_btree_find(&catalog->btree, tx, folder_key + 2,
@@ -145,7 +145,7 @@ static int create_object(struct hfs_catalog *catalog, struct hfs_txn *tx,
     if (kind != CATALOG_FILE_TYPE && kind != CATALOG_FOLDER_TYPE)
         return HFS_ERR_ARGUMENT;
 
-    uint8_t canonical[255u * 2u];
+    static uint8_t canonical[255u * 2u];
     size_t canonical_units = 0;
     int rc = hfs_unicode_normalize_name(name, units, canonical,
                                         sizeof(canonical), &canonical_units);
@@ -167,7 +167,7 @@ static int create_object(struct hfs_catalog *catalog, struct hfs_txn *tx,
     uint16_t thread_type = kind == CATALOG_FOLDER_TYPE ?
                            CATALOG_FOLDER_THREAD_TYPE : CATALOG_FILE_THREAD_TYPE;
 
-    uint8_t record[CATALOG_MAX_RECORD];
+    static uint8_t record[CATALOG_MAX_RECORD];
     size_t key_length = build_key(record, parent, canonical, canonical_units);
     size_t data_offset = 2u + key_length;
     memset(record + data_offset, 0, record_size);
@@ -182,7 +182,7 @@ static int create_object(struct hfs_catalog *catalog, struct hfs_txn *tx,
     if (rc != HFS_OK)
         return rc;
 
-    uint8_t thread[CATALOG_MAX_RECORD];
+    static uint8_t thread[CATALOG_MAX_RECORD];
     size_t thread_key = build_key(thread, next_cnid, NULL, 0);
     size_t thread_data = 2u + thread_key;
     size_t thread_length = 10u + canonical_units * 2u;
@@ -252,7 +252,7 @@ static int delete_object(struct hfs_catalog *catalog, struct hfs_txn *tx,
                          hfs_btree_key_compare_fn compare,
                          void *compare_context)
 {
-    uint8_t canonical[255u * 2u];
+    static uint8_t canonical[255u * 2u];
     size_t canonical_units = 0;
     int rc = hfs_unicode_normalize_name(name, units, canonical,
                                         sizeof(canonical), &canonical_units);
@@ -268,13 +268,13 @@ static int delete_object(struct hfs_catalog *catalog, struct hfs_txn *tx,
     if (rc != HFS_OK)
         return rc;
 
-    uint8_t key[CATALOG_MAX_RECORD];
+    static uint8_t key[CATALOG_MAX_RECORD];
     size_t key_length = build_key(key, parent, canonical, canonical_units);
 
     if (kind == CATALOG_FOLDER_TYPE) {
         if (folder_count == 0)
             return HFS_ERR_FORMAT;
-        uint8_t record[CATALOG_MAX_RECORD];
+        static uint8_t record[CATALOG_MAX_RECORD];
         size_t record_length = 0;
         rc = hfs_btree_find(&catalog->btree, tx, key + 2, key_length,
                             compare, compare_context, record,
@@ -360,9 +360,9 @@ static int folder_is_ancestor(struct hfs_catalog *catalog, struct hfs_txn *tx,
             return 1;
         if (current < 2u)
             return 0;
-        uint8_t key[CATALOG_MAX_RECORD];
+        static uint8_t key[CATALOG_MAX_RECORD];
         size_t key_length = build_key(key, current, NULL, 0);
-        uint8_t record[CATALOG_MAX_RECORD];
+        static uint8_t record[CATALOG_MAX_RECORD];
         size_t record_length = 0;
         int rc = hfs_btree_find(&catalog->btree, tx, key + 2, key_length,
                                 compare, compare_context, record,
@@ -395,8 +395,8 @@ int hfs_catalog_rename(struct hfs_catalog *catalog, struct hfs_txn *tx,
         new_parent < 2u || cnid < 16u)
         return HFS_ERR_ARGUMENT;
 
-    uint8_t old_canonical[255u * 2u];
-    uint8_t new_canonical[255u * 2u];
+    static uint8_t old_canonical[255u * 2u];
+    static uint8_t new_canonical[255u * 2u];
     size_t old_units = 0;
     size_t new_canonical_units = 0;
     int rc = hfs_unicode_normalize_name(name, units, old_canonical,
@@ -409,7 +409,7 @@ int hfs_catalog_rename(struct hfs_catalog *catalog, struct hfs_txn *tx,
     if (rc != HFS_OK)
         return rc;
 
-    uint8_t record[CATALOG_MAX_RECORD];
+    static uint8_t record[CATALOG_MAX_RECORD];
     size_t record_length = 0;
     size_t key_length = 0;
     rc = find_file_record(catalog, tx, parent, old_canonical, old_units,
@@ -453,7 +453,7 @@ int hfs_catalog_rename(struct hfs_catalog *catalog, struct hfs_txn *tx,
     if (rc != HFS_OK)
         return rc;
 
-    uint8_t new_record[CATALOG_MAX_RECORD];
+    static uint8_t new_record[CATALOG_MAX_RECORD];
     size_t new_key_length = build_key(new_record, new_parent, new_canonical,
                                       new_canonical_units);
     size_t new_data_offset = 2u + new_key_length;
@@ -464,7 +464,7 @@ int hfs_catalog_rename(struct hfs_catalog *catalog, struct hfs_txn *tx,
     if (rc != HFS_OK)
         return rc;
 
-    uint8_t thread[CATALOG_MAX_RECORD];
+    static uint8_t thread[CATALOG_MAX_RECORD];
     size_t thread_key = build_key(thread, cnid, NULL, 0);
     rc = hfs_btree_delete(&catalog->btree, tx, thread + 2, thread_key,
                           compare, compare_context);
@@ -502,7 +502,7 @@ static int find_file_record(struct hfs_catalog *catalog, struct hfs_txn *tx,
                             void *compare_context, uint8_t *record,
                             size_t *record_length, size_t *key_length)
 {
-    uint8_t key[CATALOG_MAX_RECORD];
+    static uint8_t key[CATALOG_MAX_RECORD];
     *key_length = build_key(key, parent, name, units);
     return hfs_btree_find(&catalog->btree, tx, key + 2, *key_length,
                           compare, compare_context, record,
@@ -521,14 +521,14 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
         length == 0)
         return HFS_ERR_ARGUMENT;
 
-    uint8_t canonical[255u * 2u];
+    static uint8_t canonical[255u * 2u];
     size_t canonical_units = 0;
     int rc = hfs_unicode_normalize_name(name, units, canonical,
                                         sizeof(canonical), &canonical_units);
     if (rc != HFS_OK)
         return rc;
 
-    uint8_t record[CATALOG_MAX_RECORD];
+    static uint8_t record[CATALOG_MAX_RECORD];
     size_t record_length;
     size_t key_length;
     rc = find_file_record(catalog, tx, parent, canonical, canonical_units,
@@ -593,7 +593,7 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
         cursor = firsts[i] + 1u;
     }
 
-    uint8_t block[32768];
+    static uint8_t block[32768];
     size_t done = 0;
     for (uint32_t i = 0; i < blocks; ++i) {
         memset(block, 0, block_size);
@@ -667,7 +667,7 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
         }
     }
 
-    uint8_t key[CATALOG_MAX_RECORD];
+    static uint8_t key[CATALOG_MAX_RECORD];
     size_t delete_key = build_key(key, parent, name, units);
     rc = hfs_btree_delete(&catalog->btree, tx, key + 2, delete_key,
                           compare, compare_context);
@@ -687,14 +687,14 @@ int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
         units == 0 || units > 255u || parent < 2u)
         return HFS_ERR_ARGUMENT;
 
-    uint8_t canonical[255u * 2u];
+    static uint8_t canonical[255u * 2u];
     size_t canonical_units = 0;
     int rc = hfs_unicode_normalize_name(name, units, canonical,
                                         sizeof(canonical), &canonical_units);
     if (rc != HFS_OK)
         return rc;
 
-    uint8_t record[CATALOG_MAX_RECORD];
+    static uint8_t record[CATALOG_MAX_RECORD];
     size_t record_length;
     size_t key_length;
     rc = find_file_record(catalog, tx, parent, canonical, canonical_units,
@@ -783,7 +783,7 @@ int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
 
     memset(fork, 0, 80);
 
-    uint8_t key[CATALOG_MAX_RECORD];
+    static uint8_t key[CATALOG_MAX_RECORD];
     size_t delete_key = build_key(key, parent, name, units);
     rc = hfs_btree_delete(&catalog->btree, tx, key + 2, delete_key,
                           compare, compare_context);

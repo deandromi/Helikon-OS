@@ -165,7 +165,7 @@ static int journal_write(struct hfs_journal *journal, uint64_t offset,
 
 static int write_header(struct hfs_journal *journal)
 {
-    uint8_t header[HFS_JOURNAL_MAX_SECTOR];
+    static uint8_t header[HFS_JOURNAL_MAX_SECTOR];
     if (journal->sector_size > sizeof(header))
         return HFS_ERR_UNSUPPORTED;
 
@@ -196,7 +196,7 @@ int hfs_journal_open(struct hfs_journal *journal,
                      const struct hfs_volume *volume,
                      hfs_write_fn write, hfs_flush_fn flush)
 {
-    uint8_t header[HFS_JOURNAL_MAX_SECTOR];
+    static uint8_t header[HFS_JOURNAL_MAX_SECTOR];
     if (journal == NULL || volume == NULL || volume->read == NULL)
         return HFS_ERR_ARGUMENT;
     if (volume->journal_offset < 1536u || volume->journal_size < 1024u ||
@@ -270,7 +270,7 @@ int hfs_journal_is_clean(const struct hfs_journal *journal)
 static int replay_one_block_list(struct hfs_journal *journal, uint64_t *offset,
                                  uint64_t *next_offset, int *last)
 {
-    uint8_t header[HFS_JOURNAL_MAX_BLOCK_LIST];
+    static uint8_t header[HFS_JOURNAL_MAX_BLOCK_LIST];
     uint8_t bounce[512];
     int rc = journal_read(journal, *offset, header, journal->block_list_size);
     if (rc != HFS_OK)
@@ -382,7 +382,7 @@ int hfs_journal_replay(struct hfs_journal *journal)
 int hfs_journal_append(struct hfs_journal *journal,
                        const struct hfs_journal_entry *entries, size_t count)
 {
-    uint8_t header[HFS_JOURNAL_MAX_BLOCK_LIST];
+    static uint8_t header[HFS_JOURNAL_MAX_BLOCK_LIST];
     if (journal == NULL || entries == NULL || count == 0)
         return HFS_ERR_ARGUMENT;
     if (journal->write == NULL || journal->flush == NULL)
