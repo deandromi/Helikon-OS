@@ -99,11 +99,12 @@ Helikon-OS poster above the goals on 2026-11-03.
 - **Documentation branch:** `docs/agent-handbook`, fast-forwarded to `main` on
   2026-11-03.
 - **Last known-good code commit:** `4898a6f` (`Code: add separate inner-image
-  write diagnostic`, 2026-11-03); check `git log -- firmware/hfs bootloader
-  tests tools`. No firmware or device run exists.
-- **Last known-good documentation commit:** `6df63ef63bacc93d253db40d1bb7f2efdd289a6c`
-  on `main` (license/COC/issue-template follow-up, fast-forwarded). Any later
-  docs housekeeping commit is on `main`; check `git log -1`.
+  write diagnostic`, 2026-11-03); the write diagnostic from this commit passed
+  one owner-reported 6G run on 2026-11-03. Check
+  `git log -- firmware/hfs bootloader tests tools`. No firmware run exists.
+- **Last known-good documentation commit:** `59db37e` (`Docs: record first
+  write-diagnostic hardware pass`, 2026-11-03). Any later docs housekeeping
+  commit is on `main`; check `git log -1`.
 
 Do not treat the donor V3.2 release as a Helikon-OS baseline. It is a separate
 overlay-based product.
