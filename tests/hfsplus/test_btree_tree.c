@@ -195,7 +195,7 @@ static int test_insert_many(void)
     CHECK(hfs_btree_insert(&btree, &tx, low_record, sizeof(low_record),
                            compare_keys, NULL) == HFS_ERR_UNSUPPORTED);
 
-    static const uint32_t delete_keys[] = { 29, 28, 27, 26, 25, 14 };
+    static const uint32_t delete_keys[] = { 29, 28, 27, 26, 25, 14, 13, 10 };
     for (size_t d = 0; d < sizeof(delete_keys) / sizeof(delete_keys[0]); ++d) {
         memset(&journal, 0, sizeof(journal));
         journal.sector_size = TEST_BLOCK_SIZE;
@@ -215,11 +215,6 @@ static int test_insert_many(void)
     memset(&tx, 0, sizeof(tx));
     tx.journal = &journal;
     tx.active = 1;
-    uint8_t first_record[2u + TEST_KEY_BYTES];
-    make_record(first_record, 10);
-    CHECK(hfs_btree_delete(&btree, &tx, first_record + 2, TEST_KEY_BYTES,
-                           compare_keys, NULL) == HFS_ERR_UNSUPPORTED);
-
     memset(&journal, 0, sizeof(journal));
     journal.sector_size = TEST_BLOCK_SIZE;
     memset(&tx, 0, sizeof(tx));
@@ -233,7 +228,7 @@ static int test_insert_many(void)
     /* Walk the leaf chain and count/order every record. */
     uint8_t *header = node_ptr(0);
     CHECK(get_be16(header + 14) > 1);
-    CHECK(get_be32(header + 20) == TEST_RECORDS - 6u);
+    CHECK(get_be32(header + 20) == TEST_RECORDS - 8u);
     uint32_t node = get_be32(header + 24);
     uint32_t count = 0;
     uint32_t last = 0;
@@ -262,7 +257,7 @@ static int test_insert_many(void)
         last = node;
         node = get_be32(leaf);
     }
-    CHECK(count == TEST_RECORDS - 6u);
+    CHECK(count == TEST_RECORDS - 8u);
     CHECK(last == get_be32(header + 28));
     return 0;
 }

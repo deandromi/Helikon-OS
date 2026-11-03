@@ -11,6 +11,60 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (B-tree first-record delete)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the first-record-delete commit; check `git log -1`.
+
+## What changed
+
+- Added recursive parent-key propagation for first-record deletion.
+- Deleting a first record of a leaf now updates the parent index key, and
+  propagates to the grandparent when the parent is the first child.
+- Empty-leaf removal can now remove a child-0 leaf when the parent has more than
+  one record and propagate the parent’s new first key.
+- Extended the tree model test to delete first records 13 and 10 (including the
+  tree minimum) successfully.
+- Total host tests: 75 (67 HFS+, 8 bootloader), sanitizer-clean.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 67/67 pass.
+- `make -C tests/hfsplus sanitize` — 67/67 pass with ASan/UBSan.
+- The 20-record tree model test covers insert, multi-level split, eight deletes
+  including first/minimum keys, empty-leaf unlink, missing-key `NOT_FOUND`.
+- No device write and no write-capable bootloader image.
+
+## What is next
+
+1. B-tree merge/redistribution for underfull nodes.
+2. Parent/root collapse when an index node loses its last record.
+3. Fork growth when the free-node map is exhausted.
+4. Catalog records + FastUnicodeCompare (D-06).
+5. Extents/overflow, disposable image, `fsck_hfs`, write diagnostic.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- No byte-order substitution for HFS+ catalog keys.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- D-06 Unicode policy / FastUnicodeCompare.
+- Merge/redistribution thresholds and root-collapse policy.
+
+## Device/test evidence
+
+- No new device run. The writer is host-only.
+
+---
+
 # Handoff — 2026-11-03 (B-tree partial delete)
 
 ## Branch / commit
