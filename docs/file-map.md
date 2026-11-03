@@ -45,8 +45,8 @@ Helikon-OS/
       hfs_volume.h          read-only volume API and error taxonomy
       hfs_btree.c           generic B-tree header/node validation
       hfs_btree.h           B-tree handle and leaf/node-record API
-      hfs_unicode.c/.h      UTF-16BE/UTF-8 decode, FastUnicodeCompare, canonical-name guard
-      hfs_unicode_data.c    generated fold table and canonical-decomposition ranges
+      hfs_unicode.c/.h      UTF-16BE/UTF-8 decode, FastUnicodeCompare, HFS+ normalization
+      hfs_unicode_data.c    generated fold, decomposition and CCC tables
       hfs_catalog.c/.h      catalog iteration, path lookup, inline file read
       hfs_catalog_compare.c/.h native catalog key ordering and comparison
       hfs_extents.c/.h      extents-overflow collection and file read

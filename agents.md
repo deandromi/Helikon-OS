@@ -284,8 +284,9 @@ Record the exact error, stage, device state and what was not attempted.
 Full entries and status are in `docs/decisions.md`.
 
 **Settled:** D-03 journaled writes (non-journaled prototype disposable-only),
-D-04 Helikon-OS-owned replay, D-06 Apple FastUnicodeCompare with a generated
-Unicode 2.1.9 table, D-17 product name (clearance open), D-18
+D-04 Helikon-OS-owned replay, D-06 Apple FastUnicodeCompare and HFS+
+normalization with generated Unicode 2.1.9 tables, D-17 product name
+(clearance open), D-18
 GPL-2.0-or-later, D-21 read-only diagnostic-first bootloader scope.
 **Rejected:** D-19 Contributor Covenant (owner deleted the file; no replacement).
 

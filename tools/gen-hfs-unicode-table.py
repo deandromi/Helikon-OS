@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Generate the HFS+ FastUnicodeCompare case-folding table.
+"""Generate the HFS+ FastUnicodeCompare and normalization tables.
 
 The HFS+ on-disk catalog is ordered with Apple's FastUnicodeCompare. Its
 folding table is a snapshot of Unicode 2.1.9 lower-case mappings with three
@@ -14,11 +14,13 @@ HFS+ rules:
   fold to zero. U+0000 folds to U+FFFF so it cannot be confused with the
   end-of-string sentinel.
 
-The second table lists code points that have a canonical decomposition (plus
-the Hangul syllable block, which decomposes algorithmically). The writer uses
-it to refuse a composed name until the HFS+ decomposer is implemented.
+The second and third tables implement the HFS+ normalization variant: fully
+expanded canonical decompositions (except U+2000-U+2FFF, U+F900-U+FAFF and
+U+2F800-U+2FAFF, which HFS+ leaves composed) and canonical combining classes
+for reordering combining marks. Hangul syllables are decomposed
+algorithmically by the runtime, not listed here.
 
-The table is generated from UnicodeData-2.1.9.txt, published by the Unicode
+The tables are generated from UnicodeData-2.1.9.txt, published by the Unicode
 Consortium under the Unicode License. Regenerate with:
 
     tools/gen-hfs-unicode-table.py \
@@ -52,6 +54,29 @@ IGNORED = (
     | {0xFEFF}
 )
 
+# HFS+ leaves these ranges composed even when Unicode gives them a canonical
+# decomposition (TN1150).
+HFS_EXCLUDED = (
+    (0x2000, 0x2FFF),
+    (0xF900, 0xFAFF),
+    (0x2F800, 0x2FAFF),
+)
+
+HANGUL_FIRST = 0xAC00
+HANGUL_LAST = 0xD7A3
+HANGUL_SBASE = 0xAC00
+HANGUL_LBASE = 0x1100
+HANGUL_VBASE = 0x1161
+HANGUL_TBASE = 0x11A7
+HANGUL_VCOUNT = 21
+HANGUL_TCOUNT = 28
+HANGUL_NCOUNT = HANGUL_VCOUNT * HANGUL_TCOUNT
+
+
+def is_excluded(code_point):
+    return any(first <= code_point <= last
+               for first, last in HFS_EXCLUDED)
+
 
 def load_unicode_data(path):
     raw = path.read_bytes()
@@ -64,17 +89,24 @@ def load_unicode_data(path):
 
     lower = {}
     canonical = set()
+    decompositions = {}
+    combining = {}
     for line in raw.decode("utf-8").splitlines():
         fields = line.split(";")
         if len(fields) < 15:
             continue
         code_point = int(fields[0], 16)
-        decomposition = fields[5]
-        if decomposition and not decomposition.startswith("<"):
-            canonical.add(code_point)
+        if fields[3] and int(fields[3]) != 0:
+            combining[code_point] = int(fields[3])
         if fields[13]:
             lower[code_point] = int(fields[13], 16)
-    return lower, canonical
+        decomposition = fields[5]
+        if not decomposition or decomposition.startswith("<"):
+            continue
+        canonical.add(code_point)
+        decompositions[code_point] = [int(part, 16)
+                                      for part in decomposition.split()]
+    return lower, canonical, decompositions, combining
 
 
 def build_fold(lower, canonical):
@@ -102,47 +134,98 @@ def compact(fold):
     return high, subtables
 
 
-def compression_ranges(canonical):
-    code_points = sorted(canonical | set(range(0xAC00, 0xD7A4)))
+def hangul_decomposition(code_point):
+    index = code_point - HANGUL_SBASE
+    lead = HANGUL_LBASE + index // HANGUL_NCOUNT
+    vowel = HANGUL_VBASE + (index % HANGUL_NCOUNT) // HANGUL_TCOUNT
+    trail = HANGUL_TBASE + index % HANGUL_TCOUNT
+    result = [lead, vowel]
+    if trail != HANGUL_TBASE:
+        result.append(trail)
+    return result
+
+
+def expand(code_point, decompositions, stack=()):
+    if code_point in stack:
+        sys.exit(f"decomposition cycle at U+{code_point:04X}")
+    if HANGUL_FIRST <= code_point <= HANGUL_LAST:
+        return hangul_decomposition(code_point)
+    if (code_point in decompositions and not is_excluded(code_point)):
+        result = []
+        for part in decompositions[code_point]:
+            result.extend(expand(part, decompositions, stack + (code_point,)))
+        return result
+    return [code_point]
+
+
+def build_decompositions(decompositions):
+    table = []
+    for code_point in sorted(decompositions):
+        if is_excluded(code_point):
+            continue
+        if HANGUL_FIRST <= code_point <= HANGUL_LAST:
+            continue
+        units = expand(code_point, decompositions)
+        if len(units) > 4:
+            sys.exit(f"decomposition too long at U+{code_point:04X}: {units}")
+        table.append((code_point, units))
+    return table
+
+
+def build_ccc_ranges(combining):
     ranges = []
-    for code_point in code_points:
-        if ranges and code_point == ranges[-1][1] + 1:
+    for code_point in sorted(combining):
+        value = combining[code_point]
+        if ranges and code_point == ranges[-1][1] + 1 and value == ranges[-1][2]:
             ranges[-1][1] = code_point
         else:
-            ranges.append([code_point, code_point])
+            ranges.append([code_point, code_point, value])
     return ranges
 
 
-def emit(high, subtables, ranges, output):
-    values = high + [value for block in subtables for value in block]
+def emit(high, subtables, decompositions, ccc_ranges, output):
+    fold = high + [value for block in subtables for value in block]
     lines = [
         "/* SPDX-License-Identifier: GPL-2.0-or-later */",
         "/*",
         " * Generated by tools/gen-hfs-unicode-table.py. Do not edit by hand.",
         " *",
-        " * Case-folding data for HFS+ FastUnicodeCompare, generated from",
+        " * Case-folding and normalization data for HFS+, generated from",
         " * UnicodeData-2.1.9.txt (Unicode Consortium, Unicode License).",
-        " * The first 256 entries are high-byte offsets in uint16 units; a zero",
-        " * offset means the block folds to itself. Subtables map the low byte",
-        " * to its folded value, with zero marking an ignorable character.",
+        " * Fold table: the first 256 entries are high-byte offsets in uint16",
+        " * units; a zero offset means the block folds to itself. Subtables map",
+        " * the low byte to its folded value, with zero marking an ignorable.",
+        " * Decompositions are fully expanded except for the HFS+ exception",
+        " * ranges; Hangul syllables are handled algorithmically at runtime.",
         " */",
         "#include \"hfs_unicode.h\"",
         "",
-        "const uint16_t hfs_unicode_fold_table[%d] = {" % len(values),
+        "const uint16_t hfs_unicode_fold_table[%d] = {" % len(fold),
     ]
-    for index in range(0, len(values), 8):
-        chunk = values[index:index + 8]
+    for index in range(0, len(fold), 8):
+        chunk = fold[index:index + 8]
         lines.append("    " + ", ".join("0x%04x" % value for value in chunk) + ",")
     lines.append("};")
     lines.append("")
-    lines.append("const uint16_t hfs_unicode_decomposed_ranges[%d][2] = {"
-                 % len(ranges))
-    for first, last in ranges:
-        lines.append("    { 0x%04x, 0x%04x }," % (first, last))
+    lines.append("const struct hfs_unicode_decomposition "
+                 "hfs_unicode_decompositions[%d] = {" % len(decompositions))
+    for code_point, units in decompositions:
+        values = ", ".join("0x%04x" % unit for unit in units)
+        lines.append("    { 0x%04x, %d, { %s } }," %
+                     (code_point, len(units), values))
     lines.append("};")
     lines.append("")
-    lines.append("const size_t hfs_unicode_decomposed_range_count = %d;"
-                 % len(ranges))
+    lines.append("const size_t hfs_unicode_decomposition_count = %d;"
+                 % len(decompositions))
+    lines.append("")
+    lines.append("const struct hfs_unicode_ccc_range "
+                 "hfs_unicode_ccc_ranges[%d] = {" % len(ccc_ranges))
+    for first, last, value in ccc_ranges:
+        lines.append("    { 0x%04x, 0x%04x, %d }," % (first, last, value))
+    lines.append("};")
+    lines.append("")
+    lines.append("const size_t hfs_unicode_ccc_range_count = %d;"
+                 % len(ccc_ranges))
     lines.append("")
     output.write_text("\n".join(lines), encoding="utf-8")
 
@@ -153,13 +236,16 @@ def main():
     parser.add_argument("--output", required=True, type=pathlib.Path)
     args = parser.parse_args()
 
-    lower, canonical = load_unicode_data(args.unicode_data)
+    lower, canonical, raw_decompositions, combining = load_unicode_data(
+        args.unicode_data)
     fold = build_fold(lower, canonical)
     high, subtables = compact(fold)
-    ranges = compression_ranges(canonical)
-    emit(high, subtables, ranges, args.output)
-    print(f"wrote {args.output} ({256 + 256 * len(subtables)} entries, "
-          f"{len(ranges)} decomposition ranges)")
+    decompositions = build_decompositions(raw_decompositions)
+    ccc_ranges = build_ccc_ranges(combining)
+    emit(high, subtables, decompositions, ccc_ranges, args.output)
+    print(f"wrote {args.output} ({256 + 256 * len(subtables)} fold entries, "
+          f"{len(decompositions)} decompositions, "
+          f"{len(ccc_ranges)} CCC ranges)")
 
 
 if __name__ == "__main__":

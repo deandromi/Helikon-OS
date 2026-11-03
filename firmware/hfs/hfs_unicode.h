@@ -26,16 +26,34 @@ int hfs_fast_unicode_compare(const uint8_t *a, size_t a_units,
 /* Generated case-folding table; see tools/gen-hfs-unicode-table.py. */
 extern const uint16_t hfs_unicode_fold_table[];
 
-/* Generated ranges of code points with canonical decompositions. */
-extern const uint16_t hfs_unicode_decomposed_ranges[][2];
-extern const size_t hfs_unicode_decomposed_range_count;
+/* One fully expanded canonical decomposition (HFS+ exception ranges excluded). */
+struct hfs_unicode_decomposition {
+    uint16_t code_point;
+    uint8_t length;
+    uint16_t units[4];
+};
+
+/* Canonical combining class range for canonical ordering. */
+struct hfs_unicode_ccc_range {
+    uint16_t first;
+    uint16_t last;
+    uint8_t ccc;
+};
+
+extern const struct hfs_unicode_decomposition hfs_unicode_decompositions[];
+extern const size_t hfs_unicode_decomposition_count;
+extern const struct hfs_unicode_ccc_range hfs_unicode_ccc_ranges[];
+extern const size_t hfs_unicode_ccc_range_count;
 
 /*
- * Check that a name is safe to insert before the HFS+ decomposer exists:
- * non-empty, at most 255 UTF-16 units, no NUL, no unpaired surrogates, at
- * least one non-ignorable unit, and no code point that needs canonical
- * decomposition. Returns HFS_OK or HFS_ERR_NAME_INVALID.
+ * Convert a UTF-16BE name to the HFS+ canonical form: fully decomposed
+ * (Unicode 2.1.9 canonical decompositions, HFS+ exception ranges left
+ * composed, Hangul decomposed algorithmically) and canonically ordered.
+ * Rejects NUL, unpaired surrogates, names with no non-ignorable unit, and
+ * results over 255 units. `dest_capacity` is in bytes.
  */
-int hfs_unicode_name_is_canonical(const uint8_t *name, size_t units);
+int hfs_unicode_normalize_name(const uint8_t *name, size_t units,
+                               uint8_t *dest, size_t dest_capacity,
+                               size_t *dest_units);
 
 #endif

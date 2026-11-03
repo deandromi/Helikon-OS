@@ -60,12 +60,12 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Volume header staging | `implemented` | `hfs_volume_write.c`; primary/alternate header file/folder counts, next CNID and write count; no `modifyDate` update |
 | Extents-overflow record | `implemented` | `hfs_extents_write.c`; data-fork records keyed by fork/file/startBlock, up to eight extents each; insert/get/delete; multiple records supported |
 | B-tree fork growth | `implemented` | `hfs_btree_grow()` allocates a volume block, extends the catalog/extents fork in the primary/alternate headers, adds a free node to the header map and updates `totalNodes`; requires `node_size == block_size` and an inline fork extent slot; 1 host test |
-| Catalog create/delete (empty file) | `implemented` | `hfs_catalog_write.c`; native file + thread record insert/delete through the B-tree and journal, CNID allocation, file count and parent valence; 1 host test |
-| Unicode catalog comparison | `implemented` | `hfs_catalog_compare.c` uses Apple `FastUnicodeCompare`; `hfs_unicode_data.c` is generated from Unicode 2.1.9 by `tools/gen-hfs-unicode-table.py`; case/ignorable/ordering tests; composed names are refused until the HFS+ decomposer exists; 17 Unicode and 6 key-comparison tests |
+| Catalog create/delete (empty file) | `implemented` | `hfs_catalog_write.c`; native file + thread record insert/delete through the B-tree and journal, CNID allocation, file count and parent valence; names are normalized to HFS+ canonical form, so composed/decomposed input shares one key; 1 host test |
+| Unicode catalog comparison | `implemented` | `hfs_catalog_compare.c` uses Apple `FastUnicodeCompare`; `hfs_unicode_normalize_name()` decomposes, applies the HFS+ exception ranges, decomposes Hangul and canonically orders combining marks; `hfs_unicode_data.c` is generated from Unicode 2.1.9 by `tools/gen-hfs-unicode-table.py`; 23 Unicode and 6 key-comparison tests; a local macOS-created image matches the stored forms; broader corpus and `fsck_hfs` ordering checks remain |
 | Data-fork append/truncate (eight inline + multiple overflow records) | `implemented` | `hfs_catalog_append_file` appends to empty or non-empty files, stages data before metadata, allocates individual free blocks, merges inline extents and writes multiple extents-overflow records; truncate frees all records; the transaction block budget caps very large fragmented writes |
 | Fork block staging | `implemented` | `firmware/hfs/hfs_fork_io.c`; full/partial block write staging into `hfs_txn`; inline extents only; 4 host tests |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
-| Host test harness | `in progress` | 92 tests total (84 HFS+, 8 bootloader); sanitizer clean; first diagnostic boot is owner-reported |
+| Host test harness | `in progress` | 98 tests total (90 HFS+, 8 bootloader); sanitizer clean; first diagnostic boot is owner-reported |
 
 ## What does not exist
 
@@ -76,7 +76,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; no device run and no firmware loading |
 | Bootloader manifest/boot state | `planned` | D-01/D-02 still open |
 | VFS, player, UI, database | `planned` | No implementation |
-| HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete/growth, fork staging, catalog create/delete/valence, multi-extent/overflow data append/truncate and FastUnicodeCompare exist; decomposition/normalization and `fsck_hfs` validation do not |
+| HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete/growth, fork staging, catalog create/delete/valence, multi-extent/overflow data append/truncate, FastUnicodeCompare and HFS+ normalization exist; `fsck_hfs` validation and the broader macOS name corpus do not |
 | Journal replay on a real dirty volume | `unproven` | Replay is host-tested on synthetic journals; no macOS-created dirty volume or device run |
 | Installer or desktop app | `planned` | No host application |
 | Build system, CI, release artifacts | `in progress` | Host test Makefiles and the diagnostic bootloader script; no CI or firmware release |
@@ -138,10 +138,9 @@ writes, the transaction engine, the bootloader, or any goal in
    exist yet.
 3. **Writer internals are not all frozen.** The interface and journal design are
    frozen; the bitmap, B-tree insert/delete/growth, catalog/extents mutation,
-   fork staging and Apple `FastUnicodeCompare` are implemented. HFS+
-   decomposition/normalization and cache limits (D-05) still need design and
-   test fixtures. Composed names are refused until the decomposer lands; do not
-   substitute byte order.
+   fork staging, Apple `FastUnicodeCompare`, HFS+ decomposition and canonical
+   ordering are implemented. Cache limits (D-05), the broader macOS name
+   corpus and `fsck_hfs` validation remain. Do not substitute byte order.
 4. **No signed-update or signing policy.** D-01, D-16 and D-20 are open.
 5. **No 7G board audit.** 7G support is unproven until a recorded audit covers
    panel, PMU, audio, storage, button map and `MOVE_AREA`.
@@ -162,9 +161,9 @@ The next writer tasks are:
 
 - **T-034** — implement the generic B-tree mutation engine (insert/delete,
   split/merge, free-node map, leaf links) with a key-comparison callback.
-- **D-06** — accepted: Apple `FastUnicodeCompare` with a generated Unicode
-  2.1.9 table. Next is the HFS+ decomposer and a macOS-created name corpus;
-  composed names are still refused.
+- **D-06** — accepted: Apple `FastUnicodeCompare` plus HFS+ normalization from
+  generated Unicode 2.1.9 tables. Next is the broader macOS-created name
+  corpus, the `:`/`/` mapping and `fsck_hfs` ordering checks.
 - **T-007** — catalog B-tree mutation design on top of T-034.
 - **T-008** — extents/overflow mutation design on top of T-034.
 - **T-004** — host fixture plan and disposable HFS+ image with `fsck_hfs`.

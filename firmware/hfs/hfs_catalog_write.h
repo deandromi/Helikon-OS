@@ -12,11 +12,11 @@
 /*
  * Native catalog create/delete for a file.
  *
- * `name` is UTF-16BE code units, `units` is 1..255, and must already be in
- * HFS+ canonical (decomposed) form; composed names return HFS_ERR_NAME_INVALID
- * until the decomposer lands. The caller supplies the catalog key comparator,
- * normally hfs_catalog_key_compare(). The parent folder's valence, file count
- * and next CNID are updated through the transaction.
+ * `name` is UTF-16BE code units, `units` is 1..255, and is normalized to the
+ * HFS+ canonical decomposed form before use; composed and decomposed inputs
+ * address the same catalog key. The caller supplies the catalog key
+ * comparator, normally hfs_catalog_key_compare(). The parent folder's valence,
+ * file count and next CNID are updated through the transaction.
  */
 int hfs_catalog_create_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
                             uint32_t parent, const uint8_t *name,

@@ -281,13 +281,19 @@ enabled on a real volume.
 
 - HFS+ stores decomposed UTF-16.
 - Apple's `FastUnicodeCompare` is accepted (D-06) and implemented for catalog
-  ordering and comparison. The folding table is generated from Unicode 2.1.9 by
-  `tools/gen-hfs-unicode-table.py`, not copied from Apple's APSL table.
-- The HFS+ decomposer is not implemented. Until it is, the writer refuses names
-  containing a code point with a canonical decomposition (including Hangul
-  syllables) with `HFS_ERR_NAME_INVALID`; decomposed input is accepted. This is
-  the explicit-refusal half of D-06, not composed-name support.
-- Reject names over 255 UTF-16 units, embedded NUL, `/`, and reserved `.`/`..`.
+  ordering and comparison. The folding and normalization tables are generated
+  from Unicode 2.1.9 by `tools/gen-hfs-unicode-table.py`, not copied from
+  Apple's APSL table.
+- Names are normalized before key construction: fully decomposed canonical
+  forms, HFS+ exception ranges (U+2000–U+2FFF, U+F900–U+FAFF,
+  U+2F800–U+2FAFF) left composed, Hangul decomposed algorithmically, and
+  combining marks sorted by canonical combining class. Composed and decomposed
+  input therefore address the same catalog key.
+- Reject names over 255 UTF-16 units after decomposition, embedded NUL,
+  unpaired surrogates, empty-equivalent names, `/`, and reserved `.`/`..`.
+- A local disposable HFS+ image created by macOS confirmed the stored forms
+  (`Café` -> `Cafe` + U+0301, Hangul -> jamo, U+2126/U+F900 unchanged,
+  out-of-order marks reordered). The broader corpus remains T-038.
 - Decide and test the `:`/`/` mapping against macOS. The donor maps `/` to `:`
   and rejects a literal `:`; do not assume that is the final policy.
 - Test composed/decomposed names, case variants, emoji/non-BMP, length

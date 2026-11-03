@@ -105,28 +105,101 @@ int hfs_fast_unicode_compare(const uint8_t *a, size_t a_units,
     }
 }
 
-static int needs_decomposition(uint16_t value)
+static int find_decomposition(
+    uint16_t value, const struct hfs_unicode_decomposition **result)
 {
     size_t low = 0;
-    size_t high = hfs_unicode_decomposed_range_count;
+    size_t high = hfs_unicode_decomposition_count;
     while (low < high) {
         size_t middle = low + (high - low) / 2u;
-        if (value < hfs_unicode_decomposed_ranges[middle][0]) {
+        uint16_t code_point = hfs_unicode_decompositions[middle].code_point;
+        if (value < code_point) {
             high = middle;
-        } else if (value > hfs_unicode_decomposed_ranges[middle][1]) {
+        } else if (value > code_point) {
             low = middle + 1u;
         } else {
+            *result = &hfs_unicode_decompositions[middle];
             return 1;
         }
     }
     return 0;
 }
 
-int hfs_unicode_name_is_canonical(const uint8_t *name, size_t units)
+static uint8_t combining_class(uint16_t value)
 {
-    if (name == NULL || units == 0 || units > 255u)
-        return HFS_ERR_NAME_INVALID;
+    size_t low = 0;
+    size_t high = hfs_unicode_ccc_range_count;
+    while (low < high) {
+        size_t middle = low + (high - low) / 2u;
+        const struct hfs_unicode_ccc_range *range =
+            &hfs_unicode_ccc_ranges[middle];
+        if (value < range->first) {
+            high = middle;
+        } else if (value > range->last) {
+            low = middle + 1u;
+        } else {
+            return range->ccc;
+        }
+    }
+    return 0;
+}
 
+static void put_unit(uint8_t *dest, size_t index, uint16_t value)
+{
+    dest[index * 2] = (uint8_t)(value >> 8);
+    dest[index * 2 + 1] = (uint8_t)value;
+}
+
+static int append_units(uint8_t *dest, size_t capacity, size_t *used,
+                        const uint16_t *units, size_t count)
+{
+    if (count > 255u - *used)
+        return HFS_ERR_NAME_INVALID;
+    if (count > capacity - *used)
+        return HFS_ERR_BUFFER;
+    for (size_t i = 0; i < count; ++i)
+        put_unit(dest, (*used)++, units[i]);
+    return HFS_OK;
+}
+
+static int append_unit(uint8_t *dest, size_t capacity, size_t *used,
+                       uint16_t value)
+{
+    return append_units(dest, capacity, used, &value, 1);
+}
+
+static void canonical_order(uint8_t *dest, size_t units)
+{
+    for (size_t i = 1; i < units; ++i) {
+        uint16_t value = read_unit(dest, i);
+        uint8_t ccc = combining_class(value);
+        if (ccc == 0)
+            continue;
+        size_t j = i;
+        while (j > 0) {
+            uint16_t previous = read_unit(dest, j - 1u);
+            uint8_t previous_ccc = combining_class(previous);
+            if (previous_ccc == 0 || previous_ccc <= ccc)
+                break;
+            put_unit(dest, j, previous);
+            put_unit(dest, j - 1u, value);
+            --j;
+        }
+    }
+}
+
+int hfs_unicode_normalize_name(const uint8_t *name, size_t units,
+                               uint8_t *dest, size_t dest_capacity,
+                               size_t *dest_units)
+{
+    if (name == NULL || dest == NULL || dest_units == NULL ||
+        units == 0 || units > 255u)
+        return HFS_ERR_NAME_INVALID;
+    size_t capacity = dest_capacity / 2u;
+    if (capacity == 0)
+        return HFS_ERR_BUFFER;
+
+    size_t used = 0;
     int significant = 0;
     for (size_t i = 0; i < units; ++i) {
         uint16_t value = read_unit(name, i);
@@ -139,16 +212,51 @@ int hfs_unicode_name_is_canonical(const uint8_t *name, size_t units)
             uint16_t low = read_unit(name, i + 1u);
             if (low < 0xdc00u || low > 0xdfffu)
                 return HFS_ERR_NAME_INVALID;
+            uint16_t pair[2] = { value, low };
+            int rc = append_units(dest, capacity, &used, pair, 2);
+            if (rc != HFS_OK)
+                return rc;
             significant = 1;
             ++i;
             continue;
         }
         if (value >= 0xdc00u && value <= 0xdfffu)
             return HFS_ERR_NAME_INVALID;
-        if (needs_decomposition(value))
-            return HFS_ERR_NAME_INVALID;
+
+        if (value >= 0xac00u && value <= 0xd7a3u) {
+            uint32_t index = (uint32_t)value - 0xac00u;
+            uint16_t jamo[3];
+            jamo[0] = (uint16_t)(0x1100u + index / 588u);
+            jamo[1] = (uint16_t)(0x1161u + (index % 588u) / 28u);
+            jamo[2] = (uint16_t)(0x11a7u + index % 28u);
+            size_t count = jamo[2] == 0x11a7u ? 2u : 3u;
+            int rc = append_units(dest, capacity, &used, jamo, count);
+            if (rc != HFS_OK)
+                return rc;
+            significant = 1;
+            continue;
+        }
+
+        const struct hfs_unicode_decomposition *decomposition = NULL;
+        if (find_decomposition(value, &decomposition)) {
+            int rc = append_units(dest, capacity, &used, decomposition->units,
+                                  decomposition->length);
+            if (rc != HFS_OK)
+                return rc;
+            significant = 1;
+            continue;
+        }
+
+        int rc = append_unit(dest, capacity, &used, value);
+        if (rc != HFS_OK)
+            return rc;
         if (fold_unicode(value) != 0)
             significant = 1;
     }
-    return significant ? HFS_OK : HFS_ERR_NAME_INVALID;
+
+    if (!significant)
+        return HFS_ERR_NAME_INVALID;
+    canonical_order(dest, used);
+    *dest_units = used;
+    return HFS_OK;
 }

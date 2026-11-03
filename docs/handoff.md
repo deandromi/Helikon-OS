@@ -11,6 +11,73 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (HFS+ name normalization)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the HFS+ normalization commit; check `git log -1`.
+
+## What changed
+
+- `hfs_unicode_normalize_name()` implements the HFS+ normalization variant:
+  full canonical decomposition from Unicode 2.1.9, exception ranges
+  U+2000–U+2FFF, U+F900–U+FAFF and U+2F800–U+2FAFF left composed, Hangul
+  syllables decomposed algorithmically, and combining marks reordered by
+  canonical combining class.
+- The generated table now includes 931 fully expanded decompositions and 117
+  CCC ranges alongside the fold table. `tools/gen-hfs-unicode-table.py`
+  regenerates all three from the pinned UnicodeData-2.1.9.txt.
+- Catalog create/delete/append/truncate normalize their name argument, so
+  composed and decomposed input address the same catalog key. A composed name
+  that duplicates a decomposed name returns `HFS_ERR_BUSY`.
+- Added tests for composed/decomposed equivalence, Hangul, canonical ordering,
+  HFS+ exception ranges, overlong results, buffer limits, duplicate detection
+  and lookups through normalized keys.
+- Total host tests: 98 (90 HFS+, 8 bootloader), sanitizer-clean.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 90/90 pass.
+- `make -C tests/hfsplus sanitize` — 90/90 pass with ASan/UBSan.
+- `make -C tests/bootloader test` — 8/8 pass.
+- A local 4 MiB HFS+ image created with macOS `hdiutil` and populated through
+  macOS stored `Café` as `Cafe` + U+0301, `가` as U+1100 U+1161, U+2126 and
+  U+F900 unchanged, and `a` + U+0301 + U+0323 as `a` + U+0323 + U+0301. The
+  Helikon reader dumped the same names. This is host evidence, not a device
+  run and not a committed fixture.
+- No device write and no write-capable bootloader image.
+
+## What is next
+
+1. Broader macOS name corpus (CJK compatibility, emoji, length boundaries) and
+   the `:`/`/` mapping (T-038).
+2. Disposable HFS+ image + `fsck_hfs -n` zero repairs (T-032).
+3. Write diagnostic.
+4. Below-minimum B-tree insert remains open; fork-of-fork growth remains
+   `UNSUPPORTED`.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- Do not copy Apple's APSL table or a GPL-2.0-only table; use the generator.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- `:`/`/` mapping and the wider macOS name corpus (T-038).
+- Fork-of-fork overflow and transaction-block budget for growth.
+
+## Device/test evidence
+
+- No new device run. The writer is host-only. The macOS image differential is
+  host evidence recorded above.
+
+---
+
 # Handoff — 2026-11-03 (FastUnicodeCompare and D-06)
 
 ## Branch / commit

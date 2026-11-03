@@ -516,15 +516,69 @@ static int test_create_delete_file(void)
     tx.active = 1;
     CHECK(hfs_catalog_create_file(&catalog, &tx, 2, composed_name, 1, 0644,
                                   hfs_catalog_key_compare, NULL,
-                                  &mixed_cnid) == HFS_ERR_NAME_INVALID);
+                                  &mixed_cnid) == HFS_ERR_BUSY);
     CHECK(tx.count == 0);
 
     memset(&tx, 0, sizeof(tx));
     tx.journal = &journal;
     tx.active = 1;
-    CHECK(hfs_catalog_delete_file(&catalog, &tx, 2, decomposed_name, 2,
+    CHECK(hfs_catalog_delete_file(&catalog, &tx, 2, composed_name, 1,
                                   decomposed_cnid, hfs_catalog_key_compare,
                                   NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 32) == 1);
+
+    static const uint8_t hangul[] = { 0xac, 0x00 };
+    static const uint8_t hangul_jamo[] = { 0x11, 0x00, 0x11, 0x61 };
+    uint32_t hangul_cnid = 0;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_create_file(&catalog, &tx, 2, hangul, 1, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &hangul_cnid) == HFS_OK);
+    apply_txn(&tx);
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_create_file(&catalog, &tx, 2, hangul, 1, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &hangul_cnid) == HFS_ERR_BUSY);
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_delete_file(&catalog, &tx, 2, hangul_jamo, 2,
+                                  hangul_cnid, hfs_catalog_key_compare,
+                                  NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 32) == 1);
+
+    static const uint8_t unsorted[] = {
+        0, 'a', 0x03, 0x01, 0x03, 0x23
+    };
+    static const uint8_t sorted[] = {
+        0, 'a', 0x03, 0x23, 0x03, 0x01
+    };
+    uint32_t sorted_cnid = 0;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_create_file(&catalog, &tx, 2, unsorted, 3, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &sorted_cnid) == HFS_OK);
+    apply_txn(&tx);
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    key_length = build_key(key, 2, sorted, 3);
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_delete_file(&catalog, &tx, 2, sorted, 3, sorted_cnid,
+                                  hfs_catalog_key_compare, NULL) == HFS_OK);
     apply_txn(&tx);
     CHECK(get_be32(test_image + 1024 + 32) == 1);
     return 0;
