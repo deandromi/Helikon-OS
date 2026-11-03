@@ -53,6 +53,7 @@ Helikon-OS/
       hfs_bitmap.c/.h       allocation bitmap alloc/free and header staging
       hfs_volume_write.c/.h primary/alternate header count staging
       hfs_catalog_write.c/.h empty-file catalog create/delete
+      hfs_extents_write.c/.h one extents-overflow record
       hfs_btree_write.c/.h  node-level record insert/delete/split and offset tables
       hfs_btree_tree.c/.h   tree-level insert, parent/root split, free-node map
       hfs_fork_io.c/.h      fork block staging into a transaction

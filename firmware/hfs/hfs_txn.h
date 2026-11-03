@@ -7,7 +7,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define HFS_TXN_MAX_BLOCKS 16u
+#define HFS_TXN_MAX_BLOCKS 32u
 #define HFS_TXN_BLOCK_MAX 8192u
 
 struct hfs_txn_block {

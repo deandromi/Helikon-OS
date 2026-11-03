@@ -11,6 +11,62 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (extents overflow)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the extents-overflow commit; check `git log -1`.
+
+## What changed
+
+- Added `hfs_extents_write.c`: one extents-overflow record for data-fork
+  extents 8–15, keyed by fork type, file ID and start block. Supports
+  set/get/clear through the extents B-tree.
+- Append now puts extents beyond the first eight into that overflow record.
+- Truncate reads the overflow record, frees its blocks, clears the record and
+  frees the inline extents.
+- The catalog test now fragments the bitmap to only ten free blocks, creates a
+  second file, appends 10 blocks, and verifies eight inline extents plus two
+  overflow extents (`66/1`, `68/1`), data and truncate cleanup.
+- Total host tests: 76 (68 HFS+, 8 bootloader), sanitizer-clean.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 68/68 pass.
+- `make -C tests/hfsplus sanitize` — 68/68 pass with ASan/UBSan.
+- The extents B-tree record is inserted and deleted; overflow blocks are
+  freed and `freeBlocks` restored.
+- No device write and no write-capable bootloader image.
+
+## What is next
+
+1. Multiple overflow records / more than 16 extents.
+2. Fork growth.
+3. D-06 / FastUnicodeCompare.
+4. Disposable image + `fsck_hfs`.
+5. Write diagnostic.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- No byte-order substitution for HFS+ catalog keys.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- D-06 Unicode policy / FastUnicodeCompare.
+- Multi-overflow-record and fork-growth strategy.
+
+## Device/test evidence
+
+- No new device run. The writer is host-only.
+
+---
+
 # Handoff — 2026-11-03 (append to non-empty files)
 
 ## Branch / commit

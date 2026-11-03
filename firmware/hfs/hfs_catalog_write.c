@@ -3,6 +3,7 @@
 
 #include "hfs_bitmap.h"
 #include "hfs_btree_tree.h"
+#include "hfs_extents_write.h"
 #include "hfs_volume_write.h"
 
 #include <string.h>
@@ -278,8 +279,8 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     if (offset != old_size)
         return HFS_ERR_ARGUMENT;
 
-    uint32_t extent_starts[8];
-    uint32_t extent_counts[8];
+    uint32_t extent_starts[16];
+    uint32_t extent_counts[16];
     uint32_t extent_count = 0;
     uint32_t extent_blocks = 0;
     for (unsigned int i = 0; i < 8; ++i) {
@@ -290,7 +291,7 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
                 return HFS_ERR_FORMAT;
             continue;
         }
-        if (start == 0 || extent_count >= 8u)
+        if (start == 0 || extent_count >= 16u)
             return HFS_ERR_UNSUPPORTED;
         extent_starts[extent_count] = start;
         extent_counts[extent_count] = count;
@@ -357,7 +358,7 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
                 extent_counts[extent_count - 1u] == firsts[i]) {
             ++extent_counts[extent_count - 1u];
         } else {
-            if (extent_count >= 8u)
+            if (extent_count >= 16u)
                 return HFS_ERR_UNSUPPORTED;
             extent_starts[extent_count] = firsts[i];
             extent_counts[extent_count] = 1;
@@ -370,9 +371,25 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     put64(fork, old_size + length);
     put32(fork + 12, old_blocks + blocks);
     memset(fork + 16, 0, 64);
-    for (uint32_t i = 0; i < extent_count; ++i) {
+    uint32_t inline_count = extent_count > 8u ? 8u : extent_count;
+    for (uint32_t i = 0; i < inline_count; ++i) {
         put32(fork + 16 + i * 8, extent_starts[i]);
         put32(fork + 20 + i * 8, extent_counts[i]);
+    }
+    if (extent_count > 8u) {
+        struct hfs_extent overflow[8];
+        uint32_t start_block = 0;
+        for (uint32_t i = 0; i < 8u; ++i)
+            start_block += extent_counts[i];
+        for (uint32_t i = 8; i < extent_count; ++i) {
+            overflow[i - 8u].start = extent_starts[i];
+            overflow[i - 8u].count = extent_counts[i];
+        }
+        uint32_t file_id = be32(record + data_offset + 8);
+        rc = hfs_extents_overflow_set(volume, tx, file_id, start_block,
+                                      overflow, extent_count - 8u);
+        if (rc != HFS_OK)
+            return rc;
     }
 
     uint8_t key[CATALOG_MAX_RECORD];
@@ -415,6 +432,8 @@ int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     rc = hfs_bitmap_open(&bitmap, catalog->btree.volume);
     if (rc != HFS_OK)
         return rc;
+
+    uint32_t inline_blocks = 0;
     for (unsigned int i = 0; i < 8; ++i) {
         uint32_t start_block = be32(fork + 16 + i * 8);
         uint32_t extent_count = be32(fork + 20 + i * 8);
@@ -425,6 +444,44 @@ int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
         }
         if (start_block == 0)
             return HFS_ERR_FORMAT;
+        if (extent_count > UINT32_MAX - inline_blocks)
+            return HFS_ERR_FORMAT;
+        inline_blocks += extent_count;
+    }
+    if (blocks < inline_blocks)
+        return HFS_ERR_FORMAT;
+
+    uint32_t file_id = be32(record + data_offset + 8);
+    if (blocks > inline_blocks) {
+        struct hfs_extent overflow[8];
+        size_t overflow_count = 0;
+        rc = hfs_extents_overflow_get(catalog->btree.volume, tx, file_id,
+                                      inline_blocks, overflow, 8,
+                                      &overflow_count);
+        if (rc != HFS_OK || overflow_count == 0)
+            return rc != HFS_OK ? rc : HFS_ERR_FORMAT;
+        uint32_t overflow_blocks = 0;
+        for (size_t i = 0; i < overflow_count; ++i)
+            overflow_blocks += overflow[i].count;
+        if (inline_blocks + overflow_blocks != blocks)
+            return HFS_ERR_FORMAT;
+        for (size_t i = 0; i < overflow_count; ++i) {
+            rc = hfs_bitmap_free(&bitmap, tx, overflow[i].start,
+                                 overflow[i].count);
+            if (rc != HFS_OK)
+                return rc;
+        }
+        rc = hfs_extents_overflow_clear(catalog->btree.volume, tx, file_id,
+                                        inline_blocks);
+        if (rc != HFS_OK)
+            return rc;
+    }
+
+    for (unsigned int i = 0; i < 8; ++i) {
+        uint32_t start_block = be32(fork + 16 + i * 8);
+        uint32_t extent_count = be32(fork + 20 + i * 8);
+        if (extent_count == 0)
+            continue;
         rc = hfs_bitmap_free(&bitmap, tx, start_block, extent_count);
         if (rc != HFS_OK)
             return rc;

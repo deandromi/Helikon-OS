@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "hfs_catalog_write.h"
+#include "hfs_extents_write.h"
 #include "test_check.h"
 #include "test_image.h"
 
@@ -49,7 +50,7 @@ static void make_image(void)
     test_image_clear();
     test_image_make_header(test_image + 1024, 0x482bu, 4,
                             TEST_ATTR_UNMOUNTED, TEST_BLOCK_SIZE,
-                            TEST_IMAGE_SIZE / TEST_BLOCK_SIZE, 85);
+                            TEST_IMAGE_SIZE / TEST_BLOCK_SIZE, 61);
     put_be32(test_image + 1024 + 32, 1);   /* one root folder */
     put_be32(test_image + 1024 + 64, 16);  /* next CNID */
 
@@ -62,7 +63,44 @@ static void make_image(void)
     uint8_t *bitmap = test_image + 18 * TEST_BLOCK_SIZE;
     memset(bitmap, 0xff, 5);
     bitmap[5] = 0xa0;      /* blocks 40 and 42 */
+    memset(bitmap + 12, 0xff, 3); /* blocks 96..119, incl. extents tree */
     bitmap[15] = 0x02;     /* block 126, alternate header */
+
+    /* Extents-overflow B-tree: 16 nodes at block 100. */
+    uint8_t *extents_fork = test_image + 1024 + 192;
+    test_image_put_be64(extents_fork, (uint64_t)TEST_NODES * TEST_NODE_SIZE);
+    test_image_put_be32(extents_fork + 12, TEST_NODES);
+    test_image_put_be32(extents_fork + 16, 100);
+    test_image_put_be32(extents_fork + 20, TEST_NODES);
+    uint8_t *eh = test_image + 100 * TEST_BLOCK_SIZE;
+    memset(eh, 0, TEST_NODE_SIZE);
+    eh[8] = 1;
+    put_be16(eh + 10, 3);
+    put_be16(eh + 14, 1);
+    put_be32(eh + 16, 1);
+    put_be32(eh + 20, 1);
+    put_be32(eh + 24, 1);
+    put_be32(eh + 28, 1);
+    put_be16(eh + 32, TEST_NODE_SIZE);
+    put_be16(eh + 34, 10);
+    put_be32(eh + 36, TEST_NODES);
+    put_be32(eh + 40, TEST_NODES - 2);
+    eh[60] = 1;
+    eh[61] = 0;
+    put_be16(eh + 510, 14);
+    put_be16(eh + 508, 120);
+    put_be16(eh + 506, 248);
+    put_be16(eh + 504, 504);
+    eh[248] = 0xc0;
+    uint8_t *el = test_image + 101 * TEST_BLOCK_SIZE;
+    memset(el, 0, TEST_NODE_SIZE);
+    el[8] = 0xff;
+    el[9] = 1;
+    put_be16(el + 10, 1);
+    put_be16(el + 14, 10);
+    memset(el + 16, 0, 74);
+    put_be16(el + 510, 14);
+    put_be16(el + 508, 90);
     memcpy(test_image + TEST_IMAGE_SIZE - 1024, test_image + 1024, 512);
 
     uint8_t *fork = test_image + 1024 + 272;
@@ -266,7 +304,7 @@ static int test_create_delete_file(void)
                                   payload, sizeof(payload), compare_catalog,
                                   NULL) == HFS_OK);
     apply_txn(&tx);
-    CHECK(get_be32(test_image + 1024 + 48) == 82);
+    CHECK(get_be32(test_image + 1024 + 48) == 58);
     memset(&tx, 0, sizeof(tx));
     tx.journal = &journal;
     tx.active = 1;
@@ -295,7 +333,7 @@ static int test_create_delete_file(void)
                                   1200, more, sizeof(more), compare_catalog,
                                   NULL) == HFS_OK);
     apply_txn(&tx);
-    CHECK(get_be32(test_image + 1024 + 48) == 80);
+    CHECK(get_be32(test_image + 1024 + 48) == 56);
     memset(&tx, 0, sizeof(tx));
     tx.journal = &journal;
     tx.active = 1;
@@ -320,7 +358,7 @@ static int test_create_delete_file(void)
     CHECK(hfs_catalog_truncate_file(&catalog, &tx, 2, name, TEST_NAME_UNITS,
                                     compare_catalog, NULL) == HFS_OK);
     apply_txn(&tx);
-    CHECK(get_be32(test_image + 1024 + 48) == 85);
+    CHECK(get_be32(test_image + 1024 + 48) == 61);
     memset(&tx, 0, sizeof(tx));
     tx.journal = &journal;
     tx.active = 1;
@@ -358,6 +396,87 @@ static int test_create_delete_file(void)
           HFS_OK);
     data_offset = 2u + key_length;
     CHECK(get_be32(record + data_offset + 4) == 0);
+
+    /* Fragment the bitmap: only 50,52,...,68 are free. */
+    uint8_t *bitmap_now = test_image + 18 * TEST_BLOCK_SIZE;
+    memset(bitmap_now, 0xff, 16);
+    for (uint32_t block = 50; block <= 68; block += 2)
+        bitmap_now[block / 8] &= (uint8_t)~(0x80u >> (block % 8));
+    put_be32(test_image + 1024 + 48, 10);
+    volume.free_blocks = 10;
+
+    static const uint8_t frag_name[8] = {
+        0, 'F', 0, 'R', 0, 'A', 0, 'G'
+    };
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    uint32_t frag_cnid = 0;
+    CHECK(hfs_catalog_create_file(&catalog, &tx, 2, frag_name, 4, 0644,
+                                  compare_catalog, NULL, &frag_cnid) ==
+          HFS_OK);
+    CHECK(frag_cnid == 17);
+    apply_txn(&tx);
+
+    uint8_t fragmented[10 * 512];
+    for (size_t i = 0; i < sizeof(fragmented); ++i)
+        fragmented[i] = (uint8_t)(0x30u + (i & 0x3fu));
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_append_file(&catalog, &tx, 2, frag_name, 4, 0,
+                                  fragmented, sizeof(fragmented),
+                                  compare_catalog, NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 48) == 0);
+
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    key_length = build_key(key, 2, frag_name, 4);
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+                         NULL, record, sizeof(record), &record_length) ==
+          HFS_OK);
+    data_offset = 2u + key_length;
+    fork = record + data_offset + 88u;
+    CHECK(get_be32(fork + 12) == 10);
+    for (unsigned int i = 0; i < 8; ++i) {
+        CHECK(get_be32(fork + 16 + i * 8) == 50u + i * 2u);
+        CHECK(get_be32(fork + 20 + i * 8) == 1);
+    }
+    struct hfs_extent overflow[8];
+    size_t overflow_count = 0;
+    CHECK(hfs_extents_overflow_get(&volume, &tx, frag_cnid, 8, overflow, 8,
+                                   &overflow_count) == HFS_OK);
+    CHECK(overflow_count == 2);
+    CHECK(overflow[0].start == 66 && overflow[0].count == 1);
+    CHECK(overflow[1].start == 68 && overflow[1].count == 1);
+    CHECK(memcmp(test_image + 50 * TEST_BLOCK_SIZE, fragmented, 512) == 0);
+    CHECK(memcmp(test_image + 66 * TEST_BLOCK_SIZE, fragmented + 8 * 512,
+                 512) == 0);
+    CHECK(memcmp(test_image + 68 * TEST_BLOCK_SIZE, fragmented + 9 * 512,
+                 512) == 0);
+
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_truncate_file(&catalog, &tx, 2, frag_name, 4,
+                                    compare_catalog, NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 48) == 10);
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_extents_overflow_get(&volume, &tx, frag_cnid, 8, overflow, 8,
+                                   &overflow_count) == HFS_ERR_NOT_FOUND);
+
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_delete_file(&catalog, &tx, 2, frag_name, 4, frag_cnid,
+                                  compare_catalog, NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 32) == 1);
     return 0;
 }
 
