@@ -82,6 +82,12 @@ MOUNTED=1
 [ -f "$MOUNT/Helikon Folder/Helikon Test" ] || fail "macOS did not see the created file"
 SIZE=$(stat -f%z "$MOUNT/Helikon Folder/Helikon Test")
 [ "$SIZE" -eq 4096 ] || fail "macOS saw size $SIZE, expected 4096"
+FILE_MODE=$(stat -f '%Sp' "$MOUNT/Helikon Folder/Helikon Test")
+FOLDER_MODE=$(stat -f '%Sp' "$MOUNT/Helikon Folder")
+[ "$FILE_MODE" = "-rw-r--r--" ] || fail "file mode is $FILE_MODE"
+[ "$FOLDER_MODE" = "drwxr-xr-x" ] || fail "folder mode is $FOLDER_MODE"
+FILE_YEAR=$(stat -f '%Sm' -t '%Y' "$MOUNT/Helikon Folder/Helikon Test")
+[ "$FILE_YEAR" = "$(date +%Y)" ] || fail "file timestamp year is $FILE_YEAR"
 python3 - "$MOUNT/Helikon Folder/Helikon Test" <<'PY'
 import sys
 
@@ -93,7 +99,56 @@ PY
 hdiutil detach "$MOUNT" >/dev/null 2>&1
 MOUNTED=""
 
+"$HERE/hfs_image_test" "$IMAGE" rename
+fsck_image "$IMAGE"
+
+hdiutil attach -nobrowse -mountpoint "$MOUNT" "$IMAGE" \
+    >"$TMP/mount.log" 2>&1 || fail "could not remount after rename"
+MOUNTED=1
+[ -f "$MOUNT/Helikon Folder Renamed/Helikon Test Renamed" ] ||
+    fail "macOS did not see the renamed file"
+[ ! -e "$MOUNT/Helikon Folder/Helikon Test" ] ||
+    fail "old path survived rename"
+SIZE=$(stat -f%z "$MOUNT/Helikon Folder Renamed/Helikon Test Renamed")
+[ "$SIZE" -eq 4096 ] || fail "renamed file size is $SIZE"
+FILE_MODE=$(stat -f '%Sp' "$MOUNT/Helikon Folder Renamed/Helikon Test Renamed")
+FOLDER_MODE=$(stat -f '%Sp' "$MOUNT/Helikon Folder Renamed")
+[ "$FILE_MODE" = "-rw-r--r--" ] || fail "renamed file mode is $FILE_MODE"
+[ "$FOLDER_MODE" = "drwxr-xr-x" ] || fail "renamed folder mode is $FOLDER_MODE"
+FILE_YEAR=$(stat -f '%Sm' -t '%Y' \
+    "$MOUNT/Helikon Folder Renamed/Helikon Test Renamed")
+[ "$FILE_YEAR" = "$(date +%Y)" ] || fail "renamed timestamp year is $FILE_YEAR"
+echo "macOS rename verified"
+hdiutil detach "$MOUNT" >/dev/null 2>&1
+MOUNTED=""
+
+"$HERE/hfs_image_test" "$IMAGE" truncate
+fsck_image "$IMAGE"
+
+hdiutil attach -nobrowse -mountpoint "$MOUNT" "$IMAGE" \
+    >"$TMP/mount.log" 2>&1 || fail "could not remount after truncate"
+MOUNTED=1
+[ -f "$MOUNT/Helikon Folder Renamed/Helikon Test Renamed" ] ||
+    fail "macOS lost the truncated file"
+SIZE=$(stat -f%z "$MOUNT/Helikon Folder Renamed/Helikon Test Renamed")
+[ "$SIZE" -eq 0 ] || fail "truncated file size is $SIZE"
+FILE_YEAR=$(stat -f '%Sm' -t '%Y' \
+    "$MOUNT/Helikon Folder Renamed/Helikon Test Renamed")
+[ "$FILE_YEAR" = "$(date +%Y)" ] || fail "truncate timestamp year is $FILE_YEAR"
+echo "macOS truncate verified"
+hdiutil detach "$MOUNT" >/dev/null 2>&1
+MOUNTED=""
+
 "$HERE/hfs_image_test" "$IMAGE" delete
 fsck_image "$IMAGE"
 
-echo "PASS: disposable image create/append/delete, fsck_hfs clean"
+hdiutil attach -nobrowse -mountpoint "$MOUNT" "$IMAGE" \
+    >"$TMP/mount.log" 2>&1 || fail "could not remount after delete"
+MOUNTED=1
+[ ! -e "$MOUNT/Helikon Folder Renamed" ] ||
+    fail "renamed folder survived delete"
+echo "macOS delete verified"
+hdiutil detach "$MOUNT" >/dev/null 2>&1
+MOUNTED=""
+
+echo "PASS: disposable image create/append/rename/truncate/delete, fsck_hfs clean"

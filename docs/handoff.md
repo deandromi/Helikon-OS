@@ -11,6 +11,61 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-04 (target 96 pass, metadata defaults, 7G deferred)
+
+## What happened
+
+- Target `96` passed: the post-commit cut recovered on the next boot, every
+  stage passed, and the extracted inner image `fsck_hfs` reported
+  `The volume HelikonInner appears to be OK`.
+- Targets 7 and 56 remain the pre-commit clean controls. T-043 is recorded as
+  implemented; further replay targets are optional coverage.
+- Metadata defaults now cover BSD owner/group 0, admin/owner flags 0,
+  file/folder mode, Finder info zero, textEncoding zero and special 0; metadata
+  is preserved on append/truncate/rename. Host metadata tests pass.
+- The direct outer-volume disposable image test now covers create/append,
+  macOS content/mode/timestamp, rename, truncate, delete and `fsck_hfs` after
+  each stage. This is the host half of the outer-volume validation.
+- Physical 7G was removed from the active task queue by owner direction; 7G
+  remains a future port in the target policy and the device matrix marks it
+  `deferred`.
+
+## Evidence
+
+- T-043: target 96, `Recovery: RECOVERED`, all stages PASS, inner `fsck_hfs`
+  clean.
+- `make -C tests/hfsplus test` / `sanitize` — 98/98.
+- `make -C tests/bootloader test` — 12/12.
+- `make -C tests/image test` — outer disposable image passes `fsck_hfs` after
+  create/append, rename, truncate and delete; macOS sees the file at 4096 then
+  0 bytes, modes `-rw-r--r--`/`drwxr-xr-x`, current-year timestamps, the renamed
+  path and the deleted path.
+- 110 portable tests total, sanitizer-clean.
+
+## What is next
+
+1. T-044 remaining: timestamp-update policy, Finder creator/type policy, wider
+   macOS differential after append/truncate/rename/delete.
+2. Item 3: device outer-volume test still requires a disposable iPod/volume and
+   a verified backup. The host outer-volume path is complete; do not run the
+   device path on the library.
+3. T-041: font licences and 320×240 mockup.
+4. D-01/D-02/D-20 for a firmware-loading bootloader.
+
+## What must not be touched
+
+- No library write without a disposable volume and verified backup.
+- No `--single`.
+- Do not readd physical 7G to the active queue without owner direction.
+- Do not treat the inner-image timestamp test as full metadata parity.
+
+## Device/test evidence
+
+- 6G target 96 PMU cut/recovery, 2026-11-04, owner-reported.
+- Current image `81350f…`; DFU `ce356e…`.
+
+---
+
 # Handoff — 2026-11-04 (PMU cut targets 7 and 56)
 
 ## What happened

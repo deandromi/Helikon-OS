@@ -88,10 +88,14 @@ uniqueness and monotonicity, not exact CNID values.
 temporary directory and runs the host writer against it. It never accepts an
 existing image or device path. The test:
 
-- creates and appends a 4096-byte file through `hfs_txn`;
+- creates a folder and appends a 4096-byte file through `hfs_txn`;
 - runs `fsck_hfs -fn` on the raw device and requires a clean report;
-- mounts the image in macOS and verifies the file content;
-- truncates and deletes the file and runs `fsck_hfs -fn` again.
+- mounts the image in macOS and verifies the content, file/folder modes and a
+  current-year timestamp;
+- renames the folder and file, remounts and verifies the new path, old-path
+  absence, modes and timestamp;
+- truncates, remounts and verifies size 0; deletes and verifies the folder is
+  gone; runs `fsck_hfs -fn` after each stage.
 
 `fsck_hfs` zero repairs and macOS content parity are the pass criteria. This is
 host evidence; it is not a device run and does not authorize a library write.

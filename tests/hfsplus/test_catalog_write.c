@@ -983,6 +983,105 @@ static int test_timestamps(void)
     return 0;
 }
 
+static int test_metadata_file(void)
+{
+    struct test_env env;
+    CHECK(setup_env(&env) == 0);
+    env.catalog.now = 0x11223344u;
+
+    static const uint8_t name[8] = { 0, 'M', 0, 'E', 0, 'T', 0, 'A' };
+    static const uint8_t new_name[10] = {
+        0, 'M', 0, 'E', 0, 'T', 0, 'A', 0, '2'
+    };
+    uint32_t cnid = 0;
+    struct hfs_txn tx;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_file(&env.catalog, &tx, 2, name, 4, 0640,
+                                  hfs_catalog_key_compare, NULL, &cnid) ==
+          HFS_OK);
+    apply_txn(&tx);
+
+    uint8_t key[256];
+    uint8_t record[1024];
+    size_t record_length = 0;
+    size_t key_length = build_key(key, 2, name, 4);
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    size_t data_offset = 2u + key_length;
+    static const uint8_t zeros[32];
+    CHECK(get_be16(record + data_offset) == 2);
+    CHECK(get_be16(record + data_offset + 2) == 0);
+    CHECK(get_be32(record + data_offset + 32) == 0);
+    CHECK(get_be32(record + data_offset + 36) == 0);
+    CHECK(record[data_offset + 40] == 0);
+    CHECK(record[data_offset + 41] == 0);
+    CHECK(get_be16(record + data_offset + 42) == 0100640);
+    CHECK(get_be32(record + data_offset + 44) == 0);
+    CHECK(memcmp(record + data_offset + 48, zeros, sizeof(zeros)) == 0);
+    CHECK(get_be32(record + data_offset + 80) == 0);
+
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_rename(&env.catalog, &tx, 2, name, 4, cnid, 2,
+                             new_name, 5, hfs_catalog_key_compare, NULL) ==
+          HFS_OK);
+    apply_txn(&tx);
+    key_length = build_key(key, 2, new_name, 5);
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    data_offset = 2u + key_length;
+    CHECK(get_be32(record + data_offset + 32) == 0);
+    CHECK(get_be32(record + data_offset + 36) == 0);
+    CHECK(record[data_offset + 40] == 0);
+    CHECK(record[data_offset + 41] == 0);
+    CHECK(get_be16(record + data_offset + 42) == 0100640);
+    CHECK(get_be32(record + data_offset + 44) == 0);
+    CHECK(memcmp(record + data_offset + 48, zeros, sizeof(zeros)) == 0);
+    CHECK(get_be32(record + data_offset + 80) == 0);
+    return 0;
+}
+
+static int test_metadata_folder(void)
+{
+    struct test_env env;
+    CHECK(setup_env(&env) == 0);
+    env.catalog.now = 0x11223344u;
+
+    static const uint8_t name[6] = { 0, 'D', 0, 'I', 0, 'R' };
+    uint32_t cnid = 0;
+    struct hfs_txn tx;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_folder(&env.catalog, &tx, 2, name, 3, 0750,
+                                    hfs_catalog_key_compare, NULL,
+                                    &cnid) == HFS_OK);
+    apply_txn(&tx);
+
+    uint8_t key[256];
+    uint8_t record[1024];
+    size_t record_length = 0;
+    size_t key_length = build_key(key, 2, name, 3);
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    size_t data_offset = 2u + key_length;
+    static const uint8_t zeros[32];
+    CHECK(get_be16(record + data_offset) == 1);
+    CHECK(get_be32(record + data_offset + 4) == 0);
+    CHECK(get_be32(record + data_offset + 32) == 0);
+    CHECK(get_be32(record + data_offset + 36) == 0);
+    CHECK(record[data_offset + 40] == 0);
+    CHECK(record[data_offset + 41] == 0);
+    CHECK(get_be16(record + data_offset + 42) == 040750);
+    CHECK(get_be32(record + data_offset + 44) == 0);
+    CHECK(memcmp(record + data_offset + 48, zeros, sizeof(zeros)) == 0);
+    CHECK(get_be32(record + data_offset + 80) == 0);
+    return 0;
+}
+
 struct test_case {
     const char *name;
     int (*run)(void);
@@ -996,7 +1095,9 @@ int main(void)
         { "rename file same parent", test_rename_file_same_parent },
         { "rename move case collision", test_rename_move_case_collision },
         { "rename folder cycle", test_rename_folder_cycle },
-        { "timestamps", test_timestamps }
+        { "timestamps", test_timestamps },
+        { "metadata file", test_metadata_file },
+        { "metadata folder", test_metadata_folder }
     };
     int failures = 0;
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); ++i) {

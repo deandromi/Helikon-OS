@@ -38,12 +38,12 @@ images, backups or serial numbers to the repository.
 | iPod Classic 6G (reference) | `open question` | `open question` | diagnostic `280ed7ae…` | native HFS+ file read | `blocked` | Owner report 2026-11-03: `read error: -8` (`NOT_FOUND`) because `/rockbox.ipod` is not a disk file; probe target needs a real root file | owner |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | playback | `not run` | none | test lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | write diagnostic `9e3881…` | native HFS+ write inside `helikon-test.img` | `pass` | Owner report 2026-11-03: every stage PASS; extracted inner image SHA-256 `156060…`, `fsck_hfs -fn` exit 0, no `diag`; outer `diskutil verifyVolume` exit 0 | boot/HFS+ |
-| iPod Classic 6G (reference) | `open question` | `open question` | write diagnostic `81350f…` | controlled PMU cut, targets 7 and 56 | `partial` | Owner report 2026-11-04: both powered off; next boot `Recovery: CLEAN`, `Cleanup: PASS`, all stages PASS; both were pre-commit cuts, no dirty journal expected. Target 96/176 is next for a RECOVERED case | boot/HFS+ |
+| iPod Classic 6G (reference) | `open question` | `open question` | write diagnostic `81350f…` | controlled PMU cut, targets 7, 56, 96 | `pass` | Owner report 2026-11-04: 7/56 pre-commit cuts gave `Recovery: CLEAN`; target 96 post-commit cut recovered; all stages PASS; extracted inner image `fsck_hfs` reported `The volume HelikonInner appears to be OK` | boot/HFS+ |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | journal replay | `not run` | none | journal lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | sleep/wake 100 cycles | `not run` | none | test lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | USB read-only | `not run` | none | USB lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | update/rollback | `not run` | none | release lead |
-| iPod Classic 7G | board audit pending | `open question` | none (firmware) | board audit | `not run` | none | hardware lead |
+| iPod Classic 7G | board audit pending | `open question` | none (firmware) | board audit | `deferred` | Owner removed physical 7G from the active queue 2026-11-04; target policy remains future port | hardware lead |
 
 "Firmware: none (firmware)" means there is no Helikon-OS firmware image. The
 diagnostic rows name the bootloader image hash. Do not write a donor version into
@@ -126,6 +126,10 @@ before the first and second commits, so a clean journal on the next boot is the
 expected result, not a failed recovery. No `RECOVERED` line is expected from
 those targets. Targets in the replay windows, such as `44`, `96`, `176`, `236`,
 `300`, `356` or `410`, should produce a dirty journal and a `RECOVERED` line.
+Target `96` did: the owner reports the post-commit cut recovered, every stage
+passed, and the extracted inner image passed `fsck_hfs` with
+`The volume HelikonInner appears to be OK`. Targets 7 and 56 remain the
+pre-commit clean controls; further replay targets are optional coverage.
 
 The inner-image `fsck_hfs` for this target is still pending; record it before
 treating the cut as fully passed.

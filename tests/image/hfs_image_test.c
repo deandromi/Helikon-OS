@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #define TEST_FOLDER "Helikon Folder"
@@ -109,8 +110,14 @@ static int open_image(const char *path, struct image *image)
         if (rc != HFS_OK)
             return rc;
     }
-    return hfs_catalog_open(&image->catalog, &image->volume, image->scratch,
-                            sizeof(image->scratch));
+    rc = hfs_catalog_open(&image->catalog, &image->volume, image->scratch,
+                          sizeof(image->scratch));
+    if (rc != HFS_OK)
+        return rc;
+    time_t now = time(NULL);
+    if (now > 0)
+        image->catalog.now = (uint32_t)((int64_t)now + 2082844800LL);
+    return HFS_OK;
 }
 
 static void close_image(struct image *image)
@@ -260,23 +267,23 @@ static int create_and_append(struct image *image)
     return HFS_OK;
 }
 
-static int delete_file(struct image *image)
+static int lookup_pair(struct image *image, const char *folder_ascii,
+                       const char *file_ascii, struct hfs_entry *folder,
+                       struct hfs_entry *file)
 {
-    struct stats before;
-    struct stats after_file;
-    struct stats after_folder;
-    int rc = read_stats(image, &before);
+    int rc = hfs_catalog_lookup_ascii(&image->catalog, 2, folder_ascii,
+                                      folder);
     if (rc != HFS_OK)
         return rc;
+    return hfs_catalog_lookup_ascii(&image->catalog, folder->id, file_ascii,
+                                    file);
+}
 
-    struct hfs_entry folder_entry;
-    rc = hfs_catalog_lookup_ascii(&image->catalog, 2, TEST_FOLDER,
-                                  &folder_entry);
-    if (rc != HFS_OK)
-        return rc;
-    struct hfs_entry file_entry;
-    rc = hfs_catalog_lookup_ascii(&image->catalog, folder_entry.id, TEST_NAME,
-                                  &file_entry);
+static int rename_files(struct image *image)
+{
+    struct hfs_entry folder;
+    struct hfs_entry file;
+    int rc = lookup_pair(image, TEST_FOLDER, TEST_NAME, &folder, &file);
     if (rc != HFS_OK)
         return rc;
 
@@ -284,19 +291,17 @@ static int delete_file(struct image *image)
     size_t units = 0;
     const uint8_t *folder_name = test_folder_name(&folder_units);
     const uint8_t *name = test_name(&units);
-    struct hfs_txn tx;
-
     size_t renamed_folder_units = 0;
     size_t renamed_units = 0;
     const uint8_t *renamed_folder = renamed_folder_name(&renamed_folder_units);
     const uint8_t *renamed_name = renamed_test_name(&renamed_units);
 
+    struct hfs_txn tx;
     rc = hfs_txn_begin(&tx, &image->journal);
     if (rc != HFS_OK)
         return rc;
-    rc = hfs_catalog_rename(&image->catalog, &tx, folder_entry.id, name,
-                            units, file_entry.id, folder_entry.id,
-                            renamed_name, renamed_units,
+    rc = hfs_catalog_rename(&image->catalog, &tx, folder.id, name, units,
+                            file.id, folder.id, renamed_name, renamed_units,
                             hfs_catalog_key_compare, NULL);
     rc = commit(&tx, rc);
     if (rc != HFS_OK)
@@ -306,72 +311,119 @@ static int delete_file(struct image *image)
     if (rc != HFS_OK)
         return rc;
     rc = hfs_catalog_rename(&image->catalog, &tx, 2, folder_name,
-                            folder_units, folder_entry.id, 2,
-                            renamed_folder, renamed_folder_units,
-                            hfs_catalog_key_compare, NULL);
+                            folder_units, folder.id, 2, renamed_folder,
+                            renamed_folder_units, hfs_catalog_key_compare,
+                            NULL);
     rc = commit(&tx, rc);
     if (rc != HFS_OK)
         return rc;
 
-    rc = hfs_catalog_lookup_ascii(&image->catalog, folder_entry.id,
-                                  TEST_NAME_RENAMED, &file_entry);
+    printf("renamed folder and file\n");
+    return HFS_OK;
+}
+
+static int truncate_file(struct image *image)
+{
+    struct hfs_entry folder;
+    struct hfs_entry file;
+    int rc = lookup_pair(image, TEST_FOLDER_RENAMED, TEST_NAME_RENAMED,
+                         &folder, &file);
     if (rc != HFS_OK)
         return rc;
+
+    struct stats before;
+    struct stats after;
+    if (read_stats(image, &before) != HFS_OK)
+        return HFS_ERR_IO;
+
+    size_t units = 0;
+    const uint8_t *name = renamed_test_name(&units);
+    struct hfs_txn tx;
     rc = hfs_txn_begin(&tx, &image->journal);
     if (rc != HFS_OK)
         return rc;
-    rc = hfs_catalog_truncate_file(&image->catalog, &tx, folder_entry.id,
-                                   renamed_name, renamed_units,
+    rc = hfs_catalog_truncate_file(&image->catalog, &tx, folder.id, name,
+                                   units, hfs_catalog_key_compare, NULL);
+    rc = commit(&tx, rc);
+    if (rc != HFS_OK)
+        return rc;
+
+    if (read_stats(image, &after) != HFS_OK)
+        return HFS_ERR_IO;
+    if (after.free_blocks != before.free_blocks + 1u)
+        return HFS_ERR_FORMAT;
+    if (after.file_count != before.file_count ||
+        after.folder_count != before.folder_count)
+        return HFS_ERR_FORMAT;
+
+    printf("truncated file_count=%u folder_count=%u free_blocks=%u\n",
+           after.file_count, after.folder_count, after.free_blocks);
+    return HFS_OK;
+}
+
+static int delete_files(struct image *image)
+{
+    struct hfs_entry folder;
+    struct hfs_entry file;
+    int rc = lookup_pair(image, TEST_FOLDER_RENAMED, TEST_NAME_RENAMED,
+                         &folder, &file);
+    if (rc != HFS_OK)
+        return rc;
+    if (file.data.size != 0)
+        return HFS_ERR_NOT_EMPTY;
+
+    struct stats before;
+    struct stats after;
+    if (read_stats(image, &before) != HFS_OK)
+        return HFS_ERR_IO;
+
+    size_t folder_units = 0;
+    size_t units = 0;
+    const uint8_t *folder_name = renamed_folder_name(&folder_units);
+    const uint8_t *name = renamed_test_name(&units);
+    struct hfs_txn tx;
+
+    rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    rc = hfs_catalog_delete_file(&image->catalog, &tx, folder.id, name, units,
+                                 file.id, hfs_catalog_key_compare, NULL);
+    rc = commit(&tx, rc);
+    if (rc != HFS_OK)
+        return rc;
+
+    rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    rc = hfs_catalog_delete_folder(&image->catalog, &tx, 2, folder_name,
+                                   folder_units, folder.id,
                                    hfs_catalog_key_compare, NULL);
     rc = commit(&tx, rc);
     if (rc != HFS_OK)
         return rc;
 
-    rc = hfs_txn_begin(&tx, &image->journal);
-    if (rc != HFS_OK)
-        return rc;
-    rc = hfs_catalog_delete_file(&image->catalog, &tx, folder_entry.id,
-                                 renamed_name, renamed_units, file_entry.id,
-                                 hfs_catalog_key_compare, NULL);
-    rc = commit(&tx, rc);
-    if (rc != HFS_OK)
-        return rc;
-    if (read_stats(image, &after_file) != HFS_OK)
+    if (read_stats(image, &after) != HFS_OK)
         return HFS_ERR_IO;
-
-    rc = hfs_txn_begin(&tx, &image->journal);
-    if (rc != HFS_OK)
-        return rc;
-    rc = hfs_catalog_delete_folder(&image->catalog, &tx, 2, renamed_folder,
-                                   renamed_folder_units, folder_entry.id,
-                                   hfs_catalog_key_compare, NULL);
-    rc = commit(&tx, rc);
-    if (rc != HFS_OK)
-        return rc;
-
-    if (read_stats(image, &after_folder) != HFS_OK)
-        return HFS_ERR_IO;
-    if (after_file.file_count + 1u != before.file_count)
+    if (after.file_count + 1u != before.file_count)
         return HFS_ERR_FORMAT;
-    if (after_folder.folder_count + 1u != before.folder_count)
+    if (after.folder_count + 1u != before.folder_count)
         return HFS_ERR_FORMAT;
-    if (after_folder.free_blocks != before.free_blocks + 1u)
+    if (after.free_blocks != before.free_blocks)
         return HFS_ERR_FORMAT;
-    rc = hfs_catalog_lookup_ascii(&image->catalog, 2,
-                                  TEST_FOLDER_RENAMED, &folder_entry);
-    if (rc != HFS_ERR_NOT_FOUND)
+    if (hfs_catalog_lookup_ascii(&image->catalog, 2, TEST_FOLDER_RENAMED,
+                                 &folder) != HFS_ERR_NOT_FOUND)
         return HFS_ERR_FORMAT;
 
     printf("deleted file_count=%u folder_count=%u free_blocks=%u\n",
-           after_folder.file_count, after_folder.folder_count,
-           after_folder.free_blocks);
+           after.file_count, after.folder_count, after.free_blocks);
     return HFS_OK;
 }
 
 int main(int argc, char **argv)
 {
     if (argc != 3) {
-        fprintf(stderr, "usage: %s IMAGE create|delete\n", argv[0]);
+        fprintf(stderr, "usage: %s IMAGE create|rename|truncate|delete\n",
+                argv[0]);
         return 2;
     }
     struct image image;
@@ -382,8 +434,12 @@ int main(int argc, char **argv)
     }
     if (strcmp(argv[2], "create") == 0) {
         rc = create_and_append(&image);
+    } else if (strcmp(argv[2], "rename") == 0) {
+        rc = rename_files(&image);
+    } else if (strcmp(argv[2], "truncate") == 0) {
+        rc = truncate_file(&image);
     } else if (strcmp(argv[2], "delete") == 0) {
-        rc = delete_file(&image);
+        rc = delete_files(&image);
     } else {
         fprintf(stderr, "unknown mode: %s\n", argv[2]);
         rc = HFS_ERR_ARGUMENT;

@@ -23,12 +23,19 @@ static int read_at(void *context, uint64_t offset, void *buffer, size_t length)
     return done == (ssize_t)length ? 0 : -1;
 }
 
+static unsigned long ata_count;
 static int write_at(void *context, uint64_t offset, const void *buffer,
                     size_t length)
 {
     struct io *io = context;
     ssize_t done = pwrite(io->fd, buffer, length, (off_t)offset);
-    return done == (ssize_t)length ? 0 : -1;
+    if (done != (ssize_t)length) return -1;
+    unsigned long sectors = (unsigned long)((offset + length + 511) / 512 -
+                                             offset / 512);
+    ata_count += sectors;
+    fprintf(stderr, "WRITE off=%llu len=%zu ata=%lu\n",
+            (unsigned long long)offset, length, ata_count);
+    return 0;
 }
 
 static int flush_at(void *context)

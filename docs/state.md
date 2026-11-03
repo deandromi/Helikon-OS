@@ -62,11 +62,11 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Extents-overflow record | `implemented` | `hfs_extents_write.c`; data-fork records keyed by fork/file/startBlock, up to eight extents each; insert/get/delete; multiple records supported |
 | Inner-image mapping | `implemented` | `bootloader/inner_image.c` maps a root-level outer file's data-fork extents into a block device, rejects out-of-range writes, and guards against overlap with outer metadata, journal, volume headers and forks; 4 host tests |
 | Separate write diagnostic | `implemented` | `bootloader-ipod6g-write-diag.ipod` (110,920 bytes, `81350f…`, 18,112 bytes headroom) keeps the outer HFS+ volume read-only and runs the writer inside `helikon-test.img`; host outer/inner test passes twice, and one owner-reported 6G run reported every stage PASS; inner `fsck_hfs` and outer `diskutil verifyVolume` both exited 0 |
-| Catalog timestamps | `implemented` | Create/access/content/attribute dates on new files/folders, content/attribute updates on append/truncate/rename/valence, and volume-header modify date on create/delete/append/truncate; host timestamp test; backupDate remains 0; BSD/Finder/flags parity not done |
-| Controlled PMU cut | `in progress` | Current image `81350f…` reads `helikon-cut.txt` and powers off at a 512-byte ATA write count. Targets 7 and 56 produced early pre-commit cuts; next boot `Recovery: CLEAN`, `Cleanup: PASS`, all stages PASS. Replay targets (e.g. 96/176) and inner `fsck_hfs` remain |
+| Catalog metadata | `implemented` | Timestamps on create/access/content/attribute and volume modify date; BSD owner/group 0, admin/owner flags 0, file/folder mode, Finder info zero, textEncoding zero, special 0; metadata is preserved on append/truncate/rename. Host metadata tests; macOS disposable-image check verifies mode and timestamp year. Timestamp policy and a fuller differential corpus remain |
+| Controlled PMU cut | `pass` | Current image `81350f…`: targets 7/56 were pre-commit clean controls; target 96 cut after commit, recovered on the next boot, all stages PASS, and the extracted inner image passed `fsck_hfs` with `The volume HelikonInner appears to be OK`. Further replay targets are optional coverage |
 | Write diagnostic 6G run | `pass` | One owner-reported run, 2026-11-03: all stages PASS, extracted inner image SHA-256 `156060…`, `fsck_hfs -fn` exit 0, no `diag` folder, outer `diskutil verifyVolume` exit 0; not a library-write or support claim |
 | Journal crash injection | `implemented` | `tests/image/run-crash-macos.sh` injects a failed write at every cut point of create (25), append (43), truncate (34) and delete (25) transactions, reopens the image, replays the journal and runs `fsck_hfs -fn`; all 127 cuts recover to a consistent state and an fsck-clean volume; rename, partial-sector writes, fsync failures and power-loss timing remain |
-| Disposable-image writer validation | `implemented` | `tests/image/run-macos.sh` creates a 16 MiB journaled HFS+ image, creates/appends/truncates/deletes a file, mounts it in macOS to read back 4096 bytes, and `fsck_hfs -fn` reports the volume OK after create and after delete; host-only, no device or library write |
+| Disposable-image writer validation | `implemented` | `tests/image/run-macos.sh` creates a 16 MiB journaled HFS+ image, creates a folder/file, appends 4096 bytes, renames, truncates and deletes through the outer volume, mounts at each stage and checks content, modes, timestamps and paths; `fsck_hfs -fn` is clean after every stage. Host-only; no device or library write |
 | B-tree fork growth | `implemented` | `hfs_btree_grow()` allocates a volume block, extends the catalog/extents fork in the primary/alternate headers, adds a free node to the header map and updates `totalNodes`; requires `node_size == block_size` and an inline fork extent slot; 1 host test |
 | Catalog create/delete/rename | `implemented` | `hfs_catalog_write.c`; file and folder records, thread records, CNID allocation, file/folder counts, parent valence, rename/move with a folder-cycle check; names are normalized to HFS+ canonical form; 5 host tests |
 | Unicode catalog comparison | `implemented` | `hfs_catalog_compare.c` uses Apple `FastUnicodeCompare`; `hfs_unicode_normalize_name()` decomposes, applies the HFS+ exception ranges, decomposes Hangul and canonically orders combining marks; `hfs_unicode_data.c` is generated from Unicode 2.1.9 by `tools/gen-hfs-unicode-table.py`; 23 Unicode and 6 key-comparison tests; a local macOS-created image matches the stored forms; broader corpus and `fsck_hfs` ordering checks remain |
@@ -74,7 +74,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Fork block staging | `implemented` | `firmware/hfs/hfs_fork_io.c`; full/partial block write staging into `hfs_txn`; inline extents only; 4 host tests |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
 | Default UI typography | `planned` | D-23 and `docs/ui.md` record IBM Plex Sans 14/17/12/11 px and Manrope Bold logo; font licences/subset and the 320×240 mockup are not done; no UI code exists |
-| Host test harness | `in progress` | 108 portable tests (96 HFS+, 12 bootloader), sanitizer clean, plus the macOS disposable-image, crash-injection and write-diagnostic tests; first diagnostic boot is owner-reported |
+| Host test harness | `in progress` | 110 portable tests (98 HFS+, 12 bootloader), sanitizer clean, plus the macOS disposable-image, crash-injection and write-diagnostic tests; first diagnostic boot is owner-reported |
 
 ## What does not exist
 
@@ -90,7 +90,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Installer or desktop app | `planned` | No host application |
 | Build system, CI, release artifacts | `in progress` | Host test Makefiles and the diagnostic bootloader script; no CI or firmware release |
 | Helikon-OS device run | `unproven` | Three owner-reported diagnostic runs: two read-only-image boots and one write-diagnostic run with every stage PASS; no firmware or library-write run |
-| Supported device list | `unproven` | 6G is the reference; 7G needs a board audit |
+| Supported device list | `unproven` | 6G is the reference; 7G physical audit is deferred from the active queue by owner direction (2026-11-04) |
 | Code of conduct | `rejected` | Owner deleted Contributor Covenant 2.1 on 2026-11-03; no replacement |
 | Signing policy and key ownership | `planned` | D-20 is still open |
 
@@ -162,11 +162,9 @@ writes, the transaction engine, the bootloader, or any goal in
    parity, the broader macOS name corpus and any device write remain. Do not
    substitute byte order.
 4. **No signed-update or signing policy.** D-01, D-16 and D-20 are open.
-5. **No 7G board audit.** 7G support is unproven until a recorded audit covers
-   panel, PMU, audio, storage, button map and `MOVE_AREA`.
-6. **No device-test programme.** No backup/recovery rehearsal, adapter matrix,
-   power-cut rig or `fsck_hfs` oracle run is recorded for Helikon-OS.
-7. **No release infrastructure.** No reproducible build, manifest, signing key,
+5. **No device-test programme.** No backup/recovery rehearsal, adapter matrix or
+   full `fsck_hfs` oracle run is recorded for Helikon-OS.
+6. **No release infrastructure.** No reproducible build, manifest, signing key,
    staging flow, rollback test or support window. Signing policy is D-20.
 
 ## Next task

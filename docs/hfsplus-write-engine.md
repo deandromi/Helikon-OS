@@ -318,9 +318,11 @@ enabled on a real volume.
 **Current status:** new file/folder records get create/access/content/attribute
 dates from `catalog->now`; append, truncate, rename and valence updates touch the
 content/attribute dates; the volume header modify date is staged on
-create/delete and on bitmap alloc/free. `backupDate` stays 0. BSD owner/group,
-flags, Finder info/prototype and a macOS differential corpus are still open
-(T-044).
+create/delete and on bitmap alloc/free. BSD owner/group are 0, admin/owner flags
+are 0, file/folder mode is set, Finder info and textEncoding are zero, and
+`backupDate` stays 0. Metadata is preserved on append/truncate/rename. The macOS
+disposable-image test checks mode and timestamp year. A timestamp-update policy,
+Finder creator/type policy and a wider macOS differential remain (T-044).
 
 ## 8. `fsck_hfs` compatibility
 
