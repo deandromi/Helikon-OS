@@ -11,6 +11,38 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-04 (PMU cut targets 7 and 56)
+
+## What happened
+
+- Targets `7` and `56` both powered the diagnostic off early. After setting the
+  target to `0` and rebooting, the owner saw every stage PASS with
+  `Recovery: CLEAN` and `Cleanup: PASS`.
+
+## Interpretation
+
+- The cut count is 512-byte ATA writes. The measured one-extent sequence has
+  journal commits at about 35, 89, 159, 227, 287, 349 and 403; clean markers at
+  54, 108, 194, 244, 314, 368 and 422.
+- Targets 7 and 56 are pre-commit, so a clean journal is correct. They are
+  useful clean-cut evidence, not recovery evidence.
+- Use replay-window targets `44`, `96`, `176`, `236`, `300`, `356`, `410` for a
+  dirty journal and `Recovery: RECOVERED`.
+- Inner-image `fsck_hfs` for the 7/56 runs is still pending.
+
+## What is next
+
+1. Run target 96 (or 44/176) and confirm `Recovery: RECOVERED`.
+2. Extract and fsck the inner image after each cut.
+3. Continue T-044 metadata parity and T-041 font/mockup work.
+
+## Evidence
+
+- Owner report, 2026-11-04; recorded in device-matrix §2.3.
+- Current image `81350f…`; no new DFU rebuild was needed.
+
+---
+
 # Handoff — 2026-11-04 (PMU cut target 7 observation)
 
 ## What happened

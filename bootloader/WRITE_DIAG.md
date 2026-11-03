@@ -178,13 +178,28 @@ power-loss matrix.
 
 4. Copy `helikon-test.img` back to macOS and run `fsck_hfs -fn`.
 
-Suggested targets in ATA-write counts:
+Measured on a one-extent 16 MiB inner image, the full sequence is about **422**
+512-byte ATA writes. The journal-header writes are at approximately:
 
-- before the first commit: `4`, `8`, `16`;
-- after the first commit / during replay: `56`, `96`, `160`;
-- later transactions: `240`, `400`, `800`, `1200`, `1500`.
+```text
+35 commit, 54 clean
+89 commit, 108 clean
+159 commit, 194 clean
+227 commit, 244 clean
+287 commit, 314 clean
+349 commit, 368 clean
+403 commit, 422 clean
+```
 
-A target beyond the forward sequence simply completes without a cut. If
+Use these target groups:
+
+- **pre-commit / clean journal:** `7`, `56`, `120`, `200`, `260`, `330`,
+  `380` — the next boot should show `Recovery: CLEAN`;
+- **during replay / dirty journal:** `44`, `96`, `176`, `236`, `300`, `356`,
+  `410` — the next boot should show `Recovery: RECOVERED`.
+
+Fragmentation can shift these counts; if a target lands in the wrong group,
+adjust by ±8–16. A target beyond the full sequence completes without a cut. If
 `fsck_hfs` reports a repair or the recovery report fails, stop and preserve the
 image. The report is shown on the recovery boot, not while the cut is happening;
 for an early cut the screen may go black before any report text.

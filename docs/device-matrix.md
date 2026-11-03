@@ -38,7 +38,7 @@ images, backups or serial numbers to the repository.
 | iPod Classic 6G (reference) | `open question` | `open question` | diagnostic `280ed7ae…` | native HFS+ file read | `blocked` | Owner report 2026-11-03: `read error: -8` (`NOT_FOUND`) because `/rockbox.ipod` is not a disk file; probe target needs a real root file | owner |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | playback | `not run` | none | test lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | write diagnostic `9e3881…` | native HFS+ write inside `helikon-test.img` | `pass` | Owner report 2026-11-03: every stage PASS; extracted inner image SHA-256 `156060…`, `fsck_hfs -fn` exit 0, no `diag`; outer `diskutil verifyVolume` exit 0 | boot/HFS+ |
-| iPod Classic 6G (reference) | `open question` | `open question` | write diagnostic `81350f…` | controlled PMU cut, target 7 | `partial` | Owner report 2026-11-04: powered off; next boot `Recovery: CLEAN`, `Cleanup: PASS`, all stages PASS; early pre-commit cut, no dirty journal expected | boot/HFS+ |
+| iPod Classic 6G (reference) | `open question` | `open question` | write diagnostic `81350f…` | controlled PMU cut, targets 7 and 56 | `partial` | Owner report 2026-11-04: both powered off; next boot `Recovery: CLEAN`, `Cleanup: PASS`, all stages PASS; both were pre-commit cuts, no dirty journal expected. Target 96/176 is next for a RECOVERED case | boot/HFS+ |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | journal replay | `not run` | none | journal lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | sleep/wake 100 cycles | `not run` | none | test lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | USB read-only | `not run` | none | USB lead |
@@ -114,16 +114,18 @@ volume's metadata was not written; only `helikon-test.img` data blocks changed.
 
 ### 2.3 Controlled PMU cut — target 7, owner-reported, 2026-11-04
 
-With `helikon-cut.txt` containing `7`, the diagnostic powered off during the
-early boot/write sequence. The owner then set the target to `0`, rebooted and
-reported the normal screen with every stage PASS, `Recovery: CLEAN` and
-`Cleanup: PASS`.
+With `helikon-cut.txt` containing `7`, then `56`, the diagnostic powered off
+during the early boot/write sequence each time. After each cut the owner set the
+target to `0`, rebooted and reported the normal screen with every stage PASS,
+`Recovery: CLEAN` and `Cleanup: PASS`.
 
-The cut count is 512-byte ATA writes; target 7 is before the first journal
-commit. A clean journal on the next boot is therefore the expected result, not a
-failed recovery. No `RECOVERED` line is expected from this target. Post-commit
-targets `56`, `96`, `160` are the next cases that should produce a dirty journal
-and a `RECOVERED` line.
+The cut count is 512-byte ATA writes. The measured one-extent sequence has
+journal commits at about 35, 89, 159, 227, 287, 349 and 403; the corresponding
+clean markers are at 54, 108, 194, 244, 314, 368 and 422. Targets 7 and 56 are
+before the first and second commits, so a clean journal on the next boot is the
+expected result, not a failed recovery. No `RECOVERED` line is expected from
+those targets. Targets in the replay windows, such as `44`, `96`, `176`, `236`,
+`300`, `356` or `410`, should produce a dirty journal and a `RECOVERED` line.
 
 The inner-image `fsck_hfs` for this target is still pending; record it before
 treating the cut as fully passed.
