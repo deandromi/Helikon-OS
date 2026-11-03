@@ -48,12 +48,21 @@ static int map_bitmap_block(const struct hfs_volume *volume, uint32_t bit,
 }
 
 static int read_bitmap_block(const struct hfs_volume *volume,
-                             uint32_t volume_block, uint8_t *buffer)
+                             uint32_t volume_block, uint8_t *buffer,
+                             struct hfs_txn *tx)
 {
     uint64_t offset = volume->base + (uint64_t)volume_block *
                                       volume->block_size;
-    return volume->read(volume->context, offset, buffer,
-                        volume->block_size) ? HFS_ERR_IO : HFS_OK;
+    if (volume->read(volume->context, offset, buffer, volume->block_size))
+        return HFS_ERR_IO;
+    if (tx != NULL) {
+        int rc = hfs_txn_overlay(tx, (uint64_t)volume_block *
+                                 volume->block_size, buffer,
+                                 volume->block_size);
+        if (rc < 0)
+            return rc;
+    }
+    return HFS_OK;
 }
 
 static int stage_bitmap_block(struct hfs_txn *tx, uint32_t volume_block,
@@ -63,7 +72,7 @@ static int stage_bitmap_block(struct hfs_txn *tx, uint32_t volume_block,
         return HFS_ERR_UNSUPPORTED;
     uint64_t sector = (uint64_t)volume_block *
                       (block_size / tx->journal->sector_size);
-    return hfs_txn_stage(tx, sector, buffer, block_size);
+    return hfs_txn_stage_replace(tx, sector, buffer, block_size);
 }
 
 static int stage_header(struct hfs_txn *tx, const struct hfs_volume *volume,
@@ -79,7 +88,7 @@ static int stage_header(struct hfs_txn *tx, const struct hfs_volume *volume,
     put_be32(header + HFS_VH_FREE_BLOCKS, free_blocks);
     put_be32(header + HFS_VH_WRITE_COUNT,
              be32(header + HFS_VH_WRITE_COUNT) + 1u);
-    int rc = hfs_txn_stage(tx, HFS_VOLUME_HEADER_OFFSET / 512u, header,
+    int rc = hfs_txn_stage_replace(tx, HFS_VOLUME_HEADER_OFFSET / 512u, header,
                            sizeof(header));
     if (rc != HFS_OK)
         return rc;
@@ -91,7 +100,7 @@ static int stage_header(struct hfs_txn *tx, const struct hfs_volume *volume,
     put_be32(header + HFS_VH_FREE_BLOCKS, free_blocks);
     put_be32(header + HFS_VH_WRITE_COUNT,
              be32(header + HFS_VH_WRITE_COUNT) + 1u);
-    return hfs_txn_stage(tx, alternate_offset / 512u, header, sizeof(header));
+    return hfs_txn_stage_replace(tx, alternate_offset / 512u, header, sizeof(header));
 }
 
 static int bit_is_set(const uint8_t *buffer, uint32_t bit)
@@ -158,7 +167,7 @@ int hfs_bitmap_find(struct hfs_bitmap *bitmap, uint32_t start_hint,
         int rc = map_bitmap_block(bitmap->volume, block_start, &volume_block);
         if (rc != HFS_OK)
             return rc;
-        rc = read_bitmap_block(bitmap->volume, volume_block, buffer);
+        rc = read_bitmap_block(bitmap->volume, volume_block, buffer, NULL);
         if (rc != HFS_OK)
             return rc;
         for (uint32_t bit = first; bit + count <= end; ++bit) {
@@ -207,7 +216,7 @@ int hfs_bitmap_alloc(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
         int rc = map_bitmap_block(bitmap->volume, block_start, &volume_block);
         if (rc != HFS_OK)
             return rc;
-        rc = read_bitmap_block(bitmap->volume, volume_block, buffer);
+        rc = read_bitmap_block(bitmap->volume, volume_block, buffer, tx);
         if (rc != HFS_OK)
             return rc;
 
@@ -266,7 +275,7 @@ int hfs_bitmap_free(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
         int rc = map_bitmap_block(bitmap->volume, block_start, &volume_block);
         if (rc != HFS_OK)
             return rc;
-        rc = read_bitmap_block(bitmap->volume, volume_block, buffer);
+        rc = read_bitmap_block(bitmap->volume, volume_block, buffer, tx);
         if (rc != HFS_OK)
             return rc;
 

@@ -289,10 +289,16 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     rc = hfs_bitmap_open(&bitmap, volume);
     if (rc != HFS_OK)
         return rc;
-    uint32_t first = 0;
-    rc = hfs_bitmap_find(&bitmap, 0, blocks, &first);
-    if (rc != HFS_OK)
-        return rc;
+    if (blocks + 5u > HFS_TXN_MAX_BLOCKS)
+        return HFS_ERR_NO_SPACE;
+    uint32_t firsts[32];
+    uint32_t cursor = 0;
+    for (uint32_t i = 0; i < blocks; ++i) {
+        rc = hfs_bitmap_find(&bitmap, cursor, 1, &firsts[i]);
+        if (rc != HFS_OK)
+            return rc;
+        cursor = firsts[i] + 1u;
+    }
 
     uint8_t block[32768];
     size_t done = 0;
@@ -302,7 +308,7 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
         if (chunk > block_size)
             chunk = block_size;
         memcpy(block, (const uint8_t *)data + done, chunk);
-        uint64_t sector = (uint64_t)(first + i) *
+        uint64_t sector = (uint64_t)firsts[i] *
                           (block_size / tx->journal->sector_size);
         rc = hfs_txn_stage_replace(tx, sector, block, block_size);
         if (rc != HFS_OK)
@@ -310,20 +316,32 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
         done += chunk;
     }
 
-    uint32_t allocated = 0;
-    rc = hfs_bitmap_alloc(&bitmap, tx, first, blocks, &allocated);
-    if (rc != HFS_OK)
-        return rc;
-    if (allocated != first)
-        return HFS_ERR_BUSY;
+    for (uint32_t i = 0; i < blocks; ++i) {
+        uint32_t allocated = 0;
+        rc = hfs_bitmap_alloc(&bitmap, tx, firsts[i], 1, &allocated);
+        if (rc != HFS_OK)
+            return rc;
+        if (allocated != firsts[i])
+            return HFS_ERR_BUSY;
+    }
 
     put64(fork, length);
     put32(fork + 12, blocks);
-    put32(fork + 16, first);
-    put32(fork + 20, blocks);
-    for (unsigned int i = 1; i < 8; ++i) {
-        put32(fork + 16 + i * 8, 0);
-        put32(fork + 20 + i * 8, 0);
+    memset(fork + 16, 0, 64);
+    uint32_t extent_count = 0;
+    for (uint32_t i = 0; i < blocks; ++i) {
+        if (extent_count != 0 &&
+            be32(fork + 16 + (extent_count - 1u) * 8) +
+                be32(fork + 20 + (extent_count - 1u) * 8) == firsts[i]) {
+            uint32_t count = be32(fork + 20 + (extent_count - 1u) * 8);
+            put32(fork + 20 + (extent_count - 1u) * 8, count + 1u);
+        } else {
+            if (extent_count >= 8u)
+                return HFS_ERR_UNSUPPORTED;
+            put32(fork + 16 + extent_count * 8, firsts[i]);
+            put32(fork + 20 + extent_count * 8, 1);
+            ++extent_count;
+        }
     }
 
     uint8_t key[CATALOG_MAX_RECORD];
@@ -361,22 +379,25 @@ int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     uint32_t blocks = be32(fork + 12);
     if (blocks == 0)
         return HFS_OK;
-    uint32_t start = be32(fork + 16);
-    uint32_t count = be32(fork + 20);
-    if (count != blocks || start == 0)
-        return HFS_ERR_UNSUPPORTED;
-    for (unsigned int i = 1; i < 8; ++i) {
-        if (be32(fork + 16 + i * 8) != 0 || be32(fork + 20 + i * 8) != 0)
-            return HFS_ERR_UNSUPPORTED;
-    }
 
     struct hfs_bitmap bitmap;
     rc = hfs_bitmap_open(&bitmap, catalog->btree.volume);
     if (rc != HFS_OK)
         return rc;
-    rc = hfs_bitmap_free(&bitmap, tx, start, blocks);
-    if (rc != HFS_OK)
-        return rc;
+    for (unsigned int i = 0; i < 8; ++i) {
+        uint32_t start_block = be32(fork + 16 + i * 8);
+        uint32_t extent_count = be32(fork + 20 + i * 8);
+        if (extent_count == 0) {
+            if (start_block != 0)
+                return HFS_ERR_FORMAT;
+            continue;
+        }
+        if (start_block == 0)
+            return HFS_ERR_FORMAT;
+        rc = hfs_bitmap_free(&bitmap, tx, start_block, extent_count);
+        if (rc != HFS_OK)
+            return rc;
+    }
 
     memset(fork, 0, 80);
 
