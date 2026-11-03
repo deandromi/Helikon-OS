@@ -19,7 +19,8 @@ file grows. Do not rely on chat history for current state.
 - Base: `main` at `9c558069b6e7b325451b3127b10adfbd41486315`
 - Documentation commit: `6df63ef63bacc93d253db40d1bb7f2efdd289a6c`,
   fast-forwarded from `docs/license-coc-templates` and pushed to `origin/main`
-- Merge: fast-forward on 2026-11-03; no PR for this follow-up
+- Merge: fast-forward on 2026-11-03; no PR for this follow-up. Later docs
+  housekeeping commits are on `main`; check `git log -1`.
 
 ## What changed
 
