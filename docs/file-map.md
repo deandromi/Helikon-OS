@@ -48,6 +48,8 @@ Helikon-OS/
       hfs_unicode.c/.h      exact UTF-16BE to UTF-8 name decode
       hfs_catalog.c/.h      catalog iteration, path lookup, inline file read
       hfs_extents.c/.h      extents-overflow collection and file read
+      hfs_journal.c/.h      Apple HFS+ journal append/replay and validation
+      hfs_txn.c/.h          bounded staged-block transaction engine
   tests/
     hfsplus/
       Makefile              host test build/sanitizer targets
@@ -61,6 +63,8 @@ Helikon-OS/
   tests/bootloader/
     Makefile              bootloader host test target
     test_diag.c           diagnostic core/splash tests
+    test_journal.c        journal append/replay/checksum/wrap tests
+    test_txn.c            transaction commit/abort/limit tests
   docs/
     README.md               documentation index and reading order
     state.md                current phase and blockers

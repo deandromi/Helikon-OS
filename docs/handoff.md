@@ -11,6 +11,79 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (journal and transaction engine code)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the journal/transaction implementation commit; check
+  `git log -1`.
+
+## What changed
+
+- Added `firmware/hfs/hfs_journal.{c,h}`: Apple HFS+ journal header and
+  block-list validation, checksum verification, circular wrap, append/commit of
+  one transaction, idempotent replay and clean marking.
+- Added `firmware/hfs/hfs_txn.{c,h}`: bounded staged-block transaction engine
+  that commits through the journal and applies by replay.
+- Added `HFS_ERR_NO_SPACE`, `HFS_ERR_READ_ONLY`, `HFS_ERR_BUSY`,
+  `HFS_ERR_POWER` and `HFS_ERR_NOT_EMPTY`.
+- Added 8 journal host tests and 7 transaction host tests.
+- Updated test/state/handoff/task docs. 58 host tests total (50 HFS+, 8
+  bootloader), sanitizer-clean.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 50/50 pass.
+- `make -C tests/hfsplus sanitize` — 50/50 pass with ASan/UBSan.
+- `make -C tests/bootloader test` — 8/8 pass.
+- Journal tests cover clean open, append/replay, corrupt checksum, wrapped
+  transaction, no-space, bad target, corrupt header and dirty replay failure.
+- Transaction tests cover one/two-block commit, abort, duplicate sector, block
+  limit, dirty-journal refusal and bad block size.
+- No device write and no write-capable bootloader image.
+
+## What failed
+
+- The first journal implementation used a zero-based wrap and would have moved
+  the cursor into the journal header; fixed with a sector-aware wrap helper.
+- The initial test set did not cover a wrapped transaction; added.
+- The writer is **not complete**: catalog/bitmap/extents mutation, file
+  operations and the write diagnostic bootloader do not exist.
+
+## What is next
+
+1. Implement the allocation bitmap read/modify/stage path.
+2. Implement catalog B-tree insert/update/delete, starting with the
+   no-split/empty-file case and then splits/merges.
+3. Implement extents/overflow mutation.
+4. Add a disposable HFS+ image fixture and `fsck_hfs` gate.
+5. Only then build a write diagnostic that targets a disposable image file on
+   the iPod (outer HFS+ volume read-only), never the library.
+6. Bootloader path resumes afterwards; D-01/D-02/D-20 remain open.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- No `--single` on the bootloader path.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- D-06 Unicode normalization/FastUnicodeCompare policy.
+- Catalog split/merge implementation order.
+- Write diagnostic test-image placement and verification.
+
+## Device/test evidence
+
+- No new device run. The diagnostic runs remain owner-reported in
+  [`device-matrix.md`](device-matrix.md) §2.1. The writer is host-only.
+
+---
+
 # Handoff — 2026-11-03 (journal decisions and writer interface)
 
 ## Branch / commit

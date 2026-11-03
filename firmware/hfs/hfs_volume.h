@@ -22,7 +22,12 @@ enum hfs_error {
     HFS_ERR_NOT_FOUND = -8,
     HFS_ERR_NOT_DIR = -9,
     HFS_ERR_IS_DIR = -10,
-    HFS_ERR_NAME_INVALID = -11
+    HFS_ERR_NAME_INVALID = -11,
+    HFS_ERR_NO_SPACE = -12,
+    HFS_ERR_READ_ONLY = -13,
+    HFS_ERR_BUSY = -14,
+    HFS_ERR_POWER = -15,
+    HFS_ERR_NOT_EMPTY = -16
 };
 
 struct hfs_extent {

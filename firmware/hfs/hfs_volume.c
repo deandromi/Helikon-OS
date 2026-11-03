@@ -340,6 +340,11 @@ const char *hfs_strerror(int error)
     case HFS_ERR_NOT_DIR: return "not a directory";
     case HFS_ERR_IS_DIR: return "is a directory";
     case HFS_ERR_NAME_INVALID: return "invalid HFS+ name";
+    case HFS_ERR_NO_SPACE: return "no space or transaction too large";
+    case HFS_ERR_READ_ONLY: return "volume is read-only";
+    case HFS_ERR_BUSY: return "writer is busy";
+    case HFS_ERR_POWER: return "below the write power gate";
+    case HFS_ERR_NOT_EMPTY: return "directory is not empty";
     default: return "unknown HFS+ error";
     }
 }

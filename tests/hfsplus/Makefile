@@ -4,7 +4,7 @@ CFLAGS ?= -O2 -g
 CFLAGS += -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow
 CPPFLAGS += -I../../firmware/hfs
 HFS = ../../firmware/hfs
-TESTS = test_volume test_btree test_unicode test_catalog test_extents
+TESTS = test_volume test_btree test_unicode test_catalog test_extents test_journal test_txn
 
 .PHONY: all test sanitize clean
 
@@ -45,12 +45,28 @@ test_extents: test_extents.c test_image.c test_image.h test_check.h \
 	  $(HFS)/hfs_extents.c $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c \
 	  $(LDFLAGS) -o $@
 
+test_journal: test_journal.c test_check.h \
+              $(HFS)/hfs_journal.c $(HFS)/hfs_journal.h \
+              $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) test_journal.c \
+	  $(HFS)/hfs_journal.c $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
+
+test_txn: test_txn.c test_check.h \
+          $(HFS)/hfs_txn.c $(HFS)/hfs_txn.h \
+          $(HFS)/hfs_journal.c $(HFS)/hfs_journal.h \
+          $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) test_txn.c \
+	  $(HFS)/hfs_txn.c $(HFS)/hfs_journal.c $(HFS)/hfs_volume.c \
+	  $(LDFLAGS) -o $@
+
 test: $(TESTS)
 	./test_volume
 	./test_btree
 	./test_unicode
 	./test_catalog
 	./test_extents
+	./test_journal
+	./test_txn
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)

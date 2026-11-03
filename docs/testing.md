@@ -6,22 +6,24 @@
 > Last updated: 2026-11-03
 > Source: design paper §17, §24, §26, §28; `docs/verification.md`
 
-**Helikon-OS has a small host test tree.** It covers the HFS+ read core and the
-read-only diagnostic bootloader core: 41 tests total (34 HFS+, 7 bootloader),
-sanitizer-clean. There are no writer, device or power-loss tests yet. Donor
-tests are reference material only. Do not describe a donor test pass as
-Helikon-OS validation.
+**Helikon-OS has a small host test tree.** It covers the HFS+ read core, the
+read-only diagnostic bootloader core, and the first writer foundation: 58 tests
+total (50 HFS+, 8 bootloader), sanitizer-clean. The writer foundation covers the
+Apple HFS+ journal append/replay path and a bounded transaction engine; catalog,
+bitmap and extents mutation tests do not exist yet. There are no device or
+power-loss tests. Donor tests are reference material only. Do not describe a
+donor test pass as Helikon-OS validation.
 
 ## 1. Test layers
 
 | Layer | What it proves | Runs on | Current status | Required for |
 |---|---|---|---|---|
-| Host unit | Parser, allocator, name, state-machine logic | Host | `in progress` — HFS+ read core | Every module |
+| Host unit | Parser, allocator, name, state-machine logic | Host | `in progress` — HFS+ read core, journal and txn | Every module |
 | Fuzzing | Malformed B-trees, extents, names, journal records do not crash/escape bounds | Host | `planned` | Reader, writer, journal |
 | Model-based B-tree | Insert/update/delete, split/merge, key order, free-node map | Host | `planned` | Writer |
-| Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `planned` | Writer/journal |
+| Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `planned` — journal append/replay has unit tests only | Writer/journal |
 | Differential vs macOS | Same tree/names/metadata/`fsck_hfs` result on both sides | Host + macOS | `planned` | Writer |
-| Bootloader diagnostics | Read-only volume/catalog/file report and splash | Host | `in progress` — 7 tests | Boot screen |
+| Bootloader diagnostics | Read-only volume/catalog/file report and splash | Host | `in progress` — 8 tests | Boot screen |
 | Device | Boot, mount, playback, write, USB, sleep, recovery | 6G (then 7G/ports) | `not run` | Any hardware claim |
 | Power-loss | Every metadata operation at every journal boundary | Device/rig | `not run` | Write release |
 | Battery/RAM | Runtime, sleep drain, peak RAM, soak | Device/rig | `not run` | Goal 1/4, D-12 |
