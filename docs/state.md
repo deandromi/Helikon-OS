@@ -58,7 +58,8 @@ Helikon-OS poster above the goals on 2026-11-03.
 | B-tree tree insertion | `implemented` | `firmware/hfs/hfs_btree_tree.c`; root-to-leaf traversal, free-node map, leaf/index split, parent insertion, recursive split and root creation; 1 model test with 20 records; below-minimum insertion fails closed |
 | B-tree delete | `in progress` | `hfs_btree_delete` removes records including first records, propagates changed parent keys, unlinks/frees empty leaves, merges/redistributes with both siblings, collapses a one-child root to its nonempty leaf, and collapses an empty parent into its grandparent; fork growth remains unimplemented; covered by the same model test |
 | Volume header staging | `implemented` | `hfs_volume_write.c`; primary/alternate header file/folder counts, next CNID and write count; no `modifyDate` update |
-| Catalog create/delete (empty file) | `implemented` | `hfs_catalog_write.c`; native file + thread record insert/delete through the B-tree and journal, CNID allocation, file count and parent valence; data forks, `FastUnicodeCompare` and fork growth not implemented; 1 host test |
+| Catalog create/delete (empty file) | `implemented` | `hfs_catalog_write.c`; native file + thread record insert/delete through the B-tree and journal, CNID allocation, file count and parent valence; `FastUnicodeCompare` and fork growth not implemented; 1 host test |
+| Data-fork append/truncate (one inline extent) | `implemented` | `hfs_catalog_append_file` stages data blocks before bitmap/header/record metadata, allocates a contiguous run and writes one inline extent; `hfs_catalog_truncate_file` frees that extent; multi-extent/overflow files return `UNSUPPORTED` |
 | Fork block staging | `implemented` | `firmware/hfs/hfs_fork_io.c`; full/partial block write staging into `hfs_txn`; inline extents only; 4 host tests |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
 | Host test harness | `in progress` | 76 tests total (68 HFS+, 8 bootloader); sanitizer clean; first diagnostic boot is owner-reported |
@@ -72,7 +73,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; no device run and no firmware loading |
 | Bootloader manifest/boot state | `planned` | D-01/D-02 still open |
 | VFS, player, UI, database | `planned` | No implementation |
-| HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete, fork staging and empty-file catalog create/delete exist; data writes, extents, valence, fork growth and `fsck_hfs` validation do not |
+| HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete, fork staging, catalog create/delete/valence and one-extent data append/truncate exist; multi-extent/overflow, fork growth and `fsck_hfs` validation do not |
 | Journal/transaction engine | `planned` | Design requirements only |
 | Installer or desktop app | `planned` | No host application |
 | Build system, CI, release artifacts | `in progress` | Host test Makefiles and the diagnostic bootloader script; no CI or firmware release |

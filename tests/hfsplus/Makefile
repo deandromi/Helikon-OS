@@ -109,7 +109,8 @@ test_catalog_write: test_catalog_write.c test_image.c test_image.h test_check.h 
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_catalog_write.c test_image.c \
 	  $(HFS)/hfs_catalog_write.c $(HFS)/hfs_btree_tree.c \
 	  $(HFS)/hfs_btree_write.c $(HFS)/hfs_fork_io.c \
-	  $(HFS)/hfs_volume_write.c $(HFS)/hfs_txn.c $(HFS)/hfs_journal.c \
+	  $(HFS)/hfs_volume_write.c $(HFS)/hfs_bitmap.c \
+	  $(HFS)/hfs_txn.c $(HFS)/hfs_journal.c \
 	  $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
 
 test: $(TESTS)

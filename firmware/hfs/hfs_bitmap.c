@@ -129,6 +129,51 @@ int hfs_bitmap_open(struct hfs_bitmap *bitmap, struct hfs_volume *volume)
     return HFS_OK;
 }
 
+int hfs_bitmap_find(struct hfs_bitmap *bitmap, uint32_t start_hint,
+                    uint32_t count, uint32_t *first_block)
+{
+    if (bitmap == NULL || first_block == NULL || count == 0)
+        return HFS_ERR_ARGUMENT;
+    if (start_hint >= bitmap->total_blocks ||
+        count > bitmap->free_blocks || count > bitmap->total_blocks)
+        return HFS_ERR_NO_SPACE;
+
+    uint32_t bits_per_block = bitmap->block_size * 8u;
+    if (count > bits_per_block)
+        return HFS_ERR_NO_SPACE;
+    uint32_t first_bitmap = start_hint / bits_per_block;
+    uint32_t last_bitmap = (bitmap->total_blocks - 1u) / bits_per_block;
+    uint8_t buffer[32768];
+    if (bitmap->block_size > sizeof(buffer))
+        return HFS_ERR_UNSUPPORTED;
+
+    for (uint32_t index = first_bitmap; index <= last_bitmap; ++index) {
+        uint32_t block_start = index * bits_per_block;
+        uint32_t first = index == first_bitmap ?
+                         start_hint - block_start : 0u;
+        uint32_t end = bitmap->total_blocks - block_start;
+        if (end > bits_per_block)
+            end = bits_per_block;
+        uint32_t volume_block;
+        int rc = map_bitmap_block(bitmap->volume, block_start, &volume_block);
+        if (rc != HFS_OK)
+            return rc;
+        rc = read_bitmap_block(bitmap->volume, volume_block, buffer);
+        if (rc != HFS_OK)
+            return rc;
+        for (uint32_t bit = first; bit + count <= end; ++bit) {
+            uint32_t run = 0;
+            while (run < count && !bit_is_set(buffer, bit + run))
+                ++run;
+            if (run == count) {
+                *first_block = block_start + bit;
+                return HFS_OK;
+            }
+        }
+    }
+    return HFS_ERR_NO_SPACE;
+}
+
 int hfs_bitmap_alloc(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
                      uint32_t start_hint, uint32_t count,
                      uint32_t *first_block)

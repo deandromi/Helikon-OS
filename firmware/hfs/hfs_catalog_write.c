@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "hfs_catalog_write.h"
 
+#include "hfs_bitmap.h"
 #include "hfs_btree_tree.h"
 #include "hfs_volume_write.h"
 
@@ -37,6 +38,18 @@ static void put32(uint8_t *p, uint32_t value)
     p[2] = (uint8_t)(value >> 8);
     p[3] = (uint8_t)value;
 }
+
+static uint64_t be64(const uint8_t *p)
+{
+    return ((uint64_t)be32(p) << 32) | be32(p + 4);
+}
+
+static void put64(uint8_t *p, uint64_t value)
+{
+    put32(p, (uint32_t)(value >> 32));
+    put32(p + 4, (uint32_t)value);
+}
+
 
 static size_t build_key(uint8_t *buffer, uint32_t parent,
                         const uint8_t *name, size_t units)
@@ -221,4 +234,158 @@ int hfs_catalog_delete_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     update.set_file_count = 1;
     update.file_count = file_count - 1u;
     return hfs_volume_stage(tx, volume, &update);
+}
+
+static int find_file_record(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                            uint32_t parent, const uint8_t *name, size_t units,
+                            hfs_btree_key_compare_fn compare,
+                            void *compare_context, uint8_t *record,
+                            size_t *record_length, size_t *key_length)
+{
+    uint8_t key[CATALOG_MAX_RECORD];
+    *key_length = build_key(key, parent, name, units);
+    return hfs_btree_find(&catalog->btree, tx, key + 2, *key_length,
+                          compare, compare_context, record,
+                          CATALOG_MAX_RECORD, record_length);
+}
+
+int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                            uint32_t parent, const uint8_t *name,
+                            size_t units, uint64_t offset,
+                            const void *data, size_t length,
+                            hfs_btree_key_compare_fn compare,
+                            void *compare_context)
+{
+    if (catalog == NULL || tx == NULL || name == NULL || data == NULL ||
+        compare == NULL || units == 0 || units > 255u || parent < 2u ||
+        length == 0)
+        return HFS_ERR_ARGUMENT;
+
+    uint8_t record[CATALOG_MAX_RECORD];
+    size_t record_length;
+    size_t key_length;
+    int rc = find_file_record(catalog, tx, parent, name, units, compare,
+                              compare_context, record, &record_length,
+                              &key_length);
+    if (rc != HFS_OK)
+        return rc;
+    size_t data_offset = 2u + key_length;
+    if (record_length < data_offset + 88u + 80u)
+        return HFS_ERR_FORMAT;
+    uint8_t *fork = record + data_offset + 88u;
+    if (offset != 0 || be64(fork) != 0 || be32(fork + 12) != 0)
+        return HFS_ERR_UNSUPPORTED;
+
+    struct hfs_volume *volume = catalog->btree.volume;
+    uint32_t block_size = volume->block_size;
+    if (block_size == 0 || block_size > 32768u ||
+        block_size % tx->journal->sector_size != 0)
+        return HFS_ERR_UNSUPPORTED;
+    uint32_t blocks = (uint32_t)((length + block_size - 1u) / block_size);
+    if (blocks == 0)
+        return HFS_ERR_ARGUMENT;
+
+    struct hfs_bitmap bitmap;
+    rc = hfs_bitmap_open(&bitmap, volume);
+    if (rc != HFS_OK)
+        return rc;
+    uint32_t first = 0;
+    rc = hfs_bitmap_find(&bitmap, 0, blocks, &first);
+    if (rc != HFS_OK)
+        return rc;
+
+    uint8_t block[32768];
+    size_t done = 0;
+    for (uint32_t i = 0; i < blocks; ++i) {
+        memset(block, 0, block_size);
+        size_t chunk = length - done;
+        if (chunk > block_size)
+            chunk = block_size;
+        memcpy(block, (const uint8_t *)data + done, chunk);
+        uint64_t sector = (uint64_t)(first + i) *
+                          (block_size / tx->journal->sector_size);
+        rc = hfs_txn_stage_replace(tx, sector, block, block_size);
+        if (rc != HFS_OK)
+            return rc;
+        done += chunk;
+    }
+
+    uint32_t allocated = 0;
+    rc = hfs_bitmap_alloc(&bitmap, tx, first, blocks, &allocated);
+    if (rc != HFS_OK)
+        return rc;
+    if (allocated != first)
+        return HFS_ERR_BUSY;
+
+    put64(fork, length);
+    put32(fork + 12, blocks);
+    put32(fork + 16, first);
+    put32(fork + 20, blocks);
+    for (unsigned int i = 1; i < 8; ++i) {
+        put32(fork + 16 + i * 8, 0);
+        put32(fork + 20 + i * 8, 0);
+    }
+
+    uint8_t key[CATALOG_MAX_RECORD];
+    size_t delete_key = build_key(key, parent, name, units);
+    rc = hfs_btree_delete(&catalog->btree, tx, key + 2, delete_key,
+                          compare, compare_context);
+    if (rc != HFS_OK)
+        return rc;
+    return hfs_btree_insert(&catalog->btree, tx, record, record_length,
+                            compare, compare_context);
+}
+
+int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                              uint32_t parent, const uint8_t *name,
+                              size_t units,
+                              hfs_btree_key_compare_fn compare,
+                              void *compare_context)
+{
+    if (catalog == NULL || tx == NULL || name == NULL || compare == NULL ||
+        units == 0 || units > 255u || parent < 2u)
+        return HFS_ERR_ARGUMENT;
+
+    uint8_t record[CATALOG_MAX_RECORD];
+    size_t record_length;
+    size_t key_length;
+    int rc = find_file_record(catalog, tx, parent, name, units, compare,
+                              compare_context, record, &record_length,
+                              &key_length);
+    if (rc != HFS_OK)
+        return rc;
+    size_t data_offset = 2u + key_length;
+    if (record_length < data_offset + 88u + 80u)
+        return HFS_ERR_FORMAT;
+    uint8_t *fork = record + data_offset + 88u;
+    uint32_t blocks = be32(fork + 12);
+    if (blocks == 0)
+        return HFS_OK;
+    uint32_t start = be32(fork + 16);
+    uint32_t count = be32(fork + 20);
+    if (count != blocks || start == 0)
+        return HFS_ERR_UNSUPPORTED;
+    for (unsigned int i = 1; i < 8; ++i) {
+        if (be32(fork + 16 + i * 8) != 0 || be32(fork + 20 + i * 8) != 0)
+            return HFS_ERR_UNSUPPORTED;
+    }
+
+    struct hfs_bitmap bitmap;
+    rc = hfs_bitmap_open(&bitmap, catalog->btree.volume);
+    if (rc != HFS_OK)
+        return rc;
+    rc = hfs_bitmap_free(&bitmap, tx, start, blocks);
+    if (rc != HFS_OK)
+        return rc;
+
+    memset(fork, 0, 80);
+
+    uint8_t key[CATALOG_MAX_RECORD];
+    size_t delete_key = build_key(key, parent, name, units);
+    rc = hfs_btree_delete(&catalog->btree, tx, key + 2, delete_key,
+                          compare, compare_context);
+    if (rc != HFS_OK)
+        return rc;
+    return hfs_btree_insert(&catalog->btree, tx, record, record_length,
+                            compare, compare_context);
 }

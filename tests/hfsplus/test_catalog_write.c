@@ -49,9 +49,20 @@ static void make_image(void)
     test_image_clear();
     test_image_make_header(test_image + 1024, 0x482bu, 4,
                             TEST_ATTR_UNMOUNTED, TEST_BLOCK_SIZE,
-                            TEST_IMAGE_SIZE / TEST_BLOCK_SIZE, 0);
+                            TEST_IMAGE_SIZE / TEST_BLOCK_SIZE, 86);
     put_be32(test_image + 1024 + 32, 1);   /* one root folder */
     put_be32(test_image + 1024 + 64, 16);  /* next CNID */
+
+    /* Allocation file: 16 bytes (128 bits), one block at block 18. */
+    uint8_t *allocation = test_image + 1024 + 112;
+    test_image_put_be64(allocation, 16);
+    test_image_put_be32(allocation + 12, 1);
+    test_image_put_be32(allocation + 16, 18);
+    test_image_put_be32(allocation + 20, 1);
+    uint8_t *bitmap = test_image + 18 * TEST_BLOCK_SIZE;
+    memset(bitmap, 0xff, 5);
+    bitmap[5] = 0x80;      /* block 40 */
+    bitmap[15] = 0x02;     /* block 126, alternate header */
     memcpy(test_image + TEST_IMAGE_SIZE - 1024, test_image + 1024, 512);
 
     uint8_t *fork = test_image + 1024 + 272;
@@ -241,6 +252,53 @@ static int test_create_delete_file(void)
     data_offset = 2u + key_length;
     CHECK(get_be16(record + data_offset) == 1);
     CHECK(get_be32(record + data_offset + 4) == 1);
+
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    uint8_t payload[600];
+    for (size_t i = 0; i < sizeof(payload); ++i)
+        payload[i] = (uint8_t)(i & 0xffu);
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_append_file(&catalog, &tx, 2, name, TEST_NAME_UNITS, 0,
+                                  payload, sizeof(payload), compare_catalog,
+                                  NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 48) == 84);
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    key_length = build_key(key, 2, name, TEST_NAME_UNITS);
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+                         NULL, record, sizeof(record), &record_length) ==
+          HFS_OK);
+    data_offset = 2u + key_length;
+    uint8_t *fork = record + data_offset + 88u;
+    CHECK(get_be32(fork + 12) == 2);
+    CHECK(get_be32(fork + 16) == 41);
+    CHECK(get_be32(fork + 20) == 2);
+    CHECK(memcmp(test_image + 41 * TEST_BLOCK_SIZE, payload, 512) == 0);
+    CHECK(memcmp(test_image + 42 * TEST_BLOCK_SIZE, payload + 512, 88) == 0);
+
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_truncate_file(&catalog, &tx, 2, name, TEST_NAME_UNITS,
+                                    compare_catalog, NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 48) == 86);
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+                         NULL, record, sizeof(record), &record_length) ==
+          HFS_OK);
+    fork = record + data_offset + 88u;
+    CHECK(get_be32(fork + 12) == 0);
+    CHECK(get_be32(fork + 16) == 0);
+    CHECK(get_be32(fork + 20) == 0);
 
     memset(&tx, 0, sizeof(tx));
     tx.journal = &journal;

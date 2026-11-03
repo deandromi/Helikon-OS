@@ -28,4 +28,19 @@ int hfs_catalog_delete_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
                             hfs_btree_key_compare_fn compare,
                             void *compare_context);
 
+/* Append to an empty file using one inline extent. */
+int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                            uint32_t parent, const uint8_t *name,
+                            size_t units, uint64_t offset,
+                            const void *data, size_t length,
+                            hfs_btree_key_compare_fn compare,
+                            void *compare_context);
+
+/* Truncate a file with one inline extent to size zero. */
+int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                              uint32_t parent, const uint8_t *name,
+                              size_t units,
+                              hfs_btree_key_compare_fn compare,
+                              void *compare_context);
+
 #endif

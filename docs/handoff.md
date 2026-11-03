@@ -11,6 +11,63 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (one-extent data append/truncate)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the data-fork append/truncate commit; check `git log -1`.
+
+## What changed
+
+- Added `hfs_bitmap_find()` to locate a free run without staging metadata.
+- Added `hfs_catalog_append_file()`: stages data blocks first, allocates the
+  same contiguous run, writes one inline extent, updates logical size/total
+  blocks and rewrites the file record.
+- Added `hfs_catalog_truncate_file()`: frees the one inline extent and clears
+  the fork.
+- Extended the catalog test to append 600 bytes (two blocks), verify data and
+  bitmap/free-block changes, then truncate and restore the free count.
+- Total host tests: 76 (68 HFS+, 8 bootloader), sanitizer-clean.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 68/68 pass.
+- `make -C tests/hfsplus sanitize` — 68/68 pass with ASan/UBSan.
+- Data blocks are staged before bitmap/header/record metadata in the
+  transaction.
+- Append allocates blocks 41–42 on the test image; truncate frees them and
+  restores `freeBlocks` 86.
+- No device write and no write-capable bootloader image.
+
+## What is next
+
+1. Multi-extent/overflow files.
+2. Fork growth.
+3. D-06 / FastUnicodeCompare.
+4. Disposable image + `fsck_hfs`.
+5. Write diagnostic.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- No byte-order substitution for HFS+ catalog keys.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- D-06 Unicode policy / FastUnicodeCompare.
+- Extents/overflow and fork-growth strategy.
+
+## Device/test evidence
+
+- No new device run. The writer is host-only.
+
+---
+
 # Handoff — 2026-11-03 (catalog parent valence)
 
 ## Branch / commit
