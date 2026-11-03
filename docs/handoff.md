@@ -15,11 +15,11 @@ file grows. Do not rely on chat history for current state.
 
 ## Branch / commit
 
-- Branch: `docs/license-coc-templates`
+- Branch: `main`
 - Base: `main` at `9c558069b6e7b325451b3127b10adfbd41486315`
-- Documentation commit: current branch head (check `git log -1`)
-- PR: opened against `main`; see the repository PR for the URL and review state.
-  Not merged; license/code-of-conduct text is owner-sensitive.
+- Documentation commit: `6df63ef63bacc93d253db40d1bb7f2efdd289a6c`,
+  fast-forwarded from `docs/license-coc-templates` and pushed to `origin/main`
+- Merge: fast-forward on 2026-11-03; no PR for this follow-up
 
 ## What changed
 
@@ -36,7 +36,8 @@ file grows. Do not rely on chat history for current state.
   merged.
 - Added `LICENSE` (GPL-2.0-or-later), `NOTICE`, `CODE_OF_CONDUCT.md`
   (Contributor Covenant 2.1), and GitHub issue templates for bugs, features and
-  device test reports.
+  device test reports; fast-forwarded the follow-up branch to `main` and pushed
+  it.
 - Did **not** modify the root `README.md`, the donor repository, any firmware,
   build system, CI or release asset. The requested README title, summary and 25
   goals were already present at the top, so no README change was needed.
@@ -62,7 +63,7 @@ file grows. Do not rely on chat history for current state.
   - no claim that Helikon-OS is implemented or hardware-validated;
   - no duplicate canonical files.
 - No Helikon-OS build, test or device run was performed; there is no source tree.
-- `main` and `origin/main` are at `9c55806`; PR #1 state is MERGED. The requested
+- `main` and `origin/main` are at `6df63ef`; PR #1 state is MERGED. The requested
   README block is present verbatim (all 25 goal lines) and the README SHA-256 is
   unchanged from the base commit.
 - License/COC/issue-template files parse/validate: YAML issue forms load; the
@@ -78,7 +79,7 @@ file grows. Do not rely on chat history for current state.
 
 ## What is next
 
-1. Owner reviews the merged docs on `main` and the conflict records C-01–C-08.
+1. Owner reviews the merged docs on `main` and the conflict records C-01–C-09.
 2. Resolve the phase-2 blockers first: D-03 (journal strategy) and D-04
    (journal ownership).
 3. Freeze the writer interface and failure model (T-002), then the fixture plan
@@ -94,8 +95,8 @@ file grows. Do not rely on chat history for current state.
 - Any `/.rockpod-rw`, device backup, disk image, serial number or personal data.
 - The native-HFS+ invariants, journal rules, `fsck_hfs` gate, bootloader
   read-only rule, or `--single` ban.
-- `LICENSE`, `NOTICE` and `CODE_OF_CONDUCT.md` once merged — the license and
-  conduct choice is owner-approved; do not change it silently.
+- `LICENSE`, `NOTICE` and `CODE_OF_CONDUCT.md` — the license and conduct choice
+  is owner-approved; do not change it silently.
 - Signing policy (D-20, not chosen).
 
 ## Open questions
@@ -107,7 +108,8 @@ file grows. Do not rely on chat history for current state.
 - D-10: exact Rockbox skin subset and corpus licences.
 - D-13: 7G board audit and port scope.
 - D-20: signing-key ownership and release-signing policy.
-- Owner review of the GPL-2.0-or-later / Contributor Covenant 2.1 PR.
+- Legal review of the GPL-2.0-or-later / Contributor Covenant 2.1 wording before
+  a public release.
 - C-02–C-06: owner confirmation of README goal scope vs paper's narrower design
   response.
 

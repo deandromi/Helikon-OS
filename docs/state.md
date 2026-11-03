@@ -56,9 +56,9 @@ unchanged from the base commit.
 - **Documentation branch:** `docs/agent-handbook`, fast-forwarded to `main` on
   2026-11-03.
 - **Last known-good code commit:** none; there is no Helikon-OS code.
-- **Last known-good documentation commit:** `cb8e8dc6bd4fdf03d588a5a06d9f94b78270a73b`
-  on `main` (PR #1, merged by fast-forward). Any later docs housekeeping commit
-  is on `main`; check `git log -1`.
+- **Last known-good documentation commit:** `6df63ef63bacc93d253db40d1bb7f2efdd289a6c`
+  on `main` (license/COC/issue-template follow-up, fast-forwarded). Any later
+  docs housekeeping commit is on `main`; check `git log -1`.
 
 Do not treat the donor V3.2 release as a Helikon-OS baseline. It is a separate
 overlay-based product.
