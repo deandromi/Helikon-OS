@@ -3,10 +3,10 @@
 #
 # Journal crash-injection test for the native HFS+ writer.
 #
-# Creates one clean 16 MiB journaled HFS+ image, then for each cut point copies
-# it, injects a write failure during a create transaction, reopens the copy,
-# replays the journal and runs fsck_hfs. The loop stops when a cut point is
-# beyond the transaction's write count (the commit succeeds).
+# Creates one clean 16 MiB journaled HFS+ image, prepares a scenario, then for
+# each cut point copies it, injects a write failure, reopens the copy, replays
+# the journal and runs fsck_hfs. The loop stops when a cut point is beyond the
+# transaction's write count (the commit succeeds).
 #
 # The script accepts no image or device argument and writes only its own
 # temporary copies. macOS only.
@@ -21,6 +21,7 @@ fi
 HERE=$(cd "$(dirname "$0")" && pwd)
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/helikon-crash-test.XXXXXX")
 BASE="$TMP/base.dmg"
+PREP="$TMP/prepared.dmg"
 WORK="$TMP/work.dmg"
 DEV=""
 MAX_CUTS=${MAX_CUTS:-200}
@@ -70,28 +71,63 @@ fi
 fsck_image "$BASE"
 echo "base image is clean"
 
-CUT=1
-while [ "$CUT" -le "$MAX_CUTS" ]; do
-    cp "$BASE" "$WORK"
-    CRASH=$("$HERE/hfs_crash_test" "$WORK" crash "$CUT") ||
-        fail "crash injection at cut $CUT failed"
-    echo "cut $CUT: $CRASH"
+prepare_scenario() {
+    SCENARIO=$1
+    cp "$BASE" "$PREP"
+    case "$SCENARIO" in
+        create)
+            ;;
+        append)
+            "$HERE/hfs_crash_test" "$PREP" setup create >/dev/null
+            ;;
+        truncate)
+            "$HERE/hfs_crash_test" "$PREP" setup create >/dev/null
+            "$HERE/hfs_crash_test" "$PREP" setup append >/dev/null
+            ;;
+        delete)
+            "$HERE/hfs_crash_test" "$PREP" setup create >/dev/null
+            ;;
+        *)
+            fail "unknown scenario $SCENARIO"
+            ;;
+    esac
+    fsck_image "$PREP"
+}
 
-    RECOVER=$("$HERE/hfs_crash_test" "$WORK" recover) ||
-        fail "recovery at cut $CUT failed"
-    echo "cut $CUT: $RECOVER"
-    echo "$RECOVER" | grep -qE '^recovered present=[01]( size=0)?$' ||
-        fail "unexpected recovery state at cut $CUT"
-    fsck_image "$WORK"
+run_scenario() {
+    SCENARIO=$1
+    echo "== scenario $SCENARIO =="
+    prepare_scenario "$SCENARIO"
+    CUT=1
+    while [ "$CUT" -le "$MAX_CUTS" ]; do
+        cp "$PREP" "$WORK"
+        CRASH=$("$HERE/hfs_crash_test" "$WORK" crash "$SCENARIO" "$CUT") ||
+            fail "crash injection at $SCENARIO cut $CUT failed"
+        echo "$SCENARIO cut $CUT: $CRASH"
 
-    if echo "$CRASH" | grep -q '^commit-ok'; then
-        echo "PASS: crash injection covered $((CUT - 1)) cuts; commit succeeded at cut $CUT"
+        RECOVER=$("$HERE/hfs_crash_test" "$WORK" recover "$SCENARIO") ||
+            fail "recovery at $SCENARIO cut $CUT failed"
+        echo "$SCENARIO cut $CUT: $RECOVER"
+        echo "$RECOVER" |
+            grep -qE '^recovered present=[01]( size=(0|4096))?$' ||
+            fail "unexpected recovery state at $SCENARIO cut $CUT"
+        fsck_image "$WORK"
+
+        if echo "$CRASH" | grep -q '^commit-ok'; then
+            echo "PASS $SCENARIO: covered $((CUT - 1)) cuts; commit at cut $CUT"
+            rm -f "$WORK"
+            return 0
+        fi
+
         rm -f "$WORK"
-        exit 0
-    fi
+        CUT=$((CUT + 1))
+    done
+    fail "$SCENARIO commit did not succeed within $MAX_CUTS cuts"
+}
 
-    rm -f "$WORK"
-    CUT=$((CUT + 1))
-done
+run_scenario create
+run_scenario append
+run_scenario truncate
+run_scenario delete
 
-fail "commit did not succeed within $MAX_CUTS cuts; increase MAX_CUTS"
+echo "PASS: create/append/truncate/delete crash matrices are fsck-clean"

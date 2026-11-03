@@ -29,8 +29,8 @@ transaction engine, the allocation bitmap, B-tree insert/delete/split/growth,
 catalog/extents mutation, fork block staging, catalog key comparison and HFS+
 normalization are implemented and host-tested. A disposable 16 MiB journaled
 HFS+ image passes create/append/mount/delete with `fsck_hfs -fn` clean, and a
-create-transaction write-failure matrix (25 cuts) replays to an fsck-clean
-volume. The write diagnostic and any device write do not exist. Do not infer a
+create/append/truncate/delete write-failure matrices (127 cuts) replay to an
+fsck-clean volume. The write diagnostic and any device write do not exist. Do not infer a
 device write or a complete writer from this document.
 
 ## 2. Minimum surface
@@ -542,7 +542,7 @@ No partial success:
 | Model-based B-tree | Insert/split/merge/delete, key order, leaf links, free-node map |
 | Allocation/extents | Property tests, full volume, fragmentation, truncate, `NO_SPACE` |
 | Journal | Commit/replay/abort at every boundary; idempotent replay |
-| Power loss | Create: 25 injected-write cuts, replay + `fsck_hfs` clean. Append/truncate/delete and 100-cut matrices remain. |
+| Power loss | Create/append/truncate/delete: 127 injected-write cuts, replay + `fsck_hfs` clean. Rename, partial-sector, fsync and timing matrices remain. |
 | macOS differential | Disposable image: macOS mount/read parity, `fsck_hfs -fn` clean after create/delete |
 | Unicode | Composed/decomposed/case/length fixtures; macOS-created names |
 | Metadata parity | BSD/Finder/flags/timestamps/CNID/volume header |

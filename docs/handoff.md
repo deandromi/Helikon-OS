@@ -11,6 +11,66 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (full crash matrix)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the full crash-matrix commit; check `git log -1`.
+
+## What changed
+
+- Extended `tests/image/hfs_crash_test.c` and `run-crash-macos.sh` from the
+  create transaction to create, append (data + bitmap + metadata), truncate and
+  delete.
+- Each scenario prepares a clean base image, then copies it for every write-fail
+  cut point. Recovery reopens the copy, replays the journal, re-probes the
+  volume, verifies the expected file state and data pattern, and runs
+  `fsck_hfs -fn`.
+- The crash harness now distinguishes:
+  - create: absent before commit, size 0 after replay;
+  - append: size 0 before commit, 4096 bytes of 0x5a after replay;
+  - truncate: 4096 bytes before commit, size 0 after replay;
+  - delete: present before commit, absent after replay.
+- The matrix covered 127 cuts: create 25, append 43, truncate 34, delete 25.
+  Every recovery was fsck-clean and left the journal clean.
+
+## What was verified
+
+- `make -C tests/image crash-test` — all four scenarios pass; 127 cuts total.
+- `make -C tests/image test` — disposable smoke test still passes.
+- `make -C tests/hfsplus test` / `sanitize` — 91/91.
+- No device write and no write-capable bootloader image.
+
+## What is next
+
+1. Rename cut matrix; partial-sector writes, fsync failures and power-loss
+   timing.
+2. T-038: wider macOS name corpus and the `:`/`/` mapping.
+3. Write diagnostic; only after that, plan a device write with a verified
+   backup and recovery.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- Do not weaken the crash test by removing fsck or accepting a dirty journal.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- Partial-sector and fsync-failure modelling.
+- `:`/`/` mapping and wider macOS name corpus (T-038).
+
+## Device/test evidence
+
+- No new device run. Crash injection ran on disposable host images only.
+- `fsck_hfs` version hfs-751, macOS host.
+
+---
+
 # Handoff — 2026-11-03 (journal crash injection)
 
 ## Branch / commit

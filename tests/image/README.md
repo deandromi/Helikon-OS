@@ -17,7 +17,16 @@ Run it with:
 make -C tests/image test
 ```
 
-On non-macOS hosts the driver prints `SKIP` and exits successfully; the
+`run-crash-macos.sh` injects a failed device write at every cut point of a
+create, append, truncate and delete transaction, reopens the copied image,
+replays the journal and runs `fsck_hfs -fn`. The loop stops when a cut is
+beyond the transaction's write count. It currently covers 127 cuts. Run it with:
+
+```sh
+make -C tests/image crash-test
+```
+
+On non-macOS hosts both drivers print `SKIP` and exit successfully; the
 portable host unit tests are in `tests/hfsplus`.
 
 The image is disposable and is deleted by the exit trap. It is not committed:
