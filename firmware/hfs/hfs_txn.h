@@ -32,6 +32,13 @@ struct hfs_txn {
 int hfs_txn_begin(struct hfs_txn *tx, struct hfs_journal *journal);
 int hfs_txn_stage(struct hfs_txn *tx, uint64_t sector, const void *data,
                   uint32_t size);
+/* Stage or replace an already-staged block of the same size. */
+int hfs_txn_stage_replace(struct hfs_txn *tx, uint64_t sector,
+                          const void *data, uint32_t size);
+/* Overlay staged blocks on a volume-relative byte range. Returns 1 if any
+ * staged block overlapped, 0 if none, or a negative error. */
+int hfs_txn_overlay(const struct hfs_txn *tx, uint64_t offset, void *buffer,
+                    size_t length);
 int hfs_txn_commit(struct hfs_txn *tx);
 void hfs_txn_abort(struct hfs_txn *tx);
 

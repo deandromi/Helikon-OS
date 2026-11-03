@@ -51,6 +51,8 @@ Helikon-OS/
       hfs_journal.c/.h      Apple HFS+ journal append/replay and validation
       hfs_txn.c/.h          bounded staged-block transaction engine
       hfs_bitmap.c/.h       allocation bitmap alloc/free and header staging
+      hfs_volume_write.c/.h primary/alternate header count staging
+      hfs_catalog_write.c/.h empty-file catalog create/delete
       hfs_btree_write.c/.h  node-level record insert/delete/split and offset tables
       hfs_btree_tree.c/.h   tree-level insert, parent/root split, free-node map
       hfs_fork_io.c/.h      fork block staging into a transaction
@@ -64,11 +66,16 @@ Helikon-OS/
       test_unicode.c        UTF-16BE/UTF-8 tests
       test_catalog.c        catalog iteration/lookup tests
       test_extents.c        extents-overflow tests
-  tests/bootloader/
-    Makefile              bootloader host test target
-    test_diag.c           diagnostic core/splash tests
-    test_journal.c        journal append/replay/checksum/wrap tests
-    test_txn.c            transaction commit/abort/limit tests
+      test_journal.c        journal append/replay/checksum/wrap tests
+      test_txn.c            transaction commit/abort/limit tests
+      test_bitmap.c         allocation bitmap alloc/free/NO_SPACE tests
+      test_btree_write.c    B-tree node insert/delete/split tests
+      test_fork_io.c        fork full/partial block staging tests
+      test_btree_tree.c     tree insert/delete/rebalance model test
+      test_catalog_write.c  empty-file catalog create/delete test
+    bootloader/
+      Makefile              bootloader host test target
+      test_diag.c           diagnostic core/splash tests
   docs/
     README.md               documentation index and reading order
     state.md                current phase and blockers

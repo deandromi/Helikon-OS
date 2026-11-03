@@ -38,6 +38,52 @@ int hfs_txn_stage(struct hfs_txn *tx, uint64_t sector, const void *data,
     return HFS_OK;
 }
 
+int hfs_txn_stage_replace(struct hfs_txn *tx, uint64_t sector,
+                          const void *data, uint32_t size)
+{
+    if (tx == NULL || !tx->active || data == NULL || size == 0)
+        return HFS_ERR_ARGUMENT;
+    if (size > HFS_TXN_BLOCK_MAX || size % tx->journal->sector_size != 0)
+        return HFS_ERR_ARGUMENT;
+
+    for (size_t i = 0; i < tx->count; ++i) {
+        if (tx->blocks[i].sector == sector) {
+            if (tx->blocks[i].size != size)
+                return HFS_ERR_BUSY;
+            memcpy(tx->blocks[i].data, data, size);
+            return HFS_OK;
+        }
+    }
+    return hfs_txn_stage(tx, sector, data, size);
+}
+
+int hfs_txn_overlay(const struct hfs_txn *tx, uint64_t offset, void *buffer,
+                    size_t length)
+{
+    if (tx == NULL || tx->journal == NULL || buffer == NULL)
+        return HFS_ERR_ARGUMENT;
+    if (length == 0)
+        return 0;
+    uint64_t end = offset + length;
+    if (end < offset)
+        return HFS_ERR_ARGUMENT;
+    int overlapped = 0;
+    for (size_t i = 0; i < tx->count; ++i) {
+        const struct hfs_txn_block *block = &tx->blocks[i];
+        uint64_t block_start = block->sector * tx->journal->sector_size;
+        uint64_t block_end = block_start + block->size;
+        if (block_end <= offset || block_start >= end)
+            continue;
+        uint64_t from = block_start > offset ? block_start : offset;
+        uint64_t to = block_end < end ? block_end : end;
+        size_t count = (size_t)(to - from);
+        memcpy((uint8_t *)buffer + (from - offset),
+               block->data + (from - block_start), count);
+        overlapped = 1;
+    }
+    return overlapped;
+}
+
 int hfs_txn_commit(struct hfs_txn *tx)
 {
     if (tx == NULL || !tx->active || tx->journal == NULL)

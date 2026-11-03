@@ -14,7 +14,7 @@ static int stage_volume_block(struct hfs_txn *tx, const struct hfs_volume *volum
     if (offset == 0 && length == block_size) {
         uint64_t sector = (uint64_t)volume_block *
                           (block_size / tx->journal->sector_size);
-        return hfs_txn_stage(tx, sector, data, block_size);
+        return hfs_txn_stage_replace(tx, sector, data, block_size);
     }
 
     uint64_t base = volume->base + (uint64_t)volume_block * block_size;
@@ -23,7 +23,7 @@ static int stage_volume_block(struct hfs_txn *tx, const struct hfs_volume *volum
     memcpy(bounce + offset, data, length);
     uint64_t sector = (uint64_t)volume_block *
                       (block_size / tx->journal->sector_size);
-    return hfs_txn_stage(tx, sector, bounce, block_size);
+    return hfs_txn_stage_replace(tx, sector, bounce, block_size);
 }
 
 int hfs_fork_stage(struct hfs_txn *tx, const struct hfs_volume *volume,
@@ -79,5 +79,61 @@ int hfs_fork_stage(struct hfs_txn *tx, const struct hfs_volume *volume,
         extent_start = extent_end;
     }
 
+    return HFS_ERR_UNSUPPORTED;
+}
+
+
+int hfs_fork_overlay(const struct hfs_txn *tx,
+                     const struct hfs_volume *volume,
+                     const struct hfs_fork *fork, uint64_t offset,
+                     void *buffer, size_t length)
+{
+    if (tx == NULL || volume == NULL || fork == NULL || buffer == NULL ||
+        length == 0)
+        return HFS_ERR_ARGUMENT;
+    if (offset > fork->size || length > fork->size - offset ||
+        volume->block_size == 0 || offset % volume->block_size != 0 ||
+        length % volume->block_size != 0)
+        return HFS_ERR_ARGUMENT;
+
+    uint8_t *dest = buffer;
+    uint64_t extent_start = 0;
+    int overlapped = 0;
+    for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i) {
+        uint32_t count = fork->extents[i].count;
+        if (count == 0)
+            continue;
+        uint64_t extent_bytes = (uint64_t)count * volume->block_size;
+        uint64_t extent_end = extent_start + extent_bytes;
+        if (offset < extent_end && offset + length > extent_start) {
+            uint64_t from = offset > extent_start ? offset : extent_start;
+            uint64_t to = offset + length < extent_end ?
+                          offset + length : extent_end;
+            uint64_t local = from - extent_start;
+            uint32_t volume_block = fork->extents[i].start +
+                                    (uint32_t)(local / volume->block_size);
+            uint64_t bytes = to - from;
+            uint8_t *target = dest + (from - offset);
+            while (bytes > 0) {
+                size_t block_bytes = volume->block_size;
+                if (block_bytes > bytes)
+                    block_bytes = (size_t)bytes;
+                int rc = hfs_txn_overlay(tx,
+                                         (uint64_t)volume_block *
+                                         volume->block_size,
+                                         target, block_bytes);
+                if (rc < 0)
+                    return rc;
+                if (rc > 0)
+                    overlapped = 1;
+                target += block_bytes;
+                bytes -= block_bytes;
+                ++volume_block;
+            }
+        }
+        if (extent_end >= offset + length)
+            return overlapped;
+        extent_start = extent_end;
+    }
     return HFS_ERR_UNSUPPORTED;
 }

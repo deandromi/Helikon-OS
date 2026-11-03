@@ -11,6 +11,72 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (empty-file catalog create/delete)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the empty-file catalog write commit; check `git log -1`.
+
+## What changed
+
+- Added `hfs_volume_write.c`: stages primary/alternate volume headers with
+  file/folder counts, next CNID and incremented write count.
+- Added `hfs_catalog_write.c`: builds native file and thread records, allocates
+  a CNID, inserts both through the B-tree in one journal transaction, updates
+  the volume header, and deletes both records again.
+- Added transaction overlay support: staged blocks are visible to later
+  tree reads and can be replaced within one transaction. This fixes multi-record
+  catalog transactions that revisit the same leaf/header.
+- Added one host test: create an empty file (file+thread records, CNID 16,
+  file count 2) and delete it, with volume/tree header checks.
+- Total host tests: 76 (68 HFS+, 8 bootloader), sanitizer-clean.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 68/68 pass.
+- `make -C tests/hfsplus sanitize` — 68/68 pass with ASan/UBSan.
+- The catalog test verifies file/thread records, key order, CNID allocation,
+  file count and cleanup after delete.
+- No device write and no write-capable bootloader image.
+
+## What failed
+
+- The first create attempt returned `HFS_ERR_BUSY`: the file and thread inserts
+  staged the same leaf twice, and the transaction engine rejected the duplicate.
+  Added a staged-block overlay and replace path; the second insert now sees the
+  first insert and the leaf is staged once.
+- The overlay initially used fork offsets as volume offsets; fixed with
+  `hfs_fork_overlay()`.
+
+## What is next
+
+1. Parent folder valence updates.
+2. Data-fork allocation/write/truncate and extents/overflow.
+3. Fork growth when the free-node map is exhausted.
+4. D-06 / FastUnicodeCompare before real catalog keys.
+5. Disposable HFS+ image + `fsck_hfs`, then the write diagnostic.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- No byte-order substitution for HFS+ catalog keys.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- D-06 Unicode policy / FastUnicodeCompare.
+- Parent valence, fork growth and extents strategy.
+
+## Device/test evidence
+
+- No new device run. The writer is host-only.
+
+---
+
 # Handoff — 2026-11-03 (B-tree root collapse)
 
 ## Branch / commit

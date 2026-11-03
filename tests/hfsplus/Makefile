@@ -4,7 +4,7 @@ CFLAGS ?= -O2 -g
 CFLAGS += -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow
 CPPFLAGS += -I../../firmware/hfs
 HFS = ../../firmware/hfs
-TESTS = test_volume test_btree test_unicode test_catalog test_extents test_journal test_txn test_bitmap test_btree_write test_fork_io test_btree_tree
+TESTS = test_volume test_btree test_unicode test_catalog test_extents test_journal test_txn test_bitmap test_btree_write test_fork_io test_btree_tree test_catalog_write
 
 .PHONY: all test sanitize clean
 
@@ -96,6 +96,22 @@ test_btree_tree: test_btree_tree.c test_image.c test_image.h test_check.h \
 	  $(HFS)/hfs_fork_io.c $(HFS)/hfs_txn.c $(HFS)/hfs_journal.c \
 	  $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
 
+test_catalog_write: test_catalog_write.c test_image.c test_image.h test_check.h \
+                    $(HFS)/hfs_catalog_write.c $(HFS)/hfs_catalog_write.h \
+                    $(HFS)/hfs_btree_tree.c $(HFS)/hfs_btree_tree.h \
+                    $(HFS)/hfs_btree_write.c $(HFS)/hfs_btree_write.h \
+                    $(HFS)/hfs_fork_io.c $(HFS)/hfs_fork_io.h \
+                    $(HFS)/hfs_volume_write.c $(HFS)/hfs_volume_write.h \
+                    $(HFS)/hfs_txn.c $(HFS)/hfs_txn.h \
+                    $(HFS)/hfs_journal.c $(HFS)/hfs_journal.h \
+                    $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h \
+                    $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) test_catalog_write.c test_image.c \
+	  $(HFS)/hfs_catalog_write.c $(HFS)/hfs_btree_tree.c \
+	  $(HFS)/hfs_btree_write.c $(HFS)/hfs_fork_io.c \
+	  $(HFS)/hfs_volume_write.c $(HFS)/hfs_txn.c $(HFS)/hfs_journal.c \
+	  $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
+
 test: $(TESTS)
 	./test_volume
 	./test_btree
@@ -108,6 +124,7 @@ test: $(TESTS)
 	./test_btree_write
 	./test_fork_io
 	./test_btree_tree
+	./test_catalog_write
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)

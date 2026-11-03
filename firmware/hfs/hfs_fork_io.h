@@ -18,4 +18,11 @@ int hfs_fork_stage(struct hfs_txn *tx, const struct hfs_volume *volume,
                    const struct hfs_fork *fork, uint64_t offset,
                    const void *data, size_t length);
 
+/* Overlay staged volume blocks onto a fork byte range. Returns 1 if any
+ * staged block overlapped, 0 if none, or a negative error. */
+int hfs_fork_overlay(const struct hfs_txn *tx,
+                     const struct hfs_volume *volume,
+                     const struct hfs_fork *fork, uint64_t offset,
+                     void *buffer, size_t length);
+
 #endif

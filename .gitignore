@@ -14,3 +14,4 @@ build/
 tests/hfsplus/test_btree_write
 tests/hfsplus/test_fork_io
 tests/hfsplus/test_btree_tree
+tests/hfsplus/test_catalog_write

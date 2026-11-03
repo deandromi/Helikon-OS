@@ -71,13 +71,20 @@ static void put32(uint8_t *p, uint32_t value)
     p[3] = (uint8_t)value;
 }
 
-static int read_node(struct hfs_btree *btree, uint32_t node, uint8_t *buffer)
+static int read_node(struct hfs_btree *btree, struct hfs_txn *tx,
+                     uint32_t node, uint8_t *buffer)
 {
     if (node >= btree->total_nodes)
         return HFS_ERR_FORMAT;
-    return hfs_fork_read(btree->volume, btree->fork,
-                         (uint64_t)node * btree->node_size, buffer,
-                         btree->node_size);
+    int rc = hfs_fork_read(btree->volume, btree->fork,
+                           (uint64_t)node * btree->node_size, buffer,
+                           btree->node_size);
+    if (rc != HFS_OK)
+        return rc;
+    rc = hfs_fork_overlay(tx, btree->volume, btree->fork,
+                          (uint64_t)node * btree->node_size, buffer,
+                          btree->node_size);
+    return rc < 0 ? rc : HFS_OK;
 }
 
 static int stage_node(struct hfs_btree *btree, struct hfs_txn *tx,
@@ -91,12 +98,12 @@ static int stage_node(struct hfs_btree *btree, struct hfs_txn *tx,
                           btree->node_size);
 }
 
-static int load_header(struct hfs_btree *btree, struct tree_header *header)
+static int load_header(struct hfs_btree *btree, struct hfs_txn *tx, struct tree_header *header)
 {
     memset(header, 0, sizeof(*header));
     if (btree->node_size > sizeof(header->node))
         return HFS_ERR_UNSUPPORTED;
-    int rc = read_node(btree, 0, header->node);
+    int rc = read_node(btree, tx, 0, header->node);
     if (rc != HFS_OK)
         return rc;
 
@@ -242,7 +249,7 @@ static int insert_parent(struct hfs_btree *btree, struct tree_header *header,
     uint8_t right[HFS_MAX_NODE_SIZE];
     uint8_t index_record[HFS_MAX_NODE_SIZE];
 
-    int rc = read_node(btree, parent_node, parent);
+    int rc = read_node(btree, tx, parent_node, parent);
     if (rc != HFS_OK)
         return rc;
     if (key_length + HFS_BTREE_KEY_LENGTH + HFS_BTREE_CHILD_SIZE >
@@ -321,7 +328,7 @@ static int insert_parent(struct hfs_btree *btree, struct tree_header *header,
     uint32_t next_index = be32(right);
     if (next_index != 0) {
         uint8_t next[HFS_MAX_NODE_SIZE];
-        rc = read_node(btree, next_index, next);
+        rc = read_node(btree, tx, next_index, next);
         if (rc != HFS_OK)
             return rc;
         put32(next + 4, new_right);
@@ -388,7 +395,7 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
     const uint8_t *new_key = new_record + HFS_BTREE_KEY_LENGTH;
 
     struct tree_header header;
-    int rc = load_header(btree, &header);
+    int rc = load_header(btree, tx, &header);
     if (rc != HFS_OK)
         return rc;
 
@@ -398,7 +405,7 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
     uint8_t node[HFS_MAX_NODE_SIZE];
 
     while (1) {
-        rc = read_node(btree, node_number, node);
+        rc = read_node(btree, tx, node_number, node);
         if (rc != HFS_OK)
             return rc;
         if (node[8] == 0xff)
@@ -539,7 +546,7 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
     uint32_t next_leaf = be32(right);
     if (next_leaf != 0) {
         uint8_t next[HFS_MAX_NODE_SIZE];
-        rc = read_node(btree, next_leaf, next);
+        rc = read_node(btree, tx, next_leaf, next);
         if (rc != HFS_OK)
             return rc;
         put32(next + 4, right_node);
@@ -620,7 +627,7 @@ static int rebalance_leaf_prev(struct hfs_btree *btree,
         return 0;
 
     uint8_t prev_node[HFS_MAX_NODE_SIZE];
-    int rc = read_node(btree, prev, prev_node);
+    int rc = read_node(btree, tx, prev, prev_node);
     if (rc != HFS_OK)
         return rc;
     if (prev_node[8] != 0xff)
@@ -631,7 +638,7 @@ static int rebalance_leaf_prev(struct hfs_btree *btree,
     if (child == 0)
         return 0;
     uint8_t parent[HFS_MAX_NODE_SIZE];
-    rc = read_node(btree, parent_node, parent);
+    rc = read_node(btree, tx, parent_node, parent);
     if (rc != HFS_OK)
         return rc;
     uint16_t parent_count = be16(parent + 10);
@@ -665,7 +672,7 @@ static int rebalance_leaf_prev(struct hfs_btree *btree,
         put32(prev_node, after);
         if (after != 0) {
             uint8_t after_node[HFS_MAX_NODE_SIZE];
-            rc = read_node(btree, after, after_node);
+            rc = read_node(btree, tx, after, after_node);
             if (rc != HFS_OK)
                 return rc;
             put32(after_node + 4, prev);
@@ -729,6 +736,41 @@ static int rebalance_leaf_prev(struct hfs_btree *btree,
     return 2;
 }
 
+static int unlink_leaf(struct hfs_btree *btree, struct tree_header *header,
+                        struct hfs_txn *tx, uint32_t node_number,
+                        const uint8_t *node)
+{
+    uint32_t previous = be32(node + 4);
+    uint32_t next = be32(node);
+    int rc;
+    if (previous != 0) {
+        uint8_t prev_node[HFS_MAX_NODE_SIZE];
+        rc = read_node(btree, tx, previous, prev_node);
+        if (rc != HFS_OK)
+            return rc;
+        put32(prev_node, next);
+        rc = stage_node(btree, tx, previous, prev_node);
+        if (rc != HFS_OK)
+            return rc;
+    } else {
+        header->first_leaf = next;
+    }
+    if (next != 0) {
+        uint8_t next_node[HFS_MAX_NODE_SIZE];
+        rc = read_node(btree, tx, next, next_node);
+        if (rc != HFS_OK)
+            return rc;
+        put32(next_node + 4, previous);
+        rc = stage_node(btree, tx, next, next_node);
+        if (rc != HFS_OK)
+            return rc;
+    } else {
+        header->last_leaf = previous;
+    }
+    (void)node_number;
+    return HFS_OK;
+}
+
 static int update_parent_key(struct hfs_btree *btree,
                              struct tree_header *header, struct hfs_txn *tx,
                              const struct insert_path *path,
@@ -790,7 +832,7 @@ static int merge_leaf_next(struct hfs_btree *btree,
         return 0;
 
     uint8_t next_node[HFS_MAX_NODE_SIZE];
-    int rc = read_node(btree, next, next_node);
+    int rc = read_node(btree, tx, next, next_node);
     if (rc != HFS_OK)
         return rc;
     if (next_node[8] != 0xff)
@@ -820,7 +862,7 @@ static int merge_leaf_next(struct hfs_btree *btree,
     uint32_t parent_node = path[level - 1u].node;
     uint16_t child = path[level - 1u].child;
     uint8_t parent[HFS_MAX_NODE_SIZE];
-    rc = read_node(btree, parent_node, parent);
+    rc = read_node(btree, tx, parent_node, parent);
     if (rc != HFS_OK)
         return rc;
     uint16_t parent_count = be16(parent + 10);
@@ -922,7 +964,7 @@ static int merge_leaf_next(struct hfs_btree *btree,
     uint32_t after = be32(next_node);
     if (after != 0) {
         uint8_t after_node[HFS_MAX_NODE_SIZE];
-        rc = read_node(btree, after, after_node);
+        rc = read_node(btree, tx, after, after_node);
         if (rc != HFS_OK)
             return rc;
         put32(after_node + 4, node_number);
@@ -953,7 +995,7 @@ static int update_parent_key(struct hfs_btree *btree,
     uint8_t parent[HFS_MAX_NODE_SIZE];
     uint8_t index_record[HFS_MAX_NODE_SIZE];
 
-    int rc = read_node(btree, parent_node, parent);
+    int rc = read_node(btree, tx, parent_node, parent);
     if (rc != HFS_OK)
         return rc;
 
@@ -1009,7 +1051,7 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
         return HFS_ERR_ARGUMENT;
 
     struct tree_header header;
-    int rc = load_header(btree, &header);
+    int rc = load_header(btree, tx, &header);
     if (rc != HFS_OK)
         return rc;
 
@@ -1019,7 +1061,7 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
     uint8_t node[HFS_MAX_NODE_SIZE];
 
     while (1) {
-        rc = read_node(btree, node_number, node);
+        rc = read_node(btree, tx, node_number, node);
         if (rc != HFS_OK)
             return rc;
         if (node[8] == 0xff)
@@ -1100,7 +1142,7 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
          * root to the leaf instead of keeping a one-record index root. */
         if (level == 1) {
             uint8_t root[HFS_MAX_NODE_SIZE];
-            rc = read_node(btree, path[0].node, root);
+            rc = read_node(btree, tx, path[0].node, root);
             if (rc != HFS_OK)
                 return rc;
             if (root[8] == 0 && be16(root + 10) == 1) {
@@ -1172,39 +1214,61 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
     uint16_t child = path[level - 1u].child;
 
     uint8_t parent[HFS_MAX_NODE_SIZE];
-    rc = read_node(btree, path[level - 1u].node, parent);
+    rc = read_node(btree, tx, path[level - 1u].node, parent);
     if (rc != HFS_OK)
         return rc;
     uint16_t parent_count = be16(parent + 10);
-    if (parent_count <= 1)
+
+    if (parent_count == 1) {
+        if (level == 1)
+            return HFS_ERR_UNSUPPORTED;
+        uint8_t grandparent[HFS_MAX_NODE_SIZE];
+        uint32_t grandparent_node = path[level - 2u].node;
+        uint16_t grandparent_child = path[level - 2u].child;
+        rc = read_node(btree, tx, grandparent_node, grandparent);
+        if (rc != HFS_OK)
+            return rc;
+        if (be16(grandparent + 10) <= 1)
+            return HFS_ERR_UNSUPPORTED;
+
+        rc = unlink_leaf(btree, &header, tx, node_number, node);
+        if (rc != HFS_OK)
+            return rc;
+        map_set(&header, node_number, 0);
+        ++header.free_nodes;
+        map_set(&header, path[level - 1u].node, 0);
+        ++header.free_nodes;
+
+        rc = hfs_btree_node_delete(grandparent, btree->node_size,
+                                   grandparent_child);
+        if (rc != HFS_OK)
+            return rc;
+        if (be16(grandparent + 10) == 0)
+            return HFS_ERR_UNSUPPORTED;
+        rc = stage_node(btree, tx, grandparent_node, grandparent);
+        if (rc != HFS_OK)
+            return rc;
+        if (grandparent_child == 0 && level > 2) {
+            const uint8_t *grandparent_key;
+            size_t grandparent_key_length;
+            rc = first_key(grandparent, btree->node_size, &grandparent_key,
+                           &grandparent_key_length);
+            if (rc != HFS_OK)
+                return rc;
+            rc = update_parent_key(btree, &header, tx, path, level - 2u,
+                                   grandparent_key, grandparent_key_length);
+            if (rc != HFS_OK)
+                return rc;
+        }
+        return store_header(btree, tx, &header);
+    }
+
+    if (parent_count == 0)
         return HFS_ERR_UNSUPPORTED;
 
-    uint32_t previous = be32(node + 4);
-    uint32_t next = be32(node);
-    if (previous != 0) {
-        uint8_t prev_node[HFS_MAX_NODE_SIZE];
-        rc = read_node(btree, previous, prev_node);
-        if (rc != HFS_OK)
-            return rc;
-        put32(prev_node, next);
-        rc = stage_node(btree, tx, previous, prev_node);
-        if (rc != HFS_OK)
-            return rc;
-    } else {
-        header.first_leaf = next;
-    }
-    if (next != 0) {
-        uint8_t next_node[HFS_MAX_NODE_SIZE];
-        rc = read_node(btree, next, next_node);
-        if (rc != HFS_OK)
-            return rc;
-        put32(next_node + 4, previous);
-        rc = stage_node(btree, tx, next, next_node);
-        if (rc != HFS_OK)
-            return rc;
-    } else {
-        header.last_leaf = previous;
-    }
+    rc = unlink_leaf(btree, &header, tx, node_number, node);
+    if (rc != HFS_OK)
+        return rc;
 
     rc = hfs_btree_node_delete(parent, btree->node_size, child);
     if (rc != HFS_OK)
