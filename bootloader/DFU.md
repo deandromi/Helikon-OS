@@ -256,6 +256,8 @@ Nothing was written to the disk.
 
 Notes:
 
+- `Journal` is `CLEAN` on a journaled volume and `NOT PRESENT` on a
+  non-journaled volume. `DIRTY` is a failure; do not delete the journal.
 - `HFS+ read: FAIL (-8)` means `/rockbox.ipod` was not found. Volume and catalog
   can still be `PASS`; record the report and do not "fix" the volume.
 - `HFS+ volume: FAIL` with `Journal: DIRTY` means the volume needs macOS to

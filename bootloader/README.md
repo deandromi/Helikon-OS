@@ -74,7 +74,7 @@ HFS+ volume: PASS
 HFS+ catalog: PASS
 HFS+ read: PASS (32 bytes)
 HFS+ write: NOT IMPLEMENTED
-Journal: CLEAN
+Journal: CLEAN (or NOT PRESENT)
 Splash: PASS
 Partition: <size> MiB
 Press any button to power off.
