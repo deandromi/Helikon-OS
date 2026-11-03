@@ -33,8 +33,8 @@ re-litigate them.
 |---|---|---|---|---|
 | D-01 | Boot image verification | proposed | owner | §25.1, §5.3 |
 | D-02 | Boot state and fallback | proposed | owner | §25.2, §5.3 |
-| D-03 | Journal strategy | proposed | owner | §25.3, §9.3 |
-| D-04 | Journal ownership | proposed | owner | §25.4, §9.3 |
+| D-03 | Journal strategy | accepted | owner | §25.3, §9.3 |
+| D-04 | Journal ownership | accepted | owner | §25.4, §9.3 |
 | D-05 | B-tree cache and transaction limits | proposed | owner | §25.5, §19.2 |
 | D-06 | Unicode policy | proposed | owner | §25.6, §10.4 |
 | D-07 | Database location | proposed | owner | §25.7, §12.2 |
@@ -92,34 +92,43 @@ first diagnostic bootloader scope. See C-08.
 
 ## D-03 — Journal strategy
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.3, §9.3.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.3, §9.3.
 - **Context:** HFS+ volumes are normally journaled. Writing a journaled volume
   while ignoring the journal is unsafe.
-- **Options:** (a) journaled HFS+ writes for release: append records with
-  sequence numbers/checksums, commit header, apply metadata, replay incomplete
-  transactions, mark clean; (b) non-journaled writes only on a volume formatted
-  without a journal, with journaled volumes mounted read-only.
-- **Decision:** unresolved. The paper recommends (a) for any volume with music
-  the user cares about and allows (b) only as a disposable-volume prototype.
-- **Consequences:** no write release without a journaled path, unless the owner
-  explicitly narrows the product to a read-only player. A non-journaled writer
-  must be labelled prototype-only and must never touch a real library.
-- **Follow-up:** decide before phase 2 starts. This is a critical-path blocker.
+- **Options:** (a) journaled HFS+ writes for release; (b) non-journaled writes
+  only on a volume formatted without a journal, with journaled volumes mounted
+  read-only.
+- **Decision:** **journaled HFS+ writes are the required write path** for every
+  writable volume. A non-journaled writer is not the product path; if built for
+  bring-up, it is a disposable-volume prototype only, journaled volumes mount
+  read-only under it, and it must never touch a real library. Release and any
+  user-owned volume use the journaled transaction engine.
+- **Consequences:** no write release without the journaled path. The journaled
+  engine is the critical path; the non-journaled prototype is optional and
+  disposable-only. Do not disable journaling to make a write fit.
+- **Follow-up:** freeze the writer interface (T-002), then the journal record,
+  commit, barrier and replay design (T-009). The non-journaled prototype, if any,
+  is gated by T-004 and is labelled prototype-only.
 
 ## D-04 — Journal ownership
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.4, §9.3.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.4, §9.3.
 - **Context:** after a crash, a dirty journal must be replayed. Either the device
   replays it, or it refuses writes and requires macOS to replay it.
 - **Options:** (a) Helikon-OS owns replay and completes it before the first
   write; (b) read-only mount, refuse writes, require macOS Disk Utility/fsck to
   replay; (c) hybrid: device replay only for a known-clean journal format.
-- **Decision:** unresolved. The paper says (a) is required for a standalone
-  player; (b) is a safer first prototype.
-- **Consequences:** (b) makes Helikon-OS a read-only player with a macOS-assisted
-  write mode. (a) is a core writer requirement. Do not silently mix them.
-- **Follow-up:** decide with D-03 before phase 2; define the `JOURNAL_DIRTY`
-  screen and recovery instructions.
+- **Decision:** **Helikon-OS owns replay.** A dirty or invalid journal mounts
+  read-only; the write engine replays committed records and discards incomplete
+  ones before the first write. Replay is idempotent and bounded. The journal is
+  never deleted, truncated, zeroed or ignored. macOS-assisted replay is not the
+  primary write path.
+- **Consequences:** the device must implement replay, sequence/checksum
+  validation and a dirty-journal recovery screen. A journal that cannot be
+  replayed stays read-only and is preserved for diagnosis. Do not silently mix
+  device-owned and macOS-owned replay.
+- **Follow-up:** define the `JOURNAL_DIRTY`/replay screen and recovery
+  instructions; test idempotent replay at every cut point (T-009/T-010).
 
 ## D-05 — B-tree cache and transaction limits
 

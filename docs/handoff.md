@@ -11,6 +11,69 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (journal decisions and writer interface)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the journal-decision/writer-interface commit; check
+  `git log -1`.
+
+## What changed
+
+- D-03 accepted: journaled HFS+ writes are the required write path; a
+  non-journaled writer is not the product path and may only be a
+  disposable-volume prototype.
+- D-04 accepted: Helikon-OS owns journal replay; a dirty/invalid journal mounts
+  read-only, replay is idempotent and must finish before the first write.
+- T-001 marked implemented.
+- T-002 marked implemented: §10 of `docs/hfsplus-write-engine.md` freezes the
+  transaction interface, commit protocol, replay contract, error taxonomy,
+  transaction boundaries and invariant mapping.
+- T-009 marked implemented: §6.5–§6.7 document the Apple HFS+ journal format,
+  commit/clean/replay algorithm, validation rules and failure handling.
+- `agents.md` settled/open decision lists updated.
+- The diagnostic read probe is intentionally skipped; `-8` is correct because
+  `/rockbox.ipod` is not a disk file on this iPod.
+
+## What was verified
+
+- Documentation only; no writer code or device write.
+- The writer interface references I-03, I-05 and I-15 and keeps one writer,
+  journaled commit, idempotent replay and `NO_SPACE` before media writes.
+- The diagnostic hardware evidence and image hash are unchanged.
+
+## What is next
+
+1. **T-007** — catalog B-tree mutation design.
+2. **T-008** — allocation bitmap and extents/overflow design.
+3. **T-004** — writer fixture plan.
+4. Decide **D-05** (cache/dirty-set limits) and **D-06** (Unicode policy) before
+   implementation.
+5. **T-010** — power-loss matrix and evidence format.
+6. Resume the bootloader path afterwards; D-01/D-02/D-20 remain open.
+
+## What must not be touched
+
+- No writer implementation before the catalog/bitmap/journal designs and tests.
+- No write test on the library or the only copy.
+- No journal deletion, truncation or "clean" claim for an invalid journal.
+- No `--single` on the bootloader path.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- D-06 Unicode normalization/FastUnicodeCompare policy.
+- Journal record layout and replay bounds (T-009).
+- Bootloader manifest/boot state/signing (D-01/D-02/D-20).
+
+## Device/test evidence
+
+- No new device run. The diagnostic runs remain owner-reported in
+  [`device-matrix.md`](device-matrix.md) §2.1.
+
+---
+
 # Handoff — 2026-11-03 (first hardware report and report/lookup fix)
 
 ## Branch / commit

@@ -49,6 +49,8 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Diagnostic hardware glue | `in progress` | `bootloader/hardware/helikon_diag_hw.c`; ATA read callback, donor partition scan, splash/report, button wait, power-off |
 | Diagnostic bootloader image | `unproven` | `bootloader/artifacts/bootloader-ipod6g.ipod`; SHA-256 `280ed7ae…`; 67,144 bytes; `MOVE_AREA` headroom 61,888 bytes. Owner-reported: boot, splash, report, volume/catalog PASS; read `-8` because the probe file is absent; no write. |
 | Diagnostic build script | `in progress` | `tools/build-diagnostic-bootloader.sh`; pinned donor commit, Thumb build, `MOVE_AREA` check, hash output |
+| Writer interface/failure model | design | `docs/hfsplus-write-engine.md` §10; D-03/D-04 accepted; implementation not started |
+| Journal format/commit/replay design | design | `docs/hfsplus-write-engine.md` §6.5–§6.7; Apple HFS+ journal format; implementation not started |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
 | Host test harness | `in progress` | 43 tests total (35 HFS+, 8 bootloader); sanitizer clean; first diagnostic boot is owner-reported |
 
@@ -117,13 +119,13 @@ writes, the transaction engine, the bootloader, or any goal in
    bootloader, kernel, writer, journal, VFS, player, UI, database, installer and
    host app do not exist. The first diagnostic boot is owner-reported and the
    fixed image has not been rerun.
-2. **Journal decisions are unresolved.** D-03 (journal strategy) and D-04
-   (journal ownership) must be recorded before phase 2 starts. The paper
-   recommends journaled release writes and Helikon-OS-owned replay; neither is
-   an owner-approved decision yet.
-3. **Writer design is not frozen.** Catalog/B-tree mutation, bitmap, extents,
-   transaction ordering, Unicode policy (D-06) and cache limits (D-05) need
-   design review and test fixtures.
+2. **Journal decisions are settled; the writer is not implemented.** D-03
+   requires journaled writes and D-04 makes Helikon-OS own replay. The
+   transaction engine, journal record format, replay and crash tests do not
+   exist yet.
+3. **Writer internals are not all frozen.** The interface and journal design are
+   frozen, but catalog/B-tree mutation, bitmap, extents/overflow, Unicode policy
+   (D-06) and cache limits (D-05) still need design and test fixtures.
 4. **No signed-update or signing policy.** D-01, D-16 and D-20 are open.
 5. **No 7G board audit.** 7G support is unproven until a recorded audit covers
    panel, PMU, audio, storage, button map and `MOVE_AREA`.
@@ -134,22 +136,22 @@ writes, the transaction engine, the bootloader, or any goal in
 
 ## Next task
 
-The diagnostic has done its hardware job: boot, splash, report, HFS+ volume and
-catalog reads are owner-reported. The `-8` read result is correct because
-`/rockbox.ipod` is not a disk file on this iPod, not a bootloader failure.
+The owner accepted D-03 (journaled writes) and D-04 (Helikon-OS owns replay).
+The writer interface and failure model are frozen in
+[`hfsplus-write-engine.md`](hfsplus-write-engine.md) §10. The diagnostics read
+probe is intentionally skipped; `-8` is correct because `/rockbox.ipod` is not a
+disk file on this iPod.
 
-Two paths remain:
+The next writer tasks are:
 
-1. **Close the read evidence (small).** Point the diagnostic probe at a real root
-   file such as `/.rockpod-rw`, reflash once, confirm `HFS+ read: PASS`, and
-   record it in [`device-matrix.md`](device-matrix.md).
-2. **Start the writer (recommended).** Record D-03 and D-04, then freeze the
-   writer interface and failure model (T-001/T-002). Native HFS+ writes are the
-   defining promise; the read path is host-tested and the ATA read path is
-   already exercised by the volume/catalog reads.
+- **T-007** — catalog B-tree mutation design.
+- **T-008** — allocation bitmap and extents/overflow design.
+- **T-004** — host fixture plan for writer tests.
+- **D-05/D-06** — cache/dirty-set limits and Unicode policy still need owner
+  decisions before implementation.
+- **T-010** — power-loss matrix and evidence format after T-003/T-009.
 
-If the bootloader path is preferred instead, D-01/D-02/D-20 must be decided
-before adding manifest verification, boot state or firmware loading.
+The bootloader path resumes afterwards; D-01/D-02/D-20 remain open.
 
 For the writer path, see [`tasks.md`](tasks.md):
 

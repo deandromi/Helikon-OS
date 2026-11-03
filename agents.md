@@ -283,15 +283,16 @@ Record the exact error, stage, device state and what was not attempted.
 ## 10. Decisions
 Full entries and status are in `docs/decisions.md`.
 
-**Settled:** D-17 product name (clearance open), D-18 GPL-2.0-or-later,
-D-21 read-only diagnostic-first bootloader scope.
+**Settled:** D-03 journaled writes (non-journaled prototype disposable-only),
+D-04 Helikon-OS-owned replay, D-17 product name (clearance open), D-18
+GPL-2.0-or-later, D-21 read-only diagnostic-first bootloader scope.
 **Rejected:** D-19 Contributor Covenant (owner deleted the file; no replacement).
 
 **Open:** D-01 boot image verification and key storage · D-02 boot state and
-fallback · D-03 journal strategy · D-04 journal ownership · D-05 B-tree cache
-and transaction limits · D-06 Unicode policy · D-07 database location · D-08
-app/game runtime · D-09 desktop app transport · D-10 skin compatibility scope ·
-D-11 anti-corruption scope · D-12 battery target · D-13 7G and port scope ·
+fallback · D-05 B-tree cache and transaction limits · D-06 Unicode policy ·
+D-07 database location · D-08 app/game runtime · D-09 desktop app transport ·
+D-10 skin compatibility scope · D-11 anti-corruption scope · D-12 battery
+target · D-13 7G and port scope ·
 D-14 car protocol · D-15 theme format · D-16 update transport · D-17 name
 clearance · D-20 signing-key ownership.
 
