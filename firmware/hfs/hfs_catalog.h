@@ -44,6 +44,14 @@ int hfs_catalog_iter_next(struct hfs_catalog *catalog,
 int hfs_catalog_lookup(struct hfs_catalog *catalog, const char *path,
                        struct hfs_entry *entry);
 
+/*
+ * Exact lookup for one ASCII name under `parent`. It compares the raw UTF-16BE
+ * catalog key without decoding unrelated names, so a single malformed root
+ * entry cannot hide a boot probe. Returns HFS_ERR_NOT_FOUND when absent.
+ */
+int hfs_catalog_lookup_ascii(struct hfs_catalog *catalog, uint32_t parent,
+                             const char *name, struct hfs_entry *entry);
+
 /* Inline file data only for now; non-inline forks return UNSUPPORTED. */
 int hfs_catalog_read_file(struct hfs_catalog *catalog,
                           const struct hfs_entry *entry, uint64_t offset,

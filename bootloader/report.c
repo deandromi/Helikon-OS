@@ -9,19 +9,24 @@ int boot_diag_format(const struct boot_diag_result *result, char *buffer,
     if (result == NULL || buffer == NULL || size == 0)
         return HFS_ERR_ARGUMENT;
 
+    /*
+     * The bootloader's minimal formatter supports %lu but not the long-long
+     * conversion. Keep the byte count in unsigned long; the probe reads
+     * 32 bytes.
+     */
     int written = snprintf(
         buffer, size,
         "HELIKON-OS DIAGNOSTIC\n"
         "HFS+ volume: %s\n"
         "HFS+ catalog: %s\n"
-        "HFS+ read: %s (%llu bytes)\n"
+        "HFS+ read: %s (%lu bytes)\n"
         "HFS+ write: %s\n"
         "Journal: %s\n"
         "Splash: %s\n",
         boot_diag_status_name(result->volume),
         boot_diag_status_name(result->catalog),
         boot_diag_status_name(result->read),
-        (unsigned long long)result->bytes_read,
+        (unsigned long)result->bytes_read,
         boot_diag_status_name(result->write),
         boot_diag_journal_name(result->journal),
         boot_diag_status_name(result->splash));

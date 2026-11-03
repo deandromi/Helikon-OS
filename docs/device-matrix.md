@@ -7,9 +7,10 @@
 > Last updated: 2026-11-03
 > Source: design paper §1, §24, §28.2.4, §28.4.5; `docs/verification.md`
 
-**Helikon-OS has no recorded device run.** Every row below is `planned` or
-`unproven`, not support. Do not add a device to a supported list because it has
-the same SoC, because the donor ran on it, or because a build links.
+**Helikon-OS has one owner-reported diagnostic run.** It is a partial/failed
+bring-up run, not support. Every unrun or failed row below is `planned`,
+`unproven` or `fail`. Do not add a device to a supported list because it has the
+same SoC, because the donor ran on it, or because a build links.
 
 ## 1. Target policy
 
@@ -28,18 +29,49 @@ images, backups or serial numbers to the repository.
 
 | Device | Revision | Adapter | Firmware | Test | Result | Evidence | Owner |
 |---|---|---|---|---|---|---|---|
-| iPod Classic 6G (reference) | `open question` | `open question` | none (no build) | boot | `not run` | none | test lead |
-| iPod Classic 6G (reference) | `open question` | `open question` | none (no build) | playback | `not run` | none | test lead |
-| iPod Classic 6G (reference) | `open question` | `open question` | none (no build) | native HFS+ read | `not run` | none | test lead |
-| iPod Classic 6G (reference) | `open question` | `open question` | none (no build) | native HFS+ write (disposable) | `not run` | none | HFS+ lead |
-| iPod Classic 6G (reference) | `open question` | `open question` | none (no build) | journal replay | `not run` | none | journal lead |
-| iPod Classic 6G (reference) | `open question` | `open question` | none (no build) | sleep/wake 100 cycles | `not run` | none | test lead |
-| iPod Classic 6G (reference) | `open question` | `open question` | none (no build) | USB read-only | `not run` | none | USB lead |
-| iPod Classic 6G (reference) | `open question` | `open question` | none (no build) | update/rollback | `not run` | none | release lead |
-| iPod Classic 7G | board audit pending | `open question` | none | board audit | `not run` | none | hardware lead |
+| iPod Classic 6G (reference) | `open question` | `open question` | diagnostic `bd0ebc92…` | boot + splash + report | `partial` | Owner report 2026-11-03: splashed; volume PASS, catalog PASS; report formatting corrupted | owner |
+| iPod Classic 6G (reference) | `open question` | `open question` | diagnostic `bd0ebc92…` | native HFS+ read | `fail` | Owner report 2026-11-03: read FAIL, `read error: -11` (`NAME_INVALID`); fixed lookup pending reflash | owner |
+| iPod Classic 6G (reference) | `open question` | `open question` | diagnostic `280ed7ae…` | boot + splash + report + read | `not run` | Pending reflash of the formatter/lookup fix | owner |
+| iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | playback | `not run` | none | test lead |
+| iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | native HFS+ write (disposable) | `not run` | none | HFS+ lead |
+| iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | journal replay | `not run` | none | journal lead |
+| iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | sleep/wake 100 cycles | `not run` | none | test lead |
+| iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | USB read-only | `not run` | none | USB lead |
+| iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | update/rollback | `not run` | none | release lead |
+| iPod Classic 7G | board audit pending | `open question` | none (firmware) | board audit | `not run` | none | hardware lead |
 
-"Firmware: none (no build)" is literal: there is no Helikon-OS image. Do not
-write a donor version into this column.
+"Firmware: none (firmware)" means there is no Helikon-OS firmware image. The
+diagnostic rows name the bootloader image hash. Do not write a donor version into
+this column.
+
+### 2.1 First diagnostic run — owner-reported, 2026-11-03
+
+The first Helikon-OS diagnostic image (`bd0ebc92…`, 66,920 bytes) booted on the
+owner's 6G and displayed the splash. The report showed:
+
+```text
+HFS+ volume: PASS
+HFS+ catalog: PASS
+HFS+ read: FAIL
+HFS+ write: <corrupt>
+Journal: <corrupt>
+Splash: NOT IMPLEMENTED
+read error: -11
+```
+
+Interpretation:
+
+- The splash, LCD and HFS+ volume/catalog open paths worked on hardware.
+- `%llu` is not supported by the Rockbox bootloader formatter; it printed
+  `llu` and shifted later status arguments. The dotted squares and the
+  `Splash: NOT IMPLEMENTED` line are display corruption, not the actual splash
+  or write status.
+- `read error: -11` is `HFS_ERR_NAME_INVALID` from the strict root path lookup.
+  The raw ASCII probe lookup now skips undecodable unrelated names.
+- No write was requested or reported. This row is not a support claim.
+
+The formatter and lookup fixes are in the current artifact (`280ed7ae…`,
+67,144 bytes). A reflash/read rerun is `not run`.
 
 ## 3. Storage and adapter matrix
 

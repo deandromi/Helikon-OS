@@ -16,11 +16,11 @@ report and splash.
 | Field | Value |
 |---|---|
 | Image | `bootloader-ipod6g.ipod` |
-| Size | 66,920 bytes |
-| SHA-256 | `bd0ebc92f58ad9549cad43120cb63566d6c20ae6255a530a17bafd8d832ed6c0` |
+| Size | 67,144 bytes |
+| SHA-256 | `280ed7aee5dcf38d1a30470704f91740b299004692c2aebbb21d41744c05f43c` |
 | Target | iPod Classic 6G (`ipod6g`, `ip6g`, target 71) |
-| Load | `_movestart` `0x22020800`, `_moveend` `0x22030d60` |
-| `MOVE_AREA` | `0x22020800`–`0x22040000`, headroom 62,112 bytes |
+| Load | `_movestart` `0x22020800`, `_moveend` `0x22030e40` |
+| `MOVE_AREA` | `0x22020800`–`0x22040000`, headroom 61,888 bytes |
 | Build | Thumb, `arm-elf-eabi-gcc` 9.5.0, binutils 2.38 |
 | Donor base | `hfsplus-rockboxed-ipod` commit `55603bd4bc2524ded900fa17feae99a223b04349` |
 | Installer | `mks5lboot` 3.2.0; `--mkdfu-inst` accepted the image as `Classic 6G` |
@@ -76,6 +76,8 @@ Host evidence only:
 - The donor partition/HFS+ tests pass in the donor checkout; they are reference
   evidence, not Helikon-OS validation.
 
-**No device run exists.** The first hardware boot, the splash, the report, the
-button wait and power-off are unproven until recorded in
-[`../../docs/device-matrix.md`](../../docs/device-matrix.md).
+One owner-reported run of the first build exists: it booted and showed the
+splash, with `HFS+ volume: PASS` and `HFS+ catalog: PASS`. The read probe failed
+with `-11` and the report formatter corrupted the status lines. Both are fixed
+in the current artifact, which has **not** been reflashed or rerun. Record the
+rerun in [`../../docs/device-matrix.md`](../../docs/device-matrix.md).

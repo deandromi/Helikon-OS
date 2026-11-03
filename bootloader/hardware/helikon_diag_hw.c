@@ -132,8 +132,9 @@ static void show_report(const struct boot_diag_result *result,
     }
 
     if (partition != NULL) {
-        snprintf(detail, sizeof(detail), "Partition: %llu MiB",
-                 (unsigned long long)(partition->length >> 20));
+        /* The bootloader formatter supports %lu, not long-long. */
+        snprintf(detail, sizeof(detail), "Partition: %lu MiB",
+                 (unsigned long)(partition->length >> 20));
         lcd_puts(0, y++, detail);
     }
 

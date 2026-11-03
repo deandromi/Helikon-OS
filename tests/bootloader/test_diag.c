@@ -54,6 +54,40 @@ static int test_missing_file_fails_read(void)
     return 0;
 }
 
+static void make_bad_name_root_fixture(void)
+{
+    struct test_fs_image fixture = test_fs_image_make();
+
+    /* Corrupt the first root name with a lone high surrogate. */
+    test_image_put_be16(fixture.leaf + 14 + 8, 0xd800);
+
+    /* Reuse the second record as a root file named "rockbox.ipd". */
+    uint8_t *record = fixture.leaf + 14 + 114;
+    test_image_put_be32(record + 2, 2);
+    const char *name = "rockbox.ipd";
+    for (size_t i = 0; i < 11; ++i)
+        test_image_put_be16(record + 8 + i * 2, (uint8_t)name[i]);
+}
+
+static int test_root_ascii_read_survives_bad_name(void)
+{
+    struct boot_diag_result result;
+    uint8_t catalog_scratch[DIAG_SCRATCH];
+    uint8_t extents_scratch[DIAG_SCRATCH];
+
+    make_bad_name_root_fixture();
+    int rc = boot_diag_run(test_image_read, NULL, 0, TEST_IMAGE_SIZE,
+                           "/rockbox.ipd", catalog_scratch,
+                           sizeof(catalog_scratch), extents_scratch,
+                           sizeof(extents_scratch), &result);
+    CHECK(rc == HFS_OK);
+    CHECK(result.volume == BOOT_DIAG_PASS);
+    CHECK(result.catalog == BOOT_DIAG_PASS);
+    CHECK(result.read == BOOT_DIAG_PASS);
+    CHECK(result.bytes_read == 4);
+    return 0;
+}
+
 static int test_dirty_volume_fails_closed(void)
 {
     struct boot_diag_result result;
@@ -110,6 +144,7 @@ static int test_report_text(void)
     rc = boot_diag_format(&result, report, sizeof(report));
     CHECK(rc > 0);
     CHECK(strstr(report, "HFS+ read: PASS") != NULL);
+    CHECK(strstr(report, "(4 bytes)") != NULL);
     CHECK(strstr(report, "HFS+ write: NOT IMPLEMENTED") != NULL);
     CHECK(strstr(report, "Splash: PASS") != NULL);
     return 0;
@@ -167,6 +202,8 @@ int main(void)
     static const struct test_case tests[] = {
         {"read pass", test_read_pass},
         {"missing file fails read", test_missing_file_fails_read},
+        {"root ascii read survives bad name",
+         test_root_ascii_read_survives_bad_name},
         {"dirty volume fails closed", test_dirty_volume_fails_closed},
         {"no probe path skips read", test_no_probe_path_skips_read},
         {"report text", test_report_text},

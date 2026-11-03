@@ -47,10 +47,10 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Extents-overflow file read | `in progress` | `firmware/hfs/hfs_extents.c`; 2 host tests |
 | Diagnostic bootloader core | `in progress` | `bootloader/diagnostics.c`, `report.c`, `splash.c`; 7 host tests; read-only |
 | Diagnostic hardware glue | `in progress` | `bootloader/hardware/helikon_diag_hw.c`; ATA read callback, donor partition scan, splash/report, button wait, power-off |
-| Diagnostic bootloader image | `unproven` | `bootloader/artifacts/bootloader-ipod6g.ipod`; SHA-256 `bd0ebc92…`; 66,920 bytes; `MOVE_AREA` headroom 62,112 bytes; no device run |
+| Diagnostic bootloader image | `unproven` | `bootloader/artifacts/bootloader-ipod6g.ipod`; SHA-256 `280ed7ae…`; 67,144 bytes; `MOVE_AREA` headroom 61,888 bytes. First build booted and splashed; fixed build not rerun. |
 | Diagnostic build script | `in progress` | `tools/build-diagnostic-bootloader.sh`; pinned donor commit, Thumb build, `MOVE_AREA` check, hash output |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
-| Host test harness | `in progress` | 41 tests total (34 HFS+, 7 bootloader); sanitizer clean; no device run |
+| Host test harness | `in progress` | 43 tests total (35 HFS+, 8 bootloader); sanitizer clean; first diagnostic boot is owner-reported |
 
 ## What does not exist
 
@@ -65,7 +65,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Journal/transaction engine | `planned` | Design requirements only |
 | Installer or desktop app | `planned` | No host application |
 | Build system, CI, release artifacts | `in progress` | Host test Makefiles and the diagnostic bootloader script; no CI or firmware release |
-| Helikon-OS device run | `unproven` | No device has run Helikon-OS |
+| Helikon-OS device run | `unproven` | One owner-reported diagnostic boot: splash shown, volume/catalog PASS, read FAIL `-11`; fixed image not rerun |
 | Supported device list | `unproven` | 6G is the reference; 7G needs a board audit |
 | Code of conduct | `rejected` | Owner deleted Contributor Covenant 2.1 on 2026-11-03; no replacement |
 | Signing policy and key ownership | `planned` | D-20 is still open |
@@ -89,8 +89,16 @@ overlay-based product.
 
 ## Last recorded device run
 
-**None for Helikon-OS.** No boot, playback, write, sleep, USB, update or recovery
-test has been recorded against Helikon-OS hardware or firmware.
+**One owner-reported diagnostic run, 2026-11-03.** The first image
+(`bd0ebc92…`, 66,920 bytes) booted on the owner's 6G and showed the splash.
+`HFS+ volume: PASS` and `HFS+ catalog: PASS`. The read probe failed with
+`read error: -11` (`HFS_ERR_NAME_INVALID`), and the report displayed `llu`
+instead of the byte count and shifted later status lines.
+
+This is a partial/failed bring-up run, not a support claim. The formatter and
+root lookup fixes are in the current image (`280ed7ae…`, 67,144 bytes), which has
+not been reflashed or rerun. See
+[`device-matrix.md`](device-matrix.md) §2.1.
 
 The donor project has owner-reported hardware use for its V3.2 release. That is
 donor evidence, not Helikon-OS evidence, and it does not validate native HFS+
@@ -102,7 +110,8 @@ writes, the transaction engine, the bootloader, or any goal in
 1. **No firmware implementation.** There is a host HFS+ read core and an
    unproven read-only diagnostic bootloader image; the firmware-loading
    bootloader, kernel, writer, journal, VFS, player, UI, database, installer and
-   host app do not exist. The diagnostic image has no device run.
+   host app do not exist. The first diagnostic boot is owner-reported and the
+   fixed image has not been rerun.
 2. **Journal decisions are unresolved.** D-03 (journal strategy) and D-04
    (journal ownership) must be recorded before phase 2 starts. The paper
    recommends journaled release writes and Helikon-OS-owned replay; neither is
@@ -120,11 +129,11 @@ writes, the transaction engine, the bootloader, or any goal in
 
 ## Next task
 
-First, record the hardware run of the diagnostic image (T-029) after the
-`.rockbox` + `/.rockpod-rw` backup and clean eject described in
-[`../bootloader/DFU.md`](../bootloader/DFU.md). The image is unproven; do not
-claim support or a successful boot until the screen and power-off are recorded
-in [`device-matrix.md`](device-matrix.md).
+First, reflash the fixed diagnostic image (`280ed7ae…`) and record the rerun
+after the `.rockbox` + `/.rockpod-rw` backup and clean eject described in
+[`../bootloader/DFU.md`](../bootloader/DFU.md). The fixed image is unproven; do
+not claim support or a successful boot until the report, button wait and
+power-off are recorded in [`device-matrix.md`](device-matrix.md).
 
 After that, start with the owner decisions that block phase 2, then write the
 writer design and host-test plan. See [`tasks.md`](tasks.md):

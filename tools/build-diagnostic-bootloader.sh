@@ -69,6 +69,14 @@ cp "$ROOT/bootloader/diagnostics.c" "$ROOT/bootloader/diagnostics.h" \
    "$ROOT/bootloader/hardware/helikon_diag_hw.c" "$HELIKON_DIR/"
 cp "$ROOT"/firmware/hfs/hfs_*.c "$ROOT"/firmware/hfs/hfs_*.h "$HELIKON_DIR/"
 
+# The Rockbox bootloader formatter supports %lu but not long-long. A stray
+# long-long conversion shifts later varargs and corrupts the on-screen report.
+if grep -n '%ll' "$ROOT/bootloader/report.c" \
+        "$ROOT/bootloader/hardware/helikon_diag_hw.c"; then
+    echo "error: bootloader formatter does not support long-long formatting" >&2
+    exit 1
+fi
+
 echo "Applying the donor-side integration patch ..."
 (
     cd "$SRC_DIR"

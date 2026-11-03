@@ -210,6 +210,67 @@ int hfs_catalog_lookup(struct hfs_catalog *catalog, const char *path,
     return HFS_ERR_NOT_FOUND;
 }
 
+static int ascii_key_matches(const uint8_t *name, uint16_t units,
+                             const char *ascii)
+{
+    size_t length = strlen(ascii);
+    if (units != length)
+        return 0;
+    for (size_t i = 0; i < length; ++i) {
+        if (name[i * 2] != 0 || name[i * 2 + 1] != (uint8_t)ascii[i])
+            return 0;
+    }
+    return 1;
+}
+
+int hfs_catalog_lookup_ascii(struct hfs_catalog *catalog, uint32_t parent,
+                             const char *name, struct hfs_entry *entry)
+{
+    if (catalog == NULL || name == NULL || entry == NULL || parent < 2)
+        return HFS_ERR_ARGUMENT;
+
+    size_t length = strlen(name);
+    if (length == 0 || length > 255)
+        return HFS_ERR_ARGUMENT;
+    for (size_t i = 0; i < length; ++i) {
+        unsigned char c = (unsigned char)name[i];
+        if (c >= 0x80u || c == '/')
+            return HFS_ERR_ARGUMENT;
+    }
+
+    struct hfs_btree_leaf_iterator iterator;
+    int rc = hfs_btree_leaf_init(&catalog->btree, &iterator);
+    if (rc != HFS_OK)
+        return rc;
+
+    const uint8_t *record;
+    size_t record_length;
+    while ((rc = hfs_btree_leaf_next(&catalog->btree, &iterator, &record,
+                                     &record_length)) > 0) {
+        uint32_t key_parent;
+        uint16_t units;
+        const uint8_t *key_name;
+        rc = parse_key(record, record_length, &key_parent, &units, &key_name);
+        if (rc != HFS_OK)
+            return rc;
+        if (key_parent < parent)
+            continue;
+        if (key_parent > parent)
+            return HFS_ERR_NOT_FOUND;
+        if (!ascii_key_matches(key_name, units, name))
+            continue;
+
+        rc = parse_record(catalog->btree.volume, record, record_length, entry);
+        if (rc < 0)
+            return rc;
+        if (rc == 1 && entry->parent == parent)
+            return HFS_OK;
+    }
+    if (rc < 0)
+        return rc;
+    return HFS_ERR_NOT_FOUND;
+}
+
 int hfs_catalog_read_file(struct hfs_catalog *catalog,
                           const struct hfs_entry *entry, uint64_t offset,
                           void *buffer, size_t length, size_t *done)

@@ -20,8 +20,8 @@
 - `hardware/donor-bootloader.patch` removes the donor firmware-loading path and
   wires the diagnostic into a pinned donor bootloader tree.
 - `artifacts/bootloader-ipod6g.ipod` is the built image:
-  `bd0ebc92f58ad9549cad43120cb63566d6c20ae6255a530a17bafd8d832ed6c0`
-  (66,920 bytes, `_moveend` `0x22030d60`, 62,112 bytes below `MOVE_AREA`).
+  `280ed7aee5dcf38d1a30470704f91740b299004692c2aebbb21d41744c05f43c`
+  (67,144 bytes, `_moveend` `0x22030e40`, 61,888 bytes below `MOVE_AREA`).
 
 The hardware bring-up (clocking, PMU, ATA, LCD, buttons) is donor-derived. The
 HFS+ reader, diagnostic core, report and splash are Helikon-OS code. The donor
@@ -38,7 +38,8 @@ overlay, FAT mount and write-capable HFS+ paths are not linked into the image.
   `storage_write_sectors`, `hfsplus_create_file` or `fat_write` symbol.
 - The splash is an image asset; displaying it does not imply a working firmware
   or a hardware-validated boot.
-- The first hardware run is still unproven. No device run is recorded.
+- The first build booted and splashed; its report formatting and read probe
+  failed. The fixed image has not been rerun.
 
 ## Build
 
@@ -105,7 +106,8 @@ flashing.
 
 ## Not done
 
-- Any device run; the first hardware boot is unproven.
+- A rerun of the fixed image; the first build's report formatting and read
+  probe failed.
 - Manifest/signature verification and boot state (D-01/D-02).
 - Firmware loading.
 - Any HFS+ write diagnostic or write path (T-030).

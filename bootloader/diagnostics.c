@@ -35,6 +35,18 @@ static void diagnose_journal(const struct hfs_volume *volume, int probe_error,
     }
 }
 
+static int root_ascii_name(const char *path, const char **name)
+{
+    if (path == NULL || path[0] != '/' || path[1] == '\0')
+        return 0;
+    for (const char *p = path + 1; *p != '\0'; ++p) {
+        if (*p == '/' || (unsigned char)*p >= 0x80u)
+            return 0;
+    }
+    *name = path + 1;
+    return 1;
+}
+
 static int diagnose_read(struct hfs_catalog *catalog, struct hfs_volume *volume,
                          const char *probe_path, void *extents_scratch,
                          size_t extents_scratch_size,
@@ -45,8 +57,18 @@ static int diagnose_read(struct hfs_catalog *catalog, struct hfs_volume *volume,
         return HFS_OK;
     }
 
+    /*
+     * The boot probe is a single ASCII name in the root directory. Compare the
+     * raw catalog key so one unrelated malformed name cannot hide the probe.
+     * Multi-component paths keep the strict, fully decoded lookup.
+     */
     struct hfs_entry entry;
-    int rc = hfs_catalog_lookup(catalog, probe_path, &entry);
+    const char *ascii = NULL;
+    int rc;
+    if (root_ascii_name(probe_path, &ascii))
+        rc = hfs_catalog_lookup_ascii(catalog, 2, ascii, &entry);
+    else
+        rc = hfs_catalog_lookup(catalog, probe_path, &entry);
     if (rc != HFS_OK) {
         result->read = BOOT_DIAG_FAIL;
         result->read_error = rc;

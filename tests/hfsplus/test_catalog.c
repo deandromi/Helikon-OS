@@ -81,6 +81,53 @@ static int test_lookup_errors(void)
     return 0;
 }
 
+static int test_ascii_lookup_skips_bad_name(void)
+{
+    struct hfs_volume volume;
+    struct hfs_catalog catalog;
+    struct hfs_entry entry;
+    uint8_t scratch[TEST_FS_NODE_SIZE];
+    char data[4];
+    size_t done = 0;
+
+    struct test_fs_image fixture = test_fs_image_make();
+
+    /* Corrupt the first root name with a lone high surrogate. A strict path
+     * lookup must fail closed; the raw ASCII probe lookup must still find the
+     * later root entry. */
+    test_image_put_be16(fixture.leaf + 14 + 8, 0xd800);
+
+    /* Reuse the second record as a root file named "rockbox.ipd" (same
+     * 11-unit key length as "current.img"). */
+    uint8_t *record = fixture.leaf + 14 + 114;
+    test_image_put_be32(record + 2, 2);
+    const char *name = "rockbox.ipd";
+    for (size_t i = 0; i < 11; ++i)
+        test_image_put_be16(record + 8 + i * 2, (uint8_t)name[i]);
+
+    int rc = hfs_volume_probe(&volume, test_image_read, NULL, 0,
+                              TEST_IMAGE_SIZE);
+    CHECK(rc == HFS_OK);
+    rc = hfs_catalog_open(&catalog, &volume, scratch, sizeof(scratch));
+    CHECK(rc == HFS_OK);
+
+    CHECK(hfs_catalog_lookup(&catalog, "/rockbox.ipd", &entry) ==
+          HFS_ERR_NAME_INVALID);
+    CHECK(hfs_catalog_lookup_ascii(&catalog, 2, "rockbox.ipd", &entry) ==
+          HFS_OK);
+    CHECK(entry.kind == 2);
+    CHECK(entry.id == 4);
+
+    rc = hfs_catalog_read_file(&catalog, &entry, 0, data, sizeof(data), &done);
+    CHECK(rc == HFS_OK);
+    CHECK(done == 4);
+    CHECK(memcmp(data, "HELO", 4) == 0);
+
+    CHECK(hfs_catalog_lookup_ascii(&catalog, 2, "missing", &entry) ==
+          HFS_ERR_NOT_FOUND);
+    return 0;
+}
+
 static int test_non_inline_file_unsupported(void)
 {
     struct hfs_volume volume;
@@ -115,6 +162,7 @@ int main(void)
     static const struct test_case tests[] = {
         {"iterate and read", test_iterate_and_read},
         {"lookup errors", test_lookup_errors},
+        {"ascii lookup skips bad name", test_ascii_lookup_skips_bad_name},
         {"non-inline file unsupported", test_non_inline_file_unsupported}
     };
 

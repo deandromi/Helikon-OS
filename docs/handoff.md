@@ -11,14 +11,99 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (first hardware report and report/lookup fix)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the formatter/lookup fix commit; check `git log -1`.
+- Current artifact: `bootloader/artifacts/bootloader-ipod6g.ipod`, 67,144 bytes,
+  SHA-256 `280ed7aee5dcf38d1a30470704f91740b299004692c2aebbb21d41744c05f43c`.
+- First image (superseded): `bd0ebc92…`, 66,920 bytes.
+
+## What changed
+
+- Replaced `%llu` with `%lu` in the report and partition lines. The Rockbox
+  bootloader formatter supports `%c %s %l %d %u %x`, not long-long; a stray
+  `%llu` shifted later varargs and corrupted the status lines.
+- Added a build-script guard that rejects long-long conversion specifiers in the
+  Helikon report sources.
+- Added `hfs_catalog_lookup_ascii()`: a raw UTF-16BE key lookup for one ASCII
+  root name. It does not decode unrelated names, so a single malformed root
+  entry cannot hide `/rockbox.ipod`.
+- `boot_diag_run()` uses the raw lookup for a single-component ASCII probe and
+  keeps the strict decoded lookup for multi-component paths.
+- Added tests: malformed-name root fixture, raw lookup, diagnostic read, report
+  byte count. 35 HFS+ + 8 bootloader = 43 host tests.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 35/35 pass.
+- `make -C tests/hfsplus sanitize` — 35/35 pass with ASan/UBSan.
+- `make -C tests/bootloader test` — 8/8 pass.
+- `make -C tests/bootloader sanitize` — 8/8 pass with ASan/UBSan.
+- Thumb image: `_movestart` `0x22020800`, `_moveend` `0x22030e40`,
+  61,888 bytes below `MOVE_AREA`.
+- `mks5lboot --mkdfu-inst` accepts the image as `Classic 6G` / `ipod6g` /
+  `ip6g`, target 71.
+- No `ata_write_sectors`, `storage_write_sectors`, `hfsplus_create_file` or
+  `fat_write` symbol.
+
+## What failed
+
+- The first hardware run (image `bd0ebc92…`) booted and showed the splash.
+  Volume and catalog reported `PASS`, but the report displayed `llu` instead of
+  the byte count and shifted the write/journal/splash lines into dotted squares
+  or `NOT IMPLEMENTED`. The read probe returned `-11`
+  (`HFS_ERR_NAME_INVALID`).
+- Cause of the display corruption: Rockbox `format()` does not implement
+  long-long conversions. Cause of `-11`: the strict root lookup decoded an
+  unrelated malformed name and aborted.
+- Both are fixed in the current artifact. The fixed image has **not** been
+  reflashed or rerun.
+
+## What is next
+
+1. Reflash the 67,144-byte image using `bootloader/DFU.md`.
+2. Confirm the report shows the byte count, `HFS+ write: NOT IMPLEMENTED`,
+   `Journal: CLEAN`/`NOT PRESENT`, `Splash: PASS` and `Partition: N MiB`.
+3. Confirm `HFS+ read: PASS (32 bytes)`. If it still fails, record the exact
+   `read error` value; the raw lookup should now return `-8` (`NOT_FOUND`) for a
+   missing probe, not `-11`.
+4. Record the rerun in `docs/device-matrix.md`.
+5. After a clean rerun, return to D-01/D-02/D-20 for the firmware-loading
+   bootloader.
+
+## What must not be touched
+
+- No HFS+ or NOR write path in this image.
+- No `--single`; no format, erase, repartition or journal deletion.
+- Do not use the donor V3.0/V3.2 image or hash.
+- Do not call the image validated or supported without a recorded rerun.
+
+## Open questions
+
+- Does the raw ASCII root lookup find `/rockbox.ipod` on the owner's volume?
+- Should the diagnostic report the probe path or skipped malformed names?
+- D-01/D-02/D-20 remain open for firmware loading.
+
+## Device/test evidence
+
+- Owner-reported first run: splash shown; volume PASS; catalog PASS; read FAIL
+  `-11`; report formatting corrupted. Recorded in
+  [`device-matrix.md`](device-matrix.md) §2.1.
+- No rerun of the fixed image yet.
+
+---
+
 # Handoff — 2026-11-03 (diagnostic bootloader build)
 
 ## Branch / commit
 
 - Branch: `main`
 - Current head: the diagnostic-bootloader build commit; check `git log -1`.
-- Artifact: `bootloader/artifacts/bootloader-ipod6g.ipod`, 66,920 bytes,
-  SHA-256 `bd0ebc92f58ad9549cad43120cb63566d6c20ae6255a530a17bafd8d832ed6c0`.
+- Artifact: `bootloader/artifacts/bootloader-ipod6g.ipod`, 67,144 bytes,
+  SHA-256 `280ed7aee5dcf38d1a30470704f91740b299004692c2aebbb21d41744c05f43c`.
 
 ## What changed
 
@@ -41,8 +126,8 @@ file grows. Do not rely on chat history for current state.
 ## What was verified
 
 - 41/41 host tests pass; both suites are ASan/UBSan clean.
-- The Thumb image links at `_movestart` `0x22020800`, `_moveend` `0x22030d60`,
-  with 62,112 bytes of `MOVE_AREA` headroom.
+- The Thumb image links at `_movestart` `0x22020800`, `_moveend` `0x22030e40`,
+  with 61,888 bytes of `MOVE_AREA` headroom.
 - The image contains the Helikon diagnostic marker and no
   `ata_write_sectors`, `storage_write_sectors`, `hfsplus_create_file` or
   `fat_write` symbol.
@@ -58,7 +143,7 @@ file grows. Do not rely on chat history for current state.
   expects vertical packing; the direct call would have read past the buffer.
   Fixed with an explicit packing step and test.
 - The first image still linked the donor USB/FAT/HFS+ write stack (113 KB).
-  Removing the unused USB mode and loader path reduced it to 66,920 bytes and
+  Removing the unused USB mode and loader path reduced it to 67,144 bytes and
   removed write-capable symbols.
 - The build script initially used GNU-only `patch --batch --forward`; macOS
   `patch` needed `-N`.

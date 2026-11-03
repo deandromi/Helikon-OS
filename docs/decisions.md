@@ -392,10 +392,13 @@ first diagnostic bootloader scope. See C-08.
   firmware-loading bootloader. This diagnostic image is not a release and has no
   signed manifest. It requires a recorded image hash, Thumb/`MOVE_AREA` checks
   and a recovery rehearsal. No HFS+ writes are allowed.
-- **Follow-up:** the image was built on 2026-11-03: 66,920 bytes, SHA-256
-  `bd0ebc92f58ad9549cad43120cb63566d6c20ae6255a530a17bafd8d832ed6c0`,
-  `_moveend` `0x22030d60`, 62,112 bytes below `MOVE_AREA`. It is unproven on
-  hardware; record the first run in [`device-matrix.md`](device-matrix.md) using
+- **Follow-up:** the image was built on 2026-11-03: 67,144 bytes, SHA-256
+  `280ed7aee5dcf38d1a30470704f91740b299004692c2aebbb21d41744c05f43c`,
+  `_moveend` `0x22030e40`, 61,888 bytes below `MOVE_AREA`. The first build
+  (`bd0ebc92…`) booted and showed the splash, but the report formatter and root
+  read probe failed; both are fixed in the current image. The fixed image is
+  still unproven; record the reflash in
+  [`device-matrix.md`](device-matrix.md) using
   [`../bootloader/DFU.md`](../bootloader/DFU.md). Add write diagnostics later on
   a disposable volume (T-030) after the writer and D-03/D-04.
 

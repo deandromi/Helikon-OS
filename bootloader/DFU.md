@@ -36,10 +36,10 @@ HFS+ write code.
 | Field | Value |
 |---|---|
 | Image | [`artifacts/bootloader-ipod6g.ipod`](artifacts/bootloader-ipod6g.ipod) |
-| Size | 66,920 bytes |
-| SHA-256 | `bd0ebc92f58ad9549cad43120cb63566d6c20ae6255a530a17bafd8d832ed6c0` |
+| Size | 67,144 bytes |
+| SHA-256 | `280ed7aee5dcf38d1a30470704f91740b299004692c2aebbb21d41744c05f43c` |
 | Donor base | `hfsplus-rockboxed-ipod` `55603bd4bc2524ded900fa17feae99a223b04349` |
-| `MOVE_AREA` | `0x22020800`–`0x22040000`; `_moveend` `0x22030d60`; 62,112 bytes headroom |
+| `MOVE_AREA` | `0x22020800`–`0x22040000`; `_moveend` `0x22030e40`; 61,888 bytes headroom |
 
 ## Owner decisions for this image
 
@@ -66,7 +66,8 @@ Do not begin until all are true:
 - [ ] The image SHA-256 matches the value above.
 - [ ] `mks5lboot` runs and `--dfuscan` starts without an error.
 - [ ] You can put the iPod into DFU and can use Apple restore if needed.
-- [ ] You accept that this is the first hardware run of an unproven image.
+- [ ] You accept that the fixed image is unproven; the first build booted but
+      had report-formatting and read-probe failures.
 
 If any box is unchecked, stop.
 
@@ -126,7 +127,7 @@ shasum -a 256 bootloader/artifacts/bootloader-ipod6g.ipod
 Expected:
 
 ```text
-bd0ebc92f58ad9549cad43120cb63566d6c20ae6255a530a17bafd8d832ed6c0  bootloader/artifacts/bootloader-ipod6g.ipod
+280ed7aee5dcf38d1a30470704f91740b299004692c2aebbb21d41744c05f43c  bootloader/artifacts/bootloader-ipod6g.ipod
 ```
 
 Also confirm the diagnostic marker:
@@ -341,8 +342,9 @@ committed artifact hash.
 
 ## Known unknowns
 
-- **No device run exists.** The splash, report, button wait and power-off are
-  integrated but unproven on hardware.
+- **The fixed image has not been rerun.** The first build booted and showed the
+  splash, but its report formatting and read probe failed. The current artifact
+  fixes both; its splash/report/button/power-off path is still unproven.
 - The combined image is host-tested plus donor bring-up; it is not a release.
 - D-01 (manifest/signature), D-02 (boot state/fallback) and D-20 (signing-key
   ownership) remain open for the later firmware-loading bootloader.
