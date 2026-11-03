@@ -11,6 +11,56 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (B-tree root collapse)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the root-collapse commit; check `git log -1`.
+
+## What changed
+
+- When the root index has the deleted leaf as its only child and the leaf is
+  still nonempty, collapse the root to that leaf: depth becomes 1, the old root
+  is freed and the leaf remains root.
+- Empty-parent collapse and fork growth remain unimplemented and fail closed.
+- Total host tests: 75 (67 HFS+, 8 bootloader), sanitizer-clean.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 67/67 pass.
+- `make -C tests/hfsplus sanitize` — 67/67 pass with ASan/UBSan.
+- The root-collapse branch is defensive; the 20-record model test does not force
+  it, so it remains untested by a dedicated case.
+- No device write and no write-capable bootloader image.
+
+## What is next
+
+1. Empty-parent collapse.
+2. Fork growth.
+3. Catalog records + FastUnicodeCompare (D-06).
+4. Extents/overflow, disposable image, `fsck_hfs`, write diagnostic.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- No byte-order substitution for HFS+ catalog keys.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- D-06 Unicode policy / FastUnicodeCompare.
+- Root-collapse test and fork-growth integration.
+
+## Device/test evidence
+
+- No new device run. The writer is host-only.
+
+---
+
 # Handoff — 2026-11-03 (B-tree previous-sibling redistribution)
 
 ## Branch / commit

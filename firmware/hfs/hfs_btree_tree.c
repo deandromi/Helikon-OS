@@ -1095,6 +1095,40 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
 
     if (be16(node + 10) > 0) {
         int first_changed = position == 0 && level > 0;
+
+        /* If the root index has this leaf as its only child, collapse the
+         * root to the leaf instead of keeping a one-record index root. */
+        if (level == 1) {
+            uint8_t root[HFS_MAX_NODE_SIZE];
+            rc = read_node(btree, path[0].node, root);
+            if (rc != HFS_OK)
+                return rc;
+            if (root[8] == 0 && be16(root + 10) == 1) {
+                const uint8_t *root_record;
+                size_t root_length;
+                rc = hfs_btree_node_record(root, btree->node_size, 0,
+                                           &root_record, &root_length);
+                if (rc != HFS_OK || root_length < HFS_BTREE_KEY_LENGTH)
+                    return HFS_ERR_FORMAT;
+                uint16_t root_key_length = be16(root_record);
+                if ((size_t)root_key_length + HFS_BTREE_KEY_LENGTH +
+                    HFS_BTREE_CHILD_SIZE > root_length)
+                    return HFS_ERR_FORMAT;
+                uint32_t root_child = be32(root_record + HFS_BTREE_KEY_LENGTH +
+                                           root_key_length);
+                if (root_child == node_number) {
+                    map_set(&header, path[0].node, 0);
+                    ++header.free_nodes;
+                    header.root_node = node_number;
+                    header.depth = 1;
+                    rc = stage_node(btree, tx, node_number, node);
+                    if (rc != HFS_OK)
+                        return rc;
+                    return store_header(btree, tx, &header);
+                }
+            }
+        }
+
         int merged = 0;
         if (level > 0) {
             merged = merge_leaf_next(btree, &header, tx, path, level,
