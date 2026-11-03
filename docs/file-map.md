@@ -106,7 +106,8 @@ Helikon-OS/
     verification.md         proof checklist
     file-map.md             this file
     architecture.md         boot chain, layers, boundaries
-    ui.md                   default theme typography and font rules
+    ui.md                   default theme typography, anti-aliasing and font rules
+    outer-volume-test.md    real outer-volume write protocol and backup gate
     failures.md             error taxonomy and decision trees
     device-matrix.md        hardware evidence
     handoff.md              latest handoff

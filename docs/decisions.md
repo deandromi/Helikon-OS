@@ -54,6 +54,7 @@ re-litigate them.
 | D-21 | First diagnostic bootloader scope | accepted | owner | §5, §24, §27 |
 | D-22 | Separate write diagnostic scope | accepted | owner | §5, §24, §27; D-21 |
 | D-23 | Default UI typography | accepted | owner | §14, §28.3.4; D-10, D-15 |
+| D-24 | UI text/icon rendering | accepted | owner | §14, §28.3.3; D-23 |
 
 The paper's §25 lists 17 decisions. D-18, D-19 and D-20 are added from §18 and
 §28.4.4. D-18 is accepted; D-19 was adopted and then rejected when the owner
@@ -482,6 +483,24 @@ diagnostic. See C-08.
   then implement the renderer. Record a device-panel result in
   [`device-matrix.md`](device-matrix.md) before any support claim.
 - **Evidence:** owner-supplied table, 2026-11-03.
+
+## D-24 — UI text and icon rendering
+
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-04. **Paper:** §14, §28.3.3; D-23.
+- **Context:** the typography table (D-23) defines sizes and weights. The 6G
+  panel needs readable text at 11–17 px; the owner requires anti-aliasing.
+- **Decision:** UI text and icons use grayscale anti-aliasing. Glyph masks or a
+  glyph atlas are precomputed; the renderer must not rasterize a full font per
+  frame. A readable 1-bit bitmap fallback remains when a font fails to load.
+  Anti-aliased output is checked on the 6G panel for contrast, clipping and
+  memory use. Subpixel rendering, gamma and hinting policy remain open.
+- **Consequences:** font assets need masks/atlases and a measured cache budget;
+  the host mockup and device panel check must include anti-aliased glyphs, not
+  only 1-bit text. The bootloader splash is separate; its 1-bit/grayscale path
+  is T-045.
+- **Follow-up:** implement in the renderer (T-042), include in the 320×240 mockup
+  (T-041), and record a 6G panel result before a UI support claim.
+- **Evidence:** owner direction, 2026-11-04.
 
 ## Conflicts and source separation
 

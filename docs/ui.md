@@ -40,6 +40,11 @@ both. The logo is a wordmark, not a UI text style.
 
 - IBM Plex Sans is the single UI family. Do not add a second UI family without an
   owner decision.
+- UI text and icons use grayscale anti-aliasing. Precompute glyph masks or a
+  glyph atlas; do not rasterize a full font per frame. Keep a readable 1-bit
+  bitmap fallback if a font fails to load.
+- Anti-aliased output must be checked on the 6G panel for contrast and clipping,
+  not only on the host.
 - Manrope Bold is only for the Helikon-OS logo/wordmark. It is not body, menu or
   title text.
 - The selected item uses Medium at the same 14 px size as the main menu. The
@@ -67,7 +72,16 @@ both. The logo is a wordmark, not a UI text style.
   `assets/logo/README.md`. The Manrope wordmark font is separate from that image.
 - Do not copy proprietary themes, artwork, fonts or metadata.
 
-## 4. Not specified yet
+## 4. Bootloader splash
+
+The current bootloader splash is the owner-supplied 320×240 1-bit image packed
+by `bootloader/splash.c`; it is not the final design. The owner will design a
+new splash (T-045). The new asset must be 320×240, readable on the 6G, and its
+rendering path (1-bit Rockbox mono or a grayscale/colour path) must be decided
+before implementation. Do not replace the current splash or the reference image
+without owner approval.
+
+## 5. Not specified yet
 
 These are open questions, not implied values. Do not invent and record them as
 settled:
@@ -79,9 +93,10 @@ settled:
 - large-text mode and high-contrast mode;
 - exact logo size, lockup and clear space;
 - Manrope variable-axis settings beyond Bold;
-- font hinting, antialiasing and bitmap fallback metrics.
+- subpixel rendering, gamma correction, hinting and bitmap fallback metrics;
+- whether the bootloader splash uses 1-bit mono or a grayscale/colour path.
 
-## 5. Verification
+## 6. Verification
 
 Before firmware UI code depends on this table:
 
@@ -90,6 +105,7 @@ Before firmware UI code depends on this table:
 3. Check the selected row at 14 px Medium against the 14 px Regular menu.
 4. Record font source, licence and subset hash.
 5. Only then implement the renderer and theme.
+6. Compare anti-aliased and 1-bit fallback glyphs on the 6G panel.
 
 The mockup is a host artifact, not a device run. A device run must still record
 the panel result in `docs/device-matrix.md`.

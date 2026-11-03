@@ -11,6 +11,43 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-04 (anti-aliasing, splash, outer-volume protocol)
+
+## What changed
+
+- D-24 accepted: UI text and icons use grayscale anti-aliasing with precomputed
+  glyph masks/atlases and a readable 1-bit fallback. Subpixel/gamma/hinting
+  remain open. T-041/T-042 updated.
+- `docs/ui.md` now has a bootloader-splash section. The current 320×240 1-bit
+  splash is not final; the owner will design a new one (T-045). The
+  1-bit/grayscale rendering path and asset licence are open.
+- Added `docs/outer-volume-test.md`: the real outer-volume write protocol. It
+  requires a full verified backup of the entire iPod (music included), a
+  rehearsed restore, a clean journal, and a separate T-047 diagnostic image.
+  Host disposable-image validation is done; the device image is not built.
+
+## What is next
+
+1. Owner: decide the new splash design and provide the asset/licence.
+2. Build T-047 outer-volume diagnostic and host-test it; then the owner can run
+   it on the 6G **after** the full backup and restore rehearsal.
+3. T-041/T-042: font licences, anti-aliased 320×240 mockup and renderer.
+4. T-044 remaining: Finder creator/type policy and wider macOS differential.
+
+## What must not be touched
+
+- No outer-volume write on the iPod until the full backup is verified and the
+  restore path is rehearsed.
+- No `--single`.
+- Do not treat the host outer-image test as a device run.
+- Do not replace the current splash without owner approval.
+
+## Device/test evidence
+
+- No new device run. Host outer-image stages and PMU target 96 are recorded.
+
+---
+
 # Handoff — 2026-11-04 (metadata policy, outer-volume stages)
 
 ## What changed

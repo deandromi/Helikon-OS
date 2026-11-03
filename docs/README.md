@@ -43,7 +43,8 @@ scope, licensing, or app/plugin compatibility — stop and record it in
 
 Then read the specialist files you need:
 [`hfsplus-write-engine.md`](hfsplus-write-engine.md),
-[`ui.md`](ui.md), [`testing.md`](testing.md), [`validation.md`](validation.md),
+[`ui.md`](ui.md), [`outer-volume-test.md`](outer-volume-test.md),
+[`testing.md`](testing.md), [`validation.md`](validation.md),
 [`release.md`](release.md), [`security.md`](security.md),
 [`conventions.md`](conventions.md), [`handoff.md`](handoff.md),
 [`faq.md`](faq.md).
@@ -82,7 +83,8 @@ status.
 | [`verification.md`](verification.md) | Per-change proof checklist and evidence template. | living |
 | [`file-map.md`](file-map.md) | “I need to change X” → owning file/module. | living |
 | [`architecture.md`](architecture.md) | Boot chain, layers, boundaries, memory, security. | living |
-| [`ui.md`](ui.md) | Default first-party UI typography, font rules and open theme questions. | living |
+| [`ui.md`](ui.md) | Default first-party UI typography, anti-aliasing, font rules and open theme questions. | living |
+| [`outer-volume-test.md`](outer-volume-test.md) | Real outer-volume write test protocol and backup gate. | living |
 | [`failures.md`](failures.md) | Error taxonomy, decision trees, destructive-action warnings. | living |
 | [`device-matrix.md`](device-matrix.md) | 6G/7G/ports, adapters, receivers, test evidence. | living |
 | [`handoff.md`](handoff.md) | Latest session handoff and template. | living |
