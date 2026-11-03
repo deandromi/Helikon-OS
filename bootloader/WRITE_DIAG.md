@@ -31,9 +31,14 @@ are changed; the outer filesystem metadata is not.
 
 | Field | Value |
 |---|---|
-| Image | `bootloader/artifacts/bootloader-ipod6g-write-diag.ipod` |
-| Size | 109,320 bytes |
-| SHA-256 | `9e3881297d8a793d6c0589e9779f1d624685f001b6e1cf12814c06c8b7b2aa99` |
+| Bootloader image | `bootloader/artifacts/bootloader-ipod6g-write-diag.ipod` |
+| Image size | 109,320 bytes |
+| Image SHA-256 | `9e3881297d8a793d6c0589e9779f1d624685f001b6e1cf12814c06c8b7b2aa99` |
+| DFU installer | `bootloader/artifacts/bootloader-ipod6g-write-diag.dfu` |
+| DFU size | 117,456 bytes |
+| DFU SHA-256 | `b7385057e10d50a750afbb229543a1969862d89b4b82e174f7308efed00ab513` |
+| Uninstaller DFU | `bootloader/artifacts/bootloader-ipod6g-uninstall.dfu` |
+| Uninstaller SHA-256 | `203e836412b71d3a16b3b57a5bf7ef034a0f5dcae1ca193685b8bfee33868a3a` |
 | Marker | `HELIKON-OS WRITE DIAG` |
 | `_moveend` | `0x2203b300` |
 | `MOVE_AREA` | `0x22020800`–`0x22040000`; 19,712 bytes headroom |
@@ -42,6 +47,75 @@ are changed; the outer filesystem metadata is not.
 
 The hash above belongs to this artifact only. Do not compare it with the
 read-only diagnostic hash.
+
+## Install — exact steps
+
+Run these from the Helikon-OS repository on macOS. Replace `<iPod>` with the
+volume name from `ls /Volumes`.
+
+1. Create the disposable inner image:
+
+   ```sh
+   tools/make-write-diag-image.sh ~/helikon-test.img
+   ```
+
+2. Copy it to the iPod root, verify the outer volume, and eject:
+
+   ```sh
+   cp ~/helikon-test.img "/Volumes/<iPod>/helikon-test.img"
+   diskutil verifyVolume "/Volumes/<iPod>"
+   diskutil eject "/Volumes/<iPod>"
+   ```
+
+3. Put the iPod into DFU: hold **Menu + Select** for about 12 seconds and
+   release at the black screen.
+
+4. Send the prebuilt DFU installer:
+
+   ```sh
+   ./build/write-diagnostic-bootloader/src/utils/mks5lboot/mks5lboot \
+     --dfusend bootloader/artifacts/bootloader-ipod6g-write-diag.dfu
+   ```
+
+   If that `mks5lboot` path is missing, use the donor checkout:
+
+   ```sh
+   cd /path/to/hfsplus-rockboxed-ipod
+   git checkout 55603bd4bc2524ded900fa17feae99a223b04349
+   make -C utils/mks5lboot -j"$(sysctl -n hw.ncpu)" CC=clang \
+     LDOPTS="-framework IOKit -framework CoreFoundation"
+   ./utils/mks5lboot/mks5lboot --dfusend \
+     /path/to/Helikon-OS/bootloader/artifacts/bootloader-ipod6g-write-diag.dfu
+   ```
+
+   Never add `--single`.
+
+5. The iPod reboots into the write diagnostic. Read the report on screen. It
+   waits for a button and powers off.
+
+6. Copy the inner image back and check it:
+
+   ```sh
+   cp "/Volumes/<iPod>/helikon-test.img" ~/helikon-test-after.img
+   DEV=$(hdiutil attach -nomount -nobrowse ~/helikon-test-after.img |
+         awk 'NR == 1 { print $1 }')
+   fsck_hfs -fn "$DEV"
+   hdiutil detach "$DEV"
+   ```
+
+   It must report the volume OK and no repair.
+
+7. Recovery, if needed:
+
+   ```sh
+   ./build/write-diagnostic-bootloader/src/utils/mks5lboot/mks5lboot \
+     --dfusend bootloader/artifacts/bootloader-ipod6g-uninstall.dfu
+   ```
+
+   Or `--bl-uninst ipod6g`.
+
+   Or use the donor `mks5lboot` path. Do not format, erase or delete the
+   journal.
 
 ## Prepare the inner image
 

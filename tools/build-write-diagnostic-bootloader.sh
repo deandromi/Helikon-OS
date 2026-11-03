@@ -25,6 +25,8 @@ SRC_DIR="$BUILD_DIR/src"
 OBJ_DIR="$SRC_DIR/build"
 OUT_DIR="$ROOT/bootloader/artifacts"
 IMAGE="$OUT_DIR/bootloader-ipod6g-write-diag.ipod"
+DFU="$OUT_DIR/bootloader-ipod6g-write-diag.dfu"
+UNINSTALL="$OUT_DIR/bootloader-ipod6g-uninstall.dfu"
 
 JOBS=${JOBS:-$(sysctl -n hw.ncpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)}
 
@@ -142,9 +144,31 @@ echo "sha256: $HASH"
 
 if [ "$(uname -s)" = "Darwin" ] && command -v clang >/dev/null 2>&1; then
     echo
-    echo "Validating the image with mks5lboot ..."
+    echo "Building the DFU installer with mks5lboot ..."
     make -C "$SRC_DIR/utils/mks5lboot" -j"$JOBS" CC=clang \
         LDOPTS="-framework IOKit -framework CoreFoundation" >/dev/null
-    "$SRC_DIR/utils/mks5lboot/mks5lboot" --mkdfu-inst "$IMAGE" \
-        "$BUILD_DIR/validate.dfu" | tail -12
+    "$SRC_DIR/utils/mks5lboot/mks5lboot" --mkdfu-inst "$IMAGE" "$DFU" |
+        tail -12
+    if command -v shasum >/dev/null 2>&1; then
+        DFU_HASH=$(shasum -a 256 "$DFU" | awk '{print $1}')
+    else
+        DFU_HASH=$(sha256sum "$DFU" | awk '{print $1}')
+    fi
+    printf '%s  bootloader-ipod6g-write-diag.dfu\n' "$DFU_HASH" \
+        >> "$OUT_DIR/SHA256SUMS.write-diag"
+    echo "dfu:    $DFU"
+    echo "dfu size: $(wc -c < "$DFU" | tr -d ' ') bytes"
+    echo "dfu sha256: $DFU_HASH"
+
+    "$SRC_DIR/utils/mks5lboot/mks5lboot" --mkdfu-uninst ipod6g "$UNINSTALL" |
+        tail -8
+    if command -v shasum >/dev/null 2>&1; then
+        UNINSTALL_HASH=$(shasum -a 256 "$UNINSTALL" | awk '{print $1}')
+    else
+        UNINSTALL_HASH=$(sha256sum "$UNINSTALL" | awk '{print $1}')
+    fi
+    printf '%s  bootloader-ipod6g-uninstall.dfu\n' "$UNINSTALL_HASH" \
+        > "$OUT_DIR/SHA256SUMS.uninstall"
+    echo "uninstall dfu: $UNINSTALL"
+    echo "uninstall sha256: $UNINSTALL_HASH"
 fi

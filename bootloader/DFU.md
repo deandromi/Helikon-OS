@@ -79,8 +79,13 @@ write diagnostic exists for the native writer:
 | Field | Value |
 |---|---|
 | Image | [`artifacts/bootloader-ipod6g-write-diag.ipod`](artifacts/bootloader-ipod6g-write-diag.ipod) |
-| Size | 109,320 bytes |
-| SHA-256 | `9e3881297d8a793d6c0589e9779f1d624685f001b6e1cf12814c06c8b7b2aa99` |
+| Image size | 109,320 bytes |
+| Image SHA-256 | `9e3881297d8a793d6c0589e9779f1d624685f001b6e1cf12814c06c8b7b2aa99` |
+| DFU installer | [`artifacts/bootloader-ipod6g-write-diag.dfu`](artifacts/bootloader-ipod6g-write-diag.dfu) |
+| DFU size | 117,456 bytes |
+| DFU SHA-256 | `b7385057e10d50a750afbb229543a1969862d89b4b82e174f7308efed00ab513` |
+| Uninstaller DFU | `artifacts/bootloader-ipod6g-uninstall.dfu` |
+| Uninstaller SHA-256 | `203e836412b71d3a16b3b57a5bf7ef034a0f5dcae1ca193685b8bfee33868a3a` |
 | Marker | `HELIKON-OS WRITE DIAG` |
 | `MOVE_AREA` | `0x22020800`–`0x22040000`; `_moveend` `0x2203b300`; 19,712 bytes headroom |
 
@@ -341,8 +346,11 @@ journal as a repair.
 - Remove the Helikon bootloader through DFU with the donor installer:
 
   ```sh
-  ./utils/mks5lboot/mks5lboot --bl-uninst ipod6g
+  ./utils/mks5lboot/mks5lboot --dfusend \
+    /path/to/Helikon-OS/bootloader/artifacts/bootloader-ipod6g-uninstall.dfu
   ```
+
+  Or, equivalently, `--bl-uninst ipod6g`.
 
 - To return to the donor Rockbox bootloader, reinstall the donor V3.2
   `bootloader-ipod6g.ipod` from its own release after removing the Helikon

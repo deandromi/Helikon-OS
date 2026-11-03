@@ -47,8 +47,14 @@ DFU-only experiment governed by D-22 and
 | Field | Value |
 |---|---|
 | Image | `bootloader-ipod6g-write-diag.ipod` |
-| Size | 109,320 bytes |
-| SHA-256 | `9e3881297d8a793d6c0589e9779f1d624685f001b6e1cf12814c06c8b7b2aa99` |
+| Image size | 109,320 bytes |
+| Image SHA-256 | `9e3881297d8a793d6c0589e9779f1d624685f001b6e1cf12814c06c8b7b2aa99` |
+| DFU installer | `bootloader-ipod6g-write-diag.dfu` |
+| DFU size | 117,456 bytes |
+| DFU SHA-256 | `b7385057e10d50a750afbb229543a1969862d89b4b82e174f7308efed00ab513` |
+| Uninstaller DFU | `bootloader-ipod6g-uninstall.dfu` |
+| Uninstaller size | 5,856 bytes |
+| Uninstaller SHA-256 | `203e836412b71d3a16b3b57a5bf7ef034a0f5dcae1ca193685b8bfee33868a3a` |
 | Marker | `HELIKON-OS WRITE DIAG` |
 | `_moveend` | `0x2203b300` |
 | `MOVE_AREA` | `0x22020800`–`0x22040000`; 19,712 bytes headroom |
