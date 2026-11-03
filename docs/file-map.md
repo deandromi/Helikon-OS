@@ -6,9 +6,10 @@
 > Last updated: 2026-11-03
 > Source: repository inspection; design paper §3, §8–§19, Appendices A/B
 
-**Early host code exists.** `firmware/hfs/hfs_volume.c` and `tests/hfsplus/` are
-real host-side code. The bootloader, device firmware, kernel, writer, build
-system, CI and release artifacts are still planned.
+**Early host code exists.** The HFS+ read core and a read-only diagnostic
+bootloader core are real host-side code. The flashable bootloader, device
+firmware, kernel, writer, build system, CI and release artifacts are still
+planned.
 
 ## Current tree
 
@@ -24,6 +25,11 @@ Helikon-OS/
   assets/logo/              mountain reference image; owner will design the logo
   assets/branding/          owner-supplied poster; README embeds it
   assets/startup/           320×240 startup crop; not wired into boot yet
+  bootloader/
+    README.md               diagnostic bootloader scope and integration order
+    diagnostics.c/.h        read-only volume/catalog/file diagnostic
+    report.c/.h             on-screen report formatter
+    splash.c/.h             320×240 1-bit splash data
   firmware/
     hfs/
       hfs_volume.c          HFS+ volume header/journal probe
@@ -43,6 +49,9 @@ Helikon-OS/
       test_unicode.c        UTF-16BE/UTF-8 tests
       test_catalog.c        catalog iteration/lookup tests
       test_extents.c        extents-overflow tests
+  tests/bootloader/
+    Makefile              bootloader host test target
+    test_diag.c           diagnostic core/splash tests
   docs/
     README.md               documentation index and reading order
     state.md                current phase and blockers
@@ -118,7 +127,7 @@ is created; do not let it drift.
 | `assets/branding/` | Owner-supplied Helikon-OS poster and branding notes | owner/branding | `assets/branding/README.md` | image opens, README embed resolves | Do not replace the poster without owner approval |
 | `assets/startup/` | 320×240 startup crop for the iPod screen | boot/UI | `assets/branding/README.md` | exact 320×240, no writes in future display path | Not wired into firmware yet; do not claim it displays |
 | `docs/` | Agent documentation | docs lead | `docs/conventions.md` | `git diff --check`, link check | One canonical file per topic; no duplicate `agent.md`/`decision-log.md` |
-| `bootloader/` | Rescue loader; native HFS+ read-only; manifest verify | boot lead | `docs/architecture.md`, paper §5, §16 | boot, manifest, recovery, no-write hash | No filesystem writes; no overlay; no `--single`; no write modules linked |
+| `bootloader/` | Diagnostic core and splash exist; hardware entry/manifest still planned | boot lead | `bootloader/README.md`, `docs/architecture.md`, paper §5, §16 | 7 host tests; device tests planned | No filesystem writes; no overlay; no `--single`; no write modules linked; not flashable yet |
 | `firmware/hal/` | S5L8702 clocks, GPIO, PMU, ATA, LCD, codec | hardware lead | paper §6–§7, `docs/architecture.md` | register-level bring-up, sleep/wake | No filesystem, UI or policy; no unmeasured overclock/undervolt |
 | `firmware/block/` | Sector I/O, flush, power state | storage lead | paper §7, `docs/architecture.md` | read/write/flush, 512/4096, error injection | No paths/files/caches; a flush error must propagate |
 | `firmware/hfs/` | HFS+ read core: volume, B-tree, catalog, Unicode and extents implemented | HFS+ lead | paper §8, §10.4, `docs/hfsplus-write-engine.md` | 34 host tests now; unit/fuzz/malformed/macOS differential planned | Read-only; no write path; never hide unsupported entries |

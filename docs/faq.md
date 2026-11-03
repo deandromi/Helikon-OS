@@ -8,9 +8,9 @@
 
 ## Can I build Helikon-OS today?
 
-No firmware. There is no bootloader image, kernel or installer. A small host
-HFS+ read core exists under `firmware/hfs/` with tests in `tests/hfsplus/`, but
-that is not bootable firmware. You can build and test the donor project
+No firmware. There is no flashable bootloader image, kernel or installer. A
+host HFS+ read core and a read-only diagnostic bootloader core exist with host
+tests, but that is not bootable firmware. You can build and test the donor project
 today in a separate checkout and follow the paper's assembly plan; that is not
 Helikon-OS firmware.
 

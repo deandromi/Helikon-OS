@@ -27,12 +27,13 @@ test_unicode: test_unicode.c test_check.h \
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_unicode.c \
 	  $(HFS)/hfs_unicode.c $(LDFLAGS) -o $@
 
-test_catalog: test_catalog.c test_image.c test_image.h test_check.h \
+test_catalog: test_catalog.c test_image.c test_fs_image.c \
+              test_image.h test_fs_image.h test_check.h \
               $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog.h \
               $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode.h \
               $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h \
               $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) test_catalog.c test_image.c \
+	$(CC) $(CPPFLAGS) $(CFLAGS) test_catalog.c test_image.c test_fs_image.c \
 	  $(HFS)/hfs_catalog.c $(HFS)/hfs_unicode.c $(HFS)/hfs_btree.c \
 	  $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
 

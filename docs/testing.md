@@ -6,8 +6,8 @@
 > Last updated: 2026-11-03
 > Source: design paper §17, §24, §26, §28; `docs/verification.md`
 
-**Helikon-OS has a small host test tree.** It covers the HFS+ read core:
-34 host tests (12 volume, 9 B-tree, 8 Unicode, 3 catalog, 2 extents),
+**Helikon-OS has a small host test tree.** It covers the HFS+ read core and the
+read-only diagnostic bootloader core: 41 tests total (34 HFS+, 7 bootloader),
 sanitizer-clean. There are no writer, device or power-loss tests yet. Donor
 tests are reference material only. Do not describe a donor test pass as
 Helikon-OS validation.
@@ -21,6 +21,7 @@ Helikon-OS validation.
 | Model-based B-tree | Insert/update/delete, split/merge, key order, free-node map | Host | `planned` | Writer |
 | Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `planned` | Writer/journal |
 | Differential vs macOS | Same tree/names/metadata/`fsck_hfs` result on both sides | Host + macOS | `planned` | Writer |
+| Bootloader diagnostics | Read-only volume/catalog/file report and splash | Host | `in progress` — 7 tests | Boot screen |
 | Device | Boot, mount, playback, write, USB, sleep, recovery | 6G (then 7G/ports) | `not run` | Any hardware claim |
 | Power-loss | Every metadata operation at every journal boundary | Device/rig | `not run` | Write release |
 | Battery/RAM | Runtime, sleep drain, peak RAM, soak | Device/rig | `not run` | Goal 1/4, D-12 |
@@ -156,6 +157,8 @@ reporting the skip.
 ```sh
 make -C tests/hfsplus test
 make -C tests/hfsplus sanitize
+make -C tests/bootloader test
+make -C tests/bootloader sanitize
 ```
 
 Donor commands remain reference-only; they do not test Helikon-OS:

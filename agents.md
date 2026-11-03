@@ -17,7 +17,7 @@ Helikon-OS is a planned native-HFS+ bootloader and firmware for the iPod Classic
 greenfield design, not a working firmware release.
 
 - **Design stage:** no bootloader/kernel/firmware tree, installer, release
-  artifact or Helikon-OS device run exists. A host HFS+ read core exists.
+  artifact or Helikon-OS device run exists. Host HFS+ and diagnostic bootloader cores exist.
 - **Current repository content:** the owner-authored root `README.md`, this
   documentation set, `firmware/hfs/` and `tests/hfsplus/`.
 - **Donor release:** the V3.2 release of `hfsplus-rockboxed-ipod` is an
@@ -104,7 +104,7 @@ docs/                     agent documentation (current)
   verification.md         per-change proof checklist
   architecture.md         layers, boundaries, memory, security
   file-map.md             where to change what
-bootloader/               planned: rescue bootloader (no source yet)
+bootloader/               diagnostic core + splash; hardware entry planned
 firmware/                 host HFS+ read core exists; HAL/VFS/player/UI planned
   hfs/                    HFS+ read core; volume header/journal probe implemented
 tools/                    planned: host tools, inspectors, migration
@@ -117,11 +117,12 @@ docs/prompts/             reusable task prompts
 `docs/file-map.md` is the authoritative map, including donor files referenced by
 the paper. A directory shown as planned does not exist yet.
 ## 6. Build and test commands
-**No firmware or bootloader can be built yet.** The only Helikon-OS code is the
-host HFS+ read core:
+**No flashable firmware or bootloader can be built yet.** Host code:
 ```sh
 make -C tests/hfsplus test
 make -C tests/hfsplus sanitize
+make -C tests/bootloader test
+make -C tests/bootloader sanitize
 ```
 Do not invent firmware commands, images, test counts or device results. The
 donor repository's commands are reference material only and do not test
@@ -295,6 +296,6 @@ The handoff template is in `docs/handoff.md`. A dated log entry belongs in
 ## 13. Full documentation index
 [Index](docs/README.md) · [state](docs/state.md) · [invariants](docs/invariants.md) · [decisions](docs/decisions.md) · [tasks](docs/tasks.md) · [verification](docs/verification.md) · [file map](docs/file-map.md) · [architecture](docs/architecture.md).
 [Failures](docs/failures.md) · [device matrix](docs/device-matrix.md) · [handoff](docs/handoff.md) · [conventions](docs/conventions.md) · [glossary](docs/glossary.md) · [testing](docs/testing.md) · [validation](docs/validation.md) · [goals](docs/goals.md).
-[Roadmap](docs/roadmap.md) · [write engine](docs/hfsplus-write-engine.md) · [release](docs/release.md) · [security](docs/security.md) · [FAQ](docs/faq.md) · [design paper](docs/design-paper.md) · [logo assets](assets/logo/README.md) · [branding assets](assets/branding/README.md) · [ADRs](docs/adr/README.md) · [ADR template](docs/adr/0001-template.md).
+[Roadmap](docs/roadmap.md) · [write engine](docs/hfsplus-write-engine.md) · [release](docs/release.md) · [security](docs/security.md) · [FAQ](docs/faq.md) · [design paper](docs/design-paper.md) · [logo assets](assets/logo/README.md) · [branding assets](assets/branding/README.md) · [bootloader](bootloader/README.md) · [ADRs](docs/adr/README.md) · [ADR template](docs/adr/0001-template.md).
 [Log](docs/log/README.md) · [log template](docs/log/TEMPLATE.md) · [latest log](docs/log/2026-11-03.md) · [prompts](docs/prompts/README.md) · [writer review](docs/prompts/review-hfsplus-writer.md) · [device matrix prompt](docs/prompts/run-device-matrix.md) · [docs audit](docs/prompts/audit-docs-for-contradictions.md).
 [Contributing](CONTRIBUTING.md) · [security policy](SECURITY.md) · [license](LICENSE) · [notice](NOTICE) · [issue templates](.github/ISSUE_TEMPLATE/).

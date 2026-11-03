@@ -61,6 +61,8 @@ and the paper section.
 ```sh
 make -C tests/hfsplus test
 make -C tests/hfsplus sanitize
+make -C tests/bootloader test
+make -C tests/bootloader sanitize
 ```
 
 Record the exact command, toolchain version and commit. Do not copy donor

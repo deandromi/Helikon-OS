@@ -44,14 +44,15 @@ Helikon-OS poster above the goals on 2026-11-03.
 | HFS+ catalog iteration/lookup | `in progress` | `firmware/hfs/hfs_catalog.c`; 3 host tests |
 | UTF-16BE name decode | `in progress` | `firmware/hfs/hfs_unicode.c`; 8 host tests |
 | Extents-overflow file read | `in progress` | `firmware/hfs/hfs_extents.c`; 2 host tests |
-| Host test harness | `in progress` | `tests/hfsplus/`; 34 tests total; sanitizer clean; no device run |
+| Diagnostic bootloader core | `in progress` | `bootloader/diagnostics.c`, `report.c`, `splash.c`; 7 host tests; read-only |
+| Host test harness | `in progress` | 41 tests total (34 HFS+, 7 bootloader); sanitizer clean; no device run |
 
 ## What does not exist
 
 | Item | Status | Note |
 |---|---|---|
 | Helikon-OS firmware source tree | `in progress` | Host HFS+ read core exists; no bootloader/kernel yet |
-| Helikon-OS bootloader source/image | `planned` | No `bootloader/` directory or image |
+| Helikon-OS bootloader image | `planned` | Diagnostic core exists; no HAL, flashable image or device run |
 | Bootloader manifest/boot state | `planned` | D-01/D-02 still open |
 | VFS, player, UI, database | `planned` | No implementation |
 | HFS+ write engine | `planned` | No writer |
@@ -70,8 +71,8 @@ Helikon-OS poster above the goals on 2026-11-03.
   (`Updated README.MD`, 2026-11-03)
 - **Documentation branch:** `docs/agent-handbook`, fast-forwarded to `main` on
   2026-11-03.
-- **Last known-good code commit:** the host HFS+ read-core commit; check
-  `git log -- firmware/hfs tests/hfsplus`. No device code exists.
+- **Last known-good code commit:** the host read-core and diagnostic-bootloader
+  commit; check `git log -- firmware/hfs bootloader tests`. No device code exists.
 - **Last known-good documentation commit:** `6df63ef63bacc93d253db40d1bb7f2efdd289a6c`
   on `main` (license/COC/issue-template follow-up, fast-forwarded). Any later
   docs housekeeping commit is on `main`; check `git log -1`.
@@ -91,9 +92,10 @@ writes, the transaction engine, the bootloader, or any goal in
 
 ## Current blockers
 
-1. **No firmware implementation.** There is only a host HFS+ read core
-   (volume, B-tree, catalog, Unicode, extents); bootloader, kernel, writer,
-   journal, VFS, player, UI, database, installer and host app do not exist.
+1. **No firmware implementation.** There is a host HFS+ read core and a
+   read-only diagnostic bootloader core; the flashable bootloader, kernel,
+   writer, journal, VFS, player, UI, database, installer and host app do not
+   exist.
 2. **Journal decisions are unresolved.** D-03 (journal strategy) and D-04
    (journal ownership) must be recorded before phase 2 starts. The paper
    recommends journaled release writes and Helikon-OS-owned replay; neither is

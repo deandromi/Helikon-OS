@@ -16,7 +16,8 @@ file grows. Do not rely on chat history for current state.
 ## Branch / commit
 
 - Branch: `main`
-- Current head: the host HFS+ read-core commit on `main`; check `git log -1`.
+- Current head: the host read-core and diagnostic-bootloader commit on `main`;
+  check `git log -1`.
 
 ## What changed
 
@@ -31,20 +32,28 @@ file grows. Do not rely on chat history for current state.
   reads.
 - Added `tests/hfsplus/`: shared fixtures and 34 tests across volume, B-tree,
   Unicode, catalog and extents.
+- Added `bootloader/diagnostics.{c,h}`, `report.{c,h}`, `splash.{c,h}` and
+  `bootloader/README.md`: a read-only diagnostic core and 320×240 splash.
+- Added `tests/bootloader/`: 7 diagnostic/splash host tests.
 - Added the owner-supplied poster to the root README and a 320×240 startup crop
   under `assets/startup/`; the startup crop is not wired into firmware yet.
 - Added `.gitignore` for the host test binaries and macOS metadata.
 - Applied the thermo-nuclear quality pass: shared leaf iteration, removed dead
   code and named structural bounds.
-- No device code, bootloader, kernel or writer exists yet.
+- No flashable bootloader image, kernel or writer exists yet. The diagnostic
+  core is host-tested only and does not touch a device.
 
 ## What was verified
 
 - `make -C tests/hfsplus test` — 34/34 pass (12 volume, 9 B-tree, 8 Unicode,
   3 catalog, 2 extents).
 - `make -C tests/hfsplus sanitize` — 34/34 pass with ASan/UBSan.
+- `make -C tests/bootloader test` — 7/7 pass.
+- `make -C tests/bootloader sanitize` — 7/7 pass with ASan/UBSan.
 - Test count and output are in `docs/log/2026-11-03.md`.
 - No device write, bootloader install, DFU action or `--single` was attempted.
+- The diagnostic core reports HFS+ write as `NOT IMPLEMENTED`; it never tests a
+  write on a real library.
 - Root `README.md` now includes the owner-supplied poster; the 25 goals are
   unchanged. The donor repository was not modified.
 
@@ -61,9 +70,10 @@ file grows. Do not rely on chat history for current state.
 
 1. Define the bootloader manifest/boot-state flow and host image-loading core
    (T-027); D-01/D-02 remain owner decisions.
-2. Wire the 320×240 startup image into the phase 0 display path when it exists.
-3. Keep the writer blocked until D-03/D-04 and T-002/T-004 are settled.
-4. Phase 0 bootloader remains the first device code, after recovery rehearsal.
+2. Add the hardware HAL/ATA/LCD entry point for the diagnostic screen and
+   splash; this is the first device code and needs recovery rehearsal.
+3. Wire the 320×240 startup image into the phase 0 display path.
+4. Keep the writer blocked until D-03/D-04 and T-002/T-004 are settled.
 
 ## What must not be touched
 
@@ -71,7 +81,8 @@ file grows. Do not rely on chat history for current state.
 - No filesystem write path in this host slice.
 - No `--single`.
 - No format/erase/journal deletion.
-- No claim that the host probe validates a device read.
+- No claim that the host diagnostic core is a flashable bootloader or a device
+  validation.
 
 ## Open questions
 
