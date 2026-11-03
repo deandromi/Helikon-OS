@@ -1,123 +1,100 @@
-# Helikon-OS logo — mountain dot-matrix concept
+# Helikon-OS logo — iPod overlay on the mountain
 
-> Purpose: define the provisional Helikon-OS mark and lockup.
+> Purpose: define the provisional Helikon-OS iPod overlay and H/OS mark.
 > Status: stub — provisional branding, not final
 > Owner: project owner
 > Last updated: 2026-11-03
 > Source: product identity D-17, paper Appendix D; text/dot-matrix only
 
-**This is a design proposal, not a generated image.** The logo is a text dot
-matrix, so it can be copied into a terminal, a README, an installer screen or a
-build-time asset without a raster image. No image generator was used, and no
-photo pixels are included.
+**This is an overlay, not a generated image.** The mountain photo stays original.
+Only the iPod is dot-matrixed. The overlay is transparent everywhere except the
+iPod, so it can be placed over the reference photo without redrawing the
+landscape. No image generator was used, and no photo pixels are included.
 
 ## Concept
 
-The primary mark is a **landscape**, not a device portrait. A dot-field mountain
-ridge rises from the lower edge; an iPod emerges from behind it. The mountain is
-the mask: only the top/mid frame, the entire screen and the top arc of the click
-wheel are visible. The lower frame and the rest of the wheel are deliberately
-absent.
+The iPod is a rounded Classic-like device emerging from the mountain ridge. The
+mountain is the mask: only the top/mid frame, the entire screen and the top arc
+of the click wheel are drawn. The lower frame and the rest of the wheel are
+absent, not faded.
 
-The screen carries the **lyre-H**: two uprights read as the letter **H**, the top
-forms a peak for **Mount Helikon**, and the base/crossbar suggest a lyre and a
-waveform. A 5×7 `HELIKON-OS` wordmark sits in the sky at top right.
+The screen carries the stacked **H / OS** mark:
 
-Three dot weights make the scene readable:
+- a 5×5 `H` on top;
+- a one-row gap;
+- `OS` in 4×5 dot letters underneath.
 
-- `●` — lit dots: iPod frame, screen mark and wordmark.
-- `○` — hollow dots: the screen bezel, so the screen reads as a separate surface.
-- `·` — dim dots: the mountain field below the ridge.
+There is no separate `HELIKON-OS` wordmark in the overlay. The identity is the
+H/OS screen mark plus the mountain composition. The overlay uses only `●` for
+lit iPod dots and `○` for the screen bezel; the mountain is never dotted.
 
-## Primary lockup
+## iPod overlay
 
-Source: [`assets/logo/helikon-os-primary.txt`](../assets/logo/helikon-os-primary.txt)
+Source: [`assets/logo/helikon-os-ipod-overlay.txt`](../assets/logo/helikon-os-ipod-overlay.txt)
 
 ```text
-                               ●   ● ●●●●● ●     ●●●●● ●   ●  ●●●  ●   ●        ●●●   ●●●●
-                               ●   ● ●     ●       ●   ●  ●  ●   ● ●●  ●       ●   ● ●
-                               ●   ● ●     ●       ●   ● ●   ●   ● ●●  ●       ●   ● ●
-                               ●●●●● ●●●●  ●       ●   ●●    ●   ● ● ● ● ●●●●● ●   ●  ●●●
-                               ●   ● ●     ●       ●   ● ●   ●   ● ●  ●●       ●   ●     ●
-                               ●   ● ●     ●       ●   ●  ●  ●   ● ●  ●●       ●   ●     ●
-                               ●   ● ●●●●● ●●●●● ●●●●● ●   ●  ●●●  ●   ●        ●●●  ●●●●
-
-          ●●●●●●●●●●●●●●●●●●●●●●●●
-          ●                      ●
-          ●○○○○○○○○○○○○○○○○○○○○○○●
-          ●○                    ○●
-          ●○                    ○●
-          ●○         ●          ○●
-          ●○        ● ●         ○●
-          ●○       ●   ●        ○●             ·
-          ●○       ●●●●●        ○●            ·········
-          ●○       ●   ●        ○●          ···················
-          ●○       ●   ●        ○●        ··························
-          ●○        ●●●         ○●   ···································
-          ●○                    ○●········································
-          ●○○○○○○○○○○○○○○○○○○○○○○●···········································
-          ●        ●●●●●●       ···············································
-          ●      ●●      ●●    ····················································
-          ●    ●●          ●●  ·························································
-          ●   ●●         ···································································
-···       ●   ●      ·······································································
-········  ●  ●●·············································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
-····························································································
+   ●●●●●●●●●●●●●●●●●●●●
+  ●●                  ●●
+ ●●○○○○○○○○○○○○○○○○○○○○●●
+ ● ○      ●   ●       ○ ●
+ ● ○      ●   ●       ○ ●
+ ● ○      ●●●●●       ○ ●
+ ● ○      ●   ●       ○ ●
+ ● ○      ●   ●       ○ ●
+ ● ○                  ○ ●
+ ● ○    ●●●● ●●●●     ○ ●
+ ● ○    ●  ● ●        ○ ●
+ ● ○    ●  ● ●●●      ○ ●
+ ● ○    ●  ●    ●     ○ ●
+ ● ○    ●●●● ●●●●     ○ ●
+ ● ○○○○○○○○○○○○○○○○○○○○ ●
+ ●        ●●●●●●
+ ●      ●●      ●●
+ ●    ●●          ●●
+ ●   ●●
+ ●   ●
 ```
 
-## Composition rule
+## Placement
 
-The mountain ridge is the mask. Draw the iPod only where it is **above** the
-ridge:
+The overlay is a 26×20-cell crop of a 92×52 placement grid. It is pre-masked to
+the ridge; do not add mountain dots. If you move it, re-mask the lower body and
+wheel to the new ridge.
 
-- Keep the entire screen visible above the ridge.
-- Keep the top and side frame visible down to the ridge.
-- Keep the top arc of the click wheel visible; stop the arc at the ridge.
-- Omit the lower frame, the rest of the wheel and the bottom of the device.
-- If the ridge changes, re-mask the iPod. Do not draw a complete iPod on top of
-  the mountain and fade it out; the concealment must follow the landform.
+For the 736×413 reference photo at 8 pixels per cell:
 
-## Standalone mark
+| Element | Grid cells | Pixel position |
+|---|---|---|
+| Overlay crop origin | x=8, y=9 | (64, 72) |
+| Body top | y=9 | y=72 |
+| Screen | x=11..30, y=11..23 | x=88..240, y=88..184 |
+| Wheel top | y=24 | y=192 |
+| Mountain ridge | photo-dependent | not drawn |
+
+The screen is intentionally kept fully visible even where the ridge crosses
+close to its lower edge. The body sides and wheel stop at the ridge; the lower
+device is concealed by the original mountain.
+
+## Standalone H/OS mark
 
 Source: [`assets/logo/helikon-os-mark.txt`](../assets/logo/helikon-os-mark.txt)
 
 ```text
-    ●
-   ● ●
   ●   ●
- ●     ●
- ●  ●  ●
- ●●●●●●●
- ●     ●
- ●     ●
   ●   ●
-   ●●●
+  ●●●●●
+  ●   ●
+  ●   ●
+
+●●●● ●●●●
+●  ● ●
+●  ● ●●●
+●  ●    ●
+●●●● ●●●●
 ```
 
-Use the mark alone when the full landscape would be too small: favicon, app icon,
-boot splash, installer badge, or a single-colour stamp.
+Use the mark where the full overlay would be too small: favicon, app icon, boot
+splash, installer badge or a single-colour stamp.
 
 ## Palette
 
@@ -128,7 +105,7 @@ accent, not a requirement.
 |---|---|---|
 | Ink | `#0B0D10` | Background on light contexts |
 | Parchment | `#F2E9D8` | Primary dots on dark backgrounds |
-| Brass | `#C8A96B` | Screen mark / accent |
+| Brass | `#C8A96B` | Screen/H-OS accent |
 | Slate | `#7A8B99` | Secondary UI accents |
 
 The mark must work in one colour. Do not rely on the brass accent to make the
@@ -136,38 +113,34 @@ shape readable.
 
 ## Usage rules
 
-- **Primary lockup:** at least 92 dots wide on screen; below that use the
-  standalone mark.
+- **Overlay:** place at the documented crop origin; keep the photo's ridge as the
+  mask. Do not draw the lower iPod.
 - **Standalone mark:** at least 9 dots wide.
-- **Clear space:** one click-wheel diameter around the lockup; one dot around
+- **Clear space:** one click-wheel diameter around the overlay; one dot around
   the mark.
-- **Backgrounds:** use parchment dots on ink, or ink dots on parchment. Invert
-  the matrix for light backgrounds; do not add a gradient.
-- **Scaling:** scale by whole dots only. Do not interpolate, blur or anti-alias
-  the matrix into mush.
-- **Screen:** the screen contains only the lyre-H mark. Do not add Apple UI,
-  menu text, album art or a second logo.
-- **Wordmark:** keep `HELIKON-OS` as one unit. Do not abbreviate it to `H-OS` or
-  add `Rockbox`/`Rockpod` to the lockup. The wordmark may be removed for a
-  scene-only mark; keep the top-right sky clear if it is.
+- **Backgrounds:** use parchment dots on a dark photo, or ink dots on a light
+  photo. Invert the dots, not the mountain.
+- **Scaling:** scale by whole dots only. Do not interpolate or blur the matrix.
+- **Screen:** the screen contains only `H` over `OS`. Do not add Apple UI, menu
+  text, album art or a second logo.
+- **Wordmark:** the H/OS mark is the identity. Do not add `Rockbox`/`Rockpod` or a
+  second wordmark inside the overlay.
 
 ## Don'ts
 
+- Do not dot the mountain; it stays the original photo.
+- Do not draw a complete iPod and fade the bottom out; omit the concealed parts.
 - Do not use the Apple logo, Apple wordmark or an exact Apple product outline.
-- Do not add a photo-realistic screen, reflections, shadows or gradients.
+- Do not square off the iPod corners; the body is rounded.
+- Do not add gradients, reflections, shadows or a photo-realistic screen.
 - Do not stretch the device or change the screen/wheel proportions.
-- Do not use low-contrast dot colours or a dotted background behind the dots.
-- Do not draw the iPod below the mountain ridge or "fade" the lower body; the
-  mountain must conceal it.
-- Do not put the mark inside another badge, circle or rounded square in the
-  primary lockup; the landscape is the container.
 - Do not claim Apple affiliation, certification or endorsement.
 
 ## Reference note
 
 The composition is inspired by the attached **Mount Helicon (1,749 m) at
 sunset, Central Greece** reference. The photo is not copied into this repository;
-the dot matrix approximates the ridge silhouette only. The iPod is an abstract
+the overlay uses the ridge silhouette for masking only. The iPod is an abstract
 Classic-like device, not an Apple product image.
 
 ## Open questions
@@ -175,14 +148,15 @@ Classic-like device, not an Apple product image.
 - **D-17:** trademark/domain/package clearance for the Helikon-OS name is still
   open. This logo is provisional until that is recorded.
 - Final palette and whether brass is the primary accent.
-- Whether the wordmark stays in the lockup or becomes a separate wordmark asset.
-- Whether a phosphor-green terminal variant is wanted.
-- Whether the ridge should be simplified further for very small sizes.
+- Whether the H/OS mark should be optically larger inside the screen.
+- Whether a separate horizontal `HELIKON-OS` wordmark is wanted outside the
+  overlay.
+- Whether the ridge mask should be simplified for very small sizes.
 
 ## Files
 
-- [`assets/logo/helikon-os-primary.txt`](../assets/logo/helikon-os-primary.txt)
-  — mountain lockup.
+- [`assets/logo/helikon-os-ipod-overlay.txt`](../assets/logo/helikon-os-ipod-overlay.txt)
+  — transparent iPod overlay, pre-masked to the ridge.
 - [`assets/logo/helikon-os-mark.txt`](../assets/logo/helikon-os-mark.txt)
-  — standalone lyre-H mark.
+  — standalone H/OS mark.
 - No PNG, SVG, icon-font or generated image is part of this proposal.
