@@ -136,15 +136,24 @@ static int test_splash_asset(void)
     CHECK(HELIKON_SPLASH_WIDTH == 320);
     CHECK(HELIKON_SPLASH_HEIGHT == 240);
     CHECK(HELIKON_SPLASH_STRIDE == 40);
-    size_t ink = 0;
-    for (size_t i = 0; i < HELIKON_SPLASH_BYTES; ++i) {
-        uint8_t value = helikon_splash_bits[i];
-        while (value != 0) {
-            ink += value & 1u;
-            value >>= 1;
+
+    uint8_t packed[HELIKON_SPLASH_BYTES];
+    CHECK(helikon_splash_pack_rockbox(packed, sizeof(packed)) == 0);
+
+    size_t light = 0;
+    size_t mismatches = 0;
+    for (unsigned int y = 0; y < HELIKON_SPLASH_HEIGHT; ++y) {
+        for (unsigned int x = 0; x < HELIKON_SPLASH_WIDTH; ++x) {
+            int expected = helikon_splash_pixel(x, y);
+            int actual = (packed[(y >> 3) * HELIKON_SPLASH_WIDTH + x] >>
+                          (y & 7u)) & 1u;
+            light += (size_t)expected;
+            mismatches += (size_t)(expected != actual);
         }
     }
-    CHECK(ink > 0);
+    CHECK(light > 0);
+    CHECK(mismatches == 0);
+    CHECK(helikon_splash_pack_rockbox(packed, HELIKON_SPLASH_BYTES - 1) != 0);
     return 0;
 }
 

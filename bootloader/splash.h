@@ -2,6 +2,7 @@
 #ifndef HELIKON_BOOTLOADER_SPLASH_H
 #define HELIKON_BOOTLOADER_SPLASH_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #define HELIKON_SPLASH_WIDTH 320u
@@ -11,7 +12,7 @@
 
 extern const uint8_t helikon_splash_bits[HELIKON_SPLASH_BYTES];
 
-/* 1 = ink, 0 = background. */
+/* 1 = light/background, 0 = ink. */
 static inline int helikon_splash_pixel(unsigned int x, unsigned int y)
 {
     if (x >= HELIKON_SPLASH_WIDTH || y >= HELIKON_SPLASH_HEIGHT)
@@ -19,5 +20,11 @@ static inline int helikon_splash_pixel(unsigned int x, unsigned int y)
     return (helikon_splash_bits[y * HELIKON_SPLASH_STRIDE + (x / 8u)] >>
             (7u - (x % 8u))) & 1u;
 }
+
+/*
+ * Repack the row-major source into Rockbox's mono bitmap layout: one byte per
+ * pixel column, eight vertical pixels per byte. Returns 0 on success.
+ */
+int helikon_splash_pack_rockbox(uint8_t *dest, size_t size);
 
 #endif

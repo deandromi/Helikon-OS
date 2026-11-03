@@ -1,26 +1,31 @@
-# Diagnostic bootloader core
+# Diagnostic bootloader
 
 > Purpose: read-only HFS+ diagnostics and the 320×240 splash for the first
 > bootloader screen.
-> Status: in progress — host-testable core; not a flashable bootloader image
+> Status: **image built; unproven on hardware.** Not a release and not a
+> firmware loader.
 > Owner: boot lead
 > Last updated: 2026-11-03
-> Source: design paper §5, §24, §27; `docs/state.md`
+> Source: design paper §5, §24, §27; `docs/state.md`; D-21
 
 ## What this is
-
-This is the platform-independent core of a diagnostic bootloader:
 
 - `diagnostics.c` probes the HFS+ volume, opens the catalog, looks up a probe
   path, and reads the file through inline or extents-overflow extents.
 - `report.c` formats the on-screen report.
 - `splash.c` contains the owner-supplied 320×240 image as a 1-bit bitmap
-  (`1 = ink`, `0 = background`, 40-byte stride).
-- `tests/bootloader/test_diag.c` exercises the core on a synthetic HFS+ image.
+  (`1 = light/background`, `0 = ink`, 40-byte stride).
+- `hardware/helikon_diag_hw.c` is the S5L8702/Pocket-6G glue: ATA read callback,
+  partition scan, splash blit, report rendering, button wait and power-off.
+- `hardware/donor-bootloader.patch` removes the donor firmware-loading path and
+  wires the diagnostic into a pinned donor bootloader tree.
+- `artifacts/bootloader-ipod6g.ipod` is the built image:
+  `bd0ebc92f58ad9549cad43120cb63566d6c20ae6255a530a17bafd8d832ed6c0`
+  (66,920 bytes, `_moveend` `0x22030d60`, 62,112 bytes below `MOVE_AREA`).
 
-It is **not** a flashable bootloader. The S5L8702 HAL, ATA init, LCD init,
-button handling, image manifest verification and the boot jump are not wired
-here yet.
+The hardware bring-up (clocking, PMU, ATA, LCD, buttons) is donor-derived. The
+HFS+ reader, diagnostic core, report and splash are Helikon-OS code. The donor
+overlay, FAT mount and write-capable HFS+ paths are not linked into the image.
 
 ## Safety boundary
 
@@ -28,20 +33,36 @@ here yet.
 - `HFS+ write` is always reported as `NOT IMPLEMENTED`; the HFS+ transaction
   engine does not exist yet. Do not turn this into a write test on a real
   library.
-- There is no bootloader/NOR write path, no DFU action and no `--single`.
+- There is no bootloader/NOR write path in the image, no DFU action and no
+  `--single`. The image contains no `ata_write_sectors`,
+  `storage_write_sectors`, `hfsplus_create_file` or `fat_write` symbol.
 - The splash is an image asset; displaying it does not imply a working firmware
   or a hardware-validated boot.
+- The first hardware run is still unproven. No device run is recorded.
 
-## Integration order
+## Build
 
-1. HAL/clock/PMU/GPIO/I2C/SPI bring-up.
-2. ATA/block read-only bring-up.
-3. Provide `hfs_read_fn` backed by the block layer.
-4. Call `boot_diag_run()` with catalog and extents scratch buffers.
-5. Blit `helikon_splash_bits[]` to the 320×240 panel.
-6. Render `boot_diag_format()` lines.
-7. Power off or enter recovery; never write the volume.
-8. Only then add manifest/boot-state verification and the jump.
+```sh
+DONOR_DIR=/path/to/hfsplus-rockboxed-ipod \
+  ./tools/build-diagnostic-bootloader.sh
+```
+
+The script pins donor commit `55603bd4bc2524ded900fa17feae99a223b04349`,
+exports a clean tree with `git archive`, applies the patch, builds with
+`--thumb`, verifies `_moveend` against `MOVE_AREA`, copies the image to
+`artifacts/` and prints its SHA-256.
+
+## How it works
+
+1. The donor bootloader initializes clocks, PMU, buttons, LCD and backlight.
+2. `helikon_splash_show()` converts the row-major splash to Rockbox's vertical
+   mono-bitmap layout and blits it.
+3. `helikon_diagnostic()` scans MBR/GPT/APM with the donor partition scanner,
+   picks the largest HFS+ partition and calls `boot_diag_run()`.
+4. The HFS+ read callback is `ata_read_sectors()` only.
+5. `boot_diag_format()` is rendered line by line.
+6. The diagnostic waits for a button, asks for USB to be unplugged if needed,
+   and calls `power_off()`.
 
 ## Report
 
@@ -51,10 +72,13 @@ Example:
 HELIKON-OS DIAGNOSTIC
 HFS+ volume: PASS
 HFS+ catalog: PASS
-HFS+ read: PASS (4 bytes)
+HFS+ read: PASS (32 bytes)
 HFS+ write: NOT IMPLEMENTED
-Journal: NOT PRESENT
+Journal: CLEAN
 Splash: PASS
+Partition: <size> MiB
+Press any button to power off.
+Nothing was written to the disk.
 ```
 
 A dirty or invalid volume reports `FAIL`, `Journal: DIRTY`, and does not
@@ -63,22 +87,25 @@ continue into catalog or file reads. It never auto-repairs.
 ## Test
 
 ```sh
+make -C tests/hfsplus test
+make -C tests/hfsplus sanitize
 make -C tests/bootloader test
 make -C tests/bootloader sanitize
 ```
 
-The synthetic fixture is a 64 KiB HFS+ image with a catalog file at
-`/.firmware/current.img`; no device or disk image is involved.
+The bootloader test includes a round-trip check of the Rockbox mono-bitmap
+packing. The synthetic HFS+ fixture is 64 KiB; no device or disk image is
+involved. These are host tests only.
 
-## DFU
+## DFU install
 
-The future install procedure is in [`DFU.md`](DFU.md). It is **blocked**: there
-is no flashable Helikon-OS image or hash yet. Do not substitute the donor V3.0
-hash or image.
+The backup and install procedure is in [`DFU.md`](DFU.md). The image hash and
+the `MOVE_AREA` headroom are recorded there. Read the hard preconditions before
+flashing.
 
 ## Not done
 
-- Hardware entry point and display driver.
+- Any device run; the first hardware boot is unproven.
 - Manifest/signature verification and boot state (D-01/D-02).
-- Any write diagnostic or write path.
-- Any device run.
+- Firmware loading.
+- Any HFS+ write diagnostic or write path (T-030).

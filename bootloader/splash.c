@@ -4,9 +4,11 @@
  *
  * Generated from the owner-supplied assets/startup/helikon-os-320x240.png,
  * with the title redrawn in Times New Roman 22px on 2026-11-03.
- * 1 = ink, 0 = background; row-major, MSB first, 40-byte stride.
+ * 1 = light/background, 0 = ink; row-major, MSB first, 40-byte stride.
  */
 #include "splash.h"
+
+#include <string.h>
 
 const uint8_t helikon_splash_bits[HELIKON_SPLASH_BYTES] = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -610,3 +612,19 @@ const uint8_t helikon_splash_bits[HELIKON_SPLASH_BYTES] = {
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
 };
+
+int helikon_splash_pack_rockbox(uint8_t *dest, size_t size)
+{
+    if (dest == NULL || size < HELIKON_SPLASH_BYTES)
+        return -1;
+
+    memset(dest, 0, HELIKON_SPLASH_BYTES);
+    for (unsigned int y = 0; y < HELIKON_SPLASH_HEIGHT; ++y) {
+        for (unsigned int x = 0; x < HELIKON_SPLASH_WIDTH; ++x) {
+            if (helikon_splash_pixel(x, y))
+                dest[(y >> 3) * HELIKON_SPLASH_WIDTH + x] |=
+                    (uint8_t)(1u << (y & 7u));
+        }
+    }
+    return 0;
+}

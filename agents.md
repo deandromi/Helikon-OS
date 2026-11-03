@@ -16,10 +16,13 @@ Helikon-OS is a planned native-HFS+ bootloader and firmware for the iPod Classic
 6th generation, with the 7th generation as the next named port. It is a
 greenfield design, not a working firmware release.
 
-- **Design stage:** no bootloader/kernel/firmware tree, installer, release
-  artifact or Helikon-OS device run exists. Host HFS+ and diagnostic bootloader cores exist.
+- **Design stage:** a host HFS+ read core and a read-only diagnostic bootloader
+  image exist. There is no kernel/firmware, firmware-loading bootloader,
+  installer, release artifact or Helikon-OS device run. The diagnostic image is
+  unproven on hardware.
 - **Current repository content:** the owner-authored root `README.md`, this
-  documentation set, `firmware/hfs/` and `tests/hfsplus/`.
+  documentation set, `firmware/hfs/`, `bootloader/` (diagnostic core, hardware
+  glue and built image) and `tests/`.
 - **Donor release:** the V3.2 release of `hfsplus-rockboxed-ipod` is an
   overlay-based Rockpod/Rockbox fork. It is separate from Helikon-OS and is not
   evidence for Helikon-OS.
@@ -104,11 +107,13 @@ docs/                     agent documentation (current)
   verification.md         per-change proof checklist
   architecture.md         layers, boundaries, memory, security
   file-map.md             where to change what
-bootloader/               diagnostic core + splash; hardware entry planned
+bootloader/               read-only diagnostic bootloader; image unproven on hardware
+  hardware/               S5L8702/ATA/LCD glue and donor integration patch
+  artifacts/              built image, SHA256SUMS and provenance
 firmware/                 host HFS+ read core exists; HAL/VFS/player/UI planned
   hfs/                    HFS+ read core; volume header/journal probe implemented
-tools/                    planned: host tools, inspectors, migration
-tests/                    host HFS+ volume tests exist; device/writer tests planned
+tools/                    diagnostic build script; host tools/inspectors planned
+tests/                    host HFS+ and bootloader tests; device/writer tests planned
 docs/adr/                 long-form decisions
 docs/log/                 dated work logs
 docs/prompts/             reusable task prompts
@@ -117,14 +122,24 @@ docs/prompts/             reusable task prompts
 `docs/file-map.md` is the authoritative map, including donor files referenced by
 the paper. A directory shown as planned does not exist yet.
 ## 6. Build and test commands
-**No flashable firmware or bootloader can be built yet.** Host code:
+**No firmware or firmware-loading bootloader can be built yet.** The read-only
+diagnostic bootloader can be built and host-tested:
+
 ```sh
 make -C tests/hfsplus test
 make -C tests/hfsplus sanitize
 make -C tests/bootloader test
 make -C tests/bootloader sanitize
+
+DONOR_DIR=/path/to/hfsplus-rockboxed-ipod \
+  ./tools/build-diagnostic-bootloader.sh
 ```
-Do not invent firmware commands, images, test counts or device results. The
+
+The script exports the pinned donor commit, applies
+`bootloader/hardware/donor-bootloader.patch`, builds Thumb, checks `_moveend`
+against `MOVE_AREA`, copies the image to `bootloader/artifacts/` and prints its
+SHA-256. The image is unproven on hardware; a successful link is not a device
+run. Do not invent firmware commands, images, test counts or device results. The
 donor repository's commands are reference material only and do not test
 Helikon-OS:
 
@@ -219,6 +234,20 @@ hash, power cut during staging, rollback, version/hash display. **Evidence:**
 manifest, image hash, device run, update/rollback log, `fsck_hfs` output.
 **Rollback:** bootloader keeps the previous verified image; bootloader changes
 recover through DFU.
+
+### 7.8 Diagnostic bootloader change
+
+**Read first:** `bootloader/README.md`, `bootloader/DFU.md`,
+`bootloader/hardware/README.md`, `docs/state.md`, D-21. **Do:** keep it
+read-only; no firmware load, no HFS+ write path, no write symbols, no
+`--single`; preserve the splash, report, button wait and power-off; keep the
+image hash and `MOVE_AREA` headroom in the artifact README and DFU runbook.
+**Test:** both host test suites with sanitizers; rebuild with the pinned donor
+commit; check `_moveend` and headroom; run the `mks5lboot --mkdfu-inst` dry run;
+install only after a verified `.rockbox` + `/.rockpod-rw` backup and a clean
+eject. **Evidence:** commit, image hash/size, `MOVE_AREA` values, DFU dry-run
+output, device screen/report and power-off result. **Rollback:** DFU uninstall
+or Apple restore; never `--single`, format, erase or delete the journal.
 
 ## 8. Release policy
 - Channels: **stable**, **beta**, **development**.

@@ -26,11 +26,19 @@ Helikon-OS/
   assets/branding/          owner-supplied poster; README embeds it
   assets/startup/           320×240 startup crop; not wired into boot yet
   bootloader/
-    README.md               diagnostic bootloader scope and integration order
-    DFU.md                  blocked DFU install runbook; no image/hash yet
+    README.md               diagnostic bootloader scope, build and limits
+    DFU.md                  backup, manual SHA-256, DFU install and recovery
     diagnostics.c/.h        read-only volume/catalog/file diagnostic
     report.c/.h             on-screen report formatter
-    splash.c/.h             320×240 1-bit splash data
+    splash.c/.h             320×240 1-bit splash data and Rockbox packing
+    hardware/
+      README.md             donor integration notes
+      helikon_diag_hw.c     ATA read callback, partition scan, splash/report
+      donor-bootloader.patch  removes the firmware-loading path, wires the diag
+    artifacts/
+      README.md             image hash, provenance and evidence status
+      bootloader-ipod6g.ipod  built diagnostic image (unproven on hardware)
+      SHA256SUMS            hash for the committed image
   firmware/
     hfs/
       hfs_volume.c          HFS+ volume header/journal probe
@@ -100,6 +108,7 @@ firmware/
   usb/                      read-only LUN, optional service mode
   diagnostics/              events, counters, recovery screens
 tools/
+  build-diagnostic-bootloader.sh  pinned donor export, patch, Thumb build, checks
   hfsplus/                  host inspector, fixtures, tests
   db/                       host database builder
   migrate/                  donor overlay exporter (host-side, read-only source)
@@ -142,6 +151,7 @@ is created; do not let it drift.
 | `firmware/sandbox/` | App/game runtime, quotas, host API | runtime lead | paper §15, §28.3.9–10, D-08 | escape/quota/crash tests | No raw block/NOR/PMU/GPIO; no legacy plugin binary compatibility |
 | `firmware/usb/` | Read-only LUN, descriptors, optional service mode | USB lead | paper §16, D-09 | read-only mount, descriptor/error tests | No filesystem writes; no writable mass-storage LUN; RAM-only relabel |
 | `firmware/diagnostics/` | Events, counters, recovery | diagnostics lead | paper §11.2, `docs/failures.md` | log/export tests | Do not write logs on a failing filesystem; bounded RAM ring |
+| `tools/build-diagnostic-bootloader.sh` | Render the diagnostic image from a pinned donor checkout | boot/release lead | D-21, `bootloader/README.md` | Thumb build, `MOVE_AREA`, hash, `mks5lboot` dry-run | Uses a clean `git archive`; never modifies the donor checkout; image is unproven |
 | `tools/hfsplus/` | Host inspector, fixtures, tests | test lead | paper §8, §17, donor `tools/hfsplus` | host tests, sanitizer | Donor code is reference; do not modify donor; no device claims |
 | `tools/db/` | Host database builder | database lead | paper §12, §28.4.1 | 10k-track parity | No on-device claim without device evidence |
 | `tools/migrate/` | Donor overlay exporter | migration lead | paper §22 | fixture/hash/verify tests | Host-side only; never a runtime overlay; never overwrite silently |

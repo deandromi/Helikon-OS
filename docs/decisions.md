@@ -377,8 +377,8 @@ first diagnostic bootloader scope. See C-08.
 
 - **Status:** accepted. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §5, §24, §27.
 - **Context:** the owner wants a first flashable diagnostic image before the
-  full firmware-loading bootloader exists. The host read core, diagnostic core
-  and 320×240 splash are ready; hardware HAL/ATA/LCD integration is not.
+  full firmware-loading bootloader exists. The host read core, diagnostic core,
+  320×240 splash and donor-derived S5L8702/ATA/LCD glue are now integrated.
 - **Options:** read-only diagnostic only; diagnostic plus firmware loading;
   signed manifest from day one; manual hash verification; write diagnostic on a
   disposable volume.
@@ -392,9 +392,12 @@ first diagnostic bootloader scope. See C-08.
   firmware-loading bootloader. This diagnostic image is not a release and has no
   signed manifest. It requires a recorded image hash, Thumb/`MOVE_AREA` checks
   and a recovery rehearsal. No HFS+ writes are allowed.
-- **Follow-up:** build the hardware diagnostic image (T-029), record its SHA-256,
-  then use [`bootloader/DFU.md`](../bootloader/DFU.md). Add write diagnostics
-  later on a disposable volume (T-030) after the writer and D-03/D-04.
+- **Follow-up:** the image was built on 2026-11-03: 66,920 bytes, SHA-256
+  `bd0ebc92f58ad9549cad43120cb63566d6c20ae6255a530a17bafd8d832ed6c0`,
+  `_moveend` `0x22030d60`, 62,112 bytes below `MOVE_AREA`. It is unproven on
+  hardware; record the first run in [`device-matrix.md`](device-matrix.md) using
+  [`../bootloader/DFU.md`](../bootloader/DFU.md). Add write diagnostics later on
+  a disposable volume (T-030) after the writer and D-03/D-04.
 
 ## Conflicts and source separation
 

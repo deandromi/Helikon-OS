@@ -8,9 +8,10 @@
 
 ## Current phase
 
-**Pre-phase 0 — design and documentation.** The roadmap in
-[`roadmap.md`](roadmap.md) starts at phase 0 (rescue bootloader and read-only
-firmware skeleton). Helikon-OS has not started phase 0.
+**Pre-phase 0 — design, host read core and a first diagnostic bootloader.** The
+roadmap in [`roadmap.md`](roadmap.md) starts at phase 0 (rescue bootloader and
+read-only firmware skeleton). The first read-only diagnostic bootloader image
+exists, but it has no device run and does not load firmware.
 
 Date of this snapshot: **2026-11-03**.
 
@@ -26,7 +27,7 @@ Date of this snapshot: **2026-11-03**.
 | License: GPL-2.0-or-later | living | `LICENSE`, `NOTICE`, D-18 |
 | GitHub issue templates | living | `.github/ISSUE_TEMPLATE/` |
 | Helikon-OS poster | living | `assets/branding/helikon-os-poster.png`; embedded in README |
-| 320×240 startup crop | living (asset); `planned` display | `assets/startup/helikon-os-320x240.png`; not yet wired into bootloader |
+| 320×240 startup crop | living (asset); `in progress` display | `assets/startup/helikon-os-320x240.png`; wired into the diagnostic image, unproven on hardware |
 | Mountain reference image | living | `assets/logo/mount-helikon-sunset.jpg`; source/licence open question |
 
 The "document status" column uses the document statuses from
@@ -45,21 +46,25 @@ Helikon-OS poster above the goals on 2026-11-03.
 | UTF-16BE name decode | `in progress` | `firmware/hfs/hfs_unicode.c`; 8 host tests |
 | Extents-overflow file read | `in progress` | `firmware/hfs/hfs_extents.c`; 2 host tests |
 | Diagnostic bootloader core | `in progress` | `bootloader/diagnostics.c`, `report.c`, `splash.c`; 7 host tests; read-only |
-| DFU install runbook | stub | [`bootloader/DFU.md`](../bootloader/DFU.md); blocked, no image/hash |
+| Diagnostic hardware glue | `in progress` | `bootloader/hardware/helikon_diag_hw.c`; ATA read callback, donor partition scan, splash/report, button wait, power-off |
+| Diagnostic bootloader image | `unproven` | `bootloader/artifacts/bootloader-ipod6g.ipod`; SHA-256 `bd0ebc92…`; 66,920 bytes; `MOVE_AREA` headroom 62,112 bytes; no device run |
+| Diagnostic build script | `in progress` | `tools/build-diagnostic-bootloader.sh`; pinned donor commit, Thumb build, `MOVE_AREA` check, hash output |
+| DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
 | Host test harness | `in progress` | 41 tests total (34 HFS+, 7 bootloader); sanitizer clean; no device run |
 
 ## What does not exist
 
 | Item | Status | Note |
 |---|---|---|
-| Helikon-OS firmware source tree | `in progress` | Host HFS+ read core exists; no bootloader/kernel yet |
-| Helikon-OS bootloader image | `planned` | Diagnostic core exists; no HAL, flashable image or device run |
+| Helikon-OS firmware source tree | `in progress` | Host HFS+ read core and a diagnostic bootloader exist; no kernel, VFS or player |
+| Helikon-OS firmware-loading bootloader | `planned` | The diagnostic image does not load firmware; D-01/D-02 still open |
+| Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; no device run and no firmware loading |
 | Bootloader manifest/boot state | `planned` | D-01/D-02 still open |
 | VFS, player, UI, database | `planned` | No implementation |
 | HFS+ write engine | `planned` | No writer |
 | Journal/transaction engine | `planned` | Design requirements only |
 | Installer or desktop app | `planned` | No host application |
-| Build system, CI, release artifacts | `planned` | Host test Makefile only; no firmware build/CI/release |
+| Build system, CI, release artifacts | `in progress` | Host test Makefiles and the diagnostic bootloader script; no CI or firmware release |
 | Helikon-OS device run | `unproven` | No device has run Helikon-OS |
 | Supported device list | `unproven` | 6G is the reference; 7G needs a board audit |
 | Code of conduct | `rejected` | Owner deleted Contributor Covenant 2.1 on 2026-11-03; no replacement |
@@ -72,8 +77,9 @@ Helikon-OS poster above the goals on 2026-11-03.
   (`Updated README.MD`, 2026-11-03)
 - **Documentation branch:** `docs/agent-handbook`, fast-forwarded to `main` on
   2026-11-03.
-- **Last known-good code commit:** the host read-core and diagnostic-bootloader
-  commit; check `git log -- firmware/hfs bootloader tests`. No device code exists.
+- **Last known-good code commit:** the diagnostic-bootloader build commit; check
+  `git log -- firmware/hfs bootloader tests tools`. No firmware or device run
+  exists.
 - **Last known-good documentation commit:** `6df63ef63bacc93d253db40d1bb7f2efdd289a6c`
   on `main` (license/COC/issue-template follow-up, fast-forwarded). Any later
   docs housekeeping commit is on `main`; check `git log -1`.
@@ -93,10 +99,10 @@ writes, the transaction engine, the bootloader, or any goal in
 
 ## Current blockers
 
-1. **No firmware implementation.** There is a host HFS+ read core and a
-   read-only diagnostic bootloader core; the flashable bootloader, kernel,
-   writer, journal, VFS, player, UI, database, installer and host app do not
-   exist.
+1. **No firmware implementation.** There is a host HFS+ read core and an
+   unproven read-only diagnostic bootloader image; the firmware-loading
+   bootloader, kernel, writer, journal, VFS, player, UI, database, installer and
+   host app do not exist. The diagnostic image has no device run.
 2. **Journal decisions are unresolved.** D-03 (journal strategy) and D-04
    (journal ownership) must be recorded before phase 2 starts. The paper
    recommends journaled release writes and Helikon-OS-owned replay; neither is
@@ -114,8 +120,14 @@ writes, the transaction engine, the bootloader, or any goal in
 
 ## Next task
 
-Start with the owner decisions that block phase 2, then write the writer design
-and host-test plan. See [`tasks.md`](tasks.md):
+First, record the hardware run of the diagnostic image (T-029) after the
+`.rockbox` + `/.rockpod-rw` backup and clean eject described in
+[`../bootloader/DFU.md`](../bootloader/DFU.md). The image is unproven; do not
+claim support or a successful boot until the screen and power-off are recorded
+in [`device-matrix.md`](device-matrix.md).
+
+After that, start with the owner decisions that block phase 2, then write the
+writer design and host-test plan. See [`tasks.md`](tasks.md):
 
 - **T-001** — record D-03 and D-04 (journal strategy and ownership).
 - **T-002** — freeze the HFS+ writer interface and failure model.

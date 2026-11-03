@@ -98,8 +98,10 @@ status.
 | [`design-paper.md`](design-paper.md) | Full read-only design paper copy with provenance. | source |
 | [`../assets/logo/README.md`](../assets/logo/README.md) | Logo source notes and the owner-supplied mountain reference image. | living |
 | [`../assets/branding/README.md`](../assets/branding/README.md) | Owner-supplied poster and 320×240 startup crop. | living |
-| [`../bootloader/README.md`](../bootloader/README.md) | Read-only diagnostic bootloader core and splash; not flashable. | living |
-| [`../bootloader/DFU.md`](../bootloader/DFU.md) | Blocked DFU install runbook for the future bootloader image. | stub |
+| [`../bootloader/README.md`](../bootloader/README.md) | Read-only diagnostic bootloader; image built, unproven on hardware. | living |
+| [`../bootloader/DFU.md`](../bootloader/DFU.md) | Backup and DFU install runbook for the diagnostic image. | living |
+| [`../bootloader/hardware/README.md`](../bootloader/hardware/README.md) | S5L8702/ATA/LCD glue and donor integration patch. | living |
+| [`../bootloader/artifacts/README.md`](../bootloader/artifacts/README.md) | Diagnostic image hash, provenance and evidence status. | living |
 | [`log/README.md`](log/README.md) | What the dated work log is for. | living |
 | [`log/TEMPLATE.md`](log/TEMPLATE.md) | Dated log entry template. | template |
 | [`log/2026-11-03.md`](log/2026-11-03.md) | Documentation setup session. | living |
@@ -116,8 +118,9 @@ Key entry points: [`design-paper.md`](design-paper.md),
 
 ## What this documentation is not
 
-- It is not firmware code, a bootloader image, an installer, a build system, CI,
-  a release, or a hardware validation report.
+- It is not firmware code, a firmware-loading bootloader, an installer, CI, a
+  release, or a hardware validation report. A read-only diagnostic bootloader
+  image and its build script exist; the image is unproven on hardware.
 - It is not a signing policy or a release approval. The license is
   GPL-2.0-or-later (`LICENSE`); no code of conduct is currently adopted (D-19
   rejected); signing-key ownership is still open in

@@ -11,6 +11,88 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (diagnostic bootloader build)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the diagnostic-bootloader build commit; check `git log -1`.
+- Artifact: `bootloader/artifacts/bootloader-ipod6g.ipod`, 66,920 bytes,
+  SHA-256 `bd0ebc92f58ad9549cad43120cb63566d6c20ae6255a530a17bafd8d832ed6c0`.
+
+## What changed
+
+- Added `bootloader/hardware/helikon_diag_hw.c`: read-only ATA callback, donor
+  partition scan, Rockbox mono-bitmap splash blit, report rendering, button wait
+  and power-off.
+- Added `bootloader/hardware/donor-bootloader.patch`: removes the donor
+  firmware-loading/USB path, adds the Helikon sources and calls the diagnostic
+  after `storage_init()`.
+- Added `tools/build-diagnostic-bootloader.sh`: pinned donor export, patch,
+  Thumb build, `MOVE_AREA` check, artifact copy and SHA-256 output.
+- Added `bootloader/artifacts/` with the built image, `SHA256SUMS` and
+  provenance/evidence notes.
+- Fixed the splash packing: the source is row-major MSB-first; Rockbox mono
+  bitmaps are vertical, eight pixels per byte. Added
+  `helikon_splash_pack_rockbox()` and a round-trip host test.
+- Rewrote `bootloader/DFU.md` for the real image: backup, manual hash, DFU scan,
+  install, expected screen, power-off and recovery.
+
+## What was verified
+
+- 41/41 host tests pass; both suites are ASan/UBSan clean.
+- The Thumb image links at `_movestart` `0x22020800`, `_moveend` `0x22030d60`,
+  with 62,112 bytes of `MOVE_AREA` headroom.
+- The image contains the Helikon diagnostic marker and no
+  `ata_write_sectors`, `storage_write_sectors`, `hfsplus_create_file` or
+  `fat_write` symbol.
+- `mks5lboot --mkdfu-inst` accepts the image as `Classic 6G` / `ipod6g` /
+  `ip6g` / target 71.
+- The build script reproduces the exact image hash from a clean donor export.
+- Donor partition/HFS+ tests pass in the donor checkout; this is reference
+  evidence only.
+
+## What failed
+
+- The first splash blit used `lcd_mono_bitmap` on the row-major source. Rockbox
+  expects vertical packing; the direct call would have read past the buffer.
+  Fixed with an explicit packing step and test.
+- The first image still linked the donor USB/FAT/HFS+ write stack (113 KB).
+  Removing the unused USB mode and loader path reduced it to 66,920 bytes and
+  removed write-capable symbols.
+- The build script initially used GNU-only `patch --batch --forward`; macOS
+  `patch` needed `-N`.
+
+## What is next
+
+1. Record the `.rockbox` + `/.rockpod-rw` backup and clean eject.
+2. Run the first hardware diagnostic with [`../bootloader/DFU.md`](../bootloader/DFU.md):
+   DFU scan, `--bl-inst`, confirm splash/report, press a button, unplug USB,
+   confirm power-off.
+3. Record the exact screen and result in [`device-matrix.md`](device-matrix.md).
+4. If the run passes, decide D-01/D-02/D-20 for the firmware-loading bootloader.
+
+## What must not be touched
+
+- No HFS+ or NOR write path in this image.
+- No `--single`; no format, erase, repartition or journal deletion.
+- Do not use the donor V3.0/V3.2 image or hash.
+- Do not call the image validated, supported or release-ready without a recorded
+  device run.
+
+## Open questions
+
+- Does the image boot and show the splash/report on the owner's 6G?
+- Does `/rockbox.ipod` exist and read through the Helikon HFS+ core?
+- Does power-off behave correctly when USB is connected?
+- D-01/D-02/D-20 remain open for firmware loading.
+
+## Device/test evidence
+
+- None. No Helikon-OS device run was performed.
+
+---
+
 # Handoff — 2026-11-03 (build)
 
 ## Branch / commit
