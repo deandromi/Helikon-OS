@@ -11,6 +11,59 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (multiple extents-overflow records)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the multi-overflow-record commit; check `git log -1`.
+
+## What changed
+
+- Append now writes multiple extents-overflow records, eight extents per record,
+  advancing the start block by the blocks covered by each record.
+- Truncate walks the overflow records by start block, frees each extent, clears
+  each record and stops when the file's total blocks are accounted for.
+- The catalog test fragments the bitmap to 20 free blocks, appends 20 blocks and
+  verifies eight inline extents plus two overflow records (8 extents and 4
+  extents). Truncate frees all 20 and clears both records.
+- Total host tests: 76 (68 HFS+, 8 bootloader), sanitizer-clean.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 68/68 pass.
+- `make -C tests/hfsplus sanitize` — 68/68 pass with ASan/UBSan.
+- Overflow record keys advance from startBlock 8 to 16; data and free-block
+  counts are checked.
+- No device write and no write-capable bootloader image.
+
+## What is next
+
+1. Fork growth.
+2. D-06 / FastUnicodeCompare.
+3. Disposable image + `fsck_hfs`.
+4. Write diagnostic.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- No byte-order substitution for HFS+ catalog keys.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- D-06 Unicode policy / FastUnicodeCompare.
+- Fork-growth strategy and transaction-block budget.
+
+## Device/test evidence
+
+- No new device run. The writer is host-only.
+
+---
+
 # Handoff — 2026-11-03 (extents overflow)
 
 ## Branch / commit

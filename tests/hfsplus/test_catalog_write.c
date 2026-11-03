@@ -397,13 +397,13 @@ static int test_create_delete_file(void)
     data_offset = 2u + key_length;
     CHECK(get_be32(record + data_offset + 4) == 0);
 
-    /* Fragment the bitmap: only 50,52,...,68 are free. */
+    /* Fragment the bitmap: only 50,52,...,88 are free. */
     uint8_t *bitmap_now = test_image + 18 * TEST_BLOCK_SIZE;
     memset(bitmap_now, 0xff, 16);
-    for (uint32_t block = 50; block <= 68; block += 2)
+    for (uint32_t block = 50; block <= 88; block += 2)
         bitmap_now[block / 8] &= (uint8_t)~(0x80u >> (block % 8));
-    put_be32(test_image + 1024 + 48, 10);
-    volume.free_blocks = 10;
+    put_be32(test_image + 1024 + 48, 20);
+    volume.free_blocks = 20;
 
     static const uint8_t frag_name[8] = {
         0, 'F', 0, 'R', 0, 'A', 0, 'G'
@@ -418,7 +418,7 @@ static int test_create_delete_file(void)
     CHECK(frag_cnid == 17);
     apply_txn(&tx);
 
-    uint8_t fragmented[10 * 512];
+    uint8_t fragmented[20 * 512];
     for (size_t i = 0; i < sizeof(fragmented); ++i)
         fragmented[i] = (uint8_t)(0x30u + (i & 0x3fu));
     memset(&tx, 0, sizeof(tx));
@@ -439,7 +439,7 @@ static int test_create_delete_file(void)
           HFS_OK);
     data_offset = 2u + key_length;
     fork = record + data_offset + 88u;
-    CHECK(get_be32(fork + 12) == 10);
+    CHECK(get_be32(fork + 12) == 20);
     for (unsigned int i = 0; i < 8; ++i) {
         CHECK(get_be32(fork + 16 + i * 8) == 50u + i * 2u);
         CHECK(get_be32(fork + 20 + i * 8) == 1);
@@ -448,13 +448,24 @@ static int test_create_delete_file(void)
     size_t overflow_count = 0;
     CHECK(hfs_extents_overflow_get(&volume, &tx, frag_cnid, 8, overflow, 8,
                                    &overflow_count) == HFS_OK);
-    CHECK(overflow_count == 2);
-    CHECK(overflow[0].start == 66 && overflow[0].count == 1);
-    CHECK(overflow[1].start == 68 && overflow[1].count == 1);
+    CHECK(overflow_count == 8);
+    for (size_t i = 0; i < 8; ++i) {
+        CHECK(overflow[i].start == 66u + i * 2u);
+        CHECK(overflow[i].count == 1);
+    }
+    struct hfs_extent overflow2[8];
+    size_t overflow2_count = 0;
+    CHECK(hfs_extents_overflow_get(&volume, &tx, frag_cnid, 16, overflow2, 8,
+                                   &overflow2_count) == HFS_OK);
+    CHECK(overflow2_count == 4);
+    for (size_t i = 0; i < 4; ++i) {
+        CHECK(overflow2[i].start == 82u + i * 2u);
+        CHECK(overflow2[i].count == 1);
+    }
     CHECK(memcmp(test_image + 50 * TEST_BLOCK_SIZE, fragmented, 512) == 0);
     CHECK(memcmp(test_image + 66 * TEST_BLOCK_SIZE, fragmented + 8 * 512,
                  512) == 0);
-    CHECK(memcmp(test_image + 68 * TEST_BLOCK_SIZE, fragmented + 9 * 512,
+    CHECK(memcmp(test_image + 82 * TEST_BLOCK_SIZE, fragmented + 16 * 512,
                  512) == 0);
 
     memset(&tx, 0, sizeof(tx));
@@ -463,11 +474,13 @@ static int test_create_delete_file(void)
     CHECK(hfs_catalog_truncate_file(&catalog, &tx, 2, frag_name, 4,
                                     compare_catalog, NULL) == HFS_OK);
     apply_txn(&tx);
-    CHECK(get_be32(test_image + 1024 + 48) == 10);
+    CHECK(get_be32(test_image + 1024 + 48) == 20);
     memset(&tx, 0, sizeof(tx));
     tx.journal = &journal;
     tx.active = 1;
     CHECK(hfs_extents_overflow_get(&volume, &tx, frag_cnid, 8, overflow, 8,
+                                   &overflow_count) == HFS_ERR_NOT_FOUND);
+    CHECK(hfs_extents_overflow_get(&volume, &tx, frag_cnid, 16, overflow, 8,
                                    &overflow_count) == HFS_ERR_NOT_FOUND);
 
     memset(&tx, 0, sizeof(tx));
