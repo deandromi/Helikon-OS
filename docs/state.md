@@ -24,7 +24,6 @@ Date of this snapshot: **2026-11-03**.
 | Product intent, safety rules, roadmap, goals, open decisions | living | `docs/` |
 | Donor file references and provenance | living | [`file-map.md`](file-map.md) |
 | License: GPL-2.0-or-later | living | `LICENSE`, `NOTICE`, D-18 |
-| Code of conduct: Contributor Covenant 2.1 | living | `CODE_OF_CONDUCT.md`, D-19 |
 | GitHub issue templates | living | `.github/ISSUE_TEMPLATE/` |
 | Mountain reference image | living | `assets/logo/mount-helikon-sunset.jpg`; source/licence open question |
 
@@ -47,6 +46,7 @@ unchanged from the base commit.
 | Build system, CI, release artifacts | `planned` | No build or release configuration |
 | Helikon-OS device run | `unproven` | No device has run Helikon-OS |
 | Supported device list | `unproven` | 6G is the reference; 7G needs a board audit |
+| Code of conduct | `rejected` | Owner deleted Contributor Covenant 2.1 on 2026-11-03; no replacement |
 | Signing policy and key ownership | `planned` | D-20 is still open |
 
 ## Last known-good commit and branch

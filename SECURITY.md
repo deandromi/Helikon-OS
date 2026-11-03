@@ -46,12 +46,6 @@ or embed one in firmware, host tools, CI, docs or tests. A lost key must not bri
 a device; Apple/DFU recovery remains available. See
 [`docs/security.md`](docs/security.md) and [`docs/release.md`](docs/release.md).
 
-## Community conduct
-
-This is not a vulnerability-reporting channel. Code-of-conduct reports use
-[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). For sensitive reports, use the
-private channel above rather than a public issue.
-
 ## Scope
 
 In scope: the Helikon-OS design, documentation, future firmware/bootloader, HFS+

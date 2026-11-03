@@ -12,8 +12,8 @@ follow-up line; **P2** is later and must not delay P0. Status uses
 
 ## Now
 
-License (GPL-2.0-or-later) and code of conduct (Contributor Covenant 2.1) are
-settled (D-18/D-19). Signing-key ownership remains open (D-20).
+License (GPL-2.0-or-later) is settled (D-18). No code of conduct is currently
+adopted (D-19 rejected). Signing-key ownership remains open (D-20).
 
 | ID | Task | Priority | Dependencies | Acceptance criteria | Status | Owner | Links |
 |---|---|---|---|---|---|---|---|

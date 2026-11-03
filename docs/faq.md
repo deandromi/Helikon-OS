@@ -154,8 +154,7 @@ Never claim a gate passed without a recorded run.
 
 GPL-2.0-or-later, matching Rockbox and the donor project. See [`LICENSE`](../LICENSE)
 and [`NOTICE`](../NOTICE). The documentation in this repository is under the
-same license for now. The code of conduct is Contributor Covenant 2.1
-([`CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md)).
+same license for now. No code of conduct is currently adopted.
 
 ## Is Helikon-OS an official Rockbox or Rockpod project?
 

@@ -49,11 +49,12 @@ re-litigate them.
 | D-16 | Update transport | proposed | owner | §25.16, §16.2 |
 | D-17 | Product identity | accepted | owner | §25.17, Appendix D |
 | D-18 | Licensing | accepted | owner/legal | §18, §28.4.4 |
-| D-19 | Code of conduct | accepted | owner | §18, §28.4.4 |
+| D-19 | Code of conduct | rejected | owner | §18, §28.4.4 |
 | D-20 | Signing-key ownership | proposed | owner | §25.1, §16, §28.2.5 |
 
 The paper's §25 lists 17 decisions. D-18, D-19 and D-20 are added from §18 and
-§28.4.4. D-18/D-19 were accepted on 2026-11-03; D-20 remains open. See C-08.
+§28.4.4. D-18 is accepted; D-19 was adopted and then rejected when the owner
+deleted `CODE_OF_CONDUCT.md` on 2026-11-03; D-20 remains open. See C-08.
 
 ## D-01 — Boot image verification
 
@@ -339,21 +340,20 @@ The paper's §25 lists 17 decisions. D-18, D-19 and D-20 are added from §18 and
 
 ## D-19 — Code of conduct
 
-- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §18, §28.4.4.
+- **Status:** rejected. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §18, §28.4.4.
 - **Context:** the paper lists a code of conduct and security policy as
-  community infrastructure. No text had been chosen.
+  community infrastructure. Contributor Covenant 2.1 was added, then the owner
+  deleted `CODE_OF_CONDUCT.md` on GitHub on 2026-11-03.
 - **Options:** adopt a standard code; write a project-specific code; defer until
-  community growth.
-- **Decision:** adopt **Contributor Covenant 2.1** in `CODE_OF_CONDUCT.md`.
-  Enforcement contact is the project owner through GitHub
-  [@deandromi](https://github.com/deandromi), or the private security channel in
-  `SECURITY.md` for sensitive reports. No private email address is invented.
-- **Consequences:** the code applies to all project spaces and contributions.
-  The enforcement guidelines in the adopted text apply. The owner handles
-  reports and must keep the contact current.
-- **Follow-up:** add a dedicated conduct contact if the owner wants one; review
-  the code annually or when the community grows; link it from `CONTRIBUTING.md`
-  and `SECURITY.md`.
+  community growth; no code.
+- **Decision:** no code of conduct is currently adopted. The Contributor
+  Covenant text was removed by the owner and must not be re-added without a new
+  owner decision.
+- **Consequences:** there is no enforcement text or conduct contact. Be civil;
+  report serious security-sensitive issues through `SECURITY.md`. Do not link to
+  a non-existent `CODE_OF_CONDUCT.md`.
+- **Follow-up:** the owner may choose a different text later; if so, record a new
+  decision, add the file deliberately and update the links.
 
 ## D-20 — Signing-key ownership
 
@@ -435,10 +435,10 @@ not authorize a product change.
 ### C-07 — README updates/community vs open signing policy
 
 - **What:** the README asks for regular updates and a community-friendly
-  project; the paper requires signed manifests. Licensing and the code of
-  conduct are now settled (D-18/D-19); signing-key ownership is still open
-  (D-20).
-- **Status:** D-18/D-19 accepted 2026-11-03; D-20 open. Do not publish release
+  project; the paper requires signed manifests. Licensing is settled (D-18);
+  the code of conduct was deleted by the owner (D-19 rejected); signing-key
+  ownership is still open (D-20).
+- **Status:** D-18 accepted; D-19 rejected; D-20 open. Do not publish release
   artifacts or signing claims until D-20 is accepted.
 - **Affected docs:** `release.md`, `security.md`, `CONTRIBUTING.md`,
   `SECURITY.md`.
@@ -448,8 +448,9 @@ not authorize a product change.
 - **What:** the paper's §25 lists 17 open decisions. The documentation task
   requires licensing, code of conduct and signing-key ownership as well.
 - **Resolution:** D-01–D-17 mirror §25; D-18–D-20 are added from §18 and
-  §28.4.4. D-18/D-19 were accepted on 2026-11-03; D-20 remains `proposed`. This
-  is a documentation reconciliation, not a new product decision.
+  §28.4.4. D-18 is accepted; D-19 was rejected after the owner deleted the code
+  of conduct; D-20 remains `proposed`. This is a documentation reconciliation,
+  not a new product decision.
 - **Affected docs:** this file, `agents.md`, `goals.md`.
 
 ### C-09 — Paper suggests permissive docs license; repository uses GPL-2.0-or-later

@@ -19,9 +19,9 @@ firmware patches.
 3. Do not edit the root `README.md`; it is the owner-authored product goals.
 4. Do not modify the donor repository `deandromi/hfsplus-rockboxed-ipod`. It is
    read-only source material.
-5. Do not change the license, code of conduct, signing policy or release assets
-   without the owner. License and conduct are settled; signing-key ownership is
-   still open (D-20).
+5. Do not change the license, signing policy or release assets without the
+   owner. The license is settled; no code of conduct is currently adopted;
+   signing-key ownership is still open (D-20).
 
 ## What to contribute
 
@@ -124,11 +124,11 @@ license and attribution are compatible and recorded.
 
 ## Code of conduct
 
-This project adopts the [Contributor Covenant 2.1](CODE_OF_CONDUCT.md). Report
-conduct issues to the project owner through GitHub
-[@deandromi](https://github.com/deandromi), or use the private channel in
-[`SECURITY.md`](SECURITY.md) for sensitive reports. Do not open a public issue
-with personal details.
+No code of conduct is currently adopted. The owner deleted the Contributor
+Covenant text on 2026-11-03 (D-19 rejected). Be civil; report serious
+security-sensitive issues through the private channel in
+[`SECURITY.md`](SECURITY.md). Do not recreate a code of conduct without a new
+owner decision.
 
 ## Questions
 

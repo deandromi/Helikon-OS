@@ -27,8 +27,8 @@ greenfield design, not a working firmware release.
   and other players are ports, not launch promises.
 - **Defining promise:** native HFS+ is writable through a real transaction
   engine. There is no namespace overlay and no FAT mount.
-- **Project policies:** license GPL-2.0-or-later; code of conduct Contributor
-  Covenant 2.1. Signing-key ownership remains open (D-20).
+- **Project policies:** license GPL-2.0-or-later. No code of conduct is
+  currently adopted. Signing-key ownership remains open (D-20).
 
 Never describe Helikon-OS as implemented, working, validated, or supported on a
 device. Use `planned`, `in progress`, `unproven`, `implemented` or `rejected` as
@@ -242,15 +242,16 @@ Stop and report; do not guess, format, erase, delete, or "try one more write":
 - The only evidence is "it boots."
 - The change would require modifying the root README or the donor repository.
 - A required step needs a legal decision (trademark clearance or signing policy)
-  that the owner has not made. License and code of conduct are settled.
+  that the owner has not made. The license is settled; no code of conduct is
+  currently adopted.
 
 Record the exact error, stage, device state and what was not attempted.
 
 ## 10. Decisions
 Full entries and status are in `docs/decisions.md`.
 
-**Settled:** D-17 product name (clearance open), D-18 GPL-2.0-or-later,
-D-19 Contributor Covenant 2.1.
+**Settled:** D-17 product name (clearance open), D-18 GPL-2.0-or-later.
+**Rejected:** D-19 Contributor Covenant (owner deleted the file; no replacement).
 
 **Open:** D-01 boot image verification and key storage · D-02 boot state and
 fallback · D-03 journal strategy · D-04 journal ownership · D-05 B-tree cache
@@ -293,4 +294,4 @@ The handoff template is in `docs/handoff.md`. A dated log entry belongs in
 [Failures](docs/failures.md) · [device matrix](docs/device-matrix.md) · [handoff](docs/handoff.md) · [conventions](docs/conventions.md) · [glossary](docs/glossary.md) · [testing](docs/testing.md) · [validation](docs/validation.md) · [goals](docs/goals.md).
 [Roadmap](docs/roadmap.md) · [write engine](docs/hfsplus-write-engine.md) · [release](docs/release.md) · [security](docs/security.md) · [FAQ](docs/faq.md) · [design paper](docs/design-paper.md) · [logo assets](assets/logo/README.md) · [ADRs](docs/adr/README.md) · [ADR template](docs/adr/0001-template.md).
 [Log](docs/log/README.md) · [log template](docs/log/TEMPLATE.md) · [latest log](docs/log/2026-11-03.md) · [prompts](docs/prompts/README.md) · [writer review](docs/prompts/review-hfsplus-writer.md) · [device matrix prompt](docs/prompts/run-device-matrix.md) · [docs audit](docs/prompts/audit-docs-for-contradictions.md).
-[Contributing](CONTRIBUTING.md) · [security policy](SECURITY.md) · [license](LICENSE) · [notice](NOTICE) · [code of conduct](CODE_OF_CONDUCT.md) · [issue templates](.github/ISSUE_TEMPLATE/).
+[Contributing](CONTRIBUTING.md) · [security policy](SECURITY.md) · [license](LICENSE) · [notice](NOTICE) · [issue templates](.github/ISSUE_TEMPLATE/).

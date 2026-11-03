@@ -92,8 +92,8 @@ Not chosen. The release policy must eventually state:
 - device/adapter support status and how it is recorded.
 
 Until the owner records this, do not promise a support window. The license
-(GPL-2.0-or-later) and code of conduct (Contributor Covenant 2.1) are settled;
-signing-key ownership and support terms are not. See D-20.
+(GPL-2.0-or-later) is settled; no code of conduct is currently adopted.
+Signing-key ownership and support terms are not. See D-20.
 
 ## 7. Release-note requirements
 
@@ -123,15 +123,14 @@ No marketing claims. No battery/RAM/frame-time number without method and runs. N
 - [ ] Backup/recovery rehearsal recorded.
 - [ ] No secrets, disk images, backups or personal data in artifacts.
 - [ ] Signing, support-window and key-ownership decisions recorded; the release
-      is GPL-2.0-or-later and follows the code of conduct.
+      is GPL-2.0-or-later.
 
 ## 9. Open items and completed follow-ups
 
 - **TODO (owner):** choose signing scheme and key ownership (D-01/D-20).
 - **TODO (owner):** choose update transport (D-16) and support window.
-- **DONE:** license (GPL-2.0-or-later) and code of conduct (Contributor
-  Covenant 2.1) are adopted; keep `LICENSE`, `NOTICE` and
-  `CODE_OF_CONDUCT.md` current.
+- **DONE:** license (GPL-2.0-or-later) is adopted; keep `LICENSE` and `NOTICE`
+  current. No code of conduct is currently adopted (D-19 rejected).
 - **TODO (release lead):** define release branches/tags and reproducible build.
 - **TODO (test lead):** define the release evidence bundle and archive location.
 - **TODO (docs lead):** add the release-note template when a release exists.
@@ -141,5 +140,5 @@ No marketing claims. No battery/RAM/frame-time number without method and runs. N
 - [`validation.md`](validation.md) — release matrix
 - [`security.md`](security.md) — secrets and signing
 - [`architecture.md`](architecture.md) — update/recovery flow
-- [`decisions.md`](decisions.md) — D-01, D-02, D-16, D-18, D-19, D-20
+- [`decisions.md`](decisions.md) — D-01, D-02, D-16, D-18, D-20 (D-19 rejected)
 - Paper §16, §28.2.5, §28.4.3

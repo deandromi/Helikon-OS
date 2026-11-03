@@ -35,7 +35,7 @@ owner accepts it.
 | 5 | Cleaner Graphics | P0 | v1 | 30 fps list scroll; <200 ms screen open; no tearing/clipped text; visual review | `planned` |
 | 6 | Improved support for iFlash/other adapters | P0 | v1 | SD/CF/SSD/HDD boot/play/write/sleep matrix; known-bad card reported | `planned` |
 | 7 | Improved database building on iPods | P1 | v1.x | 10k tracks; power-cut resume at 25/50/75%; host/device parity; playback unaffected | `planned` |
-| 8 | Keeping this opensource and community-friendly | P0 | continuous | Public docs/roadmap; GPL-2.0-or-later and Contributor Covenant 2.1 adopted; CI, signed builds and governance still open | `in progress` |
+| 8 | Keeping this opensource and community-friendly | P0 | continuous | Public docs/roadmap; GPL-2.0-or-later adopted; no code of conduct currently adopted; CI, signed builds and governance still open | `in progress` |
 | 9 | Regular firmware/bootloader updates | P0 | v1 | Signed update/rollback; bad board/version/hash rejected; power-cut staging safe | `planned` |
 | 10 | Clearer installation procedures | P0 | v1 | Non-coder completes install, first boot, playback and restore with checklist | `planned` |
 | 11 | Make everything easier to use | P0 | v1 | Task completion and error-recovery test; safe defaults; explicit status | `planned` |
@@ -72,9 +72,9 @@ owner accepts it.
   mode and are not claimed.
 - **Goal 24 (devices):** 6G reference, 7G next, other devices are ports; no v1
   claim for other players. See C-06.
-- **Goal 8 (community):** license (GPL-2.0-or-later) and code of conduct
-  (Contributor Covenant 2.1) are adopted. CI, signed builds, governance and
-  signing-key ownership are still open (D-20).
+- **Goal 8 (community):** license (GPL-2.0-or-later) is adopted. No code of
+  conduct is currently adopted (D-19 rejected). CI, signed builds, governance
+  and signing-key ownership are still open (D-20).
 
 ## Not promised
 

@@ -11,6 +11,67 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (later)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the logo-removal/COC-cleanup commit on `main`; check `git log -1`.
+- Remote note: the owner deleted `CODE_OF_CONDUCT.md` in `51f66a1`; that deletion
+  is preserved, not reverted.
+
+## What changed
+
+- Removed `assets/logo/preview.html`, the dot-matrix overlay/mark text files and
+  `docs/logo.md`.
+- Kept `assets/logo/mount-helikon-sunset.jpg` as the owner-supplied mountain
+  reference, with `assets/logo/README.md` noting that the owner will design the
+  logo and that source/licence are open.
+- Recorded the owner's deletion of `CODE_OF_CONDUCT.md`: D-19 is now `rejected`;
+  all links to the deleted file were removed from the docs.
+- No logo was generated and no mountain pixels were dotted.
+
+## What was verified
+
+- The mountain reference image is present and opens.
+- No dot-matrix logo, preview HTML or `docs/logo.md` remains.
+- No link points to the deleted `CODE_OF_CONDUCT.md`.
+- Root `README.md` is unchanged.
+- The remote deletion commit is preserved; the local branch was rebased, not
+  force-pushed.
+
+## What failed
+
+- The first push was rejected because the remote already had the owner's
+  `CODE_OF_CONDUCT.md` deletion. The branch was rebased onto `origin/main` and
+  the deletion was preserved.
+
+## What is next
+
+1. Owner designs the logo using `assets/logo/mount-helikon-sunset.jpg`.
+2. Resolve D-03/D-04 (journal strategy/ownership) before phase 2.
+3. Record D-20 (signing-key ownership) before release work.
+4. Do not recreate a code of conduct or logo preview without a new owner request.
+
+## What must not be touched
+
+- `assets/logo/mount-helikon-sunset.jpg` — owner reference; source/licence open.
+- No `CODE_OF_CONDUCT.md` unless the owner explicitly asks for a new one.
+- The native-HFS+ invariants, journal rules, `fsck_hfs` gate, bootloader
+  read-only rule, or `--single` ban.
+
+## Open questions
+
+- D-20: signing-key ownership and release-signing policy.
+- Logo direction and final asset: owner.
+- D-03/D-04 and the other open decisions in `docs/decisions.md`.
+
+## Device/test evidence
+
+- None for Helikon-OS. No device run was performed.
+
+---
+
 # Handoff — 2026-11-03
 
 ## Branch / commit
@@ -96,9 +157,11 @@ file grows. Do not rely on chat history for current state.
 - Any `/.rockpod-rw`, device backup, disk image, serial number or personal data.
 - The native-HFS+ invariants, journal rules, `fsck_hfs` gate, bootloader
   read-only rule, or `--single` ban.
-- `LICENSE`, `NOTICE` and `CODE_OF_CONDUCT.md` — the license and conduct choice
-  is owner-approved; do not change it silently.
+- `LICENSE` and `NOTICE` — the license choice is owner-approved; do not change
+  it silently.
 - Signing policy (D-20, not chosen).
+- No code of conduct is currently adopted; `CODE_OF_CONDUCT.md` was later
+  deleted by the owner (see latest handoff).
 
 ## Open questions
 
@@ -109,8 +172,8 @@ file grows. Do not rely on chat history for current state.
 - D-10: exact Rockbox skin subset and corpus licences.
 - D-13: 7G board audit and port scope.
 - D-20: signing-key ownership and release-signing policy.
-- Legal review of the GPL-2.0-or-later / Contributor Covenant 2.1 wording before
-  a public release.
+- Legal review of the GPL-2.0-or-later wording before a public release. No code
+  of conduct is currently adopted.
 - C-02–C-06: owner confirmation of README goal scope vs paper's narrower design
   response.
 

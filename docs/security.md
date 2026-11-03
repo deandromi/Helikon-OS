@@ -112,7 +112,6 @@ component, version/hash, reproduction steps at a safe level, and impact.
 ## 10. Related
 
 - [`../SECURITY.md`](../SECURITY.md) — reporting policy
-- [`../CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md) — community conduct
 - [`invariants.md`](invariants.md) — safety invariants
 - [`release.md`](release.md) — signing/update
 - [`failures.md`](failures.md) — destructive-action warnings
