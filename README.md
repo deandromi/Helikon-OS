@@ -1,5 +1,5 @@
 # Helikon-OS
-A new bootloader and firmware for the iPod Classic 6th and 7th Generation created from the ground up.
+A new bootloader and firmware for the iPod Classic 6th and 7th Generation created from the ground up. I started work on this almost a year ago, experimenting with stuff and trying some things out, now I'll soon release an Alpha version with a functional bootloader and native HFS+ read/write capabilities.
 
 ![Helikon-OS poster](assets/branding/helikon-os-poster.png)
 
