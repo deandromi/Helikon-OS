@@ -136,6 +136,79 @@ int hfs_btree_node_insert(uint8_t *node, uint16_t node_size, uint16_t index,
     return HFS_OK;
 }
 
+static uint32_t be32(const uint8_t *p)
+{
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+           ((uint32_t)p[2] << 8) | p[3];
+}
+
+static void put32(uint8_t *p, uint32_t value)
+{
+    p[0] = (uint8_t)(value >> 24);
+    p[1] = (uint8_t)(value >> 16);
+    p[2] = (uint8_t)(value >> 8);
+    p[3] = (uint8_t)value;
+}
+
+int hfs_btree_node_split(uint8_t *left, uint8_t *right, uint16_t node_size,
+                         uint16_t split_index, uint32_t left_node,
+                         uint32_t right_node, const uint8_t **separator,
+                         size_t *separator_length)
+{
+    uint16_t count;
+    uint16_t free_offset;
+    if (left == NULL || right == NULL || separator == NULL ||
+        separator_length == NULL)
+        return HFS_ERR_ARGUMENT;
+    int rc = validate_node(left, node_size, &count, &free_offset);
+    if (rc != HFS_OK)
+        return rc;
+    if (split_index == 0 || split_index >= count)
+        return HFS_ERR_ARGUMENT;
+
+    uint8_t old[HFS_BTREE_MAX_NODE];
+    memcpy(old, left, node_size);
+
+    memcpy(right, left, HFS_BTREE_DESCRIPTOR);
+    put16(right + 10, 0);
+    put16(right + node_size - 2, HFS_BTREE_DESCRIPTOR);
+    put32(right, be32(left));
+    put32(right + 4, left_node);
+
+    for (uint16_t i = split_index; i < count; ++i) {
+        uint16_t start = record_start(old, node_size, i);
+        size_t length = record_length(old, node_size, count, free_offset, i);
+        rc = hfs_btree_node_insert(right, node_size,
+                                   be16(right + 10), old + start, length);
+        if (rc != HFS_OK)
+            return rc;
+    }
+    for (uint16_t i = count; i > split_index; --i) {
+        rc = hfs_btree_node_delete(left, node_size, (uint16_t)(i - 1u));
+        if (rc != HFS_OK)
+            return rc;
+    }
+    put32(left, right_node);
+
+    uint16_t right_count;
+    uint16_t right_free;
+    rc = validate_node(right, node_size, &right_count, &right_free);
+    if (rc != HFS_OK)
+        return rc;
+    if (right_count == 0)
+        return HFS_ERR_FORMAT;
+    uint16_t start = record_start(right, node_size, 0);
+    size_t first_length = record_length(right, node_size, right_count,
+                                        right_free, 0);
+    const uint8_t *first = right + start;
+    uint16_t key_length = be16(first);
+    if ((size_t)key_length + 2u > first_length)
+        return HFS_ERR_FORMAT;
+    *separator = first + 2;
+    *separator_length = key_length;
+    return HFS_OK;
+}
+
 int hfs_btree_node_delete(uint8_t *node, uint16_t node_size, uint16_t index)
 {
     uint16_t count;

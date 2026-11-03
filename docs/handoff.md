@@ -11,6 +11,66 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (B-tree node split)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the B-tree split-helper commit; check `git log -1`.
+
+## What changed
+
+- Added `hfs_btree_node_split()`: splits a node at a record index, rebuilds the
+  reverse offset tables, preserves/links fLink and bLink, and returns the right
+  node's first key as the separator.
+- Added 2 split tests (valid split and bad split indices). 7 node tests total.
+- Total host tests: 74 (66 HFS+, 8 bootloader), sanitizer-clean.
+- Updated state/testing/tasks/write-engine docs.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 66/66 pass.
+- `make -C tests/hfsplus sanitize` — 66/66 pass with ASan/UBSan.
+- Split test covers record movement, left/right counts, fLink/bLink and the
+  separator key.
+- No device write and no write-capable bootloader image.
+
+## What failed
+
+- The first split test used records without a key-length prefix; the separator
+  extraction correctly rejected them. Tests now use valid B-tree records.
+- The split helper initially forgot to initialize the empty right node's
+  free-space offset; fixed.
+- Tree-level parent insertion and root split are still missing.
+
+## What is next
+
+1. Free-node allocation from the header map record.
+2. Tree traversal + parent insertion + root split (T-034).
+3. Delete with merge.
+4. D-06 / FastUnicodeCompare before catalog keys.
+5. Catalog/extents mutation, disposable image, `fsck_hfs`, write diagnostic.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- No byte-order substitution for HFS+ catalog keys.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- D-06 Unicode policy / FastUnicodeCompare.
+- Tree-level split/merge policy and free-node bitmap layout.
+
+## Device/test evidence
+
+- No new device run. The writer is host-only.
+
+---
+
 # Handoff — 2026-11-03 (B-tree node and fork staging)
 
 ## Branch / commit

@@ -54,10 +54,10 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Journal append/replay engine | `implemented` | `firmware/hfs/hfs_journal.c`; header/block-list checksum validation, wrap, append, idempotent replay; 8 host tests |
 | Bounded transaction engine | `implemented` | `firmware/hfs/hfs_txn.c`; staged-block commit through the journal; 7 host tests |
 | Allocation bitmap | `implemented` | `firmware/hfs/hfs_bitmap.c`; first-fit alloc/free, free-block counts, header/alternate staging, `NO_SPACE`; 5 host tests; allocation-file overflow extents unsupported |
-| B-tree node mutation helpers | `implemented` | `firmware/hfs/hfs_btree_write.c`; node offset table insert/delete and free-space checks; 5 host tests; tree-level split/merge not implemented |
+| B-tree node mutation helpers | `implemented` | `firmware/hfs/hfs_btree_write.c`; node offset table insert/delete, free-space checks and node split; 7 host tests; tree-level parent/root updates and merge not implemented |
 | Fork block staging | `implemented` | `firmware/hfs/hfs_fork_io.c`; full/partial block write staging into `hfs_txn`; inline extents only; 4 host tests |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
-| Host test harness | `in progress` | 72 tests total (64 HFS+, 8 bootloader); sanitizer clean; first diagnostic boot is owner-reported |
+| Host test harness | `in progress` | 74 tests total (66 HFS+, 8 bootloader); sanitizer clean; first diagnostic boot is owner-reported |
 
 ## What does not exist
 
