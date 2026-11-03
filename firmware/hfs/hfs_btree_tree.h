@@ -22,4 +22,14 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
                      const void *record, size_t length,
                      hfs_btree_key_compare_fn compare, void *compare_context);
 
+/*
+ * Delete one record by key. Removing the first record of a multi-record
+ * non-root node returns HFS_ERR_UNSUPPORTED because the parent separator would
+ * need a key update that is not implemented yet. An empty non-root leaf is
+ * unlinked and freed; empty parents/root collapse are not implemented.
+ */
+int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
+                     const uint8_t *key, size_t key_length,
+                     hfs_btree_key_compare_fn compare, void *compare_context);
+
 #endif

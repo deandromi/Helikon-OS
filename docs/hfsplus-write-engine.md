@@ -26,7 +26,8 @@ it the largest single change from the donor and the critical path of the product
 are accepted; the interface and failure model in §10 are frozen. The Apple HFS+
 journal append/replay path, a bounded transaction engine, the allocation bitmap,
 node-level B-tree insert/delete/split, tree-level insert with parent/root
-splits, and fork block staging are implemented and host-tested. Delete/merge,
+splits, partial tree delete (non-first records and empty-leaf unlink) and fork
+block staging are implemented and host-tested. Delete/merge,
 catalog/extents mutation, file operations and the write diagnostic are not
 implemented. Do not infer a device write or a complete writer
 from this document.
