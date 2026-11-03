@@ -975,11 +975,33 @@ static int test_timestamps(void)
     CHECK(get_be32(record + data_offset + 16) == truncate_time);
     CHECK(get_be32(record + data_offset + 20) == truncate_time);
 
+    const uint32_t rename_time = 0x44556677u;
+    static const uint8_t new_name[8] = {
+        0, 'T', 0, 'I', 0, 'M', 0, '2'
+    };
+    env.catalog.now = rename_time;
     start_tx(&env, &tx);
-    CHECK(hfs_catalog_delete_file(&env.catalog, &tx, 2, name, 4, cnid,
+    CHECK(hfs_catalog_rename(&env.catalog, &tx, 2, name, 4, cnid, 2,
+                             new_name, 4, hfs_catalog_key_compare, NULL) ==
+          HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 20) == rename_time);
+
+    key_length = build_key(key, 2, new_name, 4);
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    data_offset = 2u + key_length;
+    CHECK(get_be32(record + data_offset + 12) == create_time);
+    CHECK(get_be32(record + data_offset + 16) == truncate_time);
+    CHECK(get_be32(record + data_offset + 20) == rename_time);
+
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_delete_file(&env.catalog, &tx, 2, new_name, 4, cnid,
                                   hfs_catalog_key_compare, NULL) == HFS_OK);
     apply_txn(&tx);
-    CHECK(get_be32(test_image + 1024 + 20) == truncate_time);
+    CHECK(get_be32(test_image + 1024 + 20) == rename_time);
     return 0;
 }
 

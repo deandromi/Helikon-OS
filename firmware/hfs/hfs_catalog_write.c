@@ -67,12 +67,24 @@ static void set_record_dates(uint8_t *record, uint32_t now)
     /* backupDate stays 0 until a backup tool records one. */
 }
 
-static void touch_record(uint8_t *record, uint32_t now)
+static void touch_content(uint8_t *record, uint32_t now)
 {
     if (now == 0)
         return;
     put32(record + 16, now); /* contentModDate */
+}
+
+static void touch_attribute(uint8_t *record, uint32_t now)
+{
+    if (now == 0)
+        return;
     put32(record + 20, now); /* attributeModDate */
+}
+
+static void touch_record(uint8_t *record, uint32_t now)
+{
+    touch_content(record, now);
+    touch_attribute(record, now);
 }
 
 
@@ -483,7 +495,7 @@ int hfs_catalog_rename(struct hfs_catalog *catalog, struct hfs_txn *tx,
                                       new_canonical_units);
     size_t new_data_offset = 2u + new_key_length;
     memcpy(new_record + new_data_offset, data, object_size);
-    touch_record(new_record + new_data_offset, catalog->now);
+    touch_attribute(new_record + new_data_offset, catalog->now);
     rc = hfs_btree_insert(&catalog->btree, tx, new_record,
                           new_data_offset + object_size, compare,
                           compare_context);
@@ -518,6 +530,16 @@ int hfs_catalog_rename(struct hfs_catalog *catalog, struct hfs_txn *tx,
             return rc;
         rc = update_valence(catalog, tx, new_parent, 1, compare,
                             compare_context);
+        if (rc != HFS_OK)
+            return rc;
+    }
+
+    if (catalog->now != 0) {
+        struct hfs_volume_update update;
+        memset(&update, 0, sizeof(update));
+        update.set_modify_date = 1;
+        update.modify_date = catalog->now;
+        rc = hfs_volume_stage(tx, catalog->btree.volume, &update);
     }
     return rc;
 }

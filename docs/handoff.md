@@ -11,6 +11,53 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-04 (metadata policy, outer-volume stages)
+
+## What changed
+
+- Timestamp policy is explicit: create/access/content/attribute on create;
+  content/attribute on append/truncate; attribute-only on rename; parent folder
+  dates on valence; volume modify date on create/delete/bitmap/rename;
+  `backupDate` stays 0.
+- BSD owner/group 0, admin/owner flags 0, file/folder mode, Finder info and
+  textEncoding zero, special 0; preserved across updates.
+- The direct outer-volume test now runs create/append, rename, truncate and
+  delete, mounting in macOS after each stage and checking content, modes,
+  current-year timestamps, renamed path and deleted path; `fsck_hfs` is clean
+  after every stage.
+- Target 96 is recorded as the post-commit PMU recovery pass. Physical 7G is
+  removed from the active queue and marked `deferred` in the matrix.
+
+## Evidence
+
+- `make -C tests/hfsplus test` / `sanitize` — 98/98.
+- `make -C tests/image test` — PASS through create/append/rename/truncate/delete,
+  modes/timestamps, macOS mounts, `fsck_hfs` clean.
+- `make -C tests/bootloader test` — 12/12.
+- 110 portable tests total, sanitizer-clean.
+
+## What is next
+
+1. Device outer-volume test: requires a disposable iPod/volume and a verified
+   full backup; host path is done. Do not use the library.
+2. T-044 remaining: Finder creator/type policy and a wider macOS differential.
+3. T-041: font licences and 320×240 typography mockup.
+4. D-01/D-02/D-20 for a firmware-loading bootloader.
+
+## What must not be touched
+
+- No library write without a disposable volume and verified backup.
+- No `--single`.
+- Do not readd physical 7G to the active queue without owner direction.
+- Do not treat the host outer-image test as a device run.
+
+## Device/test evidence
+
+- Target 96 PMU cut/recovery, 2026-11-04, owner-reported; inner fsck clean.
+- Current image `81350f…`; DFU `ce356e…`.
+
+---
+
 # Handoff — 2026-11-04 (target 96 pass, metadata defaults, 7G deferred)
 
 ## What happened

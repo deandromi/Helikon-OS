@@ -316,13 +316,15 @@ enabled on a real volume.
 - Do not claim parity until macOS and `fsck_hfs` agree on a differential corpus.
 
 **Current status:** new file/folder records get create/access/content/attribute
-dates from `catalog->now`; append, truncate, rename and valence updates touch the
-content/attribute dates; the volume header modify date is staged on
-create/delete and on bitmap alloc/free. BSD owner/group are 0, admin/owner flags
-are 0, file/folder mode is set, Finder info and textEncoding are zero, and
-`backupDate` stays 0. Metadata is preserved on append/truncate/rename. The macOS
-disposable-image test checks mode and timestamp year. A timestamp-update policy,
-Finder creator/type policy and a wider macOS differential remain (T-044).
+dates from `catalog->now`; append and truncate touch content/attribute; rename
+touches attribute only and preserves create/content dates; valence updates touch
+the parent folder dates; the volume header modify date is staged on
+create/delete, bitmap alloc/free and rename. `backupDate` stays 0. BSD
+owner/group are 0, admin/owner flags 0, file/folder mode is set, Finder info and
+textEncoding are zero, and special is 0. Metadata is preserved on
+append/truncate/rename. The macOS outer-image test checks modes, current-year
+timestamps and renamed/truncated paths. Finder creator/type policy and a wider
+macOS differential remain (T-044).
 
 ## 8. `fsck_hfs` compatibility
 
