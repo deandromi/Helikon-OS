@@ -53,6 +53,7 @@ re-litigate them.
 | D-20 | Signing-key ownership | proposed | owner | §25.1, §16, §28.2.5 |
 | D-21 | First diagnostic bootloader scope | accepted | owner | §5, §24, §27 |
 | D-22 | Separate write diagnostic scope | accepted | owner | §5, §24, §27; D-21 |
+| D-23 | Default UI typography | accepted | owner | §14, §28.3.4; D-10, D-15 |
 
 The paper's §25 lists 17 decisions. D-18, D-19 and D-20 are added from §18 and
 §28.4.4. D-18 is accepted; D-19 was adopted and then rejected when the owner
@@ -459,6 +460,28 @@ diagnostic. See C-08.
   `fsck_hfs -fn` exit 0; no `diag` folder; outer `diskutil verifyVolume` exit 0.
   One run only; not a library-write, power-cut or support claim.
 
+
+## D-23 — Default UI typography
+
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §14, §28.3.4; D-10, D-15.
+- **Context:** the first-party UI needs one hierarchy and one UI family. The
+  owner supplied the default element/typeface/size table on 2026-11-03.
+- **Decision:** the default theme uses IBM Plex Sans as the only UI family:
+  main menu 14 px Regular, selected item 14 px Medium, screen titles 17 px
+  Semibold, artist/album 12 px Regular, system information 11 px Regular.
+  Manrope Bold is the Helikon-OS logo/wordmark only, with a variable
+  font/layout-dependent size. The selected item changes weight, not size. 11 px
+  is the default minimum; no clipping or horizontal scrolling is allowed.
+- **Consequences:** the table is recorded in [`ui.md`](ui.md), not in the design
+  paper. Font binaries need their exact OFL licence, source and subset hash
+  before they are committed. Line height, colours, margins, selection
+  background and large-text behaviour are still open; do not treat them as
+  settled. Skins may not make the first-party UI unusable (D-10/D-15).
+- **Follow-up:** verify the IBM Plex Sans and Manrope releases and licences,
+  build a 320×240 host mockup, check 17/14/12/11 px for clipping and contrast,
+  then implement the renderer. Record a device-panel result in
+  [`device-matrix.md`](device-matrix.md) before any support claim.
+- **Evidence:** owner-supplied table, 2026-11-03.
 
 ## Conflicts and source separation
 

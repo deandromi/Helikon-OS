@@ -11,6 +11,50 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (default UI typography)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the typography commit; check `git log -1`.
+
+## What changed
+
+- Added `docs/ui.md`: the default first-party UI typography, translated from the
+  owner-supplied Dutch table.
+- Added D-23 (accepted): IBM Plex Sans is the only UI family; main menu 14 px
+  Regular, selected item 14 px Medium, screen titles 17 px Semibold,
+  artist/album 12 px Regular, system information 11 px Regular; Manrope Bold is
+  the logo/wordmark only with a variable size.
+- Added T-041 (font licences + 320×240 mockup) and T-042 (renderer
+  implementation).
+- Updated the docs index, architecture §9, file map and state. No UI code or
+  font binaries exist yet; line height, colours, margins and large-text
+  behaviour remain open.
+
+## What was verified
+
+- Documentation only; no code changed.
+- Link/table/whitespace checks pass.
+
+## What is next
+
+1. Verify IBM Plex Sans and Manrope OFL releases, subset/hash and licence files.
+2. Build the 320×240 typography mockup and check clipping/contrast.
+3. Continue the device power-cut matrix on the inner image.
+
+## What must not be touched
+
+- Do not bundle proprietary fonts or unlicensed themes/artwork.
+- Do not treat line height, colours or margins as settled; they are open.
+- Skins may not make the first-party UI unusable (D-10/D-15).
+
+## Device/test evidence
+
+- None; documentation only.
+
+---
+
 # Handoff — 2026-11-03 (write diagnostic hardware pass)
 
 ## Branch / commit

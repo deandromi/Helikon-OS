@@ -225,7 +225,8 @@ There is no auto-update, no silent install and no writable USB path.
   HFS+ or write metadata directly.
 - The UI is retained-mode and declarative: `screen -> widgets -> layout ->
   renderer`, `input -> focus -> action`. One default theme; optional skin subset
-  with hard caps and fallback.
+  with hard caps and fallback. Default typography is in
+  [`ui.md`](ui.md) (D-23).
 - Settings, playlists, resume state and logs are ordinary native files under
   `/.helikon/`, written through the transaction engine. Diagnostics never cause
   a write on a failing filesystem; logs stay in a bounded RAM ring.

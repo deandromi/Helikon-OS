@@ -106,6 +106,7 @@ Helikon-OS/
     verification.md         proof checklist
     file-map.md             this file
     architecture.md         boot chain, layers, boundaries
+    ui.md                   default theme typography and font rules
     failures.md             error taxonomy and decision trees
     device-matrix.md        hardware evidence
     handoff.md              latest handoff
@@ -187,7 +188,7 @@ is created; do not let it drift.
 | `firmware/vfs/` | Lookup, handles, capabilities, path rules | VFS lead | paper §10, `docs/architecture.md` | path/name tests, capability tests | No hardware registers; no overlay branch; no errno guessing |
 | `firmware/db/` | Immutable metadata/index reader | database lead | paper §12, D-07 | 10k-track browse, stale-entry fallback | No playback state; database is a cache, not truth |
 | `firmware/player/` | Buffer/decode/output state machine | audio lead | paper §13, §28.3.8 | audio matrix, gapless, seek | No filesystem internals; no unmeasured audiophile claims |
-| `firmware/ui/` | Screens, input, rendering | UI lead | paper §14, §28.3.3 | task tests, frame trace | No storage policy; default UI must survive skin failure |
+| `firmware/ui/` | Screens, input, rendering | UI lead | paper §14, §28.3.3, `docs/ui.md` | task tests, frame trace, typography mockup | No storage policy; default UI must survive skin failure |
 | `firmware/skin/` | Documented WPS subset | UI lead | paper §28.3.4, D-10/D-15 | 20-skin corpus, hostile skin tests | No raw storage/playback policy; no full WPS engine; no unlicensed assets |
 | `firmware/sandbox/` | App/game runtime, quotas, host API | runtime lead | paper §15, §28.3.9–10, D-08 | escape/quota/crash tests | No raw block/NOR/PMU/GPIO; no legacy plugin binary compatibility |
 | `firmware/usb/` | Read-only LUN, descriptors, optional service mode | USB lead | paper §16, D-09 | read-only mount, descriptor/error tests | No filesystem writes; no writable mass-storage LUN; RAM-only relabel |

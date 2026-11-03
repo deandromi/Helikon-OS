@@ -313,9 +313,9 @@ Full entries and status are in `docs/decisions.md`.
 **Settled:** D-03 journaled writes (non-journaled prototype disposable-only),
 D-04 Helikon-OS-owned replay, D-06 Apple FastUnicodeCompare and HFS+
 normalization with generated Unicode 2.1.9 tables, D-17 product name
-(clearance open), D-18
-GPL-2.0-or-later, D-21 read-only diagnostic-first bootloader scope, D-22
-separate inner-image write diagnostic scope.
+(clearance open), D-18 GPL-2.0-or-later, D-21 read-only diagnostic-first
+bootloader scope, D-22 separate inner-image write diagnostic scope, D-23 default
+UI typography (IBM Plex Sans UI, Manrope Bold logo).
 **Rejected:** D-19 Contributor Covenant (owner deleted the file; no replacement).
 
 **Open:** D-01 boot image verification and key storage · D-02 boot state and
@@ -355,7 +355,7 @@ The handoff template is in `docs/handoff.md`. A dated log entry belongs in
 - Update `docs/state.md`, `docs/tasks.md` and `docs/handoff.md` every session.
 
 ## 13. Full documentation index
-[Index](docs/README.md) · [state](docs/state.md) · [invariants](docs/invariants.md) · [decisions](docs/decisions.md) · [tasks](docs/tasks.md) · [verification](docs/verification.md) · [file map](docs/file-map.md) · [architecture](docs/architecture.md).
+[Index](docs/README.md) · [UI design](docs/ui.md) · [state](docs/state.md) · [invariants](docs/invariants.md) · [decisions](docs/decisions.md) · [tasks](docs/tasks.md) · [verification](docs/verification.md) · [file map](docs/file-map.md) · [architecture](docs/architecture.md).
 [Failures](docs/failures.md) · [device matrix](docs/device-matrix.md) · [handoff](docs/handoff.md) · [conventions](docs/conventions.md) · [glossary](docs/glossary.md) · [testing](docs/testing.md) · [validation](docs/validation.md) · [goals](docs/goals.md).
 [Roadmap](docs/roadmap.md) · [write engine](docs/hfsplus-write-engine.md) · [release](docs/release.md) · [security](docs/security.md) · [FAQ](docs/faq.md) · [design paper](docs/design-paper.md) · [logo assets](assets/logo/README.md) · [branding assets](assets/branding/README.md) · [bootloader](bootloader/README.md) · [ADRs](docs/adr/README.md) · [ADR template](docs/adr/0001-template.md).
 [Log](docs/log/README.md) · [log template](docs/log/TEMPLATE.md) · [latest log](docs/log/2026-11-03.md) · [prompts](docs/prompts/README.md) · [writer review](docs/prompts/review-hfsplus-writer.md) · [device matrix prompt](docs/prompts/run-device-matrix.md) · [docs audit](docs/prompts/audit-docs-for-contradictions.md).

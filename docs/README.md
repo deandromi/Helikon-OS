@@ -43,7 +43,7 @@ scope, licensing, or app/plugin compatibility — stop and record it in
 
 Then read the specialist files you need:
 [`hfsplus-write-engine.md`](hfsplus-write-engine.md),
-[`testing.md`](testing.md), [`validation.md`](validation.md),
+[`ui.md`](ui.md), [`testing.md`](testing.md), [`validation.md`](validation.md),
 [`release.md`](release.md), [`security.md`](security.md),
 [`conventions.md`](conventions.md), [`handoff.md`](handoff.md),
 [`faq.md`](faq.md).
@@ -77,11 +77,12 @@ status.
 | [`../.github/ISSUE_TEMPLATE/`](../.github/ISSUE_TEMPLATE/) | Bug, feature and device-test issue forms. | living |
 | [`state.md`](state.md) | Current phase, what exists, blockers, evidence status. | living |
 | [`invariants.md`](invariants.md) | Numbered, testable safety invariants. | living |
-| [`decisions.md`](decisions.md) | Decision log, conflict record and 20 decision entries. | living |
+| [`decisions.md`](decisions.md) | Decision log, conflict record and 23 decision entries. | living |
 | [`tasks.md`](tasks.md) | Now/Next/Later task queue with acceptance criteria. | living |
 | [`verification.md`](verification.md) | Per-change proof checklist and evidence template. | living |
 | [`file-map.md`](file-map.md) | “I need to change X” → owning file/module. | living |
 | [`architecture.md`](architecture.md) | Boot chain, layers, boundaries, memory, security. | living |
+| [`ui.md`](ui.md) | Default first-party UI typography, font rules and open theme questions. | living |
 | [`failures.md`](failures.md) | Error taxonomy, decision trees, destructive-action warnings. | living |
 | [`device-matrix.md`](device-matrix.md) | 6G/7G/ports, adapters, receivers, test evidence. | living |
 | [`handoff.md`](handoff.md) | Latest session handoff and template. | living |
@@ -119,8 +120,9 @@ Key entry points: [`design-paper.md`](design-paper.md),
 ## What this documentation is not
 
 - It is not firmware code, a firmware-loading bootloader, an installer, CI, a
-  release, or a hardware validation report. A read-only diagnostic bootloader
-  image and its build script exist; the image is unproven on hardware.
+  release, or a hardware validation report. A read-only diagnostic image and a
+  separate inner-image write diagnostic exist; both have recorded 6G runs, but
+  neither is a firmware loader or a support claim.
 - It is not a signing policy or a release approval. The license is
   GPL-2.0-or-later (`LICENSE`); no code of conduct is currently adopted (D-19
   rejected); signing-key ownership is still open in
