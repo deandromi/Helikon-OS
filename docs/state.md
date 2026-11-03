@@ -20,12 +20,16 @@ Date of this snapshot: **2026-11-03**.
 |---|---|---|
 | Root `README.md` with 25 owner-authored goals | living | Repo commit `7bfe58b40ea7f0444368c4eb61d97cf57a0ec74b`, 29 lines |
 | Design paper, revision 2, 2026-11-03 | source | [`design-paper.md`](design-paper.md), source commit `3f220a73d0cceb083b3c057c6fe914d88468800a` |
-| Agent contract and documentation set | living | This branch, `docs/agent-handbook` |
+| Agent contract and documentation set | living | `main`, merged 2026-11-03 |
 | Product intent, safety rules, roadmap, goals, open decisions | living | `docs/` |
 | Donor file references and provenance | living | [`file-map.md`](file-map.md) |
 
 The "document status" column uses the document statuses from
 [`conventions.md`](conventions.md); it does not mean firmware exists.
+
+The requested README title, summary and 25-goal block were already present at
+the top of `README.md`. The merge did not modify the README; its SHA-256 is
+unchanged from the base commit.
 
 ## What does not exist
 
@@ -46,10 +50,12 @@ The "document status" column uses the document statuses from
 - **Base branch:** `main`
 - **Base commit:** `7bfe58b40ea7f0444368c4eb61d97cf57a0ec74b`
   (`Updated README.MD`, 2026-11-03)
-- **Documentation branch:** `docs/agent-handbook`
+- **Documentation branch:** `docs/agent-handbook`, fast-forwarded to `main` on
+  2026-11-03.
 - **Last known-good code commit:** none; there is no Helikon-OS code.
-- **Last known-good documentation commit:** the head of `docs/agent-handbook`
-  after this documentation change. Check `git log -1` for the exact SHA.
+- **Last known-good documentation commit:** `cb8e8dc6bd4fdf03d588a5a06d9f94b78270a73b`
+  on `main` (PR #1, merged by fast-forward). Any later docs housekeeping commit
+  is on `main`; check `git log -1`.
 
 Do not treat the donor V3.2 release as a Helikon-OS baseline. It is a separate
 overlay-based product.

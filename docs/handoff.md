@@ -15,12 +15,11 @@ file grows. Do not rely on chat history for current state.
 
 ## Branch / commit
 
-- Branch: `docs/agent-handbook`
+- Branch: `main`
 - Base: `main` at `7bfe58b40ea7f0444368c4eb61d97cf57a0ec74b`
-- Documentation commit: current branch head (check `git log -1`); pushed to
-  `origin/docs/agent-handbook`
-- PR: opened against `main`; see the repository PR for the URL and review state.
-  Do not merge without the owner.
+- Documentation commit: `cb8e8dc6bd4fdf03d588a5a06d9f94b78270a73b`, fast-forwarded
+  to `main` and pushed to `origin/main`
+- PR: https://github.com/deandromi/Helikon-OS/pull/1 — MERGED 2026-11-03
 
 ## What changed
 
@@ -33,14 +32,19 @@ file grows. Do not rely on chat history for current state.
   HFS+ writer deep dive, release, security, FAQ, design-paper copy, ADRs, logs
   and prompt stubs.
 - Added root `CONTRIBUTING.md` and `SECURITY.md`.
+- Fast-forwarded `docs/agent-handbook` to `main` and pushed `main`; PR #1 is
+  merged.
 - Did **not** modify the root `README.md`, the donor repository, any firmware,
-  build system, CI, license or release asset.
+  build system, CI, license or release asset. The requested README title,
+  summary and 25 goals were already present at the top, so no README change was
+  needed.
 
 ## What was verified
 
 - Repository cloned from `https://github.com/deandromi/Helikon-OS.git`; `origin`
   is correct; `main` exists; base commit recorded.
-- Branched from `main` to `docs/agent-handbook` before writing.
+- Branched from `main` to `docs/agent-handbook` before writing, then
+  fast-forwarded the branch to `main` and pushed it.
 - README and paper fetched from raw GitHub URLs; full paper read in chunks. The
   paper copy preserves the body except for two trailing-space hard breaks
   normalized for whitespace checks (`diff -b` clean).
@@ -56,6 +60,9 @@ file grows. Do not rely on chat history for current state.
   - no claim that Helikon-OS is implemented or hardware-validated;
   - no duplicate canonical files.
 - No Helikon-OS build, test or device run was performed; there is no source tree.
+- `main` and `origin/main` are at `cb8e8dc`; PR #1 state is MERGED. The requested
+  README block is present verbatim (all 25 goal lines) and the README SHA-256 is
+  unchanged from the base commit.
 
 ## What failed
 
@@ -66,7 +73,7 @@ file grows. Do not rely on chat history for current state.
 
 ## What is next
 
-1. Owner reviews the PR and the conflict records C-01–C-08.
+1. Owner reviews the merged docs on `main` and the conflict records C-01–C-08.
 2. Resolve the phase-2 blockers first: D-03 (journal strategy) and D-04
    (journal ownership).
 3. Freeze the writer interface and failure model (T-002), then the fixture plan

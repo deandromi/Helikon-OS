@@ -35,7 +35,7 @@ and test work, not permission to write a real library.
 | T-011 | Design the bootloader manifest, boot-state and rollback flow. | P0 | D-01, D-02, D-16 | Design covers manifest fields, signature check, two-slot boot state, read-only bootloader and fallback; bad-image tests are listed. | `planned` | boot lead | [architecture.md](architecture.md), [release.md](release.md) |
 | T-012 | Bootstrap the 6G device inventory and recovery rehearsal. | P0 | T-003 | Inventory records model, revision, capacity, adapter/card, battery, macOS, firmware/bootloader, journal state; Disk Mode/DFU/Apple restore confirmed; no serial numbers. | `planned` | test lead | [device-matrix.md](device-matrix.md) |
 | T-013 | Define the first-party UI task tests and the 20-skin corpus licence review. | P1 | D-10, D-15 | Five tasks (play, browse, settings, podcast, install) have success criteria; corpus list records licence/source; unsupported-tag report format defined. | `planned` | UI/test lead | [goals.md](goals.md), [validation.md](validation.md) |
-| T-014 | Publish and review the agent documentation set. | P0 | None | `agents.md` and all P0/P1/P2 docs exist; links and tables pass inspection; root README unchanged; PR opened and not merged. | `in progress` | documentation agent | [README.md](README.md), [verification.md](verification.md) |
+| T-014 | Publish and review the agent documentation set. | P0 | None | `agents.md` and all P0/P1/P2 docs exist; links and tables pass inspection; root README unchanged (requested block already present); PR #1 merged to `main`. | `implemented` | documentation agent | [README.md](README.md), [verification.md](verification.md) |
 
 ## Later
 
