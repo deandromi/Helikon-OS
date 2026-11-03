@@ -5,16 +5,15 @@ CFLAGS += -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow
 CPPFLAGS += -I../../firmware/hfs
 HFS = ../../firmware/hfs
 
-SOURCES = hfs_image_test.c \
-	  $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog_compare.c \
-	  $(HFS)/hfs_catalog_write.c \
-	  $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c \
-	  $(HFS)/hfs_btree_tree.c $(HFS)/hfs_btree_write.c \
-	  $(HFS)/hfs_fork_io.c $(HFS)/hfs_volume_write.c \
-	  $(HFS)/hfs_bitmap.c $(HFS)/hfs_extents.c \
-	  $(HFS)/hfs_extents_write.c \
-	  $(HFS)/hfs_txn.c $(HFS)/hfs_journal.c \
-	  $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c
+COMMON = $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog_compare.c \
+	 $(HFS)/hfs_catalog_write.c \
+	 $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c \
+	 $(HFS)/hfs_btree_tree.c $(HFS)/hfs_btree_write.c \
+	 $(HFS)/hfs_fork_io.c $(HFS)/hfs_volume_write.c \
+	 $(HFS)/hfs_bitmap.c $(HFS)/hfs_extents.c \
+	 $(HFS)/hfs_extents_write.c \
+	 $(HFS)/hfs_txn.c $(HFS)/hfs_journal.c \
+	 $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c
 
 HEADERS = $(HFS)/hfs_catalog.h $(HFS)/hfs_catalog_compare.h \
 	  $(HFS)/hfs_catalog_write.h $(HFS)/hfs_unicode.h \
@@ -24,17 +23,23 @@ HEADERS = $(HFS)/hfs_catalog.h $(HFS)/hfs_catalog_compare.h \
 	  $(HFS)/hfs_extents_write.h $(HFS)/hfs_txn.h \
 	  $(HFS)/hfs_journal.h $(HFS)/hfs_btree.h $(HFS)/hfs_volume.h
 
-.PHONY: all test clean
+.PHONY: all test crash-test clean
 
-all: hfs_image_test
+all: hfs_image_test hfs_crash_test
 
-hfs_image_test: $(SOURCES) $(HEADERS)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(SOURCES) $(LDFLAGS) -o $@
+hfs_image_test: hfs_image_test.c $(COMMON) $(HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) hfs_image_test.c $(COMMON) $(LDFLAGS) -o $@
 
-# The shell driver creates its own disposable image. Never point it at a
+hfs_crash_test: hfs_crash_test.c $(COMMON) $(HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) hfs_crash_test.c $(COMMON) $(LDFLAGS) -o $@
+
+# The shell drivers create their own disposable images. Never point them at a
 # library or a mounted device.
 test: hfs_image_test
 	./run-macos.sh
 
+crash-test: hfs_crash_test
+	./run-crash-macos.sh
+
 clean:
-	rm -rf hfs_image_test *.dSYM
+	rm -rf hfs_image_test hfs_crash_test *.dSYM

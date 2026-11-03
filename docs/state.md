@@ -60,6 +60,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Volume header staging | `implemented` | `hfs_volume_write.c`; primary/alternate header file/folder counts, next CNID and write count; no `modifyDate` update |
 | Private NUL names | `implemented` | Directory iteration escapes NUL as U+2400 and marks the entry `name_escaped`/`unsupported`; path lookup skips the escaped entry and continues instead of aborting the directory; 1 catalog test |
 | Extents-overflow record | `implemented` | `hfs_extents_write.c`; data-fork records keyed by fork/file/startBlock, up to eight extents each; insert/get/delete; multiple records supported |
+| Journal crash injection (create) | `implemented` | `tests/image/run-crash-macos.sh` injects a failed write at every cut point of a create transaction (25 cuts), reopens the image, replays the journal and runs `fsck_hfs -fn`; cuts before the commit header leave the file absent, cuts during replay recover it, all fsck-clean; append/truncate/delete cut matrices remain |
 | Disposable-image writer validation | `implemented` | `tests/image/run-macos.sh` creates a 16 MiB journaled HFS+ image, creates/appends/truncates/deletes a file, mounts it in macOS to read back 4096 bytes, and `fsck_hfs -fn` reports the volume OK after create and after delete; host-only, no device or library write |
 | B-tree fork growth | `implemented` | `hfs_btree_grow()` allocates a volume block, extends the catalog/extents fork in the primary/alternate headers, adds a free node to the header map and updates `totalNodes`; requires `node_size == block_size` and an inline fork extent slot; 1 host test |
 | Catalog create/delete (empty file) | `implemented` | `hfs_catalog_write.c`; native file + thread record insert/delete through the B-tree and journal, CNID allocation, file count and parent valence; names are normalized to HFS+ canonical form, so composed/decomposed input shares one key; 1 host test |
@@ -67,7 +68,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Data-fork append/truncate (eight inline + multiple overflow records) | `implemented` | `hfs_catalog_append_file` appends to empty or non-empty files, stages data before metadata, allocates individual free blocks, merges inline extents and writes multiple extents-overflow records; truncate frees all records; the transaction block budget caps very large fragmented writes |
 | Fork block staging | `implemented` | `firmware/hfs/hfs_fork_io.c`; full/partial block write staging into `hfs_txn`; inline extents only; 4 host tests |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
-| Host test harness | `in progress` | 99 portable tests (91 HFS+, 8 bootloader), sanitizer clean, plus the macOS disposable-image test; first diagnostic boot is owner-reported |
+| Host test harness | `in progress` | 99 portable tests (91 HFS+, 8 bootloader), sanitizer clean, plus the macOS disposable-image and crash-injection tests; first diagnostic boot is owner-reported |
 
 ## What does not exist
 
@@ -176,7 +177,9 @@ The next writer tasks are:
 - **T-039** — macOS NUL-prefixed private names are now escaped as U+2400 and
   marked unsupported; path lookup continues past them instead of aborting.
 - **D-05** — cache/dirty-set limits.
-- **T-010** — power-loss matrix and evidence format after T-003/T-009.
+- **T-010** — the create-transaction cut matrix passes (25 cuts, fsck clean);
+  append/truncate/delete/rename/power-loss matrices and the evidence format
+  remain.
 
 The bootloader path resumes afterwards; D-01/D-02/D-20 remain open.
 

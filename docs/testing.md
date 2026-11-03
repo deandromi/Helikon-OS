@@ -96,6 +96,16 @@ existing image or device path. The test:
 `fsck_hfs` zero repairs and macOS content parity are the pass criteria. This is
 host evidence; it is not a device run and does not authorize a library write.
 
+### 5.2 Journal crash injection
+
+`tests/image/run-crash-macos.sh` copies a clean journaled HFS+ image for every
+cut point of a create transaction, fails the nth device write, then reopens the
+copy, replays the journal and runs `fsck_hfs -fn`. The loop stops when the cut
+is beyond the transaction's write count. It expects the file to be absent when
+the cut precedes the journal commit header and present after replay when the
+commit header was written; every case must be fsck-clean. The create matrix
+currently covers 25 cuts. Append/truncate/delete cut matrices remain T-010.
+
 ## 6. Device tests
 
 Device tests require a recorded inventory and backup. Minimum matrix:

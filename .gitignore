@@ -19,3 +19,4 @@ tests/hfsplus/test_catalog_compare
 tests/hfsplus/test_catalog_write
 tests/image/hfs_image_test
 tests/image/*.dSYM/
+tests/image/hfs_crash_test

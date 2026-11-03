@@ -11,6 +11,69 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (journal crash injection)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the crash-injection commit; check `git log -1`.
+
+## What changed
+
+- Added `tests/image/hfs_crash_test.c` and `run-crash-macos.sh`: for each cut
+  point, copy a clean 16 MiB journaled HFS+ image, fail the nth device write
+  during a create transaction, reopen, replay the journal, and run
+  `fsck_hfs -fn`.
+- The recovery path re-probes the volume after replay so the in-memory catalog
+  fork reflects the applied volume header. This fixed a recovery `FORMAT` that
+  only appeared when the journal was dirty at open.
+- The harness distinguishes cuts before the journal commit header (file absent)
+  from cuts during replay (file present after replay) and verifies size 0.
+- The create matrix covered 25 cuts; every recovery was fsck-clean and the
+  journal was clean afterwards. The 26th cut succeeded without a fault.
+- Portable host tests remain 99 (91 HFS+, 8 bootloader); the smoke image test
+  still passes.
+
+## What was verified
+
+- `make -C tests/image crash-test`:
+  - cuts 1-6: commit-cut, recovered `present=0`;
+  - cuts 7-25: commit-cut during replay, recovered `present=1 size=0`;
+  - cut 26: `commit-ok writes=25`;
+  - `fsck_hfs -fn` clean after every cut.
+- `make -C tests/image test` still passes.
+- `make -C tests/hfsplus test` / `sanitize` — 91/91.
+- No device write and no write-capable bootloader image.
+
+## What is next
+
+1. Extend the cut matrix to append (data + bitmap + metadata), truncate,
+   delete and rename; then add partial-write/fsync-failure cases.
+2. T-038: wider macOS name corpus and the `:`/`/` mapping.
+3. Write diagnostic; only after that, plan a device write with a verified
+   backup and recovery.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- Do not weaken the crash test by removing fsck or accepting a dirty journal.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- Partial-sector and fsync-failure modelling.
+- `:`/`/` mapping and wider macOS name corpus (T-038).
+
+## Device/test evidence
+
+- No new device run. Crash injection ran on disposable host images only.
+- `fsck_hfs` version hfs-751, macOS host.
+
+---
+
 # Handoff — 2026-11-03 (NUL-prefixed private names)
 
 ## Branch / commit

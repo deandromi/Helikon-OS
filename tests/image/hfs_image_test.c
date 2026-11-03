@@ -89,7 +89,7 @@ static int open_image(const char *path, struct image *image)
         return HFS_ERR_IO;
     int rc = hfs_volume_probe(&image->volume, read_at, &image->fd, 0,
                               (uint64_t)end);
-    if (rc != HFS_OK)
+    if (rc != HFS_OK && rc != HFS_ERR_DIRTY)
         return rc;
     if (!image->volume.journaled)
         return HFS_ERR_UNSUPPORTED;
@@ -99,6 +99,10 @@ static int open_image(const char *path, struct image *image)
         return rc;
     if (!hfs_journal_is_clean(&image->journal)) {
         rc = hfs_journal_replay(&image->journal);
+        if (rc != HFS_OK)
+            return rc;
+        rc = hfs_volume_probe(&image->volume, read_at, &image->fd, 0,
+                              (uint64_t)end);
         if (rc != HFS_OK)
             return rc;
     }

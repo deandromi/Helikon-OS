@@ -81,7 +81,9 @@ Helikon-OS/
     image/
       Makefile              disposable-image writer test build
       hfs_image_test.c      create/append/delete on a journaled HFS+ image
+      hfs_crash_test.c      journal write-failure injection and recovery
       run-macos.sh          hdiutil + fsck_hfs + macOS mount driver
+      run-crash-macos.sh    per-cut crash/replay/fsck driver
     bootloader/
       Makefile              bootloader host test target
       test_diag.c           diagnostic core/splash tests
