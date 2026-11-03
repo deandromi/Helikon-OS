@@ -36,7 +36,7 @@ re-litigate them.
 | D-03 | Journal strategy | accepted | owner | §25.3, §9.3 |
 | D-04 | Journal ownership | accepted | owner | §25.4, §9.3 |
 | D-05 | B-tree cache and transaction limits | proposed | owner | §25.5, §19.2 |
-| D-06 | Unicode policy | proposed | owner | §25.6, §10.4 |
+| D-06 | Unicode policy | accepted | owner | §25.6, §10.4 |
 | D-07 | Database location | proposed | owner | §25.7, §12.2 |
 | D-08 | App/game runtime | proposed | owner | §25.8, §28.3.9–10 |
 | D-09 | Desktop app transport | proposed | owner | §25.9, §28.4.2 |
@@ -147,7 +147,7 @@ first diagnostic bootloader scope. See C-08.
 
 ## D-06 — Unicode policy
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.6, §10.4.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.6, §10.4.
 - **Context:** HFS+ stores decomposed UTF-16 and uses Apple's case-folding
   comparison. The donor's exact-byte lookup is a read-only behaviour, not a
   writable policy.
@@ -155,12 +155,25 @@ first diagnostic bootloader scope. See C-08.
   before insertion; (b) exact-byte plus explicit refusal of names that could
   collide after normalization; (c) a limited normalization table with a
   documented rejection path.
-- **Decision:** unresolved. The writer must reproduce Apple's catalog key order
-  and test composed/decomposed and case variants against macOS-created names.
-- **Consequences:** a wrong policy creates duplicate keys or failed lookups that
-  `fsck_hfs` may flag. The policy must be documented and tested, not inferred.
-- **Follow-up:** choose table source/licence and fixture corpus; link to D-10
-  for display names.
+- **Decision:** **Option (a).** Catalog key order, lookup, create, delete and
+  duplicate detection use Apple's `FastUnicodeCompare`. The folding table is
+  generated from Unicode 2.1.9 data plus the HFS+ rules (canonical
+  decompositions are folded only after decomposition, format controls and
+  U+FEFF are ignored, U+0000 is the non-sentinel value 0xFFFF). It is generated
+  by `tools/gen-hfs-unicode-table.py`, not copied from Apple's APSL table or
+  from a GPL-2.0-only source. Until the HFS+ decomposer exists, the writer
+  refuses names containing a code point with a canonical decomposition (and
+  Hangul syllables) with `HFS_ERR_NAME_INVALID`; decomposed names are accepted.
+  A name that would compare equal after folding is a duplicate (`HFS_ERR_BUSY`).
+- **Consequences:** the comparator is implemented and host-tested. Composed
+  names are deliberately refused rather than written in a form macOS may
+  relocate. The normalization implementation and a macOS-created fixture
+  corpus remain open; until they pass, real catalog names are limited to
+  already-decomposed input.
+- **Follow-up:** implement HFS+ decomposition (Unicode 2.1.9 canonical
+  decomposition plus the HFS+ exception ranges), test composed/decomposed and
+  case variants against macOS-created names, and link the display-name policy
+  to D-10. `fsck_hfs` remains the external oracle.
 
 ## D-07 — Database location
 

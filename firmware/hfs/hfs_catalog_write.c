@@ -4,6 +4,7 @@
 #include "hfs_bitmap.h"
 #include "hfs_btree_tree.h"
 #include "hfs_extents_write.h"
+#include "hfs_unicode.h"
 #include "hfs_volume_write.h"
 
 #include <string.h>
@@ -139,6 +140,8 @@ int hfs_catalog_create_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     if (catalog == NULL || tx == NULL || name == NULL || compare == NULL ||
         cnid == NULL || units == 0 || units > 255u || parent < 2u)
         return HFS_ERR_ARGUMENT;
+    if (hfs_unicode_name_is_canonical(name, units) != HFS_OK)
+        return HFS_ERR_NAME_INVALID;
 
     struct hfs_volume *volume = catalog->btree.volume;
     uint32_t file_count;
@@ -204,6 +207,8 @@ int hfs_catalog_delete_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     if (catalog == NULL || tx == NULL || name == NULL || compare == NULL ||
         units == 0 || units > 255u || parent < 2u || cnid < 16u)
         return HFS_ERR_ARGUMENT;
+    if (hfs_unicode_name_is_canonical(name, units) != HFS_OK)
+        return HFS_ERR_NAME_INVALID;
 
     struct hfs_volume *volume = catalog->btree.volume;
     uint32_t file_count;
@@ -261,6 +266,8 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
         compare == NULL || units == 0 || units > 255u || parent < 2u ||
         length == 0)
         return HFS_ERR_ARGUMENT;
+    if (hfs_unicode_name_is_canonical(name, units) != HFS_OK)
+        return HFS_ERR_NAME_INVALID;
 
     uint8_t record[CATALOG_MAX_RECORD];
     size_t record_length;
@@ -420,6 +427,8 @@ int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     if (catalog == NULL || tx == NULL || name == NULL || compare == NULL ||
         units == 0 || units > 255u || parent < 2u)
         return HFS_ERR_ARGUMENT;
+    if (hfs_unicode_name_is_canonical(name, units) != HFS_OK)
+        return HFS_ERR_NAME_INVALID;
 
     uint8_t record[CATALOG_MAX_RECORD];
     size_t record_length;

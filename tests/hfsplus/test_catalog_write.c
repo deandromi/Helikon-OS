@@ -1,4 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
+#include "hfs_catalog_compare.h"
 #include "hfs_catalog_write.h"
 #include "hfs_extents_write.h"
 #include "test_check.h"
@@ -137,9 +138,6 @@ static void make_image(void)
     put_be16(leaf + TEST_NODE_SIZE - 2, 14);
 }
 
-static int compare_catalog(void *context, const uint8_t *a, size_t a_length,
-                           const uint8_t *b, size_t b_length);
-
 static size_t build_key(uint8_t *buffer, uint32_t parent,
                         const uint8_t *name, size_t units)
 {
@@ -164,7 +162,7 @@ static int seed_root(struct hfs_btree *btree, struct hfs_txn *tx)
     put_be32(record + data_offset + 8, 2);
     put_be32(record + data_offset + 4, 0);
     int rc = hfs_btree_insert(btree, tx, record, data_offset + 88,
-                              compare_catalog, NULL);
+                              hfs_catalog_key_compare, NULL);
     if (rc != HFS_OK)
         return rc;
 
@@ -176,27 +174,7 @@ static int seed_root(struct hfs_btree *btree, struct hfs_txn *tx)
     put_be16(record + data_offset + 8, 4);
     memcpy(record + data_offset + 10, root_name, 8);
     return hfs_btree_insert(btree, tx, record, data_offset + 18,
-                            compare_catalog, NULL);
-}
-
-static int compare_catalog(void *context, const uint8_t *a, size_t a_length,
-                           const uint8_t *b, size_t b_length)
-{
-    (void)context;
-    if (a_length < 6 || b_length < 6)
-        return a_length < b_length ? -1 : 1;
-    uint32_t parent_a = get_be32(a);
-    uint32_t parent_b = get_be32(b);
-    if (parent_a != parent_b)
-        return parent_a < parent_b ? -1 : 1;
-    uint16_t units_a = get_be16(a + 4);
-    uint16_t units_b = get_be16(b + 4);
-    if (units_a != units_b)
-        return units_a < units_b ? -1 : 1;
-    size_t bytes = (size_t)units_a * 2u;
-    if (bytes > a_length - 6u || bytes > b_length - 6u)
-        return 0;
-    return memcmp(a + 6, b + 6, bytes);
+                            hfs_catalog_key_compare, NULL);
 }
 
 static void apply_txn(const struct hfs_txn *tx)
@@ -249,7 +227,7 @@ static int test_create_delete_file(void)
     tx.active = 1;
     uint32_t cnid = 0;
     CHECK(hfs_catalog_create_file(&catalog, &tx, 2, name, TEST_NAME_UNITS,
-                                  0644, compare_catalog, NULL, &cnid) ==
+                                  0644, hfs_catalog_key_compare, NULL, &cnid) ==
           HFS_OK);
     CHECK(cnid == 16);
     apply_txn(&tx);
@@ -265,7 +243,7 @@ static int test_create_delete_file(void)
     uint8_t record[1024];
     size_t record_length = 0;
     size_t key_length = build_key(key, 2, name, TEST_NAME_UNITS);
-    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, hfs_catalog_key_compare,
                          NULL, record, sizeof(record), &record_length) ==
           HFS_OK);
     size_t data_offset = 2u + key_length;
@@ -273,7 +251,7 @@ static int test_create_delete_file(void)
     CHECK(get_be32(record + data_offset + 8) == cnid);
 
     key_length = build_key(key, cnid, NULL, 0);
-    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, hfs_catalog_key_compare,
                          NULL, record, sizeof(record), &record_length) ==
           HFS_OK);
     data_offset = 2u + key_length;
@@ -284,7 +262,7 @@ static int test_create_delete_file(void)
         0, 'T', 0, 'E', 0, 'S', 0, 'T'
     };
     key_length = build_key(key, 1, root_name, 4);
-    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, hfs_catalog_key_compare,
                          NULL, record, sizeof(record), &record_length) ==
           HFS_OK);
     data_offset = 2u + key_length;
@@ -301,7 +279,7 @@ static int test_create_delete_file(void)
     tx.journal = &journal;
     tx.active = 1;
     CHECK(hfs_catalog_append_file(&catalog, &tx, 2, name, TEST_NAME_UNITS, 0,
-                                  payload, sizeof(payload), compare_catalog,
+                                  payload, sizeof(payload), hfs_catalog_key_compare,
                                   NULL) == HFS_OK);
     apply_txn(&tx);
     CHECK(get_be32(test_image + 1024 + 48) == 58);
@@ -309,7 +287,7 @@ static int test_create_delete_file(void)
     tx.journal = &journal;
     tx.active = 1;
     key_length = build_key(key, 2, name, TEST_NAME_UNITS);
-    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, hfs_catalog_key_compare,
                          NULL, record, sizeof(record), &record_length) ==
           HFS_OK);
     data_offset = 2u + key_length;
@@ -330,14 +308,14 @@ static int test_create_delete_file(void)
     tx.journal = &journal;
     tx.active = 1;
     CHECK(hfs_catalog_append_file(&catalog, &tx, 2, name, TEST_NAME_UNITS,
-                                  1200, more, sizeof(more), compare_catalog,
+                                  1200, more, sizeof(more), hfs_catalog_key_compare,
                                   NULL) == HFS_OK);
     apply_txn(&tx);
     CHECK(get_be32(test_image + 1024 + 48) == 56);
     memset(&tx, 0, sizeof(tx));
     tx.journal = &journal;
     tx.active = 1;
-    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, hfs_catalog_key_compare,
                          NULL, record, sizeof(record), &record_length) ==
           HFS_OK);
     fork = record + data_offset + 88u;
@@ -356,13 +334,13 @@ static int test_create_delete_file(void)
     tx.journal = &journal;
     tx.active = 1;
     CHECK(hfs_catalog_truncate_file(&catalog, &tx, 2, name, TEST_NAME_UNITS,
-                                    compare_catalog, NULL) == HFS_OK);
+                                    hfs_catalog_key_compare, NULL) == HFS_OK);
     apply_txn(&tx);
     CHECK(get_be32(test_image + 1024 + 48) == 61);
     memset(&tx, 0, sizeof(tx));
     tx.journal = &journal;
     tx.active = 1;
-    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, hfs_catalog_key_compare,
                          NULL, record, sizeof(record), &record_length) ==
           HFS_OK);
     fork = record + data_offset + 88u;
@@ -374,7 +352,7 @@ static int test_create_delete_file(void)
     tx.journal = &journal;
     tx.active = 1;
     CHECK(hfs_catalog_delete_file(&catalog, &tx, 2, name, TEST_NAME_UNITS,
-                                  cnid, compare_catalog, NULL) == HFS_OK);
+                                  cnid, hfs_catalog_key_compare, NULL) == HFS_OK);
     apply_txn(&tx);
     CHECK(get_be32(test_image + 1024 + 32) == 1);
     CHECK(get_be32(node_ptr(0) + 20) == 2);
@@ -383,15 +361,15 @@ static int test_create_delete_file(void)
     tx.journal = &journal;
     tx.active = 1;
     key_length = build_key(key, 2, name, TEST_NAME_UNITS);
-    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, hfs_catalog_key_compare,
                          NULL, record, sizeof(record), &record_length) ==
           HFS_ERR_NOT_FOUND);
     key_length = build_key(key, cnid, NULL, 0);
-    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, hfs_catalog_key_compare,
                          NULL, record, sizeof(record), &record_length) ==
           HFS_ERR_NOT_FOUND);
     key_length = build_key(key, 1, root_name, 4);
-    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, hfs_catalog_key_compare,
                          NULL, record, sizeof(record), &record_length) ==
           HFS_OK);
     data_offset = 2u + key_length;
@@ -413,7 +391,7 @@ static int test_create_delete_file(void)
     tx.active = 1;
     uint32_t frag_cnid = 0;
     CHECK(hfs_catalog_create_file(&catalog, &tx, 2, frag_name, 4, 0644,
-                                  compare_catalog, NULL, &frag_cnid) ==
+                                  hfs_catalog_key_compare, NULL, &frag_cnid) ==
           HFS_OK);
     CHECK(frag_cnid == 17);
     apply_txn(&tx);
@@ -426,7 +404,7 @@ static int test_create_delete_file(void)
     tx.active = 1;
     CHECK(hfs_catalog_append_file(&catalog, &tx, 2, frag_name, 4, 0,
                                   fragmented, sizeof(fragmented),
-                                  compare_catalog, NULL) == HFS_OK);
+                                  hfs_catalog_key_compare, NULL) == HFS_OK);
     apply_txn(&tx);
     CHECK(get_be32(test_image + 1024 + 48) == 0);
 
@@ -434,7 +412,7 @@ static int test_create_delete_file(void)
     tx.journal = &journal;
     tx.active = 1;
     key_length = build_key(key, 2, frag_name, 4);
-    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, hfs_catalog_key_compare,
                          NULL, record, sizeof(record), &record_length) ==
           HFS_OK);
     data_offset = 2u + key_length;
@@ -472,7 +450,7 @@ static int test_create_delete_file(void)
     tx.journal = &journal;
     tx.active = 1;
     CHECK(hfs_catalog_truncate_file(&catalog, &tx, 2, frag_name, 4,
-                                    compare_catalog, NULL) == HFS_OK);
+                                    hfs_catalog_key_compare, NULL) == HFS_OK);
     apply_txn(&tx);
     CHECK(get_be32(test_image + 1024 + 48) == 20);
     memset(&tx, 0, sizeof(tx));
@@ -487,7 +465,66 @@ static int test_create_delete_file(void)
     tx.journal = &journal;
     tx.active = 1;
     CHECK(hfs_catalog_delete_file(&catalog, &tx, 2, frag_name, 4, frag_cnid,
-                                  compare_catalog, NULL) == HFS_OK);
+                                  hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 32) == 1);
+
+    static const uint8_t mixed_name[10] = {
+        0, 'M', 0, 'i', 0, 'x', 0, 'e', 0, 'd'
+    };
+    static const uint8_t lower_name[10] = {
+        0, 'm', 0, 'i', 0, 'x', 0, 'e', 0, 'd'
+    };
+    uint32_t mixed_cnid = 0;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_create_file(&catalog, &tx, 2, mixed_name, 5, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &mixed_cnid) == HFS_OK);
+    apply_txn(&tx);
+
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_create_file(&catalog, &tx, 2, lower_name, 5, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &mixed_cnid) == HFS_ERR_BUSY);
+    CHECK(tx.count == 0);
+
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_delete_file(&catalog, &tx, 2, mixed_name, 5, mixed_cnid,
+                                  hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 32) == 1);
+
+    static const uint8_t composed_name[2] = { 0x00, 0xe9 };
+    static const uint8_t decomposed_name[4] = { 0, 'e', 0x03, 0x01 };
+    uint32_t decomposed_cnid = 0;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_create_file(&catalog, &tx, 2, decomposed_name, 2, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &decomposed_cnid) == HFS_OK);
+    apply_txn(&tx);
+
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_create_file(&catalog, &tx, 2, composed_name, 1, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &mixed_cnid) == HFS_ERR_NAME_INVALID);
+    CHECK(tx.count == 0);
+
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_delete_file(&catalog, &tx, 2, decomposed_name, 2,
+                                  decomposed_cnid, hfs_catalog_key_compare,
+                                  NULL) == HFS_OK);
     apply_txn(&tx);
     CHECK(get_be32(test_image + 1024 + 32) == 1);
     return 0;

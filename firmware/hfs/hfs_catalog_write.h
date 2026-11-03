@@ -10,11 +10,13 @@
 #include <stdint.h>
 
 /*
- * Minimal native catalog create/delete for an empty file.
+ * Native catalog create/delete for a file.
  *
- * `name` is UTF-16BE code units, `units` is 1..255. The caller supplies the
- * catalog key comparator; this module does not implement FastUnicodeCompare.
- * The parent folder's valence is not updated yet, and data forks are empty.
+ * `name` is UTF-16BE code units, `units` is 1..255, and must already be in
+ * HFS+ canonical (decomposed) form; composed names return HFS_ERR_NAME_INVALID
+ * until the decomposer lands. The caller supplies the catalog key comparator,
+ * normally hfs_catalog_key_compare(). The parent folder's valence, file count
+ * and next CNID are updated through the transaction.
  */
 int hfs_catalog_create_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
                             uint32_t parent, const uint8_t *name,
@@ -28,7 +30,10 @@ int hfs_catalog_delete_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
                             hfs_btree_key_compare_fn compare,
                             void *compare_context);
 
-/* Append to an empty file using one inline extent. */
+/*
+ * Append at EOF using inline extents plus extents-overflow records. Data blocks
+ * are staged before metadata; the transaction block budget bounds one call.
+ */
 int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
                             uint32_t parent, const uint8_t *name,
                             size_t units, uint64_t offset,
@@ -36,7 +41,7 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
                             hfs_btree_key_compare_fn compare,
                             void *compare_context);
 
-/* Truncate a file with one inline extent to size zero. */
+/* Truncate a file to size zero and free its inline and overflow extents. */
 int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
                               uint32_t parent, const uint8_t *name,
                               size_t units,

@@ -4,7 +4,7 @@ CFLAGS ?= -O2 -g
 CFLAGS += -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow
 CPPFLAGS += -I../../firmware/hfs
 HFS = ../../firmware/hfs
-TESTS = test_volume test_btree test_unicode test_catalog test_extents test_journal test_txn test_bitmap test_btree_write test_fork_io test_btree_tree test_catalog_write test_btree_grow
+TESTS = test_volume test_btree test_unicode test_catalog test_extents test_journal test_txn test_bitmap test_btree_write test_fork_io test_btree_tree test_catalog_compare test_catalog_write test_btree_grow
 
 .PHONY: all test sanitize clean
 
@@ -23,18 +23,20 @@ test_btree: test_btree.c test_image.c test_image.h test_check.h \
 
 test_unicode: test_unicode.c test_check.h \
               $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode.h \
-              $(HFS)/hfs_volume.h
+              $(HFS)/hfs_unicode_data.c $(HFS)/hfs_volume.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_unicode.c \
-	  $(HFS)/hfs_unicode.c $(LDFLAGS) -o $@
+	  $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c $(LDFLAGS) -o $@
 
 test_catalog: test_catalog.c test_image.c test_fs_image.c \
               test_image.h test_fs_image.h test_check.h \
               $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog.h \
               $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode.h \
+              $(HFS)/hfs_unicode_data.c \
               $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h \
               $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_catalog.c test_image.c test_fs_image.c \
-	  $(HFS)/hfs_catalog.c $(HFS)/hfs_unicode.c $(HFS)/hfs_btree.c \
+	  $(HFS)/hfs_catalog.c $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c \
+	  $(HFS)/hfs_btree.c \
 	  $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
 
 test_extents: test_extents.c test_image.c test_image.h test_check.h \
@@ -112,8 +114,19 @@ test_btree_grow: test_btree_grow.c test_image.c test_image.h test_check.h \
 	  $(HFS)/hfs_txn.c $(HFS)/hfs_journal.c \
 	  $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
 
+test_catalog_compare: test_catalog_compare.c test_check.h \
+                      $(HFS)/hfs_catalog_compare.c $(HFS)/hfs_catalog_compare.h \
+                      $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode.h \
+                      $(HFS)/hfs_unicode_data.c $(HFS)/hfs_volume.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) test_catalog_compare.c \
+	  $(HFS)/hfs_catalog_compare.c $(HFS)/hfs_unicode.c \
+	  $(HFS)/hfs_unicode_data.c $(LDFLAGS) -o $@
+
 test_catalog_write: test_catalog_write.c test_image.c test_image.h test_check.h \
                     $(HFS)/hfs_catalog_write.c $(HFS)/hfs_catalog_write.h \
+                    $(HFS)/hfs_catalog_compare.c $(HFS)/hfs_catalog_compare.h \
+                    $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode.h \
+                    $(HFS)/hfs_unicode_data.c \
                     $(HFS)/hfs_btree_tree.c $(HFS)/hfs_btree_tree.h \
                     $(HFS)/hfs_btree_write.c $(HFS)/hfs_btree_write.h \
                     $(HFS)/hfs_fork_io.c $(HFS)/hfs_fork_io.h \
@@ -123,7 +136,9 @@ test_catalog_write: test_catalog_write.c test_image.c test_image.h test_check.h 
                     $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h \
                     $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_catalog_write.c test_image.c \
-	  $(HFS)/hfs_catalog_write.c $(HFS)/hfs_btree_tree.c \
+	  $(HFS)/hfs_catalog_write.c $(HFS)/hfs_catalog_compare.c \
+	  $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c \
+	  $(HFS)/hfs_btree_tree.c \
 	  $(HFS)/hfs_btree_write.c $(HFS)/hfs_fork_io.c \
 	  $(HFS)/hfs_volume_write.c $(HFS)/hfs_bitmap.c \
 	  $(HFS)/hfs_extents_write.c \
@@ -142,6 +157,7 @@ test: $(TESTS)
 	./test_btree_write
 	./test_fork_io
 	./test_btree_tree
+	./test_catalog_compare
 	./test_catalog_write
 	./test_btree_grow
 

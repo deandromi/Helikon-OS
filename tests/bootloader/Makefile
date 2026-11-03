@@ -6,7 +6,8 @@ CPPFLAGS += -I../../firmware/hfs -I../../bootloader -I../hfsplus
 HFS = ../../firmware/hfs
 SOURCES = test_diag.c ../hfsplus/test_image.c ../hfsplus/test_fs_image.c \
           ../../bootloader/diagnostics.c ../../bootloader/report.c ../../bootloader/splash.c \
-          $(HFS)/hfs_catalog.c $(HFS)/hfs_unicode.c $(HFS)/hfs_extents.c \
+          $(HFS)/hfs_catalog.c $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c \
+          $(HFS)/hfs_extents.c \
           $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c
 HEADERS = ../../bootloader/diagnostics.h ../../bootloader/report.h ../../bootloader/splash.h \
           ../hfsplus/test_image.h ../hfsplus/test_fs_image.h \

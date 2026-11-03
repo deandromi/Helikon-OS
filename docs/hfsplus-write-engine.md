@@ -4,9 +4,9 @@
 > transaction ordering and `fsck_hfs` compatibility.
 > Status: living design document; D-03/D-04 accepted; writer interface frozen.
 > The journal append/replay path, bounded transaction engine, allocation bitmap,
-> node-level B-tree insert/delete/split, tree-level insert with parent/root splits, and fork staging are implemented host-only;
-> tree-level split/merge, catalog/extents mutation and the write diagnostic do
-> not exist.
+> B-tree insert/delete/split/growth, catalog/extents mutation, fork staging and
+> Apple `FastUnicodeCompare` are implemented host-only; HFS+ normalization and
+> the write diagnostic do not exist.
 > Owner: HFS+ lead; journal lead
 > Last updated: 2026-11-03
 > Source: design paper §9, §10.4, §19, §21, §24, §28.2; `docs/architecture.md`
@@ -22,13 +22,14 @@ implementation with catalog B-tree mutation, allocation, extents, journal,
 metadata parity and an external consistency oracle (`fsck_hfs`). The paper calls
 it the largest single change from the donor and the critical path of the product.
 
-**Current status:** D-03 (journaled writes) and D-04 (Helikon-OS owns replay)
-are accepted; the interface and failure model in §10 are frozen. The Apple HFS+
-journal append/replay path, a bounded transaction engine, the allocation bitmap,
-node-level B-tree insert/delete/split, tree-level insert with parent/root
-splits, partial tree delete (non-first records and empty-leaf unlink) and fork
-block staging are implemented and host-tested. FastUnicodeCompare and the write diagnostic are not implemented. Do not infer a device write or a complete writer
-from this document.
+**Current status:** D-03 (journaled writes), D-04 (Helikon-OS owns replay) and
+D-06 (Apple `FastUnicodeCompare`) are accepted; the interface and failure model
+in §10 are frozen. The Apple HFS+ journal append/replay path, a bounded
+transaction engine, the allocation bitmap, B-tree insert/delete/split/growth,
+catalog/extents mutation, fork block staging and catalog key comparison are
+implemented and host-tested. HFS+ decomposition/normalization and the write
+diagnostic are not implemented. Do not infer a device write or a complete
+writer from this document.
 
 ## 2. Minimum surface
 
@@ -279,10 +280,13 @@ enabled on a real volume.
 ### 7.1 Names
 
 - HFS+ stores decomposed UTF-16.
-- Implement Apple's `FastUnicodeCompare` for catalog ordering and comparison.
-- Choose a normalization policy: decompose before insertion, or explicitly
-  refuse a name that could create two catalog keys that normalize to the same
-  string. The policy is D-06 and must be documented and tested.
+- Apple's `FastUnicodeCompare` is accepted (D-06) and implemented for catalog
+  ordering and comparison. The folding table is generated from Unicode 2.1.9 by
+  `tools/gen-hfs-unicode-table.py`, not copied from Apple's APSL table.
+- The HFS+ decomposer is not implemented. Until it is, the writer refuses names
+  containing a code point with a canonical decomposition (including Hangul
+  syllables) with `HFS_ERR_NAME_INVALID`; decomposed input is accepted. This is
+  the explicit-refusal half of D-06, not composed-name support.
 - Reject names over 255 UTF-16 units, embedded NUL, `/`, and reserved `.`/`..`.
 - Decide and test the `:`/`/` mapping against macOS. The donor maps `/` to `:`
   and rejects a literal `:`; do not assume that is the final policy.
@@ -545,7 +549,8 @@ D-03 (journaled writes) and D-04 (Helikon-OS-owned replay) are accepted. The
 remaining writer decisions are:
 
 - D-05 cache/dirty-set limits.
-- D-06 Unicode policy.
+- D-06 is accepted; the HFS+ decomposer implementation and macOS name corpus
+  remain follow-up work, not an open policy choice.
 - D-11 anti-corruption scope (separate from metadata journaling).
 - D-12 battery/charger write gate.
 

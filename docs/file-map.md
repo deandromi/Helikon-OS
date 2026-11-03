@@ -45,8 +45,10 @@ Helikon-OS/
       hfs_volume.h          read-only volume API and error taxonomy
       hfs_btree.c           generic B-tree header/node validation
       hfs_btree.h           B-tree handle and leaf/node-record API
-      hfs_unicode.c/.h      exact UTF-16BE to UTF-8 name decode
+      hfs_unicode.c/.h      UTF-16BE/UTF-8 decode, FastUnicodeCompare, canonical-name guard
+      hfs_unicode_data.c    generated fold table and canonical-decomposition ranges
       hfs_catalog.c/.h      catalog iteration, path lookup, inline file read
+      hfs_catalog_compare.c/.h native catalog key ordering and comparison
       hfs_extents.c/.h      extents-overflow collection and file read
       hfs_journal.c/.h      Apple HFS+ journal append/replay and validation
       hfs_txn.c/.h          bounded staged-block transaction engine
@@ -74,6 +76,7 @@ Helikon-OS/
       test_fork_io.c        fork full/partial block staging tests
       test_btree_tree.c     tree insert/delete/rebalance model test
       test_btree_grow.c     B-tree fork growth test
+      test_catalog_compare.c catalog key/FastUnicodeCompare ordering tests
       test_catalog_write.c  empty-file catalog create/delete test
     bootloader/
       Makefile              bootloader host test target
@@ -126,6 +129,7 @@ firmware/
   diagnostics/              events, counters, recovery screens
 tools/
   build-diagnostic-bootloader.sh  pinned donor export, patch, Thumb build, checks
+  gen-hfs-unicode-table.py  generate the HFS+ fold/decomposition tables
   hfsplus/                  host inspector, fixtures, tests
   db/                       host database builder
   migrate/                  donor overlay exporter (host-side, read-only source)
