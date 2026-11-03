@@ -11,6 +11,58 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (B-tree leaf merge)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the B-tree leaf-merge commit; check `git log -1`.
+
+## What changed
+
+- Added underfull-leaf detection and next-sibling merge.
+- Merge appends the next leaf’s records when they fit, updates the leaf chain,
+  frees the right node, removes its parent index record and propagates the
+  parent’s first key when needed.
+- The 20-record tree model test still covers insert, multi-level split, first
+  and minimum key deletes, empty-leaf unlink and missing-key handling.
+- Total host tests: 75 (67 HFS+, 8 bootloader), sanitizer-clean.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 67/67 pass.
+- `make -C tests/hfsplus sanitize` — 67/67 pass with ASan/UBSan.
+- Deletes continue to leave a sorted, fully reachable leaf chain.
+- No device write and no write-capable bootloader image.
+
+## What is next
+
+1. Redistribution when merged records do not fit.
+2. Parent/root collapse.
+3. Fork growth when the free-node map is exhausted.
+4. Catalog records + FastUnicodeCompare (D-06).
+5. Extents/overflow, disposable image, `fsck_hfs`, write diagnostic.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- No byte-order substitution for HFS+ catalog keys.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- D-06 Unicode policy / FastUnicodeCompare.
+- Merge/redistribution thresholds and root-collapse policy.
+
+## Device/test evidence
+
+- No new device run. The writer is host-only.
+
+---
+
 # Handoff — 2026-11-03 (B-tree first-record delete)
 
 ## Branch / commit

@@ -605,6 +605,145 @@ static int update_parent_key(struct hfs_btree *btree,
                              struct tree_header *header, struct hfs_txn *tx,
                              const struct insert_path *path,
                              unsigned int level, const uint8_t *new_key,
+                             size_t new_key_length);
+
+static size_t node_used_bytes(const uint8_t *node, uint16_t node_size)
+{
+    uint16_t count = be16(node + 10);
+    uint16_t free_offset = be16(node + node_size - 2u * (count + 1u));
+    if (free_offset < 14u)
+        return node_size;
+    return (size_t)(free_offset - 14u) + 2u * (count + 1u);
+}
+
+static int merge_leaf_next(struct hfs_btree *btree,
+                           struct tree_header *header, struct hfs_txn *tx,
+                           const struct insert_path *path, unsigned int level,
+                           uint32_t node_number, uint8_t *node,
+                           int first_changed,
+                           hfs_btree_key_compare_fn compare, void *context)
+{
+    (void)compare;
+    (void)context;
+    if (node_used_bytes(node, btree->node_size) >= btree->node_size / 2u)
+        return 0;
+    uint32_t next = be32(node);
+    if (next == 0)
+        return 0;
+
+    uint8_t next_node[HFS_MAX_NODE_SIZE];
+    int rc = read_node(btree, next, next_node);
+    if (rc != HFS_OK)
+        return rc;
+    if (next_node[8] != 0xff)
+        return 0;
+
+    uint8_t merged[HFS_MAX_NODE_SIZE];
+    memcpy(merged, node, btree->node_size);
+    uint16_t next_count = be16(next_node + 10);
+    for (uint16_t i = 0; i < next_count; ++i) {
+        const uint8_t *record;
+        size_t length;
+        rc = hfs_btree_node_record(next_node, btree->node_size, i, &record,
+                                   &length);
+        if (rc != HFS_OK)
+            return rc;
+        rc = hfs_btree_node_insert(merged, btree->node_size,
+                                   be16(merged + 10), record, length);
+        if (rc == HFS_ERR_NO_SPACE)
+            return 0;
+        if (rc != HFS_OK)
+            return rc;
+    }
+
+    uint32_t parent_node = path[level - 1u].node;
+    uint16_t child = path[level - 1u].child;
+    uint8_t parent[HFS_MAX_NODE_SIZE];
+    rc = read_node(btree, parent_node, parent);
+    if (rc != HFS_OK)
+        return rc;
+    uint16_t parent_count = be16(parent + 10);
+    if (parent_count <= 1 || (uint16_t)(child + 1u) >= parent_count)
+        return 0;
+
+    if (first_changed) {
+        const uint8_t *new_key;
+        size_t new_key_length;
+        rc = first_key(node, btree->node_size, &new_key, &new_key_length);
+        if (rc != HFS_OK)
+            return rc;
+        const uint8_t *old_record;
+        size_t old_length;
+        rc = hfs_btree_node_record(parent, btree->node_size, child,
+                                   &old_record, &old_length);
+        if (rc != HFS_OK || old_length < HFS_BTREE_KEY_LENGTH)
+            return HFS_ERR_FORMAT;
+        uint16_t old_key_length = be16(old_record);
+        if ((size_t)old_key_length + HFS_BTREE_KEY_LENGTH +
+            HFS_BTREE_CHILD_SIZE > old_length)
+            return HFS_ERR_FORMAT;
+        uint32_t child_node = be32(old_record + HFS_BTREE_KEY_LENGTH +
+                                   old_key_length);
+        uint8_t index_record[HFS_MAX_NODE_SIZE];
+        size_t index_length = build_index(index_record, new_key,
+                                           new_key_length, child_node);
+        rc = hfs_btree_node_delete(parent, btree->node_size, child);
+        if (rc != HFS_OK)
+            return rc;
+        rc = hfs_btree_node_insert(parent, btree->node_size, child,
+                                   index_record, index_length);
+        if (rc != HFS_OK)
+            return rc;
+    }
+
+    rc = hfs_btree_node_delete(parent, btree->node_size,
+                               (uint16_t)(child + 1u));
+    if (rc != HFS_OK)
+        return rc;
+    rc = stage_node(btree, tx, parent_node, parent);
+    if (rc != HFS_OK)
+        return rc;
+
+    if (child == 0 && level > 1 && first_changed) {
+        const uint8_t *parent_key;
+        size_t parent_key_length;
+        rc = first_key(parent, btree->node_size, &parent_key,
+                       &parent_key_length);
+        if (rc != HFS_OK)
+            return rc;
+        rc = update_parent_key(btree, header, tx, path, level - 1u,
+                               parent_key, parent_key_length);
+        if (rc != HFS_OK)
+            return rc;
+    }
+
+    memcpy(node, merged, btree->node_size);
+    put32(node, be32(next_node));
+    uint32_t after = be32(next_node);
+    if (after != 0) {
+        uint8_t after_node[HFS_MAX_NODE_SIZE];
+        rc = read_node(btree, after, after_node);
+        if (rc != HFS_OK)
+            return rc;
+        put32(after_node + 4, node_number);
+        rc = stage_node(btree, tx, after, after_node);
+        if (rc != HFS_OK)
+            return rc;
+    } else {
+        header->last_leaf = node_number;
+    }
+    map_set(header, next, 0);
+    ++header->free_nodes;
+    rc = stage_node(btree, tx, node_number, node);
+    if (rc != HFS_OK)
+        return rc;
+    return 1;
+}
+
+static int update_parent_key(struct hfs_btree *btree,
+                             struct tree_header *header, struct hfs_txn *tx,
+                             const struct insert_path *path,
+                             unsigned int level, const uint8_t *new_key,
                              size_t new_key_length)
 {
     if (level == 0)
@@ -755,7 +894,18 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
     --header.leaf_records;
 
     if (be16(node + 10) > 0) {
-        if (position == 0 && level > 0) {
+        int first_changed = position == 0 && level > 0;
+        int merged = 0;
+        if (level > 0) {
+            merged = merge_leaf_next(btree, &header, tx, path, level,
+                                     node_number, node, first_changed,
+                                     compare, compare_context);
+            if (merged < 0)
+                return merged;
+        }
+        if (merged > 0)
+            return store_header(btree, tx, &header);
+        if (first_changed) {
             const uint8_t *new_key;
             size_t new_key_length;
             rc = first_key(node, btree->node_size, &new_key,
