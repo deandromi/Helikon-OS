@@ -273,7 +273,33 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     if (record_length < data_offset + 88u + 80u)
         return HFS_ERR_FORMAT;
     uint8_t *fork = record + data_offset + 88u;
-    if (offset != 0 || be64(fork) != 0 || be32(fork + 12) != 0)
+    uint64_t old_size = be64(fork);
+    uint32_t old_blocks = be32(fork + 12);
+    if (offset != old_size)
+        return HFS_ERR_ARGUMENT;
+
+    uint32_t extent_starts[8];
+    uint32_t extent_counts[8];
+    uint32_t extent_count = 0;
+    uint32_t extent_blocks = 0;
+    for (unsigned int i = 0; i < 8; ++i) {
+        uint32_t start = be32(fork + 16 + i * 8);
+        uint32_t count = be32(fork + 20 + i * 8);
+        if (count == 0) {
+            if (start != 0)
+                return HFS_ERR_FORMAT;
+            continue;
+        }
+        if (start == 0 || extent_count >= 8u)
+            return HFS_ERR_UNSUPPORTED;
+        extent_starts[extent_count] = start;
+        extent_counts[extent_count] = count;
+        ++extent_count;
+        if (count > UINT32_MAX - extent_blocks)
+            return HFS_ERR_FORMAT;
+        extent_blocks += count;
+    }
+    if (extent_blocks != old_blocks)
         return HFS_ERR_UNSUPPORTED;
 
     struct hfs_volume *volume = catalog->btree.volume;
@@ -325,23 +351,28 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
             return HFS_ERR_BUSY;
     }
 
-    put64(fork, length);
-    put32(fork + 12, blocks);
-    memset(fork + 16, 0, 64);
-    uint32_t extent_count = 0;
     for (uint32_t i = 0; i < blocks; ++i) {
         if (extent_count != 0 &&
-            be32(fork + 16 + (extent_count - 1u) * 8) +
-                be32(fork + 20 + (extent_count - 1u) * 8) == firsts[i]) {
-            uint32_t count = be32(fork + 20 + (extent_count - 1u) * 8);
-            put32(fork + 20 + (extent_count - 1u) * 8, count + 1u);
+            extent_starts[extent_count - 1u] +
+                extent_counts[extent_count - 1u] == firsts[i]) {
+            ++extent_counts[extent_count - 1u];
         } else {
             if (extent_count >= 8u)
                 return HFS_ERR_UNSUPPORTED;
-            put32(fork + 16 + extent_count * 8, firsts[i]);
-            put32(fork + 20 + extent_count * 8, 1);
+            extent_starts[extent_count] = firsts[i];
+            extent_counts[extent_count] = 1;
             ++extent_count;
         }
+    }
+    if (old_size > UINT64_MAX - length ||
+        old_blocks > UINT32_MAX - blocks)
+        return HFS_ERR_NO_SPACE;
+    put64(fork, old_size + length);
+    put32(fork + 12, old_blocks + blocks);
+    memset(fork + 16, 0, 64);
+    for (uint32_t i = 0; i < extent_count; ++i) {
+        put32(fork + 16 + i * 8, extent_starts[i]);
+        put32(fork + 20 + i * 8, extent_counts[i]);
     }
 
     uint8_t key[CATALOG_MAX_RECORD];
