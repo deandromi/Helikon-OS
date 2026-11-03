@@ -101,7 +101,8 @@ The install and backup procedure is in [`../DFU.md`](../DFU.md).
 
 Host evidence only:
 
-- 41/41 host tests pass, including ASan/UBSan.
+- The host suites pass (107 portable tests at the 2026-11-03 write-diagnostic
+  commit), including ASan/UBSan.
 - The splash packing test verifies the row-major source is converted to
   Rockbox's vertical mono-bitmap layout without pixel loss.
 - The donor partition/HFS+ tests pass in the donor checkout; they are reference
