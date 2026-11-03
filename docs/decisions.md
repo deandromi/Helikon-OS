@@ -309,7 +309,8 @@ The paper's §25 lists 17 decisions. D-18, D-19 and D-20 are added from §18 and
   firmware, UI, docs and host tools. Do not inherit "Rockpod", "Rockbox" or
   "HFS+" as the public product identity; use them only for lineage/attribution.
 - **Follow-up:** complete the clearance checklist before public branding or
-  release assets.
+  release assets. The dot-matrix logo in `docs/logo.md` is provisional until
+  then.
 
 ## D-18 — Licensing
 

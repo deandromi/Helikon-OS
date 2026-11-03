@@ -97,6 +97,7 @@ status.
 | [`security.md`](security.md) | Agent security rules and destructive-operation policy. | living |
 | [`faq.md`](faq.md) | User-facing questions from Appendix G. | living |
 | [`design-paper.md`](design-paper.md) | Full read-only design paper copy with provenance. | source |
+| [`logo.md`](logo.md) | Provisional dot-matrix logo, mark, palette and usage rules. | stub |
 | [`log/README.md`](log/README.md) | What the dated work log is for. | living |
 | [`log/TEMPLATE.md`](log/TEMPLATE.md) | Dated log entry template. | template |
 | [`log/2026-11-03.md`](log/2026-11-03.md) | Documentation setup session. | living |
