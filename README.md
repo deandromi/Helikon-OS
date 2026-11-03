@@ -1,5 +1,5 @@
 # Helikon-OS
-A new bootloader/firmware for the iPod Classic 6th and 7th Generation. I'm currently working on research for what should be included for the bootloader and firmware for Helikon-OS. This alternative to Rockbox may bring some advantages but disadvantages as well.
+A new bootloader and firmware for the iPod Classic 6th and 7th Generation created from the ground up.
 
 ![Helikon-OS poster](assets/branding/helikon-os-poster.png)
 
