@@ -11,6 +11,13 @@ Only the iPod is dot-matrixed. The overlay is transparent everywhere except the
 iPod, so it can be placed over the reference photo without redrawing the
 landscape. No image generator was used, and no photo pixels are included.
 
+## Preview
+
+Open [`preview.html`](../assets/logo/preview.html) in a browser and choose your
+local mountain photo. The page loads the image locally, draws the overlay on a
+canvas, and never uploads or saves the image. The preview is a design tool, not a
+generated image asset.
+
 ## Concept
 
 The iPod is a rounded Classic-like device emerging from the mountain ridge. The
@@ -159,4 +166,6 @@ Classic-like device, not an Apple product image.
   — transparent iPod overlay, pre-masked to the ridge.
 - [`assets/logo/helikon-os-mark.txt`](../assets/logo/helikon-os-mark.txt)
   — standalone H/OS mark.
+- [`assets/logo/preview.html`](../assets/logo/preview.html) — local HTML preview;
+  choose the photo, no upload, no image generation.
 - No PNG, SVG, icon-font or generated image is part of this proposal.

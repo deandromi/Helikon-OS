@@ -22,7 +22,7 @@ Helikon-OS/
   NOTICE                    license notice and upstream attribution
   CODE_OF_CONDUCT.md        Contributor Covenant 2.1
   .github/ISSUE_TEMPLATE/   bug, feature and device-test issue forms
-  assets/logo/              iPod overlay + H/OS mark text assets
+  assets/logo/              iPod overlay, H/OS mark and HTML preview
   docs/
     README.md               documentation index and reading order
     state.md                current phase and blockers
@@ -96,7 +96,7 @@ is created; do not let it drift.
 | `LICENSE`, `NOTICE` | Project license and attribution | owner/legal | `docs/decisions.md` D-18 | license text check | Do not edit the GPLv2 text; change the notice only with owner approval |
 | `CODE_OF_CONDUCT.md` | Community conduct | owner | `docs/decisions.md` D-19 | link/contact check | Enforcement contact must stay current; do not invent an email |
 | `.github/ISSUE_TEMPLATE/` | Bug/feature/device issue forms | docs lead | `CONTRIBUTING.md`, `docs/verification.md` | YAML parse + field check | No secrets, backups, disk images, serial numbers or personal data |
-| `assets/logo/` | iPod overlay and H/OS mark text assets | docs lead/branding | `docs/logo.md` | dot alignment, monochrome check | No generated images; do not dot the mountain or add Apple trade dress |
+| `assets/logo/` | iPod overlay, H/OS mark and local HTML preview | docs lead/branding | `docs/logo.md` | dot alignment, HTML/JS check, monochrome check | No generated images; do not dot the mountain or add Apple trade dress |
 | `docs/` | Agent documentation | docs lead | `docs/conventions.md` | `git diff --check`, link check | One canonical file per topic; no duplicate `agent.md`/`decision-log.md` |
 | `bootloader/` | Rescue loader; native HFS+ read-only; manifest verify | boot lead | `docs/architecture.md`, paper §5, §16 | boot, manifest, recovery, no-write hash | No filesystem writes; no overlay; no `--single`; no write modules linked |
 | `firmware/hal/` | S5L8702 clocks, GPIO, PMU, ATA, LCD, codec | hardware lead | paper §6–§7, `docs/architecture.md` | register-level bring-up, sleep/wake | No filesystem, UI or policy; no unmeasured overclock/undervolt |

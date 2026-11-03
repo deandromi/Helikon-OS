@@ -98,6 +98,7 @@ status.
 | [`faq.md`](faq.md) | User-facing questions from Appendix G. | living |
 | [`design-paper.md`](design-paper.md) | Full read-only design paper copy with provenance. | source |
 | [`logo.md`](logo.md) | Provisional iPod overlay on the original mountain, H/OS mark and usage rules. | stub |
+| [`../assets/logo/preview.html`](../assets/logo/preview.html) | Local HTML preview: load the mountain photo and view the overlay. | living |
 | [`log/README.md`](log/README.md) | What the dated work log is for. | living |
 | [`log/TEMPLATE.md`](log/TEMPLATE.md) | Dated log entry template. | template |
 | [`log/2026-11-03.md`](log/2026-11-03.md) | Documentation setup session. | living |
