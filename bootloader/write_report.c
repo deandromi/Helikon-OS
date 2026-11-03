@@ -28,6 +28,8 @@ int boot_write_diag_format(const struct boot_write_diag_result *result,
         "Inner HFS+: %s\n"
         "Inner catalog: %s\n"
         "Inner journal: %s\n"
+        "Recovery: %s\n"
+        "Cleanup: %s\n"
         "Folder: %s\n"
         "Create: %s\n"
         "Append: %s\n"
@@ -45,6 +47,8 @@ int boot_write_diag_format(const struct boot_write_diag_result *result,
         boot_write_status_name(result->inner_volume),
         boot_write_status_name(result->inner_catalog),
         boot_write_status_name(result->inner_journal),
+        result->recovered ? "RECOVERED" : "CLEAN",
+        boot_write_status_name(result->cleanup),
         boot_write_status_name(result->create_folder),
         boot_write_status_name(result->create_file),
         boot_write_status_name(result->append),

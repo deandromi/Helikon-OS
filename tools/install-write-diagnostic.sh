@@ -8,7 +8,7 @@ set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 DFU="$ROOT/bootloader/artifacts/bootloader-ipod6g-write-diag.dfu"
-EXPECTED=b7385057e10d50a750afbb229543a1969862d89b4b82e174f7308efed00ab513
+EXPECTED=06ac01a07a25e9bb413419132b1072f39807ce5188b8168c678051009aecc76f
 MKS=${MKS5LBOOT:-}
 
 if [ ! -f "$DFU" ]; then

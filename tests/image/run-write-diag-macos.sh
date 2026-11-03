@@ -90,6 +90,17 @@ hdiutil detach "$MOUNT" >/dev/null 2>&1
 MOUNTED=""
 fsck_image "$EXTRACTED"
 
+# The outer cut-config file is optional; the parser must read a small decimal.
+hdiutil attach -nobrowse -mountpoint "$MOUNT" "$OUTER" \
+    >"$TMP/mount.log" 2>&1 || fail "could not remount the outer image"
+MOUNTED=1
+printf '7\n' > "$MOUNT/helikon-cut.txt"
+hdiutil detach "$MOUNT" >/dev/null 2>&1
+MOUNTED=""
+if ! ./write_diag_host "$OUTER" read-cut | grep -q "cut target:    7"; then
+    fail "cut-config parser did not read 7"
+fi
+
 # The inner image must be reusable: a second run creates and deletes its own
 # folder/file, then the image is extracted and checked again.
 "$HERE/write_diag_host" "$OUTER" ||

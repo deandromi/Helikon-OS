@@ -11,6 +11,60 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (controlled PMU cut support)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the PMU-cut support commit; check `git log -1`.
+
+## What changed
+
+- Added `helikon-cut.txt`: a root-level decimal write-count file on the outer
+  volume. The core reads it after replaying any dirty inner journal and arms the
+  ATA write path to call `power_off()` when the target count is reached.
+- The normal write diagnostic now cleans up any leftover `diag` folder/file
+  after recovery, so a cut can be followed by a normal verification boot.
+- The report adds `Recovery: CLEAN/RECOVERED` and `Cleanup: PASS/FAIL`.
+- Current image: 110,120 bytes, SHA-256 `789687…`, `_moveend` `0x2203b620`,
+  18,912 bytes headroom; DFU 118,256 bytes, SHA-256 `06ac01…`.
+- Host: `write_diag_host OUTER read-cut` verifies the target parser; normal
+  outer/inner image test still passes twice. No hardware cut run yet.
+
+## What was verified
+
+- `make -C tests/image write-diag-test`: normal sequence passes twice, outer and
+  inner `fsck_hfs` clean, no leftover `diag`.
+- `write_diag_host OUTER read-cut` with `helikon-cut.txt` containing `7`
+  reports `cut target: 7`.
+- Written image builds and fits `MOVE_AREA`; DFU generated.
+- No PMU cut has been run on hardware.
+
+## What is next
+
+1. Run T-043 on the 6G: targets 1, 3, 5, 7, 10, 15, 20, 30, 50, 100, 150, 190.
+2. After each cut, set `helikon-cut.txt` to 0, reboot, confirm recovery/all PASS,
+   extract the inner image and run `fsck_hfs -fn`.
+3. If a cut leaves an unrecoverable journal or fsck repair, stop and preserve
+   the image.
+4. Then proceed to metadata parity and the disposable outer-volume test.
+
+## What must not be touched
+
+- Do not treat a PMU cut as a true battery/cable power-cut matrix; record it as a
+  controlled PMU cut.
+- Do not write outer metadata or the library.
+- Never use `--single`.
+- Do not retry after a failed `fsck_hfs` or dirty journal.
+
+## Device/test evidence
+
+- No PMU cut hardware run yet. Current image hash and DFU hash are in
+  `bootloader/WRITE_DIAG.md`.
+- The previous normal-mode 6G pass used `9e3881…`; see device-matrix §2.2.
+
+---
+
 # Handoff — 2026-11-03 (default UI typography)
 
 ## Branch / commit

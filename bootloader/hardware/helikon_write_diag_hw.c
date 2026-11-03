@@ -39,6 +39,9 @@ static uint8_t outer_extents_scratch[DIAG_SCRATCH_SIZE]
     __attribute__((aligned(4)));
 static uint8_t inner_catalog_scratch[DIAG_SCRATCH_SIZE]
     __attribute__((aligned(4)));
+static volatile uint32_t diag_cut_at;
+static uint32_t diag_cut_count;
+static uint32_t diag_seen_cut_at;
 static uint8_t splash_mono[HELIKON_SPLASH_BYTES]
     __attribute__((aligned(4)));
 
@@ -115,6 +118,15 @@ static int diag_write(void *context, uint64_t offset, const void *buffer,
         src += chunk;
         offset += chunk;
         length -= chunk;
+
+        if (diag_cut_at != diag_seen_cut_at) {
+            diag_seen_cut_at = diag_cut_at;
+            diag_cut_count = 0;
+        }
+        if (diag_cut_at != 0 && ++diag_cut_count >= diag_cut_at) {
+            power_off();
+            return -1;
+        }
     }
     return 0;
 }
@@ -212,7 +224,7 @@ void helikon_write_diagnostic(void)
             best->length, TEST_IMAGE_NAME, outer_catalog_scratch,
             sizeof(outer_catalog_scratch), outer_extents_scratch,
             sizeof(outer_extents_scratch), inner_catalog_scratch,
-            sizeof(inner_catalog_scratch), &result);
+            sizeof(inner_catalog_scratch), &diag_cut_at, &result);
         if (rc != HFS_OK) {
             result.outer_volume = BOOT_WRITE_FAIL;
             result.error = rc;

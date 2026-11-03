@@ -21,6 +21,7 @@ struct boot_write_diag_result {
     enum boot_write_status inner_volume;
     enum boot_write_status inner_catalog;
     enum boot_write_status inner_journal;
+    enum boot_write_status cleanup;
     enum boot_write_status create_folder;
     enum boot_write_status create_file;
     enum boot_write_status append;
@@ -33,6 +34,8 @@ struct boot_write_diag_result {
     uint32_t inner_blocks;
     uint64_t inner_size;
     uint64_t writes;
+    uint8_t recovered;
+    uint32_t cut_at;
 };
 
 /*
@@ -52,6 +55,7 @@ int boot_write_diag_run(hfs_read_fn outer_read, hfs_write_fn outer_write,
                         size_t outer_extents_scratch_size,
                         void *inner_catalog_scratch,
                         size_t inner_catalog_scratch_size,
+                        uint32_t *cut_at,
                         struct boot_write_diag_result *result);
 
 #endif

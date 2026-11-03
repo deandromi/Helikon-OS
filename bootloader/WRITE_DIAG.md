@@ -32,16 +32,16 @@ are changed; the outer filesystem metadata is not.
 | Field | Value |
 |---|---|
 | Bootloader image | `bootloader/artifacts/bootloader-ipod6g-write-diag.ipod` |
-| Image size | 109,320 bytes |
-| Image SHA-256 | `9e3881297d8a793d6c0589e9779f1d624685f001b6e1cf12814c06c8b7b2aa99` |
+| Image size | 110,120 bytes |
+| Image SHA-256 | `7896878ce1586cdc36ba03455588762f0a8e42acae821cfff978416683443e8c` |
 | DFU installer | `bootloader/artifacts/bootloader-ipod6g-write-diag.dfu` |
-| DFU size | 117,456 bytes |
-| DFU SHA-256 | `b7385057e10d50a750afbb229543a1969862d89b4b82e174f7308efed00ab513` |
+| DFU size | 118,256 bytes |
+| DFU SHA-256 | `06ac01a07a25e9bb413419132b1072f39807ce5188b8168c678051009aecc76f` |
 | Uninstaller DFU | `bootloader/artifacts/bootloader-ipod6g-uninstall.dfu` |
 | Uninstaller SHA-256 | `203e836412b71d3a16b3b57a5bf7ef034a0f5dcae1ca193685b8bfee33868a3a` |
 | Marker | `HELIKON-OS WRITE DIAG` |
-| `_moveend` | `0x2203b300` |
-| `MOVE_AREA` | `0x22020800`–`0x22040000`; 19,712 bytes headroom |
+| `_moveend` | `0x2203b620` |
+| `MOVE_AREA` | `0x22020800`–`0x22040000`; 18,912 bytes headroom |
 | Donor base | `hfsplus-rockboxed-ipod` `55603bd4bc2524ded900fa17feae99a223b04349` |
 | Build | `tools/build-write-diagnostic-bootloader.sh` |
 
@@ -148,6 +148,36 @@ The hard rules are unchanged:
 - never format, erase, repartition or delete the journal;
 - keep a verified backup and a recovery path.
 
+## Power-cut test (controlled PMU cut)
+
+This uses the PMU power-off as a software-controlled cut proxy. It is **not** a
+battery or cable disconnect; record it as a controlled PMU cut, not a true
+power-loss matrix.
+
+1. On the outer iPod root, create a small ASCII file:
+
+   ```text
+   helikon-cut.txt
+   ```
+
+   containing one decimal write count, for example `7`.
+
+2. Boot the diagnostic normally. It replays any dirty inner journal, then counts
+   forward writes. When the count reaches the target, it calls `power_off()` from
+   the ATA write path and the iPod powers off.
+
+3. Boot Disk Mode, set `helikon-cut.txt` to `0` (or delete it), eject cleanly,
+   then boot the diagnostic normally. It replays the inner journal and runs the
+   full sequence. The report should show `Recovery: RECOVERED` when a dirty
+   journal was replayed; all stages should PASS.
+
+4. Copy `helikon-test.img` back to macOS and run `fsck_hfs -fn`.
+
+Suggested targets: `1`, `3`, `5`, `7`, `10`, `15`, `20`, `30`, `50`, `100`,
+`150`, `190`. Host cut counts differ slightly because the device counts outer
+write calls, not host journal entries. If `fsck_hfs` reports a repair or the
+recovery report fails, stop and preserve the image.
+
 ## Expected report
 
 A healthy run shows:
@@ -159,6 +189,8 @@ Test image: PASS
 Inner HFS+: PASS
 Inner catalog: PASS
 Inner journal: PASS
+Recovery: CLEAN
+Cleanup: PASS
 Folder: PASS
 Create: PASS
 Append: PASS

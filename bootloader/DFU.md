@@ -79,15 +79,15 @@ write diagnostic exists for the native writer:
 | Field | Value |
 |---|---|
 | Image | [`artifacts/bootloader-ipod6g-write-diag.ipod`](artifacts/bootloader-ipod6g-write-diag.ipod) |
-| Image size | 109,320 bytes |
-| Image SHA-256 | `9e3881297d8a793d6c0589e9779f1d624685f001b6e1cf12814c06c8b7b2aa99` |
+| Image size | 110,120 bytes |
+| Image SHA-256 | `7896878ce1586cdc36ba03455588762f0a8e42acae821cfff978416683443e8c` |
 | DFU installer | [`artifacts/bootloader-ipod6g-write-diag.dfu`](artifacts/bootloader-ipod6g-write-diag.dfu) |
-| DFU size | 117,456 bytes |
-| DFU SHA-256 | `b7385057e10d50a750afbb229543a1969862d89b4b82e174f7308efed00ab513` |
+| DFU size | 118,256 bytes |
+| DFU SHA-256 | `06ac01a07a25e9bb413419132b1072f39807ce5188b8168c678051009aecc76f` |
 | Uninstaller DFU | `artifacts/bootloader-ipod6g-uninstall.dfu` |
 | Uninstaller SHA-256 | `203e836412b71d3a16b3b57a5bf7ef034a0f5dcae1ca193685b8bfee33868a3a` |
 | Marker | `HELIKON-OS WRITE DIAG` |
-| `MOVE_AREA` | `0x22020800`–`0x22040000`; `_moveend` `0x2203b300`; 19,712 bytes headroom |
+| `MOVE_AREA` | `0x22020800`–`0x22040000`; `_moveend` `0x2203b620`; 18,912 bytes headroom |
 
 Extra preconditions for this image:
 

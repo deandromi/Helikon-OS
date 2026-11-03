@@ -11,6 +11,7 @@
 #define INNER_MIN_SIZE (16u * 1024u * 1024u)
 #define TEST_DATA_SIZE 4096u
 #define TEST_PATTERN 0xa5u
+#define CUT_CONFIG_NAME "helikon-cut.txt"
 
 static uint8_t test_data[TEST_DATA_SIZE];
 static uint8_t readback[TEST_DATA_SIZE];
@@ -33,6 +34,7 @@ static void reset_result(struct boot_write_diag_result *result)
     result->inner_volume = BOOT_WRITE_NOT_TESTED;
     result->inner_catalog = BOOT_WRITE_NOT_TESTED;
     result->inner_journal = BOOT_WRITE_NOT_TESTED;
+    result->cleanup = BOOT_WRITE_NOT_TESTED;
     result->create_folder = BOOT_WRITE_NOT_TESTED;
     result->create_file = BOOT_WRITE_NOT_TESTED;
     result->append = BOOT_WRITE_NOT_TESTED;
@@ -40,6 +42,37 @@ static void reset_result(struct boot_write_diag_result *result)
     result->rename = BOOT_WRITE_NOT_TESTED;
     result->truncate = BOOT_WRITE_NOT_TESTED;
     result->delete = BOOT_WRITE_NOT_TESTED;
+    result->cut_at = 0;
+}
+
+static uint32_t read_cut_at(struct hfs_catalog *outer_catalog)
+{
+    struct hfs_entry entry;
+    int rc = hfs_catalog_lookup_ascii(outer_catalog, 2, CUT_CONFIG_NAME,
+                                      &entry);
+    if (rc != HFS_OK || entry.kind != 2 || entry.data.size == 0 ||
+        entry.data.size > 16)
+        return 0;
+
+    char text[17];
+    size_t done = 0;
+    rc = hfs_catalog_read_file(outer_catalog, &entry, 0, text, sizeof(text) - 1,
+                               &done);
+    if (rc != HFS_OK)
+        return 0;
+    text[done] = '\0';
+
+    uint32_t value = 0;
+    int digits = 0;
+    for (size_t i = 0; i < done; ++i) {
+        if (text[i] < '0' || text[i] > '9')
+            break;
+        if (value > (UINT32_MAX - (uint32_t)(text[i] - '0')) / 10u)
+            return 0;
+        value = value * 10u + (uint32_t)(text[i] - '0');
+        ++digits;
+    }
+    return digits != 0 ? value : 0;
 }
 
 static int commit(struct hfs_txn *tx, int rc)
@@ -56,6 +89,65 @@ static int start_tx(struct hfs_txn *tx, struct hfs_journal *journal)
     return hfs_txn_begin(tx, journal);
 }
 
+static int cleanup_one_file(struct hfs_catalog *catalog,
+                           struct hfs_journal *journal, struct hfs_txn *tx,
+                           uint32_t folder, const char *ascii,
+                           const uint8_t *name, size_t units)
+{
+    struct hfs_entry entry;
+    int rc = hfs_catalog_lookup_ascii(catalog, folder, ascii, &entry);
+    if (rc == HFS_ERR_NOT_FOUND)
+        return HFS_OK;
+    if (rc != HFS_OK)
+        return rc;
+    if (entry.kind != 2)
+        return HFS_ERR_FORMAT;
+    if (entry.data.size != 0) {
+        rc = start_tx(tx, journal);
+        if (rc == HFS_OK)
+            rc = hfs_catalog_truncate_file(catalog, tx, folder, name, units,
+                                           hfs_catalog_key_compare, NULL);
+        rc = commit(tx, rc);
+        if (rc != HFS_OK)
+            return rc;
+    }
+    rc = start_tx(tx, journal);
+    if (rc == HFS_OK)
+        rc = hfs_catalog_delete_file(catalog, tx, folder, name, units,
+                                     entry.id, hfs_catalog_key_compare, NULL);
+    return commit(tx, rc);
+}
+
+static int cleanup_inner(struct hfs_catalog *catalog,
+                         struct hfs_journal *journal, struct hfs_txn *tx)
+{
+    struct hfs_entry folder;
+    int rc = hfs_catalog_lookup_ascii(catalog, 2, "diag", &folder);
+    if (rc == HFS_ERR_NOT_FOUND)
+        return HFS_OK;
+    if (rc != HFS_OK)
+        return rc;
+    if (folder.kind != 1)
+        return HFS_ERR_FORMAT;
+
+    rc = cleanup_one_file(catalog, journal, tx, folder.id, "test",
+                          file_name, sizeof(file_name) / 2u);
+    if (rc != HFS_OK)
+        return rc;
+    rc = cleanup_one_file(catalog, journal, tx, folder.id, "renamed",
+                          renamed_name, sizeof(renamed_name) / 2u);
+    if (rc != HFS_OK)
+        return rc;
+
+    rc = start_tx(tx, journal);
+    if (rc == HFS_OK)
+        rc = hfs_catalog_delete_folder(catalog, tx, 2,
+                                       (const uint8_t *)"diag", 4,
+                                       folder.id, hfs_catalog_key_compare,
+                                       NULL);
+    return commit(tx, rc);
+}
+
 int boot_write_diag_run(hfs_read_fn outer_read, hfs_write_fn outer_write,
                         hfs_flush_fn outer_flush, void *context,
                         uint64_t base, uint64_t length,
@@ -66,6 +158,7 @@ int boot_write_diag_run(hfs_read_fn outer_read, hfs_write_fn outer_write,
                         size_t outer_extents_scratch_size,
                         void *inner_catalog_scratch,
                         size_t inner_catalog_scratch_size,
+                        uint32_t *cut_at,
                         struct boot_write_diag_result *result)
 {
     if (outer_read == NULL || outer_write == NULL || outer_flush == NULL ||
@@ -144,6 +237,7 @@ int boot_write_diag_run(hfs_read_fn outer_read, hfs_write_fn outer_write,
         return HFS_OK;
     }
     if (!hfs_journal_is_clean(&journal)) {
+        result->recovered = 1;
         rc = hfs_journal_replay(&journal);
         if (rc != HFS_OK) {
             result->inner_journal = BOOT_WRITE_FAIL;
@@ -160,6 +254,11 @@ int boot_write_diag_run(hfs_read_fn outer_read, hfs_write_fn outer_write,
     }
     result->inner_journal = BOOT_WRITE_PASS;
 
+    if (cut_at != NULL) {
+        result->cut_at = read_cut_at(&outer_catalog);
+        *cut_at = result->cut_at;
+    }
+
     struct hfs_catalog inner_catalog;
     rc = hfs_catalog_open(&inner_catalog, &inner_volume, inner_catalog_scratch,
                           inner_catalog_scratch_size);
@@ -174,6 +273,15 @@ int boot_write_diag_run(hfs_read_fn outer_read, hfs_write_fn outer_write,
     /* The transaction object alone is ~256 KiB; keep it out of the 8 KiB
      * bootloader stack. The writer is single-threaded. */
     static struct hfs_txn tx;
+    rc = cleanup_inner(&inner_catalog, &journal, &tx);
+    if (rc != HFS_OK) {
+        result->cleanup = BOOT_WRITE_FAIL;
+        result->writes = inner.writes;
+        result->error = rc;
+        return HFS_OK;
+    }
+    result->cleanup = BOOT_WRITE_PASS;
+
     uint32_t folder_cnid = 0;
     rc = start_tx(&tx, &journal);
     if (rc == HFS_OK)
