@@ -15,7 +15,7 @@ dropped.
 
 - **Goals met:** 0 of 25.
 - **Implemented firmware goals:** 0.
-- **Planned:** 25.
+- **Planned:** 24; **in progress:** 1 (goal 8, community/licensing).
 - **Unproven claims:** none should be published; any claim without a
   `validation.md` row is a wish.
 - **Current stage:** design/documentation, pre-phase 0.
