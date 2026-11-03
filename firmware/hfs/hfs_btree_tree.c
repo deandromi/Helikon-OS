@@ -616,6 +616,36 @@ static size_t node_used_bytes(const uint8_t *node, uint16_t node_size)
     return (size_t)(free_offset - 14u) + 2u * (count + 1u);
 }
 
+static int set_parent_key(uint8_t *parent, uint16_t node_size,
+                          uint16_t index, const uint8_t *new_key,
+                          size_t new_key_length)
+{
+    const uint8_t *old_record;
+    size_t old_length;
+    int rc = hfs_btree_node_record(parent, node_size, index, &old_record,
+                                   &old_length);
+    if (rc != HFS_OK || old_length < HFS_BTREE_KEY_LENGTH)
+        return HFS_ERR_FORMAT;
+    uint16_t old_key_length = be16(old_record);
+    if ((size_t)old_key_length + HFS_BTREE_KEY_LENGTH +
+        HFS_BTREE_CHILD_SIZE > old_length)
+        return HFS_ERR_FORMAT;
+    uint32_t child_node = be32(old_record + HFS_BTREE_KEY_LENGTH +
+                               old_key_length);
+
+    uint8_t index_record[HFS_MAX_NODE_SIZE];
+    if (new_key_length + HFS_BTREE_KEY_LENGTH + HFS_BTREE_CHILD_SIZE >
+        sizeof(index_record))
+        return HFS_ERR_NO_SPACE;
+    size_t index_length = build_index(index_record, new_key, new_key_length,
+                                      child_node);
+    rc = hfs_btree_node_delete(parent, node_size, index);
+    if (rc != HFS_OK)
+        return rc;
+    return hfs_btree_node_insert(parent, node_size, index, index_record,
+                                 index_length);
+}
+
 static int merge_leaf_next(struct hfs_btree *btree,
                            struct tree_header *header, struct hfs_txn *tx,
                            const struct insert_path *path, unsigned int level,
@@ -641,6 +671,7 @@ static int merge_leaf_next(struct hfs_btree *btree,
     uint8_t merged[HFS_MAX_NODE_SIZE];
     memcpy(merged, node, btree->node_size);
     uint16_t next_count = be16(next_node + 10);
+    int fits = 1;
     for (uint16_t i = 0; i < next_count; ++i) {
         const uint8_t *record;
         size_t length;
@@ -650,8 +681,10 @@ static int merge_leaf_next(struct hfs_btree *btree,
             return rc;
         rc = hfs_btree_node_insert(merged, btree->node_size,
                                    be16(merged + 10), record, length);
-        if (rc == HFS_ERR_NO_SPACE)
-            return 0;
+        if (rc == HFS_ERR_NO_SPACE) {
+            fits = 0;
+            break;
+        }
         if (rc != HFS_OK)
             return rc;
     }
@@ -665,6 +698,45 @@ static int merge_leaf_next(struct hfs_btree *btree,
     uint16_t parent_count = be16(parent + 10);
     if (parent_count <= 1 || (uint16_t)(child + 1u) >= parent_count)
         return 0;
+
+    if (!fits) {
+        if (next_count <= 1)
+            return 0;
+        const uint8_t *move_record;
+        size_t move_length;
+        rc = hfs_btree_node_record(next_node, btree->node_size, 0,
+                                   &move_record, &move_length);
+        if (rc != HFS_OK)
+            return rc;
+        rc = hfs_btree_node_insert(node, btree->node_size,
+                                   be16(node + 10), move_record, move_length);
+        if (rc != HFS_OK)
+            return rc;
+        rc = hfs_btree_node_delete(next_node, btree->node_size, 0);
+        if (rc != HFS_OK)
+            return rc;
+        const uint8_t *next_key;
+        size_t next_key_length;
+        rc = first_key(next_node, btree->node_size, &next_key,
+                       &next_key_length);
+        if (rc != HFS_OK)
+            return rc;
+        rc = set_parent_key(parent, btree->node_size,
+                            (uint16_t)(child + 1u), next_key,
+                            next_key_length);
+        if (rc != HFS_OK)
+            return rc;
+        rc = stage_node(btree, tx, parent_node, parent);
+        if (rc != HFS_OK)
+            return rc;
+        rc = stage_node(btree, tx, node_number, node);
+        if (rc != HFS_OK)
+            return rc;
+        rc = stage_node(btree, tx, next, next_node);
+        if (rc != HFS_OK)
+            return rc;
+        return 2;
+    }
 
     if (first_changed) {
         const uint8_t *new_key;

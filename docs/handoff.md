@@ -11,6 +11,56 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (B-tree next-sibling redistribution)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the next-sibling redistribution commit; check `git log -1`.
+
+## What changed
+
+- When an underfull leaf cannot merge with its next sibling, move the next
+  leaf’s first record into the underfull leaf.
+- Update the next leaf’s parent key to its new first key.
+- Stage the parent, current leaf and next leaf in one transaction.
+- The 20-record model test still passes with a sorted, fully reachable tree.
+- Total host tests: 75 (67 HFS+, 8 bootloader), sanitizer-clean.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 67/67 pass.
+- `make -C tests/hfsplus sanitize` — 67/67 pass with ASan/UBSan.
+- No device write and no write-capable bootloader image.
+
+## What is next
+
+1. Previous-sibling redistribution.
+2. Parent/root collapse.
+3. Fork growth.
+4. Catalog records + FastUnicodeCompare (D-06).
+5. Extents/overflow, disposable image, `fsck_hfs`, write diagnostic.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- No byte-order substitution for HFS+ catalog keys.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- D-06 Unicode policy / FastUnicodeCompare.
+- Merge/redistribution thresholds and root-collapse policy.
+
+## Device/test evidence
+
+- No new device run. The writer is host-only.
+
+---
+
 # Handoff — 2026-11-03 (B-tree leaf merge)
 
 ## Branch / commit
