@@ -10,10 +10,10 @@
 boots, "looks right", or passed on another device. Verification is the recorded
 command output, device run, image hash and oracle result that match the claim.
 
-Helikon-OS has no source tree, test harness or device build yet. The commands
-below are the intended checks; future commands must be added when the test tree
-exists, not invented now. Donor commands are reference only and do not verify
-Helikon-OS.
+Helikon-OS has a small host code/test tree and no device build yet. The host
+volume-probe checks are current; device and writer commands must be added when
+those trees exist, not invented now. Donor commands are reference only and do
+not verify Helikon-OS.
 
 ## 1. Choose the change class
 
@@ -51,13 +51,19 @@ contradiction found and where it was recorded.
 **Rollback:** revert the documentation commit. Do not rewrite history or edit the
 root README.
 
-## 3. Code checklist (future)
+## 3. Code checklist (host)
 
 **Read first:** the owning module in `docs/file-map.md`, the relevant invariant,
 and the paper section.
 
-**Commands:** use the repository's documented build and test commands once they
-exist. Record the exact command, toolchain version and commit. Do not copy donor
+**Commands:** use the repository's documented host commands:
+
+```sh
+make -C tests/hfsplus test
+make -C tests/hfsplus sanitize
+```
+
+Record the exact command, toolchain version and commit. Do not copy donor
 commands and call them Helikon-OS tests.
 
 **Expected:** build succeeds; unit tests pass; sanitizer run is clean; no new

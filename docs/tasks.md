@@ -20,9 +20,15 @@ adopted (D-19 rejected). Signing-key ownership remains open (D-20).
 | T-001 | Record journal strategy and ownership decisions (D-03, D-04). | P0 | Owner review | Both entries in `decisions.md` are `accepted` with owner, date, consequences and phase-2 gate; no recommendation is presented as settled before that. | `in progress` | owner | [D-03](decisions.md#d-03--journal-strategy), [D-04](decisions.md#d-04--journal-ownership) |
 | T-002 | Freeze the HFS+ writer interface and failure model. | P0 | T-001 | A reviewed design section lists begin/commit/abort, catalog/bitmap/extents operations, error codes, transaction boundaries and invariants I-03/I-05/I-15. | `planned` | architecture | [hfsplus-write-engine.md](hfsplus-write-engine.md), [invariants.md](invariants.md) |
 | T-003 | Define the backup, recovery and disposable-volume protocol. | P0 | Owner approval | Checklist covers full backup, SHA-256, read-back, `fsck_hfs -n`, Disk Mode, DFU, Apple restore, disposable-volume format and stop conditions. Dry run recorded. | `planned` | owner/test lead | [verification.md](verification.md), [device-matrix.md](device-matrix.md) |
-| T-004 | Create the host fixture plan for HFS+ reader and writer tests. | P0 | T-002 | Fixture list covers clean/dirty journal, malformed B-trees, extents overflow, Unicode/case names, allocation edge cases; each fixture has a generation method, hash and expected result. | `planned` | test lead | [testing.md](testing.md), [validation.md](validation.md) |
+| T-004 | Create the host fixture plan for HFS+ reader and writer tests. | P0 | None for reader fixtures; T-002 for writer fixtures | Fixture list covers clean/dirty journal, malformed B-trees, extents overflow, Unicode/case names, allocation edge cases; each fixture has a generation method, hash and expected result. Volume/journal fixtures are started; B-tree/extents/Unicode/writer fixtures remain. | `in progress` | test lead | [testing.md](testing.md), [validation.md](validation.md) |
 | T-005 | Record the 7G board-audit checklist. | P1 | Owner access to hardware | Checklist covers SoC/board revision, panel, PMU, audio codec, storage, button map, `MOVE_AREA`, DFU/NOR; no 7G support claim until results are recorded. | `planned` | hardware lead | [device-matrix.md](device-matrix.md), [roadmap.md](roadmap.md) |
 | T-006 | Record signing-key ownership and release-signing policy (D-20). | P0 | Owner/legal | D-20 is `accepted` with owner, key custody, rotation, revocation, recovery and a date; no release signing before then. | `planned` | owner/legal | [decisions.md](decisions.md#d-20--signing-key-ownership), [release.md](release.md), [security.md](security.md) |
+
+## Done
+
+| ID | Task | Priority | Dependencies | Acceptance criteria | Status | Owner | Links |
+|---|---|---|---|---|---|---|---|
+| T-023 | Implement the host HFS+ volume header/journal probe and tests. | P0 | None | `firmware/hfs/hfs_volume.c` validates primary/alternate headers, block size, attributes and journal flags; 12 host tests pass; sanitizer clean; no device writes. | `implemented` | firmware/test | [hfs_volume.c](../firmware/hfs/hfs_volume.c), [test_volume.c](../tests/hfsplus/test_volume.c) |
 
 ## Next
 

@@ -16,10 +16,10 @@ Helikon-OS is a planned native-HFS+ bootloader and firmware for the iPod Classic
 6th generation, with the 7th generation as the next named port. It is a
 greenfield design, not a working firmware release.
 
-- **Design stage:** no source tree, bootloader image, installer, release artifact
-  or Helikon-OS device run exists in this repository.
-- **Current repository content:** the owner-authored root `README.md` and this
-  documentation set.
+- **Design stage:** no bootloader/Kernel/firmware tree, installer, release
+  artifact or Helikon-OS device run exists. A host HFS+ volume probe exists.
+- **Current repository content:** the owner-authored root `README.md`, this
+  documentation set, `firmware/hfs/` and `tests/hfsplus/`.
 - **Donor release:** the V3.2 release of `hfsplus-rockboxed-ipod` is an
   overlay-based Rockpod/Rockbox fork. It is separate from Helikon-OS and is not
   evidence for Helikon-OS.
@@ -105,9 +105,10 @@ docs/                     agent documentation (current)
   architecture.md         layers, boundaries, memory, security
   file-map.md             where to change what
 bootloader/               planned: rescue bootloader (no source yet)
-firmware/                 planned: HAL, HFS+, VFS, player, UI (no source yet)
-tools/                    planned: host tools, inspectors, tests (no source yet)
-tests/                    planned: fixtures and test harnesses (no source yet)
+firmware/                 host volume probe exists; HAL/VFS/player/UI planned
+  hfs/                    HFS+ read core; volume header/journal probe implemented
+tools/                    planned: host tools, inspectors, migration
+tests/                    host HFS+ volume tests exist; device/writer tests planned
 docs/adr/                 long-form decisions
 docs/log/                 dated work logs
 docs/prompts/             reusable task prompts
@@ -115,25 +116,27 @@ docs/prompts/             reusable task prompts
 
 `docs/file-map.md` is the authoritative map, including donor files referenced by
 the paper. A directory shown as planned does not exist yet.
-
 ## 6. Build and test commands
-**Helikon-OS has no source tree yet, so it cannot be built or tested.** Do not
-invent commands, images, test counts or device results.
-
-The donor repository's commands are reference material for toolchain and HFS+
-reader work only:
+**No firmware or bootloader can be built yet.** The only Helikon-OS code is the
+host HFS+ volume probe:
+```sh
+make -C tests/hfsplus test
+make -C tests/hfsplus sanitize
+```
+Do not invent firmware commands, images, test counts or device results. The
+donor repository's commands are reference material only and do not test
+Helikon-OS:
 
 ```sh
-# Reference only. These do not test Helikon-OS firmware.
+# Donor reference only.
 make -C tools/hfsplus test
 make -C tools/hfsplus sanitize
 python3 tools/hfsplus/tests/check_integration.py
 ```
 
-They must be run in a separate donor checkout, never in this repository. They
-prove donor host tests, not Helikon-OS correctness and not device safety. Future
-Helikon-OS test commands will be added only when the test tree exists and
-`docs/testing.md` records them.
+They must run in a separate donor checkout, never here. They prove donor host
+tests, not Helikon-OS correctness or device safety. Future firmware commands are
+added only when that tree exists and `docs/testing.md` records them.
 
 ## 7. Change recipes
 

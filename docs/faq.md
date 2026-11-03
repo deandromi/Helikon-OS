@@ -8,9 +8,10 @@
 
 ## Can I build Helikon-OS today?
 
-No. Helikon-OS is a design and documentation project. There is no source tree,
-bootloader image or installer. You can build and test the donor project today in
-a separate checkout and follow the paper's assembly plan, but that is not
+No firmware. There is no bootloader image, kernel or installer. A small host
+HFS+ volume probe exists under `firmware/hfs/` with tests in `tests/hfsplus/`,
+but that is not a bootable firmware. You can build and test the donor project
+today in a separate checkout and follow the paper's assembly plan; that is not
 Helikon-OS firmware.
 
 ## Do I need to be a programmer?

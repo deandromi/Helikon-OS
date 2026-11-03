@@ -11,6 +11,64 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (build)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the host HFS+ volume-probe commit on `main`; check `git log -1`.
+
+## What changed
+
+- Added `firmware/hfs/hfs_volume.{c,h}`: read-only HFS+ primary/alternate
+  volume-header and journal probe with an explicit error taxonomy.
+- Added `tests/hfsplus/`: host test harness and 12 volume/journal fixtures.
+- Added `.gitignore` for the host test binary and macOS metadata.
+- Applied the thermo-nuclear quality pass: removed the unused buffer error,
+  extracted `volume_reset`, named the max node size, and removed dead code.
+- No device code, bootloader, kernel or writer exists yet.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 12/12 pass.
+- `make -C tests/hfsplus sanitize` — 12/12 pass with ASan/UBSan.
+- Test count and output are in `docs/log/2026-11-03.md`.
+- No device write, bootloader install, DFU action or `--single` was attempted.
+- Root `README.md` and the donor repository were not modified.
+
+## What failed
+
+- One journal fixture initially used flags `4` (need-init without in-FS); it was
+  corrected to `1|4` to match the HFS+ journal-info semantics.
+
+## What is next
+
+1. Add the HFS+ B-tree header/node validation and host fixtures.
+2. Add catalog record parsing and directory iteration.
+3. Add extents/extents-overflow read support.
+4. Keep the writer blocked until D-03/D-04 and T-002/T-004 are settled.
+5. Phase 0 bootloader remains the first device code, after recovery rehearsal.
+
+## What must not be touched
+
+- No bootloader/NOR write path.
+- No filesystem write path in this host slice.
+- No `--single`.
+- No format/erase/journal deletion.
+- No claim that the host probe validates a device read.
+
+## Open questions
+
+- D-03/D-04 (journal strategy/ownership) still block the writer.
+- D-01/D-02 (manifest/boot state) still block the bootloader design.
+- The next reader slice is B-tree/catalog; no owner decision needed yet.
+
+## Device/test evidence
+
+- None. No Helikon-OS device run was performed.
+
+---
+
 # Handoff — 2026-11-03 (later)
 
 ## Branch / commit

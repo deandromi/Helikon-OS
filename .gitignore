@@ -1,0 +1,3 @@
+.DS_Store
+tests/hfsplus/test_volume
+tests/hfsplus/*.dSYM/

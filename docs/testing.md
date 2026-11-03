@@ -6,15 +6,16 @@
 > Last updated: 2026-11-03
 > Source: design paper §17, §24, §26, §28; `docs/verification.md`
 
-**Helikon-OS has no test tree yet.** There are no Helikon-OS tests to run, no
-test counts to quote and no device results. Donor tests are reference material
-only. Do not describe a donor test pass as Helikon-OS validation.
+**Helikon-OS has a small host test tree.** It currently covers the HFS+ volume
+header/journal probe only: 12 host tests, sanitizer-clean. There are no B-tree,
+catalog, writer, device or power-loss tests yet. Donor tests are reference
+material only. Do not describe a donor test pass as Helikon-OS validation.
 
 ## 1. Test layers
 
 | Layer | What it proves | Runs on | Current status | Required for |
 |---|---|---|---|---|
-| Host unit | Parser, allocator, name, state-machine logic | Host | `planned` | Every module |
+| Host unit | Parser, allocator, name, state-machine logic | Host | `in progress` — volume probe only | Every module |
 | Fuzzing | Malformed B-trees, extents, names, journal records do not crash/escape bounds | Host | `planned` | Reader, writer, journal |
 | Model-based B-tree | Insert/update/delete, split/merge, key order, free-node map | Host | `planned` | Writer |
 | Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `planned` | Writer/journal |
@@ -149,20 +150,25 @@ reporting the skip.
 
 ## 11. Current vs future commands
 
-**Current:** there is no Helikon-OS source or test command. The only commands in
-the docs are donor reference commands:
+**Current:** the host HFS+ volume probe has a real test command:
 
 ```sh
-# Donor reference only; not Helikon-OS tests.
+make -C tests/hfsplus test
+make -C tests/hfsplus sanitize
+```
+
+Donor commands remain reference-only; they do not test Helikon-OS:
+
+```sh
+# Donor reference only.
 make -C tools/hfsplus test
 make -C tools/hfsplus sanitize
 python3 tools/hfsplus/tests/check_integration.py
 ```
 
-**Future:** when the test tree exists, add exact commands here, e.g.
-`make -C tests unit`, `make -C tests sanitize`, `make -C tests fuzz`,
-`make -C tests model`, plus the device/power-loss scripts. Do not invent these
-before the files exist.
+**Future:** add exact commands for B-tree/catalog/extents, fuzzing, model
+property tests, device tests and power-loss runs when those trees exist. Do not
+invent them before the files exist.
 
 ## 12. CI (future)
 

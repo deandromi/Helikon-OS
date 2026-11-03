@@ -34,16 +34,24 @@ The requested README title, summary and 25-goal block were already present at
 the top of `README.md`. The merge did not modify the README; its SHA-256 is
 unchanged from the base commit.
 
+## Host code
+
+| Item | Status | Evidence |
+|---|---|---|
+| HFS+ volume header/journal probe | `in progress` | `firmware/hfs/hfs_volume.c`; 12 host tests; sanitizer clean; no device run |
+| Host test harness | `in progress` | `tests/hfsplus/`; `make -C tests/hfsplus test` |
+
 ## What does not exist
 
 | Item | Status | Note |
 |---|---|---|
-| Helikon-OS firmware source tree | `planned` | No `firmware/` directory or source files |
+| Helikon-OS firmware source tree | `in progress` | Host HFS+ volume module only; no bootloader/kernel yet |
 | Helikon-OS bootloader source/image | `planned` | No `bootloader/` directory or image |
-| HFS+ read/write engine | `planned` | Design requirements only |
+| HFS+ B-tree/catalog/extents reader | `planned` | Volume header probe only; catalog not parsed |
+| HFS+ write engine | `planned` | No writer |
 | Journal/transaction engine | `planned` | Design requirements only |
 | Installer or desktop app | `planned` | No host application |
-| Build system, CI, release artifacts | `planned` | No build or release configuration |
+| Build system, CI, release artifacts | `planned` | Host test Makefile only; no firmware build/CI/release |
 | Helikon-OS device run | `unproven` | No device has run Helikon-OS |
 | Supported device list | `unproven` | 6G is the reference; 7G needs a board audit |
 | Code of conduct | `rejected` | Owner deleted Contributor Covenant 2.1 on 2026-11-03; no replacement |
@@ -56,7 +64,8 @@ unchanged from the base commit.
   (`Updated README.MD`, 2026-11-03)
 - **Documentation branch:** `docs/agent-handbook`, fast-forwarded to `main` on
   2026-11-03.
-- **Last known-good code commit:** none; there is no Helikon-OS code.
+- **Last known-good code commit:** the host HFS+ volume-probe commit; check
+  `git log -- firmware/hfs tests/hfsplus`. No device code exists.
 - **Last known-good documentation commit:** `6df63ef63bacc93d253db40d1bb7f2efdd289a6c`
   on `main` (license/COC/issue-template follow-up, fast-forwarded). Any later
   docs housekeeping commit is on `main`; check `git log -1`.
@@ -76,8 +85,9 @@ writes, the transaction engine, the bootloader, or any goal in
 
 ## Current blockers
 
-1. **No implementation.** There is no source tree, bootloader, HFS+ writer,
-   journal, VFS, player, UI, database, installer or host app.
+1. **No firmware implementation.** There is only a host HFS+ volume probe;
+   bootloader, kernel, writer, journal, VFS, player, UI, database, installer and
+   host app do not exist.
 2. **Journal decisions are unresolved.** D-03 (journal strategy) and D-04
    (journal ownership) must be recorded before phase 2 starts. The paper
    recommends journaled release writes and Helikon-OS-owned replay; neither is
