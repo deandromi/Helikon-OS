@@ -99,6 +99,7 @@ Signing-key ownership and support terms are not. See D-20.
 
 Every release note must state:
 
+- a unique user defined codename
 - version, date, commit/image hash and manifest hash;
 - update type: firmware only, bootloader only, or both;
 - channels and supported devices/adapters (with `device-matrix.md` evidence);
