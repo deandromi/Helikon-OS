@@ -53,6 +53,21 @@ static int test_iterate_and_read(void)
     rc = hfs_catalog_read_file(&catalog, &entry, 4, data, 4, &done);
     CHECK(rc == HFS_OK);
     CHECK(done == 0);
+
+    rc = hfs_catalog_iter_init(&catalog, 3, &iterator);
+    CHECK(rc == HFS_OK);
+    rc = hfs_catalog_iter_next(&catalog, &iterator, &entry);
+    CHECK(rc == 1);
+    CHECK(entry.id == 4);
+    CHECK(entry.name_escaped == 0);
+    rc = hfs_catalog_iter_next(&catalog, &iterator, &entry);
+    CHECK(rc == 1);
+    CHECK(entry.id == 5);
+    CHECK(entry.kind == 1);
+    CHECK(entry.name_escaped == 1);
+    CHECK(entry.unsupported == 1);
+    CHECK(strcmp(entry.name, "\xe2\x90\x80") == 0);
+    CHECK(hfs_catalog_iter_next(&catalog, &iterator, &entry) == 0);
     return 0;
 }
 
@@ -92,9 +107,8 @@ static int test_ascii_lookup_skips_bad_name(void)
 
     struct test_fs_image fixture = test_fs_image_make();
 
-    /* Corrupt the first root name with a lone high surrogate. A strict path
-     * lookup must fail closed; the raw ASCII probe lookup must still find the
-     * later root entry. */
+    /* Corrupt the first root name with a lone high surrogate. Path lookup
+     * escapes it and continues, so the later root entry is still found. */
     test_image_put_be16(fixture.leaf + 14 + 8, 0xd800);
 
     /* Reuse the second record as a root file named "rockbox.ipd" (same
@@ -111,8 +125,8 @@ static int test_ascii_lookup_skips_bad_name(void)
     rc = hfs_catalog_open(&catalog, &volume, scratch, sizeof(scratch));
     CHECK(rc == HFS_OK);
 
-    CHECK(hfs_catalog_lookup(&catalog, "/rockbox.ipd", &entry) ==
-          HFS_ERR_NAME_INVALID);
+    CHECK(hfs_catalog_lookup(&catalog, "/rockbox.ipd", &entry) == HFS_OK);
+    CHECK(entry.id == 4);
     CHECK(hfs_catalog_lookup_ascii(&catalog, 2, "rockbox.ipd", &entry) ==
           HFS_OK);
     CHECK(entry.kind == 2);

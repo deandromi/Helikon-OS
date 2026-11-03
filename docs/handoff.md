@@ -11,6 +11,65 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (NUL-prefixed private names)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the private-name fix commit; check `git log -1`.
+
+## What changed
+
+- Directory iteration no longer aborts on macOS private records whose HFS+
+  names contain NUL code units. `hfs_utf16be_to_utf8_escaped()` maps NUL to
+  U+2400 and invalid surrogates to U+FFFD.
+- `struct hfs_entry` gains `name_escaped`; such entries are also marked
+  `unsupported`, so they are listed rather than hidden (paper §8.3).
+- `hfs_catalog_lookup` now escapes/skips such a record and continues, so a
+  normal path after it is still found. `hfs_catalog_lookup_ascii` was already
+  raw-key based.
+- Added a fixture record with a NUL name under `.firmware`, plus escaped-decode
+  tests; the macOS-created image now lists all root records including the
+  `.HFS+ Private Data` entry.
+- Total portable host tests: 99 (91 HFS+, 8 bootloader), sanitizer-clean.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 91/91 pass.
+- `make -C tests/hfsplus sanitize` — 91/91 pass with ASan/UBSan.
+- `make -C tests/bootloader test` — 8/8 pass.
+- `make -C tests/image test` — disposable image create/append/mount/delete and
+  both `fsck_hfs -fn` runs still pass.
+- Dumping the macOS-created image now completes and prints the escaped private
+  directory instead of returning `NAME_INVALID`.
+
+## What is next
+
+1. T-038: wider macOS name corpus and the `:`/`/` mapping.
+2. Power-loss/crash injection around `hfs_txn_commit` and journal replay.
+3. Write diagnostic; only after that, plan a device write with a verified
+   backup and recovery.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- Do not hide an unsupported on-disk entry; escaped names must stay visible.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- `:`/`/` mapping and wider macOS name corpus (T-038).
+- Fork-of-fork overflow and transaction-block budget for growth.
+
+## Device/test evidence
+
+- No new device run. The disposable-image run is host evidence recorded above.
+
+---
+
 # Handoff — 2026-11-03 (disposable-image fsck validation)
 
 ## Branch / commit

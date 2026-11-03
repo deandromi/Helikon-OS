@@ -323,6 +323,36 @@ static int test_normalize_limits(void)
     return 0;
 }
 
+static int test_escaped_decode(void)
+{
+    static const uint8_t nul[] = { 0, 0 };
+    static const uint8_t lone[] = { 0xd8, 0x3d };
+    static const uint8_t pair[] = { 0xd8, 0x3d, 0xde, 0x00 };
+    char out[16];
+    int rc = hfs_utf16be_to_utf8_escaped(nul, 1, out, sizeof(out));
+    CHECK(rc == HFS_OK);
+    CHECK((unsigned char)out[0] == 0xe2);
+    CHECK((unsigned char)out[1] == 0x90);
+    CHECK((unsigned char)out[2] == 0x80);
+    CHECK(out[3] == '\0');
+
+    rc = hfs_utf16be_to_utf8_escaped(lone, 1, out, sizeof(out));
+    CHECK(rc == HFS_OK);
+    CHECK((unsigned char)out[0] == 0xef);
+    CHECK((unsigned char)out[1] == 0xbf);
+    CHECK((unsigned char)out[2] == 0xbd);
+    CHECK(out[3] == '\0');
+
+    rc = hfs_utf16be_to_utf8_escaped(pair, 2, out, sizeof(out));
+    CHECK(rc == HFS_OK);
+    CHECK((unsigned char)out[0] == 0xf0);
+    CHECK((unsigned char)out[1] == 0x9f);
+    CHECK((unsigned char)out[2] == 0x98);
+    CHECK((unsigned char)out[3] == 0x80);
+    CHECK(out[4] == '\0');
+    return 0;
+}
+
 struct test_case {
     const char *name;
     int (*run)(void);
@@ -353,7 +383,8 @@ int main(void)
         {"normalize order", test_normalize_order},
         {"normalize excluded", test_normalize_excluded},
         {"normalize invalid", test_normalize_invalid},
-        {"normalize limits", test_normalize_limits}
+        {"normalize limits", test_normalize_limits},
+        {"escaped decode", test_escaped_decode}
     };
 
     int failures = 0;

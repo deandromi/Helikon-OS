@@ -16,6 +16,7 @@ struct hfs_entry {
     uint16_t kind;
     uint16_t mode;
     uint8_t unsupported;
+    uint8_t name_escaped;
     struct hfs_fork data;
     char name[HFS_NAME_UTF8_MAX];
 };

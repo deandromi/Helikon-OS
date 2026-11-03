@@ -21,16 +21,37 @@ static size_t put_key(uint8_t *record, uint32_t parent, const char *name)
     return 6u + units * 2u;
 }
 
-static size_t put_folder(uint8_t *record, uint32_t parent, const char *name,
-                         uint32_t id)
+static size_t put_key_raw(uint8_t *record, uint32_t parent,
+                          const uint8_t *name, size_t units)
 {
-    size_t key = put_key(record, parent, name);
+    test_image_put_be16(record, (uint16_t)(6u + units * 2u));
+    test_image_put_be32(record + 2, parent);
+    test_image_put_be16(record + 6, (uint16_t)units);
+    if (units != 0)
+        memcpy(record + 8, name, units * 2u);
+    return 6u + units * 2u;
+}
+
+static size_t put_folder_raw(uint8_t *record, uint32_t parent,
+                             const uint8_t *name, size_t units, uint32_t id)
+{
+    size_t key = put_key_raw(record, parent, name, units);
     uint8_t *data = record + key + 2;
     memset(data, 0, 88);
     test_image_put_be16(data, 1);
     test_image_put_be32(data + 8, id);
     test_image_put_be16(data + 42, 0040000);
     return key + 2u + 88u;
+}
+
+static size_t put_folder(uint8_t *record, uint32_t parent, const char *name,
+                         uint32_t id)
+{
+    size_t units = strlen(name);
+    uint8_t encoded[255 * 2];
+    for (size_t i = 0; i < units; ++i)
+        test_image_put_be16(encoded + i * 2, (uint8_t)name[i]);
+    return put_folder_raw(record, parent, encoded, units, id);
 }
 
 static size_t put_file(uint8_t *record, uint32_t parent, const char *name,
@@ -92,17 +113,22 @@ struct test_fs_image test_fs_image_make(void)
     memset(leaf, 0, CATALOG_NODE_SIZE);
     leaf[8] = 0xff;
     leaf[9] = 1;
-    test_image_put_be16(leaf + 10, 2);
+    test_image_put_be16(leaf + 10, 3);
 
     size_t folder_size = put_folder(leaf + 14, 2, ".firmware", 3);
     uint8_t *file_fork = NULL;
     size_t file_size = put_file(leaf + 14 + folder_size, 3, "current.img", 4,
                                 1, &file_fork);
-    size_t end = 14 + folder_size + file_size;
+    static const uint8_t private_name[] = { 0, 0 };
+    size_t private_size = put_folder_raw(
+        leaf + 14 + folder_size + file_size, 3, private_name, 1, 5);
+    size_t end = 14 + folder_size + file_size + private_size;
 
     test_image_put_be16(leaf + 510, 14);
     test_image_put_be16(leaf + 508, (uint16_t)(14 + folder_size));
-    test_image_put_be16(leaf + 506, (uint16_t)end);
+    test_image_put_be16(leaf + 506,
+                        (uint16_t)(14 + folder_size + file_size));
+    test_image_put_be16(leaf + 504, (uint16_t)end);
 
     memcpy(test_image + FILE_DATA_BLOCK * 512, "HELO", 4);
     struct test_fs_image fixture = { leaf, file_fork };

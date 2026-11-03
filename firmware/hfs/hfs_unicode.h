@@ -15,6 +15,15 @@ int hfs_utf16be_to_utf8(const uint8_t *source, size_t units, char *dest,
                         size_t dest_size);
 
 /*
+ * Lossy decode for display of an existing on-disk name that contains NUL or
+ * unpaired surrogates (macOS private names). NUL becomes U+2400 and invalid
+ * surrogates become U+FFFD. Never returns HFS_ERR_NAME_INVALID for the name
+ * content; only buffer/argument errors.
+ */
+int hfs_utf16be_to_utf8_escaped(const uint8_t *source, size_t units,
+                                char *dest, size_t dest_size);
+
+/*
  * Apple's HFS+ FastUnicodeCompare over UTF-16BE code units. It is
  * case-insensitive and ignores the format controls and U+FEFF listed in the
  * generated table. It does not decompose names; callers must store HFS+

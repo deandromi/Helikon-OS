@@ -77,6 +77,44 @@ static uint16_t read_unit(const uint8_t *source, size_t index)
                       source[index * 2 + 1]);
 }
 
+int hfs_utf16be_to_utf8_escaped(const uint8_t *source, size_t units,
+                                char *dest, size_t dest_size)
+{
+    if ((source == NULL && units != 0) || dest == NULL || dest_size == 0)
+        return HFS_ERR_ARGUMENT;
+
+    size_t used = 0;
+    for (size_t i = 0; i < units; ++i) {
+        uint32_t cp = read_unit(source, i);
+
+        if (cp == 0) {
+            cp = 0x2400u;
+        } else if (cp >= 0xd800u && cp <= 0xdbffu) {
+            if (i + 1u < units) {
+                uint32_t low = read_unit(source, i + 1u);
+                if (low >= 0xdc00u && low <= 0xdfffu) {
+                    cp = 0x10000u + ((cp - 0xd800u) << 10) +
+                         (low - 0xdc00u);
+                    ++i;
+                } else {
+                    cp = 0xfffdu;
+                }
+            } else {
+                cp = 0xfffdu;
+            }
+        } else if (cp >= 0xdc00u && cp <= 0xdfffu) {
+            cp = 0xfffdu;
+        }
+
+        int rc = put_utf8(dest, dest_size, &used, cp);
+        if (rc != HFS_OK)
+            return rc;
+    }
+
+    dest[used] = '\0';
+    return HFS_OK;
+}
+
 int hfs_fast_unicode_compare(const uint8_t *a, size_t a_units,
                              const uint8_t *b, size_t b_units)
 {

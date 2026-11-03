@@ -77,17 +77,27 @@ static int parse_record(const struct hfs_volume *volume, const uint8_t *record,
         return HFS_ERR_FORMAT;
 
     rc = hfs_utf16be_to_utf8(name, units, entry->name, sizeof(entry->name));
-    if (rc != HFS_OK)
+    if (rc == HFS_ERR_NAME_INVALID) {
+        rc = hfs_utf16be_to_utf8_escaped(name, units, entry->name,
+                                         sizeof(entry->name));
+        if (rc != HFS_OK)
+            return rc;
+        entry->name_escaped = 1;
+        entry->unsupported = 1;
+    } else if (rc != HFS_OK) {
         return rc;
+    }
 
     uint16_t mode_type = entry->mode & 0170000;
     if (kind == 2) {
         rc = hfs_fork_parse(volume, data + 88, &entry->data);
         if (rc != HFS_OK)
             return rc;
-        entry->unsupported = mode_type != 0 && mode_type != 0100000;
+        entry->unsupported = entry->unsupported ||
+                             (mode_type != 0 && mode_type != 0100000);
     } else {
-        entry->unsupported = mode_type != 0 && mode_type != 0040000;
+        entry->unsupported = entry->unsupported ||
+                             (mode_type != 0 && mode_type != 0040000);
     }
     return 1;
 }

@@ -31,8 +31,9 @@ corruption. They must not trigger repair.
 **On-disk NUL names:** macOS HFS+ volumes contain private records whose names
 include NUL code units (for example the `.HFS+ Private Data` directory). The
 writer rejects NUL in a new name, but a read-only directory scan must not let
-one such record abort the whole directory or hide unrelated entries. Path lookup
-must skip it safely; T-039 covers the representation.
+one such record abort the whole directory or hide unrelated entries. The read
+path escapes NUL as U+2400, marks the entry `unsupported` and continues path
+lookup (T-039).
 
 ## 2. Mount failure decision tree
 
