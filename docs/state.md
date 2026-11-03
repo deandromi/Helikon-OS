@@ -26,7 +26,7 @@ Date of this snapshot: **2026-11-03**.
 | License: GPL-2.0-or-later | living | `LICENSE`, `NOTICE`, D-18 |
 | Code of conduct: Contributor Covenant 2.1 | living | `CODE_OF_CONDUCT.md`, D-19 |
 | GitHub issue templates | living | `.github/ISSUE_TEMPLATE/` |
-| Provisional dot-matrix logo | stub | [`logo.md`](logo.md), `assets/logo/` |
+| Provisional mountain/iPod dot-matrix logo | stub | [`logo.md`](logo.md), `assets/logo/` |
 
 The "document status" column uses the document statuses from
 [`conventions.md`](conventions.md); it does not mean firmware exists.

@@ -1,4 +1,4 @@
-# Helikon-OS logo — dot-matrix concept
+# Helikon-OS logo — mountain dot-matrix concept
 
 > Purpose: define the provisional Helikon-OS mark and lockup.
 > Status: stub — provisional branding, not final
@@ -8,93 +8,96 @@
 
 **This is a design proposal, not a generated image.** The logo is a text dot
 matrix, so it can be copied into a terminal, a README, an installer screen or a
-build-time asset without a raster image. No image generator was used.
+build-time asset without a raster image. No image generator was used, and no
+photo pixels are included.
 
 ## Concept
 
-The mark is a **lyre-H**: two uprights read as the letter **H**, the top forms a
-mountain peak for **Mount Helikon**, and the curved base and centre crossbar
-suggest a lyre and a waveform. It is deliberately simple enough to survive a
-9×10 dot grid.
+The primary mark is a **landscape**, not a device portrait. A dot-field mountain
+ridge rises from the lower edge; an iPod emerges from behind it. The mountain is
+the mask: only the top/mid frame, the entire screen and the top arc of the click
+wheel are visible. The lower frame and the rest of the wheel are deliberately
+absent.
 
-The primary lockup places that mark on the screen of an abstract iPod Classic
-silhouette. The device has a 4:3 screen, a click wheel, a hold switch and a dock
-connector, but **no Apple logo, wordmark or trade dress**. The wordmark
-`HELIKON-OS` is set in a 5×7 dot font below the device.
+The screen carries the **lyre-H**: two uprights read as the letter **H**, the top
+forms a peak for **Mount Helikon**, and the base/crossbar suggest a lyre and a
+waveform. A 5×7 `HELIKON-OS` wordmark sits in the sky at top right.
+
+Three dot weights make the scene readable:
+
+- `●` — lit dots: iPod frame, screen mark and wordmark.
+- `○` — hollow dots: the screen bezel, so the screen reads as a separate surface.
+- `·` — dim dots: the mountain field below the ridge.
 
 ## Primary lockup
 
 Source: [`assets/logo/helikon-os-primary.txt`](../assets/logo/helikon-os-primary.txt)
 
 ```text
-                                    ●●●●
-                     ●●●●●●●●●●●●●●●●●●●●●●
-                   ●●●                    ●●●
-                   ●                        ●
-                  ●●                        ●●
-                  ●    ●●●●●●●●●●●●●●●●●●    ●
-                  ●   ●●                ●●   ●
-                  ●   ●                  ●   ●
-                  ●   ●        ●         ●   ●
-                  ●   ●       ● ●        ●   ●
-                  ●   ●      ●   ●       ●   ●
-                  ●   ●     ●     ●      ●   ●
-                  ●   ●     ●  ●  ●      ●   ●
-                  ●   ●     ●●●●●●●      ●   ●
-                  ●   ●     ●     ●      ●   ●
-                  ●   ●     ●     ●      ●   ●
-                  ●   ●      ●   ●       ●   ●
-                  ●   ●       ●●●        ●   ●
-                  ●   ●                  ●   ●
-                  ●   ●                  ●   ●
-                  ●   ●●                ●●   ●
-                  ●    ●●●●●●●●●●●●●●●●●●    ●
-                  ●                          ●
-                  ●                          ●
-                  ●                          ●
-                  ●                          ●
-                  ●                          ●
-                  ●                          ●
-                  ●                          ●
-                  ●        ●●●●●●●●●●        ●
-                  ●       ●●        ●●       ●
-                  ●     ●●            ●●     ●
-                  ●    ●●              ●●    ●
-                  ●    ●                ●    ●
-                  ●   ●                  ●   ●
-                  ●   ●         ●        ●   ●
-                  ●  ●●      ●●●●●●      ●●  ●
-                  ●  ●      ●●    ●●      ●  ●
-                  ●  ●      ●      ●      ●  ●
-                  ●  ●      ●      ●      ●  ●
-                  ●  ●      ●      ●      ●  ●
-                  ●  ●      ●●    ●●      ●  ●
-                  ●  ●●      ●●●●●●      ●●  ●
-                  ●   ●         ●        ●   ●
-                  ●   ●                  ●   ●
-                  ●    ●                ●    ●
-                  ●    ●●              ●●    ●
-                  ●     ●●            ●●     ●
-                  ●       ●●        ●●       ●
-                  ●        ●●●●●●●●●●        ●
-                  ●                          ●
-                  ●                          ●
-                  ●●                        ●●
-                   ●                        ●
-                   ●●●                    ●●●
-                     ●●●●●●●●●●●●●●●●●●●●●●
-                            ●●●●●●●●
+                               ●   ● ●●●●● ●     ●●●●● ●   ●  ●●●  ●   ●        ●●●   ●●●●
+                               ●   ● ●     ●       ●   ●  ●  ●   ● ●●  ●       ●   ● ●
+                               ●   ● ●     ●       ●   ● ●   ●   ● ●●  ●       ●   ● ●
+                               ●●●●● ●●●●  ●       ●   ●●    ●   ● ● ● ● ●●●●● ●   ●  ●●●
+                               ●   ● ●     ●       ●   ● ●   ●   ● ●  ●●       ●   ●     ●
+                               ●   ● ●     ●       ●   ●  ●  ●   ● ●  ●●       ●   ●     ●
+                               ●   ● ●●●●● ●●●●● ●●●●● ●   ●  ●●●  ●   ●        ●●●  ●●●●
 
-
-
-  ●   ● ●●●●● ●     ●●●●● ●   ●  ●●●  ●   ●        ●●●   ●●●●
-  ●   ● ●     ●       ●   ●  ●  ●   ● ●●  ●       ●   ● ●
-  ●   ● ●     ●       ●   ● ●   ●   ● ●●  ●       ●   ● ●
-  ●●●●● ●●●●  ●       ●   ●●    ●   ● ● ● ● ●●●●● ●   ●  ●●●
-  ●   ● ●     ●       ●   ● ●   ●   ● ●  ●●       ●   ●     ●
-  ●   ● ●     ●       ●   ●  ●  ●   ● ●  ●●       ●   ●     ●
-  ●   ● ●●●●● ●●●●● ●●●●● ●   ●  ●●●  ●   ●        ●●●  ●●●●
+          ●●●●●●●●●●●●●●●●●●●●●●●●
+          ●                      ●
+          ●○○○○○○○○○○○○○○○○○○○○○○●
+          ●○                    ○●
+          ●○                    ○●
+          ●○         ●          ○●
+          ●○        ● ●         ○●
+          ●○       ●   ●        ○●             ·
+          ●○       ●●●●●        ○●            ·········
+          ●○       ●   ●        ○●          ···················
+          ●○       ●   ●        ○●        ··························
+          ●○        ●●●         ○●   ···································
+          ●○                    ○●········································
+          ●○○○○○○○○○○○○○○○○○○○○○○●···········································
+          ●        ●●●●●●       ···············································
+          ●      ●●      ●●    ····················································
+          ●    ●●          ●●  ·························································
+          ●   ●●         ···································································
+···       ●   ●      ·······································································
+········  ●  ●●·············································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
+····························································································
 ```
+
+## Composition rule
+
+The mountain ridge is the mask. Draw the iPod only where it is **above** the
+ridge:
+
+- Keep the entire screen visible above the ridge.
+- Keep the top and side frame visible down to the ridge.
+- Keep the top arc of the click wheel visible; stop the arc at the ridge.
+- Omit the lower frame, the rest of the wheel and the bottom of the device.
+- If the ridge changes, re-mask the iPod. Do not draw a complete iPod on top of
+  the mountain and fade it out; the concealment must follow the landform.
 
 ## Standalone mark
 
@@ -113,7 +116,7 @@ Source: [`assets/logo/helikon-os-mark.txt`](../assets/logo/helikon-os-mark.txt)
    ●●●
 ```
 
-Use the mark alone when the full lockup would be too small: favicon, app icon,
+Use the mark alone when the full landscape would be too small: favicon, app icon,
 boot splash, installer badge, or a single-colour stamp.
 
 ## Palette
@@ -133,7 +136,7 @@ shape readable.
 
 ## Usage rules
 
-- **Primary lockup:** at least 64 dots wide on screen; below that use the
+- **Primary lockup:** at least 92 dots wide on screen; below that use the
   standalone mark.
 - **Standalone mark:** at least 9 dots wide.
 - **Clear space:** one click-wheel diameter around the lockup; one dot around
@@ -145,7 +148,8 @@ shape readable.
 - **Screen:** the screen contains only the lyre-H mark. Do not add Apple UI,
   menu text, album art or a second logo.
 - **Wordmark:** keep `HELIKON-OS` as one unit. Do not abbreviate it to `H-OS` or
-  add `Rockbox`/`Rockpod` to the lockup.
+  add `Rockbox`/`Rockpod` to the lockup. The wordmark may be removed for a
+  scene-only mark; keep the top-right sky clear if it is.
 
 ## Don'ts
 
@@ -153,9 +157,18 @@ shape readable.
 - Do not add a photo-realistic screen, reflections, shadows or gradients.
 - Do not stretch the device or change the screen/wheel proportions.
 - Do not use low-contrast dot colours or a dotted background behind the dots.
+- Do not draw the iPod below the mountain ridge or "fade" the lower body; the
+  mountain must conceal it.
 - Do not put the mark inside another badge, circle or rounded square in the
-  primary lockup; the iPod body is the container.
+  primary lockup; the landscape is the container.
 - Do not claim Apple affiliation, certification or endorsement.
+
+## Reference note
+
+The composition is inspired by the attached **Mount Helicon (1,749 m) at
+sunset, Central Greece** reference. The photo is not copied into this repository;
+the dot matrix approximates the ridge silhouette only. The iPod is an abstract
+Classic-like device, not an Apple product image.
 
 ## Open questions
 
@@ -164,12 +177,12 @@ shape readable.
 - Final palette and whether brass is the primary accent.
 - Whether the wordmark stays in the lockup or becomes a separate wordmark asset.
 - Whether a phosphor-green terminal variant is wanted.
-- Whether a 7G/port descriptor is ever added (recommended: no, keep one mark).
+- Whether the ridge should be simplified further for very small sizes.
 
 ## Files
 
 - [`assets/logo/helikon-os-primary.txt`](../assets/logo/helikon-os-primary.txt)
-  — primary lockup.
+  — mountain lockup.
 - [`assets/logo/helikon-os-mark.txt`](../assets/logo/helikon-os-mark.txt)
   — standalone lyre-H mark.
 - No PNG, SVG, icon-font or generated image is part of this proposal.
