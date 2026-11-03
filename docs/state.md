@@ -59,11 +59,12 @@ Helikon-OS poster above the goals on 2026-11-03.
 | B-tree delete | `in progress` | `hfs_btree_delete` removes records including first records, propagates changed parent keys, unlinks/frees empty leaves, merges/redistributes with both siblings, collapses a one-child root to its nonempty leaf, and collapses an empty parent into its grandparent; fork growth remains unimplemented; covered by the same model test |
 | Volume header staging | `implemented` | `hfs_volume_write.c`; primary/alternate header file/folder counts, next CNID and write count; no `modifyDate` update |
 | Extents-overflow record | `implemented` | `hfs_extents_write.c`; data-fork records keyed by fork/file/startBlock, up to eight extents each; insert/get/delete; multiple records supported |
+| B-tree fork growth | `implemented` | `hfs_btree_grow()` allocates a volume block, extends the catalog/extents fork in the primary/alternate headers, adds a free node to the header map and updates `totalNodes`; requires `node_size == block_size` and an inline fork extent slot; 1 host test |
 | Catalog create/delete (empty file) | `implemented` | `hfs_catalog_write.c`; native file + thread record insert/delete through the B-tree and journal, CNID allocation, file count and parent valence; `FastUnicodeCompare` and fork growth not implemented; 1 host test |
 | Data-fork append/truncate (eight inline + multiple overflow records) | `implemented` | `hfs_catalog_append_file` appends to empty or non-empty files, stages data before metadata, allocates individual free blocks, merges inline extents and writes multiple extents-overflow records; truncate frees all records; the transaction block budget caps very large fragmented writes |
 | Fork block staging | `implemented` | `firmware/hfs/hfs_fork_io.c`; full/partial block write staging into `hfs_txn`; inline extents only; 4 host tests |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
-| Host test harness | `in progress` | 76 tests total (68 HFS+, 8 bootloader); sanitizer clean; first diagnostic boot is owner-reported |
+| Host test harness | `in progress` | 77 tests total (69 HFS+, 8 bootloader); sanitizer clean; first diagnostic boot is owner-reported |
 
 ## What does not exist
 

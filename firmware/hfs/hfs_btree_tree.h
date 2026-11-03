@@ -39,4 +39,7 @@ int hfs_btree_find(struct hfs_btree *btree, struct hfs_txn *tx,
                    void *record, size_t record_capacity,
                    size_t *record_length);
 
+/* Add one node to a B-tree whose fork lives in the volume header. */
+int hfs_btree_grow(struct hfs_btree *btree, struct hfs_txn *tx);
+
 #endif

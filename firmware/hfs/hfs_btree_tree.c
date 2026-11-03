@@ -9,6 +9,7 @@
  */
 #include "hfs_btree_tree.h"
 
+#include "hfs_bitmap.h"
 #include "hfs_btree_write.h"
 #include "hfs_fork_io.h"
 
@@ -69,6 +70,12 @@ static void put32(uint8_t *p, uint32_t value)
     p[1] = (uint8_t)(value >> 16);
     p[2] = (uint8_t)(value >> 8);
     p[3] = (uint8_t)value;
+}
+
+static void put64(uint8_t *p, uint64_t value)
+{
+    put32(p, (uint32_t)(value >> 32));
+    put32(p + 4, (uint32_t)value);
 }
 
 static int read_node(struct hfs_btree *btree, struct hfs_txn *tx,
@@ -151,6 +158,7 @@ static int store_header(struct hfs_btree *btree, struct hfs_txn *tx,
           header->leaf_records);
     put32(header->header + HFS_BTREE_HEADER_FIRST_LEAF, header->first_leaf);
     put32(header->header + HFS_BTREE_HEADER_LAST_LEAF, header->last_leaf);
+    put32(header->header + HFS_BTREE_HEADER_TOTAL, header->total_nodes);
     put32(header->header + HFS_BTREE_HEADER_FREE, header->free_nodes);
     header->dirty = 0;
 
@@ -179,14 +187,122 @@ static void map_set(struct tree_header *header, uint32_t node, int used)
     header->dirty = 1;
 }
 
-static int alloc_node(struct tree_header *header, uint32_t *node)
+static uint32_t fork_offset(const struct hfs_btree *btree)
 {
-    if (header->free_nodes == 0)
-        return HFS_ERR_NO_SPACE;
+    if (btree->fork == &btree->volume->catalog)
+        return 272u;
+    if (btree->fork == &btree->volume->extents)
+        return 192u;
+    return 0;
+}
+
+static int update_volume_fork(struct hfs_btree *btree, struct hfs_txn *tx,
+                              uint32_t new_block)
+{
+    struct hfs_fork *fork = (struct hfs_fork *)btree->fork;
+    uint32_t offset = fork_offset(btree);
+    if (offset == 0 || btree->node_size != btree->volume->block_size)
+        return HFS_ERR_UNSUPPORTED;
+
+    int placed = 0;
+    for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i) {
+        if (fork->extents[i].count == 0)
+            continue;
+        if (fork->extents[i].start + fork->extents[i].count == new_block) {
+            ++fork->extents[i].count;
+            placed = 1;
+            break;
+        }
+    }
+    if (!placed) {
+        for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i) {
+            if (fork->extents[i].count == 0) {
+                fork->extents[i].start = new_block;
+                fork->extents[i].count = 1;
+                placed = 1;
+                break;
+            }
+        }
+    }
+    if (!placed)
+        return HFS_ERR_UNSUPPORTED;
+
+    fork->size += btree->node_size;
+    ++fork->blocks;
+
+    uint8_t header[512];
+    for (unsigned int alt = 0; alt < 2u; ++alt) {
+        uint64_t base = alt == 0 ? 1024u :
+                        btree->volume->length - 1024u;
+        if (btree->volume->read(btree->volume->context,
+                                btree->volume->base + base, header,
+                                sizeof(header)))
+            return HFS_ERR_IO;
+        int rc = hfs_txn_overlay(tx, base, header, sizeof(header));
+        if (rc < 0)
+            return rc;
+        uint8_t *dest = header + offset;
+        put64(dest, fork->size);
+        put32(dest + 12, fork->blocks);
+        for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i) {
+            put32(dest + 16 + i * 8, fork->extents[i].start);
+            put32(dest + 20 + i * 8, fork->extents[i].count);
+        }
+        if (base % 512u != 0)
+            return HFS_ERR_FORMAT;
+        rc = hfs_txn_stage_replace(tx, base / 512u, header,
+                                   sizeof(header));
+        if (rc != HFS_OK)
+            return rc;
+    }
+    return HFS_OK;
+}
+
+static int grow_locked(struct hfs_btree *btree, struct hfs_txn *tx,
+                       struct tree_header *header)
+{
+    if (btree->node_size != btree->volume->block_size ||
+        header->total_nodes >= header->map_length * 8u ||
+        btree->fork == NULL)
+        return HFS_ERR_UNSUPPORTED;
+
+    struct hfs_bitmap bitmap;
+    int rc = hfs_bitmap_open(&bitmap, btree->volume);
+    if (rc != HFS_OK)
+        return rc;
+    uint32_t block = 0;
+    rc = hfs_bitmap_alloc(&bitmap, tx, 0, 1, &block);
+    if (rc != HFS_OK)
+        return rc;
+
+    rc = update_volume_fork(btree, tx, block);
+    if (rc != HFS_OK)
+        return rc;
+
+    uint32_t node = header->total_nodes;
+    if (node / 8u >= header->map_length)
+        return HFS_ERR_UNSUPPORTED;
+    map_set(header, node, 0);
+    ++header->total_nodes;
+    ++header->free_nodes;
+    ++btree->total_nodes;
+    ++btree->free_nodes;
+    return HFS_OK;
+}
+
+static int alloc_node(struct hfs_btree *btree, struct hfs_txn *tx,
+                      struct tree_header *header, uint32_t *node)
+{
+    if (header->free_nodes == 0) {
+        int rc = grow_locked(btree, tx, header);
+        if (rc != HFS_OK)
+            return rc;
+    }
     for (uint32_t i = 0; i < header->total_nodes; ++i) {
         if (!map_get(header, i)) {
             map_set(header, i, 1);
             --header->free_nodes;
+            --btree->free_nodes;
             *node = i;
             return HFS_OK;
         }
@@ -273,7 +389,7 @@ static int insert_parent(struct hfs_btree *btree, struct tree_header *header,
         return HFS_ERR_NO_SPACE;
     uint16_t split = (uint16_t)(count / 2u);
     uint32_t new_right;
-    rc = alloc_node(header, &new_right);
+    rc = alloc_node(btree, tx, header, &new_right);
     if (rc != HFS_OK)
         return rc;
 
@@ -343,7 +459,7 @@ static int insert_parent(struct hfs_btree *btree, struct tree_header *header,
 
     if (level == 1) {
         uint32_t new_root;
-        rc = alloc_node(header, &new_root);
+        rc = alloc_node(btree, tx, header, &new_root);
         if (rc != HFS_OK)
             return rc;
         uint8_t root[HFS_MAX_NODE_SIZE];
@@ -489,7 +605,7 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
         return rc == HFS_ERR_NO_SPACE ? HFS_ERR_NO_SPACE : rc;
 
     uint32_t right_node;
-    rc = alloc_node(&header, &right_node);
+    rc = alloc_node(btree, tx, &header, &right_node);
     if (rc != HFS_OK)
         return rc;
 
@@ -564,7 +680,7 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
 
     if (level == 0) {
         uint32_t new_root;
-        rc = alloc_node(&header, &new_root);
+        rc = alloc_node(btree, tx, &header, &new_root);
         if (rc != HFS_OK)
             return rc;
         uint8_t root[HFS_MAX_NODE_SIZE];
@@ -1384,4 +1500,19 @@ int hfs_btree_find(struct hfs_btree *btree, struct hfs_txn *tx,
             break;
     }
     return HFS_ERR_NOT_FOUND;
+}
+
+
+int hfs_btree_grow(struct hfs_btree *btree, struct hfs_txn *tx)
+{
+    if (btree == NULL || tx == NULL)
+        return HFS_ERR_ARGUMENT;
+    struct tree_header header;
+    int rc = load_header(btree, tx, &header);
+    if (rc != HFS_OK)
+        return rc;
+    rc = grow_locked(btree, tx, &header);
+    if (rc != HFS_OK)
+        return rc;
+    return store_header(btree, tx, &header);
 }

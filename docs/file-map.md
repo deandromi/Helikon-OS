@@ -55,7 +55,7 @@ Helikon-OS/
       hfs_catalog_write.c/.h empty-file catalog create/delete
       hfs_extents_write.c/.h one extents-overflow record
       hfs_btree_write.c/.h  node-level record insert/delete/split and offset tables
-      hfs_btree_tree.c/.h   tree-level insert, parent/root split, free-node map
+      hfs_btree_tree.c/.h   tree-level insert, parent/root split, rebalance, fork growth
       hfs_fork_io.c/.h      fork block staging into a transaction
   tests/
     hfsplus/
@@ -73,6 +73,7 @@ Helikon-OS/
       test_btree_write.c    B-tree node insert/delete/split tests
       test_fork_io.c        fork full/partial block staging tests
       test_btree_tree.c     tree insert/delete/rebalance model test
+      test_btree_grow.c     B-tree fork growth test
       test_catalog_write.c  empty-file catalog create/delete test
     bootloader/
       Makefile              bootloader host test target

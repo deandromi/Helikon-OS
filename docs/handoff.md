@@ -11,6 +11,63 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (B-tree fork growth)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the fork-growth commit; check `git log -1`.
+
+## What changed
+
+- `hfs_btree_grow()` allocates one volume block through the bitmap, extends
+  the catalog/extents fork in the primary and alternate volume headers, marks a
+  new node free in the B-tree header map and increments `totalNodes`.
+- `alloc_node()` calls growth automatically when the free-node map is empty.
+- `store_header()` now writes `totalNodes`, which the reader previously derived
+  from the fork size.
+- Growth requires `node_size == block_size` and a free inline extent slot in the
+  volume-header fork; otherwise it returns `UNSUPPORTED`.
+- Added `test_btree_grow.c`: 2-node catalog tree, one free volume block,
+  growth, and a persisted header/alternate/bitmap check.
+- Total host tests: 77 (69 HFS+, 8 bootloader), sanitizer-clean.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 69/69 pass.
+- `make -C tests/hfsplus sanitize` — 69/69 pass with ASan/UBSan.
+- Catalog fork grows from 2 to 3 nodes; primary and alternate headers both
+  show size 1536, 3 blocks, third extent at block 41; the bitmap marks block 41
+  used; the tree header reports 3 total and 1 free node.
+- No device write and no write-capable bootloader image.
+
+## What is next
+
+1. D-06 / FastUnicodeCompare.
+2. Disposable image + `fsck_hfs`.
+3. Write diagnostic.
+4. Below-minimum insert and fork-of-fork overflow remain open.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- No byte-order substitution for HFS+ catalog keys.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- D-06 Unicode policy / FastUnicodeCompare.
+- Fork-of-fork overflow and transaction-block budget for growth.
+
+## Device/test evidence
+
+- No new device run. The writer is host-only.
+
+---
+
 # Handoff — 2026-11-03 (multiple extents-overflow records)
 
 ## Branch / commit
