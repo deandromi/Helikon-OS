@@ -442,15 +442,6 @@ not authorize a product change.
 - **Affected docs:** `release.md`, `security.md`, `CONTRIBUTING.md`,
   `SECURITY.md`.
 
-### C-09 — Paper suggests permissive docs license; repository uses GPL-2.0-or-later
-
-- **What:** the paper suggests documentation under a permissive documentation
-  license. D-18 chooses GPL-2.0-or-later for the whole repository, including
-  docs, to match Rockbox/donor compatibility and keep one license.
-- **Status:** resolved by the owner-authorized D-18 choice; a separate
-  permissive docs license would be a new owner decision.
-- **Affected docs:** `LICENSE`, `NOTICE`, `CONTRIBUTING.md`, `docs/README.md`.
-
 ### C-08 — Paper §25 has 17 decisions; this file has 20
 
 - **What:** the paper's §25 lists 17 open decisions. The documentation task
@@ -459,6 +450,15 @@ not authorize a product change.
   §28.4.4. D-18/D-19 were accepted on 2026-11-03; D-20 remains `proposed`. This
   is a documentation reconciliation, not a new product decision.
 - **Affected docs:** this file, `agents.md`, `goals.md`.
+
+### C-09 — Paper suggests permissive docs license; repository uses GPL-2.0-or-later
+
+- **What:** the paper suggests documentation under a permissive documentation
+  license. D-18 chooses GPL-2.0-or-later for the whole repository, including
+  docs, to match Rockbox/donor compatibility and keep one license.
+- **Status:** resolved by the owner-authorized D-18 choice; a separate
+  permissive docs license would be a new owner decision.
+- **Affected docs:** `LICENSE`, `NOTICE`, `CONTRIBUTING.md`, `docs/README.md`.
 
 ## Adding a decision
 
