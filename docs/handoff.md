@@ -11,6 +11,71 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (B-tree node and fork staging)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the B-tree-node/fork-staging commit; check `git log -1`.
+
+## What changed
+
+- Added `firmware/hfs/hfs_btree_write.{c,h}`: node-level record insert/delete,
+  reverse offset-table maintenance, free-space checks and `NO_SPACE`.
+- Added `firmware/hfs/hfs_fork_io.{c,h}`: stage full or partial fork blocks into
+  a transaction, with read-modify-write for partial blocks; inline extents only.
+- Added 5 B-tree node tests and 4 fork-staging tests. Total host tests: 72
+  (64 HFS+, 8 bootloader), sanitizer-clean.
+- Updated state/testing/tasks/write-engine/file-map docs.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 64/64 pass.
+- `make -C tests/hfsplus sanitize` — 64/64 pass with ASan/UBSan.
+- B-tree node insert/delete middle/end, no-space and bad arguments.
+- Fork full-block, partial read-modify-write, bounds and overflow-unsupported.
+- No device write and no write-capable bootloader image.
+
+## What failed
+
+- The first node insert/delete helpers forgot to write the new record count into
+  the node descriptor; tests caught it before commit.
+- The B-tree helpers use a temporary 32 KiB node buffer; a bootloader integration
+  must replace this with a static/checked buffer.
+- Tree-level split/merge, free-node allocation, leaf links and root changes are
+  still missing.
+
+## What is next
+
+1. **T-034** — tree-level B-tree insert/delete with split/merge, free-node map,
+   leaf links and root changes.
+2. **D-06** — Unicode policy / FastUnicodeCompare before catalog keys.
+3. **T-007/T-008** — catalog and extents mutation on the tree engine.
+4. **T-004** — disposable HFS+ image fixture with `fsck_hfs -n`.
+5. Then the write diagnostic and only after those pass a device write with a
+   verified backup/recovery plan.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- No byte-order substitution for HFS+ catalog keys.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- D-06 Unicode policy / FastUnicodeCompare.
+- Allocation-file overflow extent support.
+- Tree-level split/merge policy and free-node bitmap layout.
+
+## Device/test evidence
+
+- No new device run. The writer is host-only.
+
+---
+
 # Handoff — 2026-11-03 (allocation bitmap)
 
 ## Branch / commit

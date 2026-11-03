@@ -7,10 +7,11 @@
 > Source: design paper §17, §24, §26, §28; `docs/verification.md`
 
 **Helikon-OS has a small host test tree.** It covers the HFS+ read core, the
-read-only diagnostic bootloader core, and the first writer foundation: 63 tests
-total (55 HFS+, 8 bootloader), sanitizer-clean. The writer foundation covers the
-Apple HFS+ journal append/replay path, a bounded transaction engine and the
-allocation bitmap. Catalog and extents mutation tests do not exist yet. There are no device or
+read-only diagnostic bootloader core, and the writer foundation: 72 tests total
+(64 HFS+, 8 bootloader), sanitizer-clean. The writer foundation covers the Apple
+HFS+ journal append/replay path, a bounded transaction engine, the allocation
+bitmap, node-level B-tree insert/delete and fork block staging. Tree-level
+split/merge, catalog and extents mutation tests do not exist yet. There are no device or
 power-loss tests. Donor tests are reference material only. Do not describe a
 donor test pass as Helikon-OS validation.
 

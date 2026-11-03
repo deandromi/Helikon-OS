@@ -51,6 +51,8 @@ Helikon-OS/
       hfs_journal.c/.h      Apple HFS+ journal append/replay and validation
       hfs_txn.c/.h          bounded staged-block transaction engine
       hfs_bitmap.c/.h       allocation bitmap alloc/free and header staging
+      hfs_btree_write.c/.h  node-level record insert/delete and offset tables
+      hfs_fork_io.c/.h      fork block staging into a transaction
   tests/
     hfsplus/
       Makefile              host test build/sanitizer targets

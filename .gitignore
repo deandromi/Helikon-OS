@@ -11,3 +11,5 @@ tests/hfsplus/*.dSYM/
 tests/bootloader/test_diag
 tests/bootloader/*.dSYM/
 build/
+tests/hfsplus/test_btree_write
+tests/hfsplus/test_fork_io
