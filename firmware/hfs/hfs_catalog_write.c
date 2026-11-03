@@ -13,6 +13,11 @@
 #define CATALOG_FILE_MODE 0100000u
 #define CATALOG_MAX_RECORD 1024u
 
+static uint16_t be16(const uint8_t *p)
+{
+    return (uint16_t)(((uint16_t)p[0] << 8) | p[1]);
+}
+
 static uint32_t be32(const uint8_t *p)
 {
     return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
@@ -42,6 +47,60 @@ static size_t build_key(uint8_t *buffer, uint32_t parent,
     if (units != 0)
         memcpy(buffer + 8, name, units * 2u);
     return CATALOG_KEY_HEADER + units * 2u;
+}
+
+static int update_valence(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                          uint32_t parent, int delta,
+                          hfs_btree_key_compare_fn compare,
+                          void *compare_context)
+{
+    uint8_t key[CATALOG_MAX_RECORD];
+    uint8_t record[CATALOG_MAX_RECORD];
+    size_t record_length;
+    size_t key_length = build_key(key, parent, NULL, 0);
+    int rc = hfs_btree_find(&catalog->btree, tx, key + 2, key_length,
+                            compare, compare_context, record,
+                            sizeof(record), &record_length);
+    if (rc != HFS_OK)
+        return rc;
+    if (record_length < 2u + key_length + 10u)
+        return HFS_ERR_FORMAT;
+    const uint8_t *thread = record + 2u + key_length;
+    if (be16(thread) != 3u)
+        return HFS_ERR_FORMAT;
+    uint32_t folder_parent = be32(thread + 4);
+    uint16_t units = be16(thread + 8);
+    if ((size_t)units * 2u + 10u > record_length - 2u - key_length)
+        return HFS_ERR_FORMAT;
+
+    uint8_t folder_key[CATALOG_MAX_RECORD];
+    size_t folder_key_length = build_key(folder_key, folder_parent,
+                                         thread + 10, units);
+    rc = hfs_btree_find(&catalog->btree, tx, folder_key + 2,
+                        folder_key_length, compare, compare_context, record,
+                        sizeof(record), &record_length);
+    if (rc != HFS_OK)
+        return rc;
+    size_t data_offset = 2u + folder_key_length;
+    if (record_length < data_offset + 8u)
+        return HFS_ERR_FORMAT;
+    uint8_t *folder = record + data_offset;
+    if (be16(folder) != 1u)
+        return HFS_ERR_FORMAT;
+    uint32_t valence = be32(folder + 4);
+    if (delta < 0 && valence == 0)
+        return HFS_ERR_FORMAT;
+    valence = (uint32_t)((int)valence + delta);
+    if (valence > 32767u)
+        return HFS_ERR_NO_SPACE;
+    put32(folder + 4, valence);
+
+    rc = hfs_btree_delete(&catalog->btree, tx, folder_key + 2,
+                          folder_key_length, compare, compare_context);
+    if (rc != HFS_OK)
+        return rc;
+    return hfs_btree_insert(&catalog->btree, tx, record, record_length,
+                            compare, compare_context);
 }
 
 static int read_counts(const struct hfs_volume *volume, uint32_t *file_count,
@@ -104,6 +163,9 @@ int hfs_catalog_create_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
                           compare, compare_context);
     if (rc != HFS_OK)
         return rc;
+    rc = update_valence(catalog, tx, parent, 1, compare, compare_context);
+    if (rc != HFS_OK)
+        return rc;
 
     struct hfs_volume_update update;
     memset(&update, 0, sizeof(update));
@@ -148,6 +210,9 @@ int hfs_catalog_delete_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     size_t thread_key = build_key(key, cnid, NULL, 0);
     rc = hfs_btree_delete(&catalog->btree, tx, key + 2,
                           thread_key, compare, compare_context);
+    if (rc != HFS_OK)
+        return rc;
+    rc = update_valence(catalog, tx, parent, -1, compare, compare_context);
     if (rc != HFS_OK)
         return rc;
 

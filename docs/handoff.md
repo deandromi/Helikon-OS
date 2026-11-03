@@ -11,6 +11,57 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (catalog parent valence)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the parent-valence commit; check `git log -1`.
+
+## What changed
+
+- Added `hfs_btree_find()` for exact key lookup.
+- Empty-file catalog create now increments the parent folder valence through
+  the folder’s thread record; delete decrements it.
+- The catalog test seeds a root folder + thread, creates a file, verifies
+  valence 1, file/thread records, file count/CNID, then deletes and verifies
+  valence 0.
+- Total host tests: 76 (68 HFS+, 8 bootloader), sanitizer-clean.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 68/68 pass.
+- `make -C tests/hfsplus sanitize` — 68/68 pass with ASan/UBSan.
+- No device write and no write-capable bootloader image.
+
+## What is next
+
+1. Data-fork allocation/write/truncate.
+2. Inline extents, then extents/overflow mutation.
+3. Fork growth.
+4. D-06 / FastUnicodeCompare.
+5. Disposable image + `fsck_hfs`, write diagnostic.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- No byte-order substitution for HFS+ catalog keys.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- D-06 Unicode policy / FastUnicodeCompare.
+- Data-before-metadata ordering for staged data blocks.
+
+## Device/test evidence
+
+- No new device run. The writer is host-only.
+
+---
+
 # Handoff — 2026-11-03 (empty-file catalog create/delete)
 
 ## Branch / commit

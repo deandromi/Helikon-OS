@@ -32,4 +32,11 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
                      const uint8_t *key, size_t key_length,
                      hfs_btree_key_compare_fn compare, void *compare_context);
 
+/* Find one record by key. Copies the full record [key_length][key][data]. */
+int hfs_btree_find(struct hfs_btree *btree, struct hfs_txn *tx,
+                   const uint8_t *key, size_t key_length,
+                   hfs_btree_key_compare_fn compare, void *compare_context,
+                   void *record, size_t record_capacity,
+                   size_t *record_length);
+
 #endif

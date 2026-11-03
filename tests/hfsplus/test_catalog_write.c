@@ -89,6 +89,48 @@ static void make_image(void)
 }
 
 static int compare_catalog(void *context, const uint8_t *a, size_t a_length,
+                           const uint8_t *b, size_t b_length);
+
+static size_t build_key(uint8_t *buffer, uint32_t parent,
+                        const uint8_t *name, size_t units)
+{
+    put_be16(buffer, (uint16_t)(6u + units * 2u));
+    put_be32(buffer + 2, parent);
+    put_be16(buffer + 6, (uint16_t)units);
+    if (units != 0)
+        memcpy(buffer + 8, name, units * 2u);
+    return 6u + units * 2u;
+}
+
+static int seed_root(struct hfs_btree *btree, struct hfs_txn *tx)
+{
+    static const uint8_t root_name[8] = {
+        0, 'T', 0, 'E', 0, 'S', 0, 'T'
+    };
+    uint8_t record[512];
+    size_t key_length = build_key(record, 1, root_name, 4);
+    size_t data_offset = 2u + key_length;
+    memset(record + data_offset, 0, 88);
+    put_be16(record + data_offset, 1);
+    put_be32(record + data_offset + 8, 2);
+    put_be32(record + data_offset + 4, 0);
+    int rc = hfs_btree_insert(btree, tx, record, data_offset + 88,
+                              compare_catalog, NULL);
+    if (rc != HFS_OK)
+        return rc;
+
+    key_length = build_key(record, 2, NULL, 0);
+    data_offset = 2u + key_length;
+    memset(record + data_offset, 0, 18);
+    put_be16(record + data_offset, 3);
+    put_be32(record + data_offset + 4, 1);
+    put_be16(record + data_offset + 8, 4);
+    memcpy(record + data_offset + 10, root_name, 8);
+    return hfs_btree_insert(btree, tx, record, data_offset + 18,
+                            compare_catalog, NULL);
+}
+
+static int compare_catalog(void *context, const uint8_t *a, size_t a_length,
                            const uint8_t *b, size_t b_length)
 {
     (void)context;
@@ -145,31 +187,60 @@ static int test_create_delete_file(void)
     struct hfs_txn tx;
     memset(&journal, 0, sizeof(journal));
     journal.sector_size = TEST_BLOCK_SIZE;
+
     memset(&tx, 0, sizeof(tx));
     tx.journal = &journal;
     tx.active = 1;
+    CHECK(seed_root(&btree, &tx) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(node_ptr(0) + 20) == 2);
 
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
     uint32_t cnid = 0;
-    int create_rc = hfs_catalog_create_file(&catalog, &tx, 2, name,
-                                             TEST_NAME_UNITS, 0644,
-                                             compare_catalog, NULL, &cnid);
-    CHECK(create_rc == HFS_OK);
+    CHECK(hfs_catalog_create_file(&catalog, &tx, 2, name, TEST_NAME_UNITS,
+                                  0644, compare_catalog, NULL, &cnid) ==
+          HFS_OK);
     CHECK(cnid == 16);
     apply_txn(&tx);
     CHECK(get_be32(test_image + 1024 + 32) == 2);
     CHECK(get_be32(test_image + 1024 + 64) == 17);
-    CHECK(get_be32(node_ptr(0) + 20) == 2);
+    CHECK(get_be32(node_ptr(0) + 20) == 4);
 
-    /* The root leaf has a file record and a thread record. */
-    uint8_t *leaf = node_ptr(1);
-    CHECK(get_be16(leaf + 10) == 2);
-    uint8_t *first = leaf + get_be16(leaf + TEST_NODE_SIZE - 2);
-    CHECK(get_be32(first + 2) == 2);
-    CHECK(get_be16(first + 6) == TEST_NAME_UNITS);
-    CHECK(memcmp(first + 8, name, sizeof(name)) == 0);
-    uint8_t *second = leaf + get_be16(leaf + TEST_NODE_SIZE - 4);
-    CHECK(get_be32(second + 2) == 16);
-    CHECK(get_be16(second + 6) == 0);
+    /* Verify the file, thread and parent valence through the tree. */
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    uint8_t key[256];
+    uint8_t record[1024];
+    size_t record_length = 0;
+    size_t key_length = build_key(key, 2, name, TEST_NAME_UNITS);
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+                         NULL, record, sizeof(record), &record_length) ==
+          HFS_OK);
+    size_t data_offset = 2u + key_length;
+    CHECK(get_be16(record + data_offset) == 2);
+    CHECK(get_be32(record + data_offset + 8) == cnid);
+
+    key_length = build_key(key, cnid, NULL, 0);
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+                         NULL, record, sizeof(record), &record_length) ==
+          HFS_OK);
+    data_offset = 2u + key_length;
+    CHECK(get_be16(record + data_offset) == 4);
+    CHECK(get_be32(record + data_offset + 4) == 2);
+
+    static const uint8_t root_name[8] = {
+        0, 'T', 0, 'E', 0, 'S', 0, 'T'
+    };
+    key_length = build_key(key, 1, root_name, 4);
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+                         NULL, record, sizeof(record), &record_length) ==
+          HFS_OK);
+    data_offset = 2u + key_length;
+    CHECK(get_be16(record + data_offset) == 1);
+    CHECK(get_be32(record + data_offset + 4) == 1);
 
     memset(&tx, 0, sizeof(tx));
     tx.journal = &journal;
@@ -178,8 +249,25 @@ static int test_create_delete_file(void)
                                   cnid, compare_catalog, NULL) == HFS_OK);
     apply_txn(&tx);
     CHECK(get_be32(test_image + 1024 + 32) == 1);
-    CHECK(get_be32(node_ptr(0) + 20) == 0);
-    CHECK(get_be16(node_ptr(1) + 10) == 0);
+    CHECK(get_be32(node_ptr(0) + 20) == 2);
+
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    key_length = build_key(key, 2, name, TEST_NAME_UNITS);
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+                         NULL, record, sizeof(record), &record_length) ==
+          HFS_ERR_NOT_FOUND);
+    key_length = build_key(key, cnid, NULL, 0);
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+                         NULL, record, sizeof(record), &record_length) ==
+          HFS_ERR_NOT_FOUND);
+    key_length = build_key(key, 1, root_name, 4);
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length, compare_catalog,
+                         NULL, record, sizeof(record), &record_length) ==
+          HFS_OK);
+    data_offset = 2u + key_length;
+    CHECK(get_be32(record + data_offset + 4) == 0);
     return 0;
 }
 
