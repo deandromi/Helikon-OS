@@ -27,7 +27,7 @@ agreed.
 | 9 | USB read-only + updates + installer + desktop app v1 | Read-only LUN; signed update/rollback; non-coder install; tag/rate/scrobble tasks | Phase 6; D-01/D-16/D-20; release pipeline | `planned` |
 | 10 | Apps/games sandbox | Runtime, SDK, quotas, signature/trust, crash isolation, adversarial tests | Phase 9; D-08; package format | `planned` |
 | 11 | Battery, RAM, performance and thermal hardening | Measured battery/RAM/I/O matrix; no unmeasured defaults; budgets published | Phase 3–10; D-12; measurement rig | `planned` |
-| 12 | Multi-device ports + release train/community | 7G and documented ports pass their matrix; public CI/docs/signed releases; support window | Phase 0–11; D-13; D-18/D-19 | `planned` |
+| 12 | Multi-device ports + release train/community | 7G and documented ports pass their matrix; public CI/docs/signed releases; support window | Phase 0–11; D-13; D-20 | `planned` |
 
 ## Critical path
 

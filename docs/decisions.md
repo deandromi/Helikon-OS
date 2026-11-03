@@ -48,12 +48,12 @@ re-litigate them.
 | D-15 | Theme format | proposed | owner | §25.15, §14.2 |
 | D-16 | Update transport | proposed | owner | §25.16, §16.2 |
 | D-17 | Product identity | accepted | owner | §25.17, Appendix D |
-| D-18 | Licensing | proposed | owner/legal | §18, §28.4.4 |
-| D-19 | Code of conduct | proposed | owner | §18, §28.4.4 |
+| D-18 | Licensing | accepted | owner/legal | §18, §28.4.4 |
+| D-19 | Code of conduct | accepted | owner | §18, §28.4.4 |
 | D-20 | Signing-key ownership | proposed | owner | §25.1, §16, §28.2.5 |
 
 The paper's §25 lists 17 decisions. D-18, D-19 and D-20 are added from §18 and
-§28.4.4 because the task requires them and the paper leaves them open. See C-08.
+§28.4.4. D-18/D-19 were accepted on 2026-11-03; D-20 remains open. See C-08.
 
 ## D-01 — Boot image verification
 
@@ -313,33 +313,46 @@ The paper's §25 lists 17 decisions. D-18, D-19 and D-20 are added from §18 and
 
 ## D-18 — Licensing
 
-- **Status:** proposed. **Owner:** owner/legal. **Date:** 2026-11-03. **Paper:** §18, §28.4.4.
+- **Status:** accepted. **Owner:** owner/legal. **Date:** 2026-11-03. **Paper:** §18, §28.4.4.
 - **Context:** the README asks for an open-source, community-friendly project.
   The paper says firmware/bootloader should be GPL-compatible with Rockbox
   attribution, host tools under a compatible license, and docs under a
-  permissive documentation license.
-- **Options:** GPL-compatible firmware license; permissive host-tool license;
-  documentation license; contribution terms; trademark policy.
-- **Decision:** unresolved. No license text has been chosen.
-- **Consequences:** do not add `LICENSE`; do not assume a license for
-  contributions; do not copy donor code or assets until compatibility is
-  reviewed. The repository is public but not yet licensed for reuse.
-- **Follow-up:** owner/legal chooses and records the license; update
-  `CONTRIBUTING.md` and release notes.
+  permissive documentation license. The donor README states that Rockbox and the
+  donor project are **GPL-2.0-or-later**.
+- **Options:** GPL-2.0-or-later (match Rockbox/donor); GPL-3.0-or-later;
+  permissive MIT/Apache for new code; split code/documentation licenses.
+- **Decision:** the repository is licensed under **GPL-2.0-or-later**, matching
+  Rockbox and the donor. `LICENSE` contains the GNU GPL version 2 text;
+  `NOTICE` states the "or later" option and upstream attribution. The
+  documentation is also GPL-2.0-or-later for now, rather than the paper's
+  suggested permissive documentation license, to keep one simple repository
+  license.
+- **Consequences:** distribution and derivative works must comply with
+  GPL-2.0-or-later, including source availability and attribution. The project
+  is now licensed for reuse under those terms. Do not copy third-party assets
+  whose licenses are incompatible. Any future split license for docs/tools is a
+  new owner decision.
+- **Follow-up:** add SPDX headers (`GPL-2.0-or-later`) to source files when code
+  exists; keep donor/Rockbox attribution; obtain legal review before a release;
+  update `CONTRIBUTING.md` and release notes.
 
 ## D-19 — Code of conduct
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §18, §28.4.4.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §18, §28.4.4.
 - **Context:** the paper lists a code of conduct and security policy as
-  community infrastructure. No text has been chosen.
+  community infrastructure. No text had been chosen.
 - **Options:** adopt a standard code; write a project-specific code; defer until
   community growth.
-- **Decision:** unresolved. Do not add `CODE_OF_CONDUCT.md` until the owner
-  chooses the text and enforcement contact.
-- **Consequences:** contribution and moderation expectations are not yet
-  published. `CONTRIBUTING.md` must not imply a code that does not exist.
-- **Follow-up:** owner chooses text/contact; link from `CONTRIBUTING.md` and
-  `SECURITY.md`.
+- **Decision:** adopt **Contributor Covenant 2.1** in `CODE_OF_CONDUCT.md`.
+  Enforcement contact is the project owner through GitHub
+  [@deandromi](https://github.com/deandromi), or the private security channel in
+  `SECURITY.md` for sensitive reports. No private email address is invented.
+- **Consequences:** the code applies to all project spaces and contributions.
+  The enforcement guidelines in the adopted text apply. The owner handles
+  reports and must keep the contact current.
+- **Follow-up:** add a dedicated conduct contact if the owner wants one; review
+  the code annually or when the community grows; link it from `CONTRIBUTING.md`
+  and `SECURITY.md`.
 
 ## D-20 — Signing-key ownership
 
@@ -418,12 +431,14 @@ not authorize a product change.
 - **Status:** roadmap sequencing recorded. No v1 claim for other devices.
 - **Affected docs:** `goals.md`, `roadmap.md`, `device-matrix.md`.
 
-### C-07 — README updates/community vs open license/signing policy
+### C-07 — README updates/community vs open signing policy
 
 - **What:** the README asks for regular updates and a community-friendly
-  project; the paper requires signed manifests, but licensing and signing-key
-  ownership are unresolved.
-- **Status:** open D-18 and D-20. Do not add a license or release artifacts.
+  project; the paper requires signed manifests. Licensing and the code of
+  conduct are now settled (D-18/D-19); signing-key ownership is still open
+  (D-20).
+- **Status:** D-18/D-19 accepted 2026-11-03; D-20 open. Do not publish release
+  artifacts or signing claims until D-20 is accepted.
 - **Affected docs:** `release.md`, `security.md`, `CONTRIBUTING.md`,
   `SECURITY.md`.
 
@@ -432,8 +447,8 @@ not authorize a product change.
 - **What:** the paper's §25 lists 17 open decisions. The documentation task
   requires licensing, code of conduct and signing-key ownership as well.
 - **Resolution:** D-01–D-17 mirror §25; D-18–D-20 are added from §18 and
-  §28.4.4 and marked proposed. This is a documentation reconciliation, not a new
-  product decision.
+  §28.4.4. D-18/D-19 were accepted on 2026-11-03; D-20 remains `proposed`. This
+  is a documentation reconciliation, not a new product decision.
 - **Affected docs:** this file, `agents.md`, `goals.md`.
 
 ## Adding a decision

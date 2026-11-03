@@ -15,11 +15,11 @@ file grows. Do not rely on chat history for current state.
 
 ## Branch / commit
 
-- Branch: `main`
-- Base: `main` at `7bfe58b40ea7f0444368c4eb61d97cf57a0ec74b`
-- Documentation commit: `cb8e8dc6bd4fdf03d588a5a06d9f94b78270a73b`, fast-forwarded
-  to `main` and pushed to `origin/main`
-- PR: https://github.com/deandromi/Helikon-OS/pull/1 — MERGED 2026-11-03
+- Branch: `docs/license-coc-templates`
+- Base: `main` at `9c558069b6e7b325451b3127b10adfbd41486315`
+- Documentation commit: current branch head (check `git log -1`)
+- PR: opened against `main`; see the repository PR for the URL and review state.
+  Not merged; license/code-of-conduct text is owner-sensitive.
 
 ## What changed
 
@@ -34,10 +34,12 @@ file grows. Do not rely on chat history for current state.
 - Added root `CONTRIBUTING.md` and `SECURITY.md`.
 - Fast-forwarded `docs/agent-handbook` to `main` and pushed `main`; PR #1 is
   merged.
+- Added `LICENSE` (GPL-2.0-or-later), `NOTICE`, `CODE_OF_CONDUCT.md`
+  (Contributor Covenant 2.1), and GitHub issue templates for bugs, features and
+  device test reports.
 - Did **not** modify the root `README.md`, the donor repository, any firmware,
-  build system, CI, license or release asset. The requested README title,
-  summary and 25 goals were already present at the top, so no README change was
-  needed.
+  build system, CI or release asset. The requested README title, summary and 25
+  goals were already present at the top, so no README change was needed.
 
 ## What was verified
 
@@ -60,9 +62,12 @@ file grows. Do not rely on chat history for current state.
   - no claim that Helikon-OS is implemented or hardware-validated;
   - no duplicate canonical files.
 - No Helikon-OS build, test or device run was performed; there is no source tree.
-- `main` and `origin/main` are at `cb8e8dc`; PR #1 state is MERGED. The requested
+- `main` and `origin/main` are at `9c55806`; PR #1 state is MERGED. The requested
   README block is present verbatim (all 25 goal lines) and the README SHA-256 is
   unchanged from the base commit.
+- License/COC/issue-template files parse/validate: YAML issue forms load; the
+  license notice states GPL-2.0-or-later; the code of conduct has an enforcement
+  contact and no placeholder remains.
 
 ## What failed
 
@@ -78,7 +83,7 @@ file grows. Do not rely on chat history for current state.
    (journal ownership).
 3. Freeze the writer interface and failure model (T-002), then the fixture plan
    (T-004) and backup/disposable-volume protocol (T-003).
-4. Record licensing/COC/signing-key decisions (T-006) before any release work.
+4. Record the signing-key ownership policy (D-20/T-006) before any release work.
 5. Start the 7G board-audit checklist (T-005) only when hardware access is
    available.
 
@@ -89,17 +94,20 @@ file grows. Do not rely on chat history for current state.
 - Any `/.rockpod-rw`, device backup, disk image, serial number or personal data.
 - The native-HFS+ invariants, journal rules, `fsck_hfs` gate, bootloader
   read-only rule, or `--single` ban.
-- License, code-of-conduct or signing policy (not chosen).
+- `LICENSE`, `NOTICE` and `CODE_OF_CONDUCT.md` once merged — the license and
+  conduct choice is owner-approved; do not change it silently.
+- Signing policy (D-20, not chosen).
 
 ## Open questions
 
 - D-03/D-04: journaled release writes and device-owned replay? Critical path.
-- D-01/D-16/D-20: signature scheme, update transport, key ownership.
+- D-01/D-16: signature scheme and update transport.
 - D-06: Unicode normalization/case-folding policy and fixture source.
 - D-07: host-built database vs on-device incremental builder timing.
 - D-10: exact Rockbox skin subset and corpus licences.
 - D-13: 7G board audit and port scope.
-- D-18/D-19: license and code of conduct text.
+- D-20: signing-key ownership and release-signing policy.
+- Owner review of the GPL-2.0-or-later / Contributor Covenant 2.1 PR.
 - C-02–C-06: owner confirmation of README goal scope vs paper's narrower design
   response.
 

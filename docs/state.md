@@ -23,6 +23,9 @@ Date of this snapshot: **2026-11-03**.
 | Agent contract and documentation set | living | `main`, merged 2026-11-03 |
 | Product intent, safety rules, roadmap, goals, open decisions | living | `docs/` |
 | Donor file references and provenance | living | [`file-map.md`](file-map.md) |
+| License: GPL-2.0-or-later | living | `LICENSE`, `NOTICE`, D-18 |
+| Code of conduct: Contributor Covenant 2.1 | living | `CODE_OF_CONDUCT.md`, D-19 |
+| GitHub issue templates | living | `.github/ISSUE_TEMPLATE/` |
 
 The "document status" column uses the document statuses from
 [`conventions.md`](conventions.md); it does not mean firmware exists.
@@ -43,7 +46,7 @@ unchanged from the base commit.
 | Build system, CI, release artifacts | `planned` | No build or release configuration |
 | Helikon-OS device run | `unproven` | No device has run Helikon-OS |
 | Supported device list | `unproven` | 6G is the reference; 7G needs a board audit |
-| License, code of conduct, signing policy | `planned` | Owner decisions D-18, D-19, D-20 |
+| Signing policy and key ownership | `planned` | D-20 is still open |
 
 ## Last known-good commit and branch
 
@@ -82,14 +85,12 @@ writes, the transaction engine, the bootloader, or any goal in
    transaction ordering, Unicode policy (D-06) and cache limits (D-05) need
    design review and test fixtures.
 4. **No signed-update or signing policy.** D-01, D-16 and D-20 are open.
-5. **No license or code of conduct.** D-18 and D-19 are open. Do not add
-   `LICENSE` or `CODE_OF_CONDUCT.md`.
-6. **No 7G board audit.** 7G support is unproven until a recorded audit covers
+5. **No 7G board audit.** 7G support is unproven until a recorded audit covers
    panel, PMU, audio, storage, button map and `MOVE_AREA`.
-7. **No device-test programme.** No backup/recovery rehearsal, adapter matrix,
+6. **No device-test programme.** No backup/recovery rehearsal, adapter matrix,
    power-cut rig or `fsck_hfs` oracle run is recorded for Helikon-OS.
-8. **No release infrastructure.** No reproducible build, manifest, signing key,
-   staging flow, rollback test or support window.
+7. **No release infrastructure.** No reproducible build, manifest, signing key,
+   staging flow, rollback test or support window. Signing policy is D-20.
 
 ## Next task
 

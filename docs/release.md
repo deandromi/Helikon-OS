@@ -91,8 +91,9 @@ Not chosen. The release policy must eventually state:
 - database/settings/checksum schema migration policy;
 - device/adapter support status and how it is recorded.
 
-Until the owner records this, do not promise a support window. See D-18/D-19 for
-community/legal policy.
+Until the owner records this, do not promise a support window. The license
+(GPL-2.0-or-later) and code of conduct (Contributor Covenant 2.1) are settled;
+signing-key ownership and support terms are not. See D-20.
 
 ## 7. Release-note requirements
 
@@ -121,13 +122,16 @@ No marketing claims. No battery/RAM/frame-time number without method and runs. N
 - [ ] Bootloader DFU path tested; `--single` rejected; Apple path intact.
 - [ ] Backup/recovery rehearsal recorded.
 - [ ] No secrets, disk images, backups or personal data in artifacts.
-- [ ] License/signing/support decisions recorded or the release is not published.
+- [ ] Signing, support-window and key-ownership decisions recorded; the release
+      is GPL-2.0-or-later and follows the code of conduct.
 
-## 9. TODOs
+## 9. Open items and completed follow-ups
 
 - **TODO (owner):** choose signing scheme and key ownership (D-01/D-20).
 - **TODO (owner):** choose update transport (D-16) and support window.
-- **TODO (owner/legal):** choose license and code of conduct (D-18/D-19).
+- **DONE:** license (GPL-2.0-or-later) and code of conduct (Contributor
+  Covenant 2.1) are adopted; keep `LICENSE`, `NOTICE` and
+  `CODE_OF_CONDUCT.md` current.
 - **TODO (release lead):** define release branches/tags and reproducible build.
 - **TODO (test lead):** define the release evidence bundle and archive location.
 - **TODO (docs lead):** add the release-note template when a release exists.

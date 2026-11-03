@@ -12,6 +12,9 @@ follow-up line; **P2** is later and must not delay P0. Status uses
 
 ## Now
 
+License (GPL-2.0-or-later) and code of conduct (Contributor Covenant 2.1) are
+settled (D-18/D-19). Signing-key ownership remains open (D-20).
+
 | ID | Task | Priority | Dependencies | Acceptance criteria | Status | Owner | Links |
 |---|---|---|---|---|---|---|---|
 | T-001 | Record journal strategy and ownership decisions (D-03, D-04). | P0 | Owner review | Both entries in `decisions.md` are `accepted` with owner, date, consequences and phase-2 gate; no recommendation is presented as settled before that. | `in progress` | owner | [D-03](decisions.md#d-03--journal-strategy), [D-04](decisions.md#d-04--journal-ownership) |
@@ -19,7 +22,7 @@ follow-up line; **P2** is later and must not delay P0. Status uses
 | T-003 | Define the backup, recovery and disposable-volume protocol. | P0 | Owner approval | Checklist covers full backup, SHA-256, read-back, `fsck_hfs -n`, Disk Mode, DFU, Apple restore, disposable-volume format and stop conditions. Dry run recorded. | `planned` | owner/test lead | [verification.md](verification.md), [device-matrix.md](device-matrix.md) |
 | T-004 | Create the host fixture plan for HFS+ reader and writer tests. | P0 | T-002 | Fixture list covers clean/dirty journal, malformed B-trees, extents overflow, Unicode/case names, allocation edge cases; each fixture has a generation method, hash and expected result. | `planned` | test lead | [testing.md](testing.md), [validation.md](validation.md) |
 | T-005 | Record the 7G board-audit checklist. | P1 | Owner access to hardware | Checklist covers SoC/board revision, panel, PMU, audio codec, storage, button map, `MOVE_AREA`, DFU/NOR; no 7G support claim until results are recorded. | `planned` | hardware lead | [device-matrix.md](device-matrix.md), [roadmap.md](roadmap.md) |
-| T-006 | Record licensing, code-of-conduct and signing-key ownership decisions (D-18–D-20). | P0 | Owner/legal | Decisions are `accepted` or explicitly deferred with a date; no `LICENSE`/`CODE_OF_CONDUCT.md` is added before approval. | `planned` | owner/legal | [decisions.md](decisions.md), [release.md](release.md), [security.md](security.md) |
+| T-006 | Record signing-key ownership and release-signing policy (D-20). | P0 | Owner/legal | D-20 is `accepted` with owner, key custody, rotation, revocation, recovery and a date; no release signing before then. | `planned` | owner/legal | [decisions.md](decisions.md#d-20--signing-key-ownership), [release.md](release.md), [security.md](security.md) |
 
 ## Next
 

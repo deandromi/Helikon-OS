@@ -120,7 +120,7 @@ status and date. Do not put a fake owner name or a personal email in a document.
 - Title matches the commit subject or summarizes the change.
 - Body states: what changed, why, source URLs, base commit, checks run,
   contradictions and open decisions, and what was **not** changed (firmware,
-  donor, license, release assets).
+  donor, release assets, or license/conduct unless owner-approved).
 - Link the exact paper/README source commits.
 - Do not merge without owner review. Do not enable auto-merge.
 - If a check cannot run, say so; do not mark it passed.
@@ -152,7 +152,8 @@ At the end of every session:
 
 - [ ] Root README unchanged.
 - [ ] Donor repository unchanged.
-- [ ] No firmware/build/CI/license/release changes in a docs PR.
+- [ ] No firmware/build/CI/release changes; license/code-of-conduct changes
+      require owner approval.
 - [ ] Every new doc has purpose/status/owner/date/source.
 - [ ] Status labels are used correctly.
 - [ ] No duplicate canonical file.

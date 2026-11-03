@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation and reading order
+    url: https://github.com/deandromi/Helikon-OS/blob/main/docs/README.md
+    about: Read the agent docs, current state and invariants before filing.
+  - name: Design paper
+    url: https://github.com/deandromi/Helikon-OS/blob/main/docs/design-paper.md
+    about: Read the technical design and non-promises before requesting a feature.
+  - name: Security policy
+    url: https://github.com/deandromi/Helikon-OS/security/policy
+    about: Report vulnerabilities privately; do not open a public issue with exploit details.

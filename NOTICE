@@ -1,0 +1,11 @@
+Helikon-OS
+Copyright (C) 2026 Helikon-OS contributors
+
+This project is licensed under the GNU General Public License, version 2,
+or (at your option) any later version (SPDX: GPL-2.0-or-later). The full
+license text is in LICENSE.
+
+Rockbox and the donor HFSPlus Rockboxed iPod project are upstream lineage and
+are credited in the design paper and docs/file-map.md. Their copyrights and
+licenses remain with their respective owners. See docs/design-paper.md for the
+source provenance and docs/file-map.md for the component provenance.

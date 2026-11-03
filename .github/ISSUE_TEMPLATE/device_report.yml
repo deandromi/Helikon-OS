@@ -1,0 +1,143 @@
+name: Device test report
+description: Record one Helikon-OS run on real hardware. No support claim without evidence.
+title: "[Device]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form only for a recorded Helikon-OS run. Donor V3.2 results
+        belong in the donor repository and are not Helikon-OS evidence.
+
+        Read `docs/verification.md`, `docs/device-matrix.md` and
+        `docs/failures.md` before testing. Do not test writes on the only copy
+        of a library. Do not use `--single`.
+
+        Do **not** include serial numbers, device backups, disk images,
+        `.rockpod-rw` contents, Wi-Fi credentials or personal data.
+  - type: input
+    id: model
+    attributes:
+      label: Device model / revision
+      placeholder: "e.g. iPod Classic 6G, revision open question"
+    validations:
+      required: true
+  - type: input
+    id: capacity
+    attributes:
+      label: Capacity
+      placeholder: "e.g. 80 GB / 160 GB / open question"
+    validations:
+      required: true
+  - type: input
+    id: adapter
+    attributes:
+      label: Storage adapter
+      placeholder: "e.g. original HDD, iFlash SD, iFlash CF, SSD"
+    validations:
+      required: true
+  - type: input
+    id: card
+    attributes:
+      label: Card / SSD / HDD model
+      placeholder: "Exact model and firmware if known"
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware image + SHA-256
+      placeholder: "Image name and SHA-256, or none (no build)"
+    validations:
+      required: true
+  - type: input
+    id: bootloader
+    attributes:
+      label: Bootloader image + SHA-256
+      placeholder: "Image name and SHA-256, or not applicable"
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Host / toolchain
+      placeholder: "macOS version, compiler, build commit"
+    validations:
+      required: true
+  - type: dropdown
+    id: test_type
+    attributes:
+      label: Test
+      options:
+        - Boot
+        - Playback
+        - HFS+ read
+        - HFS+ write (disposable volume)
+        - Journal replay
+        - Sleep / wake
+        - USB read-only
+        - Update / rollback
+        - Adapter / card
+        - Skin corpus
+        - App / game sandbox
+        - Car / receiver
+        - Recovery / DFU
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Test steps
+      description: Exact method, media, settings, and cut points if applicable.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected result
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+    validations:
+      required: true
+  - type: textarea
+    id: fsck
+    attributes:
+      label: "fsck_hfs -n output"
+      description: Full output for any write/crash test. Write "not applicable" for read-only tests.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence links
+      description: Logs, screenshots, frame/memory traces, or a sanitized report. Do not attach disk images or backups.
+    validations:
+      required: true
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - pass
+        - fail
+        - blocked
+        - not run
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety and evidence check
+      options:
+        - label: This was a Helikon-OS run, not a donor V3.2 result.
+          required: true
+        - label: The device was not the only copy of the library, and any write test used a disposable or verified-backup volume.
+          required: true
+        - label: I did not use `--single` and did not format/erase/delete the journal to recover.
+          required: true
+        - label: I have not included serial numbers, device backups, disk images, `.rockpod-rw` contents, or personal data.
+          required: true

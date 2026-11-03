@@ -1,0 +1,89 @@
+name: Feature request
+description: Propose a product or engineering feature, or a documentation improvement.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read `docs/goals.md`, `docs/roadmap.md`, `docs/decisions.md` and the
+        non-promises in `docs/README.md` before filing. The project is
+        design-stage; a request is not a release commitment.
+
+        Do not include secrets, device backups, disk images, or personal data.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user or engineering problem are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should Helikon-OS do? Keep it concrete.
+    validations:
+      required: true
+  - type: dropdown
+    id: goal
+    attributes:
+      label: Related README goal
+      options:
+        - Goal 1 — battery
+        - Goal 2 — cleaner interfaces
+        - Goal 3 — Rockbox skins
+        - Goal 4 — RAM
+        - Goal 5 — graphics
+        - Goal 6 — adapters
+        - Goal 7 — database
+        - Goal 8 — open source/community
+        - Goal 9 — updates
+        - Goal 10 — installation
+        - Goal 11 — ease of use
+        - Goal 12 — HFS+ native
+        - Goal 13 — anti-corruption
+        - Goal 14 — lightweight code
+        - Goal 15 — games
+        - Goal 16 — DAC/audio
+        - Goal 17 — read/write speed
+        - Goal 18 — applications
+        - Goal 19 — podcasts
+        - Goal 20 — desktop app
+        - Goal 21 — album view
+        - Goal 22 — artist view
+        - Goal 23 — car/receiver
+        - Goal 24 — device support
+        - Goal 25 — modern alternative
+        - Not goal-specific
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance test
+      description: How would we prove this works? Name the device, measurement, or observable result.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing workarounds, simpler options, or reasons to defer.
+    validations:
+      required: false
+  - type: textarea
+    id: impact
+    attributes:
+      label: Safety / compatibility impact
+      description: Does this touch HFS+ writes, the journal, bootloader, updates, sandboxing, skins, battery or device support?
+    validations:
+      required: true
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Acknowledgements
+      options:
+        - label: I have read the non-promises in `docs/README.md` and am not requesting full Rockbox WPS or plugin binary compatibility, FAT support, self-healing repair, or an external USB DAC on the 6G.
+          required: true
+        - label: I have not included secrets, device backups, disk images, serial numbers, or personal data.
+          required: true

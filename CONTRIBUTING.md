@@ -19,8 +19,9 @@ firmware patches.
 3. Do not edit the root `README.md`; it is the owner-authored product goals.
 4. Do not modify the donor repository `deandromi/hfsplus-rockboxed-ipod`. It is
    read-only source material.
-5. Do not add a license, code of conduct, signing policy or release asset. Those
-   are open owner decisions (D-18, D-19, D-20).
+5. Do not change the license, code of conduct, signing policy or release assets
+   without the owner. License and conduct are settled; signing-key ownership is
+   still open (D-20).
 
 ## What to contribute
 
@@ -75,6 +76,9 @@ Do not force-push, rewrite history, merge your own PR without review, or edit
 
 ## Device-report template
 
+Use the **Device test report** issue form (`.github/ISSUE_TEMPLATE/device_report.yml`)
+when GitHub is available. The text template below is the same evidence set.
+
 ```md
 ### Device report
 
@@ -112,15 +116,19 @@ Record the result in `docs/device-matrix.md`; a report without evidence is
 
 ## Licensing
 
-No license has been chosen. Do not assume a license for your contribution or copy
-donor code/assets until the owner records D-18. Do not contribute code until the
-owner records the contribution terms; documentation and design discussion are
-welcome in the meantime.
+Helikon-OS is licensed under **GPL-2.0-or-later**, matching Rockbox and the donor
+project. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE). Unless the owner records
+a different contribution policy, contributions are accepted under the same
+license. Do not copy donor code, themes, artwork, fonts or metadata unless their
+license and attribution are compatible and recorded.
 
 ## Code of conduct
 
-No code of conduct has been adopted (D-19). Be civil and constructive; report
-serious conduct issues through the private channel in [`SECURITY.md`](SECURITY.md).
+This project adopts the [Contributor Covenant 2.1](CODE_OF_CONDUCT.md). Report
+conduct issues to the project owner through GitHub
+[@deandromi](https://github.com/deandromi), or use the private channel in
+[`SECURITY.md`](SECURITY.md) for sensitive reports. Do not open a public issue
+with personal details.
 
 ## Questions
 

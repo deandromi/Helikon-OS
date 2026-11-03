@@ -150,6 +150,13 @@ Never format, erase, restore or delete the journal to fix a software error.
 Never run a write test on the only copy of the music. Never use `--single`.
 Never claim a gate passed without a recorded run.
 
+## What license is Helikon-OS under?
+
+GPL-2.0-or-later, matching Rockbox and the donor project. See [`LICENSE`](../LICENSE)
+and [`NOTICE`](../NOTICE). The documentation in this repository is under the
+same license for now. The code of conduct is Contributor Covenant 2.1
+([`CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md)).
+
 ## Is Helikon-OS an official Rockbox or Rockpod project?
 
 No. It is an independent system. Rockbox and Rockpod are upstream lineage and

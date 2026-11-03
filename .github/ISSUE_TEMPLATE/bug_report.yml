@@ -1,0 +1,80 @@
+name: Bug report
+description: Report a documentation, design, or software defect. Do not report security vulnerabilities here.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Read `agents.md` and `docs/state.md`
+        first. This project is design-stage, so please say whether the issue is
+        in documentation, a design, or an existing implementation.
+
+        Do **not** include secrets, device backups, disk images, `.rockpod-rw`
+        contents, serial numbers, Wi-Fi credentials or personal data. Report
+        vulnerabilities through `SECURITY.md`, not this form.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Documentation
+        - HFS+ reader
+        - HFS+ writer / journal
+        - VFS / filesystem API
+        - UI / skins
+        - App/game sandbox
+        - Desktop app
+        - Build / tooling
+        - Device / hardware
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit / version
+      description: Commit SHA, branch, release, or "none (design-stage)".
+      placeholder: "e.g. cb8e8dc or none (design-stage)"
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What is wrong, and where?
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What should happen instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: If this is a documentation/design issue, link the section instead.
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Logs, screenshots, command output, or links. Do not attach device backups or disk images.
+    validations:
+      required: false
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety check
+      options:
+        - label: I have not included secrets, device backups, disk images, `.rockpod-rw` contents, serial numbers, or personal data.
+          required: true
+        - label: This is not a security vulnerability; I will use the private process in `SECURITY.md` for that.
+          required: true

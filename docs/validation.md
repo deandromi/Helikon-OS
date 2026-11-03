@@ -133,7 +133,7 @@ supported today.
 | Car | Receiver matrix | Resume/charge/no pops | 100 ignition cycles | v1.x | `not run` |
 | Games/apps | Sandbox | No escape, crash isolation | Adversarial tests | v2 | `not run` |
 | 7G/ports | Per-target matrix | Boot/play/charge/write | Device run | v2 | `not run` |
-| Community | Release audit | Public docs, CI, signed builds | Checklist | continuous | `not run` |
+| Community | Release audit | Public docs, GPL-2.0-or-later, COC, CI, signed builds | Checklist | continuous | `not run` |
 
 ## 9. Sign-off
 

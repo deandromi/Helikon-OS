@@ -72,9 +72,13 @@ status.
 | [`../agents.md`](../agents.md) | Entry contract: rules, sources, hard stops, handoff. | living |
 | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | Contribution flow and device-report template. | living |
 | [`../SECURITY.md`](../SECURITY.md) | Vulnerability reporting and key-handling policy. | living |
+| [`../LICENSE`](../LICENSE) | GPL-2.0-or-later license text. | living |
+| [`../NOTICE`](../NOTICE) | License notice, SPDX identifier and upstream attribution. | living |
+| [`../CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md) | Contributor Covenant 2.1 and enforcement contact. | living |
+| [`../.github/ISSUE_TEMPLATE/`](../.github/ISSUE_TEMPLATE/) | Bug, feature and device-test issue forms. | living |
 | [`state.md`](state.md) | Current phase, what exists, blockers, evidence status. | living |
 | [`invariants.md`](invariants.md) | Numbered, testable safety invariants. | living |
-| [`decisions.md`](decisions.md) | Decision log, conflict record, 20 open decisions. | living |
+| [`decisions.md`](decisions.md) | Decision log, conflict record and 20 decision entries. | living |
 | [`tasks.md`](tasks.md) | Now/Next/Later task queue with acceptance criteria. | living |
 | [`verification.md`](verification.md) | Per-change proof checklist and evidence template. | living |
 | [`file-map.md`](file-map.md) | “I need to change X” → owning file/module. | living |
@@ -111,8 +115,10 @@ Key entry points: [`design-paper.md`](design-paper.md),
 
 - It is not firmware code, a bootloader image, an installer, a build system, CI,
   a release, or a hardware validation report.
-- It is not a license, code-of-conduct, or signing policy. Those are open owner
-  decisions in [`decisions.md`](decisions.md).
+- It is not a signing policy or a release approval. The license is
+  GPL-2.0-or-later (`LICENSE`), the code of conduct is Contributor Covenant 2.1
+  (`CODE_OF_CONDUCT.md`), and signing-key ownership is still open in
+  [`decisions.md`](decisions.md) D-20.
 - It is not a copy of Rockbox, Rockpod, donor themes, artwork, fonts or metadata.
   The donor is referenced for provenance and file locations only.
 - It does not promise full Rockbox WPS compatibility, Rockbox plugin/game binary

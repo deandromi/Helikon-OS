@@ -32,6 +32,8 @@
 | **Extent** | A contiguous run of disk blocks belonging to a file. |
 | **Extents overflow** | Extra extent records for files with more than eight inline runs. |
 | **FAT** | A simpler filesystem used by some iPods. Helikon-OS does not mount it; a FAT volume returns `NOT_HFS`. |
+| **GPL-2.0-or-later** | The project license: GNU GPL version 2, or any later version. Matches Rockbox and the donor. |
+| **Contributor Covenant** | The adopted code of conduct (version 2.1) for project spaces. |
 | **Firmware** | The operating system and drivers that run the player. |
 | **Fuzzing** | Feeding random/malformed input to find crashes and parser bugs. |
 | **HAL** | Hardware abstraction layer. A clean interface over registers and chips. |
