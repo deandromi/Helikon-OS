@@ -6,6 +6,7 @@ tests/hfsplus/test_catalog
 tests/hfsplus/test_extents
 tests/hfsplus/test_journal
 tests/hfsplus/test_txn
+tests/hfsplus/test_bitmap
 tests/hfsplus/*.dSYM/
 tests/bootloader/test_diag
 tests/bootloader/*.dSYM/

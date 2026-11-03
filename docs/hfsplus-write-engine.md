@@ -3,9 +3,9 @@
 > Purpose: the defining subsystem: native HFS+ metadata mutation, journal,
 > transaction ordering and `fsck_hfs` compatibility.
 > Status: living design document; D-03/D-04 accepted; writer interface frozen.
-> The journal append/replay path and bounded transaction engine are implemented
-> host-only; catalog/bitmap/extents mutation and the write diagnostic do not
-> exist.
+> The journal append/replay path, bounded transaction engine and allocation
+> bitmap are implemented host-only; catalog/extents mutation and the write
+> diagnostic do not exist.
 > Owner: HFS+ lead; journal lead
 > Last updated: 2026-11-03
 > Source: design paper §9, §10.4, §19, §21, §24, §28.2; `docs/architecture.md`
@@ -23,9 +23,9 @@ it the largest single change from the donor and the critical path of the product
 
 **Current status:** D-03 (journaled writes) and D-04 (Helikon-OS owns replay)
 are accepted; the interface and failure model in §10 are frozen. The Apple HFS+
-journal append/replay path and a bounded transaction engine are implemented and
-host-tested. Catalog/bitmap/extents mutation, file operations and the write
-diagnostic are not implemented. Do not infer a device write or a complete writer
+journal append/replay path, a bounded transaction engine and the allocation
+bitmap are implemented and host-tested. Catalog/extents mutation, file
+operations and the write diagnostic are not implemented. Do not infer a device write or a complete writer
 from this document.
 
 ## 2. Minimum surface

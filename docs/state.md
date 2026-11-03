@@ -52,9 +52,10 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Writer interface/failure model | design | `docs/hfsplus-write-engine.md` §10; D-03/D-04 accepted; implementation not started |
 | Journal format/commit/replay design | design | `docs/hfsplus-write-engine.md` §6.5–§6.7; Apple HFS+ journal format |
 | Journal append/replay engine | `implemented` | `firmware/hfs/hfs_journal.c`; header/block-list checksum validation, wrap, append, idempotent replay; 8 host tests |
-| Bounded transaction engine | `implemented` | `firmware/hfs/hfs_txn.c`; staged-block commit through the journal; 7 host tests; no catalog/bitmap callers yet |
+| Bounded transaction engine | `implemented` | `firmware/hfs/hfs_txn.c`; staged-block commit through the journal; 7 host tests |
+| Allocation bitmap | `implemented` | `firmware/hfs/hfs_bitmap.c`; first-fit alloc/free, free-block counts, header/alternate staging, `NO_SPACE`; 5 host tests; allocation-file overflow extents unsupported |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
-| Host test harness | `in progress` | 58 tests total (50 HFS+, 8 bootloader); sanitizer clean; first diagnostic boot is owner-reported |
+| Host test harness | `in progress` | 63 tests total (55 HFS+, 8 bootloader); sanitizer clean; first diagnostic boot is owner-reported |
 
 ## What does not exist
 
@@ -126,8 +127,10 @@ writes, the transaction engine, the bootloader, or any goal in
    transaction engine, journal record format, replay and crash tests do not
    exist yet.
 3. **Writer internals are not all frozen.** The interface and journal design are
-   frozen, but catalog/B-tree mutation, bitmap, extents/overflow, Unicode policy
-   (D-06) and cache limits (D-05) still need design and test fixtures.
+   frozen; the bitmap is implemented. The generic B-tree mutation engine,
+   catalog/extents mutation, Unicode policy (D-06) and cache limits (D-05) still
+   need design and test fixtures. Catalog key order requires D-06 and an Apple
+   `FastUnicodeCompare` implementation; do not substitute byte order.
 4. **No signed-update or signing policy.** D-01, D-16 and D-20 are open.
 5. **No 7G board audit.** 7G support is unproven until a recorded audit covers
    panel, PMU, audio, storage, button map and `MOVE_AREA`.
@@ -146,11 +149,14 @@ disk file on this iPod.
 
 The next writer tasks are:
 
-- **T-007** — catalog B-tree mutation design.
-- **T-008** — allocation bitmap and extents/overflow design.
-- **T-004** — host fixture plan for writer tests.
-- **D-05/D-06** — cache/dirty-set limits and Unicode policy still need owner
-  decisions before implementation.
+- **T-034** — implement the generic B-tree mutation engine (insert/delete,
+  split/merge, free-node map, leaf links) with a key-comparison callback.
+- **D-06** — choose the Unicode normalization/FastUnicodeCompare policy before
+  catalog insertion. Byte order is not a safe substitute.
+- **T-007** — catalog B-tree mutation design on top of T-034.
+- **T-008** — extents/overflow mutation design on top of T-034.
+- **T-004** — host fixture plan and disposable HFS+ image with `fsck_hfs`.
+- **D-05** — cache/dirty-set limits.
 - **T-010** — power-loss matrix and evidence format after T-003/T-009.
 
 The bootloader path resumes afterwards; D-01/D-02/D-20 remain open.

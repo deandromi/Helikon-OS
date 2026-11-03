@@ -11,6 +11,71 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (allocation bitmap)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the allocation-bitmap commit; check `git log -1`.
+
+## What changed
+
+- Added `firmware/hfs/hfs_bitmap.{c,h}`: first-fit allocation, free, free-block
+  count updates, primary/alternate volume-header staging and `NO_SPACE`.
+- Added 5 bitmap host tests. Total host tests: 63 (55 HFS+, 8 bootloader),
+  sanitizer-clean.
+- Updated state/testing/tasks/write-engine/file-map docs.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 55/55 pass.
+- `make -C tests/hfsplus sanitize` — 55/55 pass with ASan/UBSan.
+- Bitmap tests cover first-fit alloc, two-block alloc, free, no-space and bad
+  ranges. The staged bitmap and headers are inspected; journal/txn commit is
+  tested separately.
+- No device write and no write-capable bootloader image.
+
+## What failed
+
+- The first bitmap test checked the in-memory image before applying the staged
+  transaction blocks; fixed the test to apply staged blocks.
+- `hfs_bitmap_free` conflated out-of-range and non-free-block errors; split into
+  `ARGUMENT` and `FORMAT`.
+- The allocation file's overflow extents are not supported yet; a fragmented
+  allocation file returns `UNSUPPORTED`.
+
+## What is next
+
+1. **T-034** — generic HFS+ B-tree mutation engine (insert/delete, split/merge,
+   free-node map, leaf links) with a key-comparison callback.
+2. **D-06** — Unicode normalization and `FastUnicodeCompare` policy. Catalog
+   insertion cannot be correct without it; byte order is not a safe substitute.
+3. **T-007/T-008** — catalog and extents mutation on the generic engine.
+4. **T-004** — disposable HFS+ image fixture with `fsck_hfs -n`.
+5. Then the write diagnostic and, only after those pass, a device write with a
+   verified backup/recovery plan.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- No byte-order substitution for HFS+ catalog keys.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- D-06 Unicode policy / FastUnicodeCompare.
+- Allocation-file overflow extent support.
+- Write diagnostic test-image placement and verification.
+
+## Device/test evidence
+
+- No new device run. The writer is host-only.
+
+---
+
 # Handoff — 2026-11-03 (journal and transaction engine code)
 
 ## Branch / commit

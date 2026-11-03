@@ -4,7 +4,7 @@ CFLAGS ?= -O2 -g
 CFLAGS += -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow
 CPPFLAGS += -I../../firmware/hfs
 HFS = ../../firmware/hfs
-TESTS = test_volume test_btree test_unicode test_catalog test_extents test_journal test_txn
+TESTS = test_volume test_btree test_unicode test_catalog test_extents test_journal test_txn test_bitmap
 
 .PHONY: all test sanitize clean
 
@@ -59,6 +59,15 @@ test_txn: test_txn.c test_check.h \
 	  $(HFS)/hfs_txn.c $(HFS)/hfs_journal.c $(HFS)/hfs_volume.c \
 	  $(LDFLAGS) -o $@
 
+test_bitmap: test_bitmap.c test_image.c test_image.h test_check.h \
+             $(HFS)/hfs_bitmap.c $(HFS)/hfs_bitmap.h \
+             $(HFS)/hfs_txn.c $(HFS)/hfs_txn.h \
+             $(HFS)/hfs_journal.c $(HFS)/hfs_journal.h \
+             $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) test_bitmap.c test_image.c \
+	  $(HFS)/hfs_bitmap.c $(HFS)/hfs_txn.c $(HFS)/hfs_journal.c \
+	  $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
+
 test: $(TESTS)
 	./test_volume
 	./test_btree
@@ -67,6 +76,7 @@ test: $(TESTS)
 	./test_extents
 	./test_journal
 	./test_txn
+	./test_bitmap
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)

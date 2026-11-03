@@ -50,6 +50,7 @@ Helikon-OS/
       hfs_extents.c/.h      extents-overflow collection and file read
       hfs_journal.c/.h      Apple HFS+ journal append/replay and validation
       hfs_txn.c/.h          bounded staged-block transaction engine
+      hfs_bitmap.c/.h       allocation bitmap alloc/free and header staging
   tests/
     hfsplus/
       Makefile              host test build/sanitizer targets
