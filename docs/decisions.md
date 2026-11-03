@@ -51,10 +51,12 @@ re-litigate them.
 | D-18 | Licensing | accepted | owner/legal | §18, §28.4.4 |
 | D-19 | Code of conduct | rejected | owner | §18, §28.4.4 |
 | D-20 | Signing-key ownership | proposed | owner | §25.1, §16, §28.2.5 |
+| D-21 | First diagnostic bootloader scope | accepted | owner | §5, §24, §27 |
 
 The paper's §25 lists 17 decisions. D-18, D-19 and D-20 are added from §18 and
 §28.4.4. D-18 is accepted; D-19 was adopted and then rejected when the owner
-deleted `CODE_OF_CONDUCT.md` on 2026-11-03; D-20 remains open. See C-08.
+deleted `CODE_OF_CONDUCT.md` on 2026-11-03; D-20 remains open. D-21 records the
+first diagnostic bootloader scope. See C-08.
 
 ## D-01 — Boot image verification
 
@@ -370,6 +372,29 @@ deleted `CODE_OF_CONDUCT.md` on 2026-11-03; D-20 remains open. See C-08.
   brick devices; DFU/Apple recovery remains the fallback.
 - **Follow-up:** define roles, storage, ceremony, rotation, revocation and
   emergency recovery; link to D-01 and `release.md`.
+
+## D-21 — First diagnostic bootloader scope
+
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §5, §24, §27.
+- **Context:** the owner wants a first flashable diagnostic image before the
+  full firmware-loading bootloader exists. The host read core, diagnostic core
+  and 320×240 splash are ready; hardware HAL/ATA/LCD integration is not.
+- **Options:** read-only diagnostic only; diagnostic plus firmware loading;
+  signed manifest from day one; manual hash verification; write diagnostic on a
+  disposable volume.
+- **Decision:** the first image is **read-only diagnostic only**. It uses
+  **manual SHA-256 verification**, performs **no HFS+ write test** and reports
+  `HFS+ write: NOT IMPLEMENTED`. It waits for a button, then powers off. It does
+  not load firmware. Backup scope is the current `.rockbox` build and
+  `/.rockpod-rw`; music backup is deliberately omitted by the owner. The owner
+  accepts that a failed flash may require Apple restore and can erase music.
+- **Consequences:** D-01, D-02 and D-20 remain open for the later
+  firmware-loading bootloader. This diagnostic image is not a release and has no
+  signed manifest. It requires a recorded image hash, Thumb/`MOVE_AREA` checks
+  and a recovery rehearsal. No HFS+ writes are allowed.
+- **Follow-up:** build the hardware diagnostic image (T-029), record its SHA-256,
+  then use [`bootloader/DFU.md`](../bootloader/DFU.md). Add write diagnostics
+  later on a disposable volume (T-030) after the writer and D-03/D-04.
 
 ## Conflicts and source separation
 

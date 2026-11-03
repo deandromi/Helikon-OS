@@ -36,7 +36,9 @@ file grows. Do not rely on chat history for current state.
   `bootloader/README.md`: a read-only diagnostic core and 320×240 splash.
 - Added `tests/bootloader/`: 7 diagnostic/splash host tests.
 - Added `bootloader/DFU.md`: a blocked install runbook for the future image;
-  it has no image or hash and must not be executed yet.
+  it has no image or hash and must not be executed yet. It includes the
+  `.rockbox` + `/.rockpod-rw` backup commands and the owner-selected manual
+  SHA-256 procedure.
 - Added the owner-supplied poster to the root README and a 320×240 startup crop
   under `assets/startup/`; the startup crop is not wired into firmware yet.
 - Added `.gitignore` for the host test binaries and macOS metadata.
@@ -73,8 +75,9 @@ file grows. Do not rely on chat history for current state.
 1. Define the bootloader manifest/boot-state flow and host image-loading core
    (T-027); D-01/D-02 remain owner decisions.
 2. Build the hardware diagnostic bootloader image (T-029) after T-003 and the
-   recovery rehearsal; verify Thumb/`MOVE_AREA`, record the SHA-256, then use
-   `bootloader/DFU.md`.
+   recovery rehearsal; D-21 accepts read-only diagnostic, manual SHA-256, no
+   write test and wait-for-button/power-off. Verify Thumb/`MOVE_AREA`, record
+   the SHA-256, then use `bootloader/DFU.md`.
 3. Wire the 320×240 startup image into the phase 0 display path.
 4. Keep the writer blocked until D-03/D-04 and T-002/T-004 are settled.
 

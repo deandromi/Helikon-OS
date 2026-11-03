@@ -254,7 +254,8 @@ Record the exact error, stage, device state and what was not attempted.
 ## 10. Decisions
 Full entries and status are in `docs/decisions.md`.
 
-**Settled:** D-17 product name (clearance open), D-18 GPL-2.0-or-later.
+**Settled:** D-17 product name (clearance open), D-18 GPL-2.0-or-later,
+D-21 read-only diagnostic-first bootloader scope.
 **Rejected:** D-19 Contributor Covenant (owner deleted the file; no replacement).
 
 **Open:** D-01 boot image verification and key storage · D-02 boot state and
