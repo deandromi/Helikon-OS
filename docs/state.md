@@ -47,7 +47,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Extents-overflow file read | `in progress` | `firmware/hfs/hfs_extents.c`; 2 host tests |
 | Diagnostic bootloader core | `in progress` | `bootloader/diagnostics.c`, `report.c`, `splash.c`; 7 host tests; read-only |
 | Diagnostic hardware glue | `in progress` | `bootloader/hardware/helikon_diag_hw.c`; ATA read callback, donor partition scan, splash/report, button wait, power-off |
-| Diagnostic bootloader image | `unproven` | `bootloader/artifacts/bootloader-ipod6g.ipod`; SHA-256 `280ed7ae…`; 67,144 bytes; `MOVE_AREA` headroom 61,888 bytes. First build booted and splashed; fixed build not rerun. |
+| Diagnostic bootloader image | `unproven` | `bootloader/artifacts/bootloader-ipod6g.ipod`; SHA-256 `280ed7ae…`; 67,144 bytes; `MOVE_AREA` headroom 61,888 bytes. Owner-reported: boot, splash, report, volume/catalog PASS; read `-8` because the probe file is absent; no write. |
 | Diagnostic build script | `in progress` | `tools/build-diagnostic-bootloader.sh`; pinned donor commit, Thumb build, `MOVE_AREA` check, hash output |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
 | Host test harness | `in progress` | 43 tests total (35 HFS+, 8 bootloader); sanitizer clean; first diagnostic boot is owner-reported |
@@ -89,16 +89,21 @@ overlay-based product.
 
 ## Last recorded device run
 
-**One owner-reported diagnostic run, 2026-11-03.** The first image
-(`bd0ebc92…`, 66,920 bytes) booted on the owner's 6G and showed the splash.
-`HFS+ volume: PASS` and `HFS+ catalog: PASS`. The read probe failed with
-`read error: -11` (`HFS_ERR_NAME_INVALID`), and the report displayed `llu`
+**Two owner-reported diagnostic runs, 2026-11-03.**
+
+The first image (`bd0ebc92…`, 66,920 bytes) booted on the owner's 6G and showed
+the splash. `HFS+ volume: PASS` and `HFS+ catalog: PASS`. The read probe failed
+with `read error: -11` (`HFS_ERR_NAME_INVALID`), and the report displayed `llu`
 instead of the byte count and shifted later status lines.
 
-This is a partial/failed bring-up run, not a support claim. The formatter and
-root lookup fixes are in the current image (`280ed7ae…`, 67,144 bytes), which has
-not been reflashed or rerun. See
-[`device-matrix.md`](device-matrix.md) §2.1.
+The fixed image (`280ed7ae…`, 67,144 bytes) was then run. The report formatting
+was correct: volume, catalog, write (`NOT IMPLEMENTED`), journal, splash and
+partition size displayed as expected. `HFS+ read` reported `-8`
+(`HFS_ERR_NOT_FOUND`) because `/rockbox.ipod` is not a file on this iPod; the
+lookup itself worked. No write was requested or reported.
+
+This is a partial bring-up run, not a support claim. The file-read path is not
+hardware-exercised yet. See [`device-matrix.md`](device-matrix.md) §2.1.
 
 The donor project has owner-reported hardware use for its V3.2 release. That is
 donor evidence, not Helikon-OS evidence, and it does not validate native HFS+
@@ -129,14 +134,24 @@ writes, the transaction engine, the bootloader, or any goal in
 
 ## Next task
 
-First, reflash the fixed diagnostic image (`280ed7ae…`) and record the rerun
-after the `.rockbox` + `/.rockpod-rw` backup and clean eject described in
-[`../bootloader/DFU.md`](../bootloader/DFU.md). The fixed image is unproven; do
-not claim support or a successful boot until the report, button wait and
-power-off are recorded in [`device-matrix.md`](device-matrix.md).
+The diagnostic has done its hardware job: boot, splash, report, HFS+ volume and
+catalog reads are owner-reported. The `-8` read result is correct because
+`/rockbox.ipod` is not a disk file on this iPod, not a bootloader failure.
 
-After that, start with the owner decisions that block phase 2, then write the
-writer design and host-test plan. See [`tasks.md`](tasks.md):
+Two paths remain:
+
+1. **Close the read evidence (small).** Point the diagnostic probe at a real root
+   file such as `/.rockpod-rw`, reflash once, confirm `HFS+ read: PASS`, and
+   record it in [`device-matrix.md`](device-matrix.md).
+2. **Start the writer (recommended).** Record D-03 and D-04, then freeze the
+   writer interface and failure model (T-001/T-002). Native HFS+ writes are the
+   defining promise; the read path is host-tested and the ATA read path is
+   already exercised by the volume/catalog reads.
+
+If the bootloader path is preferred instead, D-01/D-02/D-20 must be decided
+before adding manifest verification, boot state or firmware loading.
+
+For the writer path, see [`tasks.md`](tasks.md):
 
 - **T-001** — record D-03 and D-04 (journal strategy and ownership).
 - **T-002** — freeze the HFS+ writer interface and failure model.

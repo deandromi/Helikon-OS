@@ -31,7 +31,8 @@ images, backups or serial numbers to the repository.
 |---|---|---|---|---|---|---|---|
 | iPod Classic 6G (reference) | `open question` | `open question` | diagnostic `bd0ebc92…` | boot + splash + report | `partial` | Owner report 2026-11-03: splashed; volume PASS, catalog PASS; report formatting corrupted | owner |
 | iPod Classic 6G (reference) | `open question` | `open question` | diagnostic `bd0ebc92…` | native HFS+ read | `fail` | Owner report 2026-11-03: read FAIL, `read error: -11` (`NAME_INVALID`); fixed lookup pending reflash | owner |
-| iPod Classic 6G (reference) | `open question` | `open question` | diagnostic `280ed7ae…` | boot + splash + report + read | `not run` | Pending reflash of the formatter/lookup fix | owner |
+| iPod Classic 6G (reference) | `open question` | `open question` | diagnostic `280ed7ae…` | boot + splash + report | `pass` | Owner report 2026-11-03: report formatting correct; volume PASS, catalog PASS, splash PASS, write NOT IMPLEMENTED, no write | owner |
+| iPod Classic 6G (reference) | `open question` | `open question` | diagnostic `280ed7ae…` | native HFS+ file read | `blocked` | Owner report 2026-11-03: `read error: -8` (`NOT_FOUND`) because `/rockbox.ipod` is not a disk file; probe target needs a real root file | owner |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | playback | `not run` | none | test lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | native HFS+ write (disposable) | `not run` | none | HFS+ lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | journal replay | `not run` | none | journal lead |
@@ -44,7 +45,7 @@ images, backups or serial numbers to the repository.
 diagnostic rows name the bootloader image hash. Do not write a donor version into
 this column.
 
-### 2.1 First diagnostic run — owner-reported, 2026-11-03
+### 2.1 Diagnostic runs — owner-reported, 2026-11-03
 
 The first Helikon-OS diagnostic image (`bd0ebc92…`, 66,920 bytes) booted on the
 owner's 6G and displayed the splash. The report showed:
@@ -70,8 +71,15 @@ Interpretation:
   The raw ASCII probe lookup now skips undecodable unrelated names.
 - No write was requested or reported. This row is not a support claim.
 
-The formatter and lookup fixes are in the current artifact (`280ed7ae…`,
-67,144 bytes). A reflash/read rerun is `not run`.
+The fixed image (`280ed7ae…`, 67,144 bytes) was then run. The report formatting
+was correct: volume, catalog, write (`NOT IMPLEMENTED`), journal, splash, and the
+partition size displayed as expected. `HFS+ read` reported `-8`
+(`HFS_ERR_NOT_FOUND`) because `/rockbox.ipod` is not a file on this iPod; the
+lookup itself worked. No write was requested or reported.
+
+The file-read path is therefore not hardware-exercised yet. The next diagnostic
+probe should target a real root file such as `/.rockpod-rw`. This does not block
+the writer design.
 
 ## 3. Storage and adapter matrix
 

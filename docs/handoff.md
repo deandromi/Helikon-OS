@@ -64,15 +64,20 @@ file grows. Do not rely on chat history for current state.
 
 ## What is next
 
-1. Reflash the 67,144-byte image using `bootloader/DFU.md`.
-2. Confirm the report shows the byte count, `HFS+ write: NOT IMPLEMENTED`,
-   `Journal: CLEAN`/`NOT PRESENT`, `Splash: PASS` and `Partition: N MiB`.
-3. Confirm `HFS+ read: PASS (32 bytes)`. If it still fails, record the exact
-   `read error` value; the raw lookup should now return `-8` (`NOT_FOUND`) for a
-   missing probe, not `-11`.
-4. Record the rerun in `docs/device-matrix.md`.
-5. After a clean rerun, return to D-01/D-02/D-20 for the firmware-loading
-   bootloader.
+The fixed image was rerun by the owner. The report formatting is correct:
+volume, catalog, write (`NOT IMPLEMENTED`), journal, splash and partition size
+displayed as expected. `read error: -8` (`NOT_FOUND`) is correct because
+`/rockbox.ipod` is not a disk file on this iPod; the lookup itself worked. No
+write was reported.
+
+Choose one:
+
+1. **Close the read evidence (small):** point the diagnostic probe at a real root
+   file such as `/.rockpod-rw`, reflash once, confirm `HFS+ read: PASS`, and
+   record it.
+2. **Start the writer (recommended):** record D-03/D-04, then T-001/T-002.
+   Native HFS+ writes are the defining promise.
+3. **Start the firmware-loading bootloader:** decide D-01/D-02/D-20 first.
 
 ## What must not be touched
 
@@ -89,10 +94,12 @@ file grows. Do not rely on chat history for current state.
 
 ## Device/test evidence
 
-- Owner-reported first run: splash shown; volume PASS; catalog PASS; read FAIL
-  `-11`; report formatting corrupted. Recorded in
-  [`device-matrix.md`](device-matrix.md) §2.1.
-- No rerun of the fixed image yet.
+- Owner-reported first run (`bd0ebc92…`): splash shown; volume PASS; catalog
+  PASS; read FAIL `-11`; report formatting corrupted.
+- Owner-reported fixed-image run (`280ed7ae…`): report formatting correct;
+  volume/catalog/write/journal/splash/partition as expected; read `-8` because
+  `/rockbox.ipod` is not a disk file; no write.
+- Recorded in [`device-matrix.md`](device-matrix.md) §2.1.
 
 ---
 
