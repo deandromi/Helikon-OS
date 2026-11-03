@@ -166,6 +166,11 @@ power-loss matrix.
    forward writes. When the count reaches the target, it calls `power_off()` from
    the ATA write path and the iPod powers off.
 
+   The count is **512-byte ATA writes**, not journal entries. A 4 KiB HFS+
+   block consumes eight counts. A target of `7` therefore cuts very early,
+   before the first journal commit; a clean journal and `Recovery: CLEAN` on the
+   next boot are correct for that case.
+
 3. Boot Disk Mode, set `helikon-cut.txt` to `0` (or delete it), eject cleanly,
    then boot the diagnostic normally. It replays the inner journal and runs the
    full sequence. The report should show `Recovery: RECOVERED` when a dirty
@@ -173,10 +178,16 @@ power-loss matrix.
 
 4. Copy `helikon-test.img` back to macOS and run `fsck_hfs -fn`.
 
-Suggested targets: `1`, `3`, `5`, `7`, `10`, `15`, `20`, `30`, `50`, `100`,
-`150`, `190`. Host cut counts differ slightly because the device counts outer
-write calls, not host journal entries. If `fsck_hfs` reports a repair or the
-recovery report fails, stop and preserve the image.
+Suggested targets in ATA-write counts:
+
+- before the first commit: `4`, `8`, `16`;
+- after the first commit / during replay: `56`, `96`, `160`;
+- later transactions: `240`, `400`, `800`, `1200`, `1500`.
+
+A target beyond the forward sequence simply completes without a cut. If
+`fsck_hfs` reports a repair or the recovery report fails, stop and preserve the
+image. The report is shown on the recovery boot, not while the cut is happening;
+for an early cut the screen may go black before any report text.
 
 ## Expected report
 

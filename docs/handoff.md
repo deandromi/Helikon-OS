@@ -11,6 +11,39 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-04 (PMU cut target 7 observation)
+
+## What happened
+
+- With `helikon-cut.txt` = `7`, the write diagnostic powered off during the
+  early boot/write sequence. No report text was shown; that is expected for an
+  early cut.
+- The owner set the target to `0`, rebooted and got every stage PASS with
+  `Recovery: CLEAN` and `Cleanup: PASS`.
+
+## Interpretation
+
+- The cut count is **512-byte ATA writes**, not journal entries. Target 7 is
+  before the first journal commit, so the journal stays clean and
+  `Recovery: CLEAN` is correct. This is a valid pre-commit cut, not a failed
+  recovery.
+- To see `RECOVERED`, use post-commit targets: `56`, `96`, `160`, then later
+  `240`, `400`, `800`, `1200`, `1500`.
+- The inner-image `fsck_hfs` for the target-7 run is still pending.
+
+## What is next
+
+1. Run target 56, then 96/160; confirm a dirty-journal recovery line.
+2. Extract and fsck the inner image after each cut.
+3. Continue T-044 metadata parity and T-041 font/mockup work.
+
+## Evidence
+
+- Owner report, 2026-11-04; recorded in device-matrix §2.3.
+- Current image `81350f…`; no new DFU rebuild was needed for this observation.
+
+---
+
 # Handoff — 2026-11-04 (metadata timestamps, current write image)
 
 ## Branch / commit
