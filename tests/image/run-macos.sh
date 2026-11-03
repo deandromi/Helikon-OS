@@ -79,10 +79,10 @@ if ! hdiutil attach -nobrowse -mountpoint "$MOUNT" "$IMAGE" \
     fail "could not mount the disposable image"
 fi
 MOUNTED=1
-[ -f "$MOUNT/Helikon Test" ] || fail "macOS did not see the created file"
-SIZE=$(stat -f%z "$MOUNT/Helikon Test")
+[ -f "$MOUNT/Helikon Folder/Helikon Test" ] || fail "macOS did not see the created file"
+SIZE=$(stat -f%z "$MOUNT/Helikon Folder/Helikon Test")
 [ "$SIZE" -eq 4096 ] || fail "macOS saw size $SIZE, expected 4096"
-python3 - "$MOUNT/Helikon Test" <<'PY'
+python3 - "$MOUNT/Helikon Folder/Helikon Test" <<'PY'
 import sys
 
 data = open(sys.argv[1], "rb").read()

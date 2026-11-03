@@ -123,6 +123,7 @@ test_catalog_compare: test_catalog_compare.c test_check.h \
 	  $(HFS)/hfs_unicode_data.c $(LDFLAGS) -o $@
 
 test_catalog_write: test_catalog_write.c test_image.c test_image.h test_check.h \
+                    $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog.h \
                     $(HFS)/hfs_catalog_write.c $(HFS)/hfs_catalog_write.h \
                     $(HFS)/hfs_catalog_compare.c $(HFS)/hfs_catalog_compare.h \
                     $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode.h \
@@ -136,7 +137,8 @@ test_catalog_write: test_catalog_write.c test_image.c test_image.h test_check.h 
                     $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h \
                     $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_catalog_write.c test_image.c \
-	  $(HFS)/hfs_catalog_write.c $(HFS)/hfs_catalog_compare.c \
+	  $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog_write.c \
+	  $(HFS)/hfs_catalog_compare.c \
 	  $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c \
 	  $(HFS)/hfs_btree_tree.c \
 	  $(HFS)/hfs_btree_write.c $(HFS)/hfs_fork_io.c \

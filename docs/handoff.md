@@ -11,6 +11,65 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (folders, rename, below-minimum insert)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the folder/rename/below-minimum commit; check `git log -1`.
+
+## What changed
+
+- `hfs_catalog_create_folder()` and `hfs_catalog_delete_folder()` create/delete
+  folder records (type 1, thread type 3), update `folderCount`, parent valence
+  and next CNID, and refuse to delete a non-empty folder with `NOT_EMPTY`.
+- `hfs_catalog_rename()` renames or moves a file/folder, preserves the record
+  payload, updates the thread record and old/new parent valence, and rejects a
+  folder move into its own descendant.
+- B-tree insertion now supports a key below a non-root leaf's first key by
+  updating the parent index key chain. Index-node below-minimum insertion at
+  depth >2 still fails closed.
+- Tests: file/folder create/delete, rename/move, case-only rename, duplicate
+  collision, folder-cycle rejection, and a below-minimum model insert.
+- The disposable image test now creates a folder and file, renames both, and
+  deletes them; `fsck_hfs -fn` is clean before and after.
+- Total portable host tests: 103 (95 HFS+, 8 bootloader), sanitizer-clean.
+
+## What was verified
+
+- `make -C tests/hfsplus test` — 95/95 pass.
+- `make -C tests/hfsplus sanitize` — 95/95 pass with ASan/UBSan.
+- `make -C tests/image test` — folder/file create, append, macOS mount/read,
+  rename, delete, both fsck runs clean.
+- `make -C tests/image crash-test` — 127 create/append/truncate/delete cuts
+  still fsck-clean.
+- No device write and no write-capable bootloader image.
+
+## What is next
+
+1. Metadata parity (timestamps, BSD/Finder info) and the wider macOS corpus.
+2. Index-node below-minimum insert at depth >2.
+3. The separate write-diagnostic image (see the bootloader handoff).
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable production bootloader; any write diagnostic is a separate
+  image, DFU-only, and limited to a preallocated test file.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- Metadata parity fields and timestamp policy.
+- `:`/`/` mapping and wider macOS name corpus (T-038).
+
+## Device/test evidence
+
+- No new device run. The disposable-image and crash tests are host evidence.
+
+---
+
 # Handoff — 2026-11-03 (full crash matrix)
 
 ## Branch / commit

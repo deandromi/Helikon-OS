@@ -55,7 +55,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Bounded transaction engine | `implemented` | `firmware/hfs/hfs_txn.c`; staged-block commit through the journal; 7 host tests |
 | Allocation bitmap | `implemented` | `firmware/hfs/hfs_bitmap.c`; first-fit alloc/free, free-block counts, header/alternate staging, `NO_SPACE`; 5 host tests; allocation-file overflow extents unsupported |
 | B-tree node mutation helpers | `implemented` | `firmware/hfs/hfs_btree_write.c`; node offset table insert/delete, free-space checks and node split; 7 host tests |
-| B-tree tree insertion | `implemented` | `firmware/hfs/hfs_btree_tree.c`; root-to-leaf traversal, free-node map, leaf/index split, parent insertion, recursive split and root creation; 1 model test with 20 records; below-minimum insertion fails closed |
+| B-tree tree insertion | `implemented` | `firmware/hfs/hfs_btree_tree.c`; root-to-leaf traversal, free-node map, leaf/index split, parent insertion, recursive split, root creation, leaf below-minimum insert and parent-key propagation; index-node below-minimum insert at depth >2 still fails closed; 1 model test with 20 records plus a below-minimum case |
 | B-tree delete | `implemented` | `hfs_btree_delete` removes records including first records, propagates changed parent keys, unlinks/frees empty leaves, merges/redistributes with both siblings, collapses a one-child root to its nonempty leaf, and collapses an empty parent into its grandparent; fork growth is implemented separately; covered by the same model test |
 | Volume header staging | `implemented` | `hfs_volume_write.c`; primary/alternate header file/folder counts, next CNID and write count; no `modifyDate` update |
 | Private NUL names | `implemented` | Directory iteration escapes NUL as U+2400 and marks the entry `name_escaped`/`unsupported`; path lookup skips the escaped entry and continues instead of aborting the directory; 1 catalog test |
@@ -63,12 +63,12 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Journal crash injection | `implemented` | `tests/image/run-crash-macos.sh` injects a failed write at every cut point of create (25), append (43), truncate (34) and delete (25) transactions, reopens the image, replays the journal and runs `fsck_hfs -fn`; all 127 cuts recover to a consistent state and an fsck-clean volume; rename, partial-sector writes, fsync failures and power-loss timing remain |
 | Disposable-image writer validation | `implemented` | `tests/image/run-macos.sh` creates a 16 MiB journaled HFS+ image, creates/appends/truncates/deletes a file, mounts it in macOS to read back 4096 bytes, and `fsck_hfs -fn` reports the volume OK after create and after delete; host-only, no device or library write |
 | B-tree fork growth | `implemented` | `hfs_btree_grow()` allocates a volume block, extends the catalog/extents fork in the primary/alternate headers, adds a free node to the header map and updates `totalNodes`; requires `node_size == block_size` and an inline fork extent slot; 1 host test |
-| Catalog create/delete (empty file) | `implemented` | `hfs_catalog_write.c`; native file + thread record insert/delete through the B-tree and journal, CNID allocation, file count and parent valence; names are normalized to HFS+ canonical form, so composed/decomposed input shares one key; 1 host test |
+| Catalog create/delete/rename | `implemented` | `hfs_catalog_write.c`; file and folder records, thread records, CNID allocation, file/folder counts, parent valence, rename/move with a folder-cycle check; names are normalized to HFS+ canonical form; 5 host tests |
 | Unicode catalog comparison | `implemented` | `hfs_catalog_compare.c` uses Apple `FastUnicodeCompare`; `hfs_unicode_normalize_name()` decomposes, applies the HFS+ exception ranges, decomposes Hangul and canonically orders combining marks; `hfs_unicode_data.c` is generated from Unicode 2.1.9 by `tools/gen-hfs-unicode-table.py`; 23 Unicode and 6 key-comparison tests; a local macOS-created image matches the stored forms; broader corpus and `fsck_hfs` ordering checks remain |
 | Data-fork append/truncate (eight inline + multiple overflow records) | `implemented` | `hfs_catalog_append_file` appends to empty or non-empty files, stages data before metadata, allocates individual free blocks, merges inline extents and writes multiple extents-overflow records; truncate frees all records; the transaction block budget caps very large fragmented writes |
 | Fork block staging | `implemented` | `firmware/hfs/hfs_fork_io.c`; full/partial block write staging into `hfs_txn`; inline extents only; 4 host tests |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
-| Host test harness | `in progress` | 99 portable tests (91 HFS+, 8 bootloader), sanitizer clean, plus the macOS disposable-image and crash-injection tests; first diagnostic boot is owner-reported |
+| Host test harness | `in progress` | 103 portable tests (95 HFS+, 8 bootloader), sanitizer clean, plus the macOS disposable-image and crash-injection tests; first diagnostic boot is owner-reported |
 
 ## What does not exist
 
@@ -79,7 +79,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; no device run and no firmware loading |
 | Bootloader manifest/boot state | `planned` | D-01/D-02 still open |
 | VFS, player, UI, database | `planned` | No implementation |
-| HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete/growth, fork staging, catalog create/delete/valence, multi-extent/overflow data append/truncate, FastUnicodeCompare, HFS+ normalization and disposable-image `fsck_hfs` validation exist; the broader macOS name corpus and any device write do not |
+| HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete/growth/below-minimum, fork staging, file/folder create/delete/rename, multi-extent/overflow data append/truncate, FastUnicodeCompare, HFS+ normalization and disposable-image `fsck_hfs` validation exist; metadata parity, the broader macOS name corpus and any device write do not |
 | Journal replay on a real dirty volume | `unproven` | Replay is host-tested on synthetic journals; no macOS-created dirty volume or device run |
 | Installer or desktop app | `planned` | No host application |
 | Build system, CI, release artifacts | `in progress` | Host test Makefiles and the diagnostic bootloader script; no CI or firmware release |
@@ -142,9 +142,10 @@ writes, the transaction engine, the bootloader, or any goal in
 3. **Writer internals are not all frozen.** The interface and journal design are
    frozen; the bitmap, B-tree insert/delete/growth, catalog/extents mutation,
    fork staging, Apple `FastUnicodeCompare`, HFS+ decomposition and canonical
-   ordering are implemented, and a disposable macOS HFS+ image passes
-   `fsck_hfs -fn`. Cache limits (D-05), the broader macOS name corpus and any
-   device write remain. Do not substitute byte order.
+   ordering, folder create/delete and rename are implemented, and a disposable
+   macOS HFS+ image passes `fsck_hfs -fn`. Cache limits (D-05), metadata
+   parity, the broader macOS name corpus and any device write remain. Do not
+   substitute byte order.
 4. **No signed-update or signing policy.** D-01, D-16 and D-20 are open.
 5. **No 7G board audit.** 7G support is unproven until a recorded audit covers
    panel, PMU, audio, storage, button map and `MOVE_AREA`.
@@ -164,8 +165,9 @@ disk file on this iPod.
 The next writer tasks are:
 
 - **T-034** — the generic B-tree mutation engine (insert/delete, split/merge,
-  free-node map, leaf links, fork growth, FastUnicodeCompare) is implemented;
-  below-minimum insert remains.
+  free-node map, leaf links, fork growth, FastUnicodeCompare and leaf
+  below-minimum insert) is implemented; index-node below-minimum insert at
+  depth >2 remains.
 - **D-06** — accepted: Apple `FastUnicodeCompare` plus HFS+ normalization from
   generated Unicode 2.1.9 tables. Disposable-image `fsck_hfs` passes. Next is
   the broader macOS-created name corpus and the `:`/`/` mapping.

@@ -497,6 +497,66 @@ static int insert_parent(struct hfs_btree *btree, struct tree_header *header,
                          separator, separator_length, compare, context);
 }
 
+static int update_index_key(struct hfs_btree *btree, struct hfs_txn *tx,
+                             uint32_t parent_node, uint16_t child,
+                             const uint8_t *key, size_t key_length)
+{
+    uint8_t parent[HFS_MAX_NODE_SIZE];
+    int rc = read_node(btree, tx, parent_node, parent);
+    if (rc != HFS_OK)
+        return rc;
+
+    const uint8_t *record;
+    size_t record_length;
+    rc = hfs_btree_node_record(parent, btree->node_size, child, &record,
+                               &record_length);
+    if (rc != HFS_OK)
+        return rc;
+    if (record_length < HFS_BTREE_KEY_LENGTH)
+        return HFS_ERR_FORMAT;
+    uint16_t stored = be16(record);
+    if ((size_t)stored + HFS_BTREE_KEY_LENGTH + HFS_BTREE_CHILD_SIZE >
+        record_length)
+        return HFS_ERR_FORMAT;
+    uint32_t child_node = be32(record + HFS_BTREE_KEY_LENGTH + stored);
+    if (key_length + HFS_BTREE_KEY_LENGTH + HFS_BTREE_CHILD_SIZE >
+        HFS_MAX_NODE_SIZE)
+        return HFS_ERR_NO_SPACE;
+
+    uint8_t index_record[HFS_MAX_NODE_SIZE];
+    put16(index_record, (uint16_t)key_length);
+    memcpy(index_record + HFS_BTREE_KEY_LENGTH, key, key_length);
+    put32(index_record + HFS_BTREE_KEY_LENGTH + key_length, child_node);
+    size_t new_length = HFS_BTREE_KEY_LENGTH + key_length +
+                        HFS_BTREE_CHILD_SIZE;
+
+    rc = hfs_btree_node_delete(parent, btree->node_size, child);
+    if (rc != HFS_OK)
+        return rc;
+    rc = hfs_btree_node_insert(parent, btree->node_size, child,
+                               index_record, new_length);
+    if (rc != HFS_OK)
+        return rc;
+    return stage_node(btree, tx, parent_node, parent);
+}
+
+static int update_ancestor_keys(struct hfs_btree *btree, struct hfs_txn *tx,
+                                const struct insert_path *path,
+                                unsigned int level, const uint8_t *key,
+                                size_t key_length)
+{
+    for (unsigned int l = level; l > 0; --l) {
+        uint16_t child = path[l - 1u].child;
+        int rc = update_index_key(btree, tx, path[l - 1u].node, child, key,
+                                  key_length);
+        if (rc != HFS_OK)
+            return rc;
+        if (child != 0 || l == 1)
+            break;
+    }
+    return HFS_OK;
+}
+
 int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
                      const void *record, size_t length,
                      hfs_btree_key_compare_fn compare, void *compare_context)
@@ -590,8 +650,12 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
             break;
     }
 
-    if (position == 0 && level > 0)
-        return HFS_ERR_UNSUPPORTED;
+    if (position == 0 && level > 0) {
+        rc = update_ancestor_keys(btree, tx, path, level, new_key,
+                                  new_key_length);
+        if (rc != HFS_OK)
+            return rc;
+    }
     rc = hfs_btree_node_insert(node, btree->node_size, position, record,
                                length);
     if (rc == HFS_OK) {
@@ -646,6 +710,12 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
             return rc;
         if (compare_result > 0)
             break;
+    }
+    if (target == node && insert_at == 0 && level > 0) {
+        rc = update_ancestor_keys(btree, tx, path, level, new_key,
+                                  new_key_length);
+        if (rc != HFS_OK)
+            return rc;
     }
     rc = hfs_btree_node_insert(target, btree->node_size, insert_at, record,
                                length);

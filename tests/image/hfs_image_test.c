@@ -3,9 +3,9 @@
  * Disposable-image integration test for the native HFS+ writer.
  *
  * This is not a device test and it must only run on an image created by
- * tests/image/run-macos.sh. It opens a journaled HFS+ image, performs one
- * catalog/data operation, commits it through the journal and verifies the
- * result through the read core. The shell driver runs fsck_hfs between steps.
+ * tests/image/run-macos.sh. It opens a journaled HFS+ image, creates a folder
+ * and a file, commits through the journal and verifies the result through the
+ * read core. The shell driver runs fsck_hfs between steps.
  */
 #include "hfs_catalog.h"
 #include "hfs_catalog_compare.h"
@@ -19,7 +19,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#define TEST_FOLDER "Helikon Folder"
+#define TEST_FOLDER_RENAMED "Helikon Folder Renamed"
 #define TEST_NAME "Helikon Test"
+#define TEST_NAME_RENAMED "Helikon Test Renamed"
 #define TEST_SIZE 4096u
 #define TEST_PATTERN 0x5au
 
@@ -116,11 +119,43 @@ static void close_image(struct image *image)
         close(image->fd);
 }
 
+static const uint8_t *test_folder_name(size_t *units)
+{
+    static const uint8_t name[] = {
+        0, 'H', 0, 'e', 0, 'l', 0, 'i', 0, 'k', 0, 'o', 0, 'n', 0, ' ',
+        0, 'F', 0, 'o', 0, 'l', 0, 'd', 0, 'e', 0, 'r'
+    };
+    *units = sizeof(name) / 2u;
+    return name;
+}
+
 static const uint8_t *test_name(size_t *units)
 {
     static const uint8_t name[] = {
         0, 'H', 0, 'e', 0, 'l', 0, 'i', 0, 'k', 0, 'o', 0, 'n', 0, ' ',
         0, 'T', 0, 'e', 0, 's', 0, 't'
+    };
+    *units = sizeof(name) / 2u;
+    return name;
+}
+
+static const uint8_t *renamed_folder_name(size_t *units)
+{
+    static const uint8_t name[] = {
+        0, 'H', 0, 'e', 0, 'l', 0, 'i', 0, 'k', 0, 'o', 0, 'n', 0, ' ',
+        0, 'F', 0, 'o', 0, 'l', 0, 'd', 0, 'e', 0, 'r', 0, ' ', 0, 'R',
+        0, 'e', 0, 'n', 0, 'a', 0, 'm', 0, 'e', 0, 'd'
+    };
+    *units = sizeof(name) / 2u;
+    return name;
+}
+
+static const uint8_t *renamed_test_name(size_t *units)
+{
+    static const uint8_t name[] = {
+        0, 'H', 0, 'e', 0, 'l', 0, 'i', 0, 'k', 0, 'o', 0, 'n', 0, ' ',
+        0, 'T', 0, 'e', 0, 's', 0, 't', 0, ' ', 0, 'R', 0, 'e', 0, 'n',
+        0, 'a', 0, 'm', 0, 'e', 0, 'd'
     };
     *units = sizeof(name) / 2u;
     return name;
@@ -137,25 +172,44 @@ static int commit(struct hfs_txn *tx, int rc)
 static int create_and_append(struct image *image)
 {
     struct stats before;
-    struct stats after_create;
+    struct stats after_folder;
+    struct stats after_file;
     struct stats after_append;
     int rc = read_stats(image, &before);
     if (rc != HFS_OK)
         return rc;
 
+    size_t folder_units = 0;
     size_t units = 0;
+    const uint8_t *folder_name = test_folder_name(&folder_units);
     const uint8_t *name = test_name(&units);
-    uint32_t cnid = 0;
+    uint32_t folder_cnid = 0;
+    uint32_t file_cnid = 0;
     struct hfs_txn tx;
+
     rc = hfs_txn_begin(&tx, &image->journal);
     if (rc != HFS_OK)
         return rc;
-    rc = hfs_catalog_create_file(&image->catalog, &tx, 2, name, units, 0644,
-                                 hfs_catalog_key_compare, NULL, &cnid);
+    rc = hfs_catalog_create_folder(&image->catalog, &tx, 2, folder_name,
+                                   folder_units, 0755,
+                                   hfs_catalog_key_compare, NULL,
+                                   &folder_cnid);
     rc = commit(&tx, rc);
     if (rc != HFS_OK)
         return rc;
-    if (read_stats(image, &after_create) != HFS_OK)
+    if (read_stats(image, &after_folder) != HFS_OK)
+        return HFS_ERR_IO;
+
+    rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    rc = hfs_catalog_create_file(&image->catalog, &tx, folder_cnid, name,
+                                 units, 0644, hfs_catalog_key_compare, NULL,
+                                 &file_cnid);
+    rc = commit(&tx, rc);
+    if (rc != HFS_OK)
+        return rc;
+    if (read_stats(image, &after_file) != HFS_OK)
         return HFS_ERR_IO;
 
     uint8_t data[TEST_SIZE];
@@ -163,22 +217,25 @@ static int create_and_append(struct image *image)
     rc = hfs_txn_begin(&tx, &image->journal);
     if (rc != HFS_OK)
         return rc;
-    rc = hfs_catalog_append_file(&image->catalog, &tx, 2, name, units, 0,
-                                 data, sizeof(data), hfs_catalog_key_compare,
-                                 NULL);
+    rc = hfs_catalog_append_file(&image->catalog, &tx, folder_cnid, name,
+                                 units, 0, data, sizeof(data),
+                                 hfs_catalog_key_compare, NULL);
     rc = commit(&tx, rc);
     if (rc != HFS_OK)
         return rc;
     if (read_stats(image, &after_append) != HFS_OK)
         return HFS_ERR_IO;
 
-    if (after_create.file_count != before.file_count + 1u)
+    if (after_folder.folder_count != before.folder_count + 1u)
+        return HFS_ERR_FORMAT;
+    if (after_file.file_count != before.file_count + 1u)
         return HFS_ERR_FORMAT;
     if (after_append.free_blocks != before.free_blocks - 1u)
         return HFS_ERR_FORMAT;
 
     struct hfs_entry entry;
-    rc = hfs_catalog_lookup_ascii(&image->catalog, 2, TEST_NAME, &entry);
+    rc = hfs_catalog_lookup_ascii(&image->catalog, folder_cnid, TEST_NAME,
+                                  &entry);
     if (rc != HFS_OK)
         return rc;
     if (entry.kind != 2 || entry.data.size != TEST_SIZE)
@@ -195,8 +252,10 @@ static int create_and_append(struct image *image)
             return HFS_ERR_FORMAT;
     }
 
-    printf("created cnid=%u file_count=%u free_blocks=%u\n", cnid,
-           after_append.file_count, after_append.free_blocks);
+    printf("created folder cnid=%u file cnid=%u file_count=%u "
+           "folder_count=%u free_blocks=%u\n",
+           folder_cnid, file_cnid, after_append.file_count,
+           after_append.folder_count, after_append.free_blocks);
     printf("content verified: %u bytes of 0x%02x\n", TEST_SIZE, TEST_PATTERN);
     return HFS_OK;
 }
@@ -204,23 +263,65 @@ static int create_and_append(struct image *image)
 static int delete_file(struct image *image)
 {
     struct stats before;
-    struct stats after;
+    struct stats after_file;
+    struct stats after_folder;
     int rc = read_stats(image, &before);
     if (rc != HFS_OK)
         return rc;
 
-    struct hfs_entry entry;
-    rc = hfs_catalog_lookup_ascii(&image->catalog, 2, TEST_NAME, &entry);
+    struct hfs_entry folder_entry;
+    rc = hfs_catalog_lookup_ascii(&image->catalog, 2, TEST_FOLDER,
+                                  &folder_entry);
+    if (rc != HFS_OK)
+        return rc;
+    struct hfs_entry file_entry;
+    rc = hfs_catalog_lookup_ascii(&image->catalog, folder_entry.id, TEST_NAME,
+                                  &file_entry);
     if (rc != HFS_OK)
         return rc;
 
+    size_t folder_units = 0;
     size_t units = 0;
+    const uint8_t *folder_name = test_folder_name(&folder_units);
     const uint8_t *name = test_name(&units);
     struct hfs_txn tx;
+
+    size_t renamed_folder_units = 0;
+    size_t renamed_units = 0;
+    const uint8_t *renamed_folder = renamed_folder_name(&renamed_folder_units);
+    const uint8_t *renamed_name = renamed_test_name(&renamed_units);
+
     rc = hfs_txn_begin(&tx, &image->journal);
     if (rc != HFS_OK)
         return rc;
-    rc = hfs_catalog_truncate_file(&image->catalog, &tx, 2, name, units,
+    rc = hfs_catalog_rename(&image->catalog, &tx, folder_entry.id, name,
+                            units, file_entry.id, folder_entry.id,
+                            renamed_name, renamed_units,
+                            hfs_catalog_key_compare, NULL);
+    rc = commit(&tx, rc);
+    if (rc != HFS_OK)
+        return rc;
+
+    rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    rc = hfs_catalog_rename(&image->catalog, &tx, 2, folder_name,
+                            folder_units, folder_entry.id, 2,
+                            renamed_folder, renamed_folder_units,
+                            hfs_catalog_key_compare, NULL);
+    rc = commit(&tx, rc);
+    if (rc != HFS_OK)
+        return rc;
+
+    rc = hfs_catalog_lookup_ascii(&image->catalog, folder_entry.id,
+                                  TEST_NAME_RENAMED, &file_entry);
+    if (rc != HFS_OK)
+        return rc;
+    rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    rc = hfs_catalog_truncate_file(&image->catalog, &tx, folder_entry.id,
+                                   renamed_name, renamed_units,
                                    hfs_catalog_key_compare, NULL);
     rc = commit(&tx, rc);
     if (rc != HFS_OK)
@@ -229,24 +330,41 @@ static int delete_file(struct image *image)
     rc = hfs_txn_begin(&tx, &image->journal);
     if (rc != HFS_OK)
         return rc;
-    rc = hfs_catalog_delete_file(&image->catalog, &tx, 2, name, units,
-                                 entry.id, hfs_catalog_key_compare, NULL);
+    rc = hfs_catalog_delete_file(&image->catalog, &tx, folder_entry.id,
+                                 renamed_name, renamed_units, file_entry.id,
+                                 hfs_catalog_key_compare, NULL);
+    rc = commit(&tx, rc);
+    if (rc != HFS_OK)
+        return rc;
+    if (read_stats(image, &after_file) != HFS_OK)
+        return HFS_ERR_IO;
+
+    rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    rc = hfs_catalog_delete_folder(&image->catalog, &tx, 2, renamed_folder,
+                                   renamed_folder_units, folder_entry.id,
+                                   hfs_catalog_key_compare, NULL);
     rc = commit(&tx, rc);
     if (rc != HFS_OK)
         return rc;
 
-    if (read_stats(image, &after) != HFS_OK)
+    if (read_stats(image, &after_folder) != HFS_OK)
         return HFS_ERR_IO;
-    if (after.file_count + 1u != before.file_count)
+    if (after_file.file_count + 1u != before.file_count)
         return HFS_ERR_FORMAT;
-    if (after.free_blocks != before.free_blocks + 1u)
+    if (after_folder.folder_count + 1u != before.folder_count)
         return HFS_ERR_FORMAT;
-    rc = hfs_catalog_lookup_ascii(&image->catalog, 2, TEST_NAME, &entry);
+    if (after_folder.free_blocks != before.free_blocks + 1u)
+        return HFS_ERR_FORMAT;
+    rc = hfs_catalog_lookup_ascii(&image->catalog, 2,
+                                  TEST_FOLDER_RENAMED, &folder_entry);
     if (rc != HFS_ERR_NOT_FOUND)
         return HFS_ERR_FORMAT;
 
-    printf("deleted file_count=%u free_blocks=%u\n", after.file_count,
-           after.free_blocks);
+    printf("deleted file_count=%u folder_count=%u free_blocks=%u\n",
+           after_folder.file_count, after_folder.folder_count,
+           after_folder.free_blocks);
     return HFS_OK;
 }
 

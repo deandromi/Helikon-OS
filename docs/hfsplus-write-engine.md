@@ -26,8 +26,9 @@ it the largest single change from the donor and the critical path of the product
 D-06 (Apple `FastUnicodeCompare`) are accepted; the interface and failure model
 in §10 are frozen. The Apple HFS+ journal append/replay path, a bounded
 transaction engine, the allocation bitmap, B-tree insert/delete/split/growth,
-catalog/extents mutation, fork block staging, catalog key comparison and HFS+
-normalization are implemented and host-tested. A disposable 16 MiB journaled
+catalog/extents mutation (including folders and rename/move), fork block
+staging, catalog key comparison and HFS+ normalization are implemented and
+host-tested. A disposable 16 MiB journaled
 HFS+ image passes create/append/mount/delete with `fsck_hfs -fn` clean, and a
 create/append/truncate/delete write-failure matrices (127 cuts) replay to an
 fsck-clean volume. The write diagnostic and any device write do not exist. Do not infer a
@@ -56,7 +57,8 @@ code in the product.
 
 ### 3.1 Required operations
 
-- Insert a folder record, file record and thread record.
+- Insert a folder record, file record and thread record; rename/move files and
+  folders with a cycle check.
 - Update a record without zeroing fields the writer does not understand.
 - Delete a record and its thread; update parent/child counts where applicable.
 - Allocate CNIDs monotonically; never reuse a live CNID; keep the volume header's
@@ -74,6 +76,8 @@ code in the product.
 - A failed mutation leaves the old tree intact; partial node writes are not
   visible.
 - The free-node map and allocation bitmap agree with the nodes actually in use.
+- Inserting a key below a leaf's first key updates the parent index chain; the
+  index-node below-minimum case at depth >2 still fails closed.
 - A record update preserves BSD info, Finder info, flags and timestamps unless
   the operation explicitly changes them.
 

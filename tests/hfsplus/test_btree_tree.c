@@ -183,8 +183,8 @@ static int test_insert_many(void)
         }
     }
 
-    /* A key below the tree minimum would require updating the parent chain;
-     * that case must fail closed, not corrupt the tree. */
+    /* A key below the tree minimum must update the parent key chain, not
+     * corrupt the tree. */
     memset(&journal, 0, sizeof(journal));
     journal.sector_size = TEST_BLOCK_SIZE;
     memset(&tx, 0, sizeof(tx));
@@ -193,9 +193,15 @@ static int test_insert_many(void)
     uint8_t low_record[2u + TEST_KEY_BYTES];
     make_record(low_record, 5);
     CHECK(hfs_btree_insert(&btree, &tx, low_record, sizeof(low_record),
-                           compare_keys, NULL) == HFS_ERR_UNSUPPORTED);
+                           compare_keys, NULL) == HFS_OK);
+    apply_txn(&tx);
+    uint8_t *header_low = node_ptr(0);
+    uint8_t *first_leaf = node_ptr(get_be32(header_low + 24));
+    uint8_t *first_record = first_leaf + get_be16(first_leaf +
+                                                  TEST_NODE_SIZE - 2u);
+    CHECK(get_be32(first_record + 2) == 5);
 
-    static const uint32_t delete_keys[] = { 29, 28, 27, 26, 14, 13, 10 };
+    static const uint32_t delete_keys[] = { 29, 28, 27, 26, 14, 13, 10, 5 };
     for (size_t d = 0; d < sizeof(delete_keys) / sizeof(delete_keys[0]); ++d) {
         memset(&journal, 0, sizeof(journal));
         journal.sector_size = TEST_BLOCK_SIZE;

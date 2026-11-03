@@ -584,6 +584,314 @@ static int test_create_delete_file(void)
     return 0;
 }
 
+static int test_create_delete_folder(void)
+{
+    make_image();
+    struct hfs_volume volume;
+    CHECK(hfs_volume_probe(&volume, test_image_read, NULL, 0,
+                           TEST_IMAGE_SIZE) == HFS_OK);
+    struct hfs_btree btree;
+    memset(&btree, 0, sizeof(btree));
+    btree.volume = &volume;
+    btree.fork = &volume.catalog;
+    btree.node_size = TEST_NODE_SIZE;
+    btree.total_nodes = TEST_NODES;
+    btree.free_nodes = TEST_NODES - 2;
+    btree.depth = 1;
+    btree.root_node = 1;
+    btree.first_leaf = 1;
+    btree.last_leaf = 1;
+
+    struct hfs_catalog catalog;
+    memset(&catalog, 0, sizeof(catalog));
+    catalog.btree = btree;
+
+    struct hfs_journal journal;
+    struct hfs_txn tx;
+    memset(&journal, 0, sizeof(journal));
+    journal.sector_size = TEST_BLOCK_SIZE;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(seed_root(&btree, &tx) == HFS_OK);
+    apply_txn(&tx);
+
+    static const uint8_t dir_name[6] = { 0, 'D', 0, 'I', 0, 'R' };
+    static const uint8_t file_name[8] = {
+        0, 'F', 0, 'I', 0, 'L', 0, 'E'
+    };
+    uint32_t dir_cnid = 0;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_create_folder(&catalog, &tx, 2, dir_name, 3, 0755,
+                                    hfs_catalog_key_compare, NULL,
+                                    &dir_cnid) == HFS_OK);
+    CHECK(dir_cnid == 16);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 36) == 1);
+    CHECK(get_be32(test_image + 1024 + 64) == 17);
+
+    uint8_t key[256];
+    uint8_t record[1024];
+    size_t record_length = 0;
+    size_t key_length = build_key(key, 2, dir_name, 3);
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    size_t data_offset = 2u + key_length;
+    CHECK(get_be16(record + data_offset) == 1);
+    CHECK(get_be32(record + data_offset + 4) == 0);
+    CHECK(get_be32(record + data_offset + 8) == dir_cnid);
+    CHECK((get_be16(record + data_offset + 42) & 0170000u) == 0040000u);
+
+    key_length = build_key(key, dir_cnid, NULL, 0);
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    data_offset = 2u + key_length;
+    CHECK(get_be16(record + data_offset) == 3);
+    CHECK(get_be32(record + data_offset + 4) == 2);
+    CHECK(get_be16(record + data_offset + 8) == 3);
+
+    uint32_t file_cnid = 0;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_create_file(&catalog, &tx, dir_cnid, file_name, 4, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &file_cnid) == HFS_OK);
+    CHECK(file_cnid == 17);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 32) == 2);
+    CHECK(get_be32(test_image + 1024 + 36) == 1);
+
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_delete_folder(&catalog, &tx, 2, dir_name, 3, dir_cnid,
+                                    hfs_catalog_key_compare, NULL) ==
+          HFS_ERR_NOT_EMPTY);
+    CHECK(tx.count == 0);
+
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_delete_file(&catalog, &tx, dir_cnid, file_name, 4,
+                                  file_cnid, hfs_catalog_key_compare,
+                                  NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 32) == 1);
+
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_delete_folder(&catalog, &tx, 2, dir_name, 3, dir_cnid,
+                                    hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 36) == 0);
+    CHECK(get_be32(test_image + 1024 + 64) == 18);
+    CHECK(get_be32(node_ptr(0) + 20) == 2);
+    return 0;
+}
+
+struct test_env {
+    struct hfs_volume volume;
+    struct hfs_btree btree;
+    struct hfs_catalog catalog;
+    struct hfs_journal journal;
+    uint8_t scratch[TEST_NODE_SIZE];
+};
+
+static int setup_env(struct test_env *env)
+{
+    make_image();
+    if (hfs_volume_probe(&env->volume, test_image_read, NULL, 0,
+                         TEST_IMAGE_SIZE) != HFS_OK)
+        return 1;
+    memset(&env->btree, 0, sizeof(env->btree));
+    env->btree.volume = &env->volume;
+    env->btree.fork = &env->volume.catalog;
+    env->btree.node_size = TEST_NODE_SIZE;
+    env->btree.total_nodes = TEST_NODES;
+    env->btree.free_nodes = TEST_NODES - 2;
+    env->btree.depth = 1;
+    env->btree.root_node = 1;
+    env->btree.first_leaf = 1;
+    env->btree.last_leaf = 1;
+    env->btree.scratch = env->scratch;
+    env->btree.scratch_size = sizeof(env->scratch);
+
+    memset(&env->catalog, 0, sizeof(env->catalog));
+    env->catalog.btree = env->btree;
+    memset(&env->journal, 0, sizeof(env->journal));
+    env->journal.sector_size = TEST_BLOCK_SIZE;
+
+    struct hfs_txn tx;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &env->journal;
+    tx.active = 1;
+    if (seed_root(&env->btree, &tx) != HFS_OK)
+        return 1;
+    apply_txn(&tx);
+    return 0;
+}
+
+static void start_tx(struct test_env *env, struct hfs_txn *tx)
+{
+    memset(tx, 0, sizeof(*tx));
+    tx->journal = &env->journal;
+    tx->active = 1;
+}
+
+static int test_rename_file_same_parent(void)
+{
+    struct test_env env;
+    CHECK(setup_env(&env) == 0);
+
+    static const uint8_t old_name[6] = { 0, 'O', 0, 'L', 0, 'D' };
+    static const uint8_t new_name[6] = { 0, 'N', 0, 'E', 0, 'W' };
+    uint32_t cnid = 0;
+    struct hfs_txn tx;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_file(&env.catalog, &tx, 2, old_name, 3, 0644,
+                                  hfs_catalog_key_compare, NULL, &cnid) ==
+          HFS_OK);
+    apply_txn(&tx);
+
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_rename(&env.catalog, &tx, 2, old_name, 3, cnid, 2,
+                             new_name, 3, hfs_catalog_key_compare, NULL) ==
+          HFS_OK);
+    apply_txn(&tx);
+    struct hfs_entry entry;
+    CHECK(hfs_catalog_lookup_ascii(&env.catalog, 2, "OLD", &entry) ==
+          HFS_ERR_NOT_FOUND);
+    CHECK(hfs_catalog_lookup_ascii(&env.catalog, 2, "NEW", &entry) == HFS_OK);
+    CHECK(entry.id == cnid);
+    CHECK(get_be32(test_image + 1024 + 32) == 2);
+    return 0;
+}
+
+static int test_rename_move_case_collision(void)
+{
+    struct test_env env;
+    CHECK(setup_env(&env) == 0);
+
+    static const uint8_t moved_name[10] = {
+        0, 'M', 0, 'O', 0, 'V', 0, 'E', 0, 'D'
+    };
+    static const uint8_t lower_name[10] = {
+        0, 'm', 0, 'o', 0, 'v', 0, 'e', 0, 'd'
+    };
+    static const uint8_t folder_name[8] = {
+        0, 'Z', 0, 'D', 0, 'I', 0, 'R'
+    };
+    static const uint8_t other_name[10] = {
+        0, 'O', 0, 'T', 0, 'H', 0, 'E', 0, 'R'
+    };
+
+    uint32_t file_cnid = 0;
+    uint32_t folder_cnid = 0;
+    struct hfs_txn tx;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_file(&env.catalog, &tx, 2, moved_name, 5, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &file_cnid) == HFS_OK);
+    apply_txn(&tx);
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_folder(&env.catalog, &tx, 2, folder_name, 4,
+                                    0755, hfs_catalog_key_compare, NULL,
+                                    &folder_cnid) == HFS_OK);
+    apply_txn(&tx);
+
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_rename(&env.catalog, &tx, 2, moved_name, 5, file_cnid,
+                             folder_cnid, lower_name, 5,
+                             hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+    struct hfs_entry entry;
+    CHECK(hfs_catalog_lookup_ascii(&env.catalog, 2, "MOVED", &entry) ==
+          HFS_ERR_NOT_FOUND);
+    CHECK(hfs_catalog_lookup_ascii(&env.catalog, folder_cnid, "moved",
+                                   &entry) == HFS_OK);
+    CHECK(entry.id == file_cnid);
+
+    uint32_t other_cnid = 0;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_folder(&env.catalog, &tx, folder_cnid,
+                                    other_name, 5, 0755,
+                                    hfs_catalog_key_compare, NULL,
+                                    &other_cnid) == HFS_OK);
+    apply_txn(&tx);
+
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_rename(&env.catalog, &tx, folder_cnid, lower_name, 5,
+                             file_cnid, folder_cnid, other_name, 5,
+                             hfs_catalog_key_compare, NULL) == HFS_ERR_BUSY);
+    hfs_txn_abort(&tx);
+    CHECK(hfs_catalog_lookup_ascii(&env.catalog, folder_cnid, "moved",
+                                   &entry) == HFS_OK);
+    return 0;
+}
+
+static int test_rename_folder_cycle(void)
+{
+    struct test_env env;
+    CHECK(setup_env(&env) == 0);
+
+    static const uint8_t folder_name[8] = {
+        0, 'Z', 0, 'D', 0, 'I', 0, 'R'
+    };
+    static const uint8_t sub_name[6] = { 0, 'S', 0, 'U', 0, 'B' };
+    static const uint8_t sub2_name[8] = {
+        0, 'S', 0, 'U', 0, 'B', 0, '2'
+    };
+
+    uint32_t folder_cnid = 0;
+    uint32_t sub_cnid = 0;
+    struct hfs_txn tx;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_folder(&env.catalog, &tx, 2, folder_name, 4,
+                                    0755, hfs_catalog_key_compare, NULL,
+                                    &folder_cnid) == HFS_OK);
+    apply_txn(&tx);
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_folder(&env.catalog, &tx, folder_cnid, sub_name,
+                                    3, 0755, hfs_catalog_key_compare, NULL,
+                                    &sub_cnid) == HFS_OK);
+    apply_txn(&tx);
+
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_rename(&env.catalog, &tx, folder_cnid, sub_name, 3,
+                             sub_cnid, folder_cnid, sub2_name, 4,
+                             hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+    struct hfs_entry entry;
+    CHECK(hfs_catalog_lookup_ascii(&env.catalog, folder_cnid, "SUB2",
+                                   &entry) == HFS_OK);
+    CHECK(entry.id == sub_cnid);
+
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_rename(&env.catalog, &tx, 2, folder_name, 4,
+                             folder_cnid, sub_cnid, folder_name, 4,
+                             hfs_catalog_key_compare, NULL) ==
+          HFS_ERR_ARGUMENT);
+    CHECK(tx.count == 0);
+
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_rename(&env.catalog, &tx, folder_cnid, sub2_name, 4,
+                             sub_cnid, 2, sub2_name, 4,
+                             hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(hfs_catalog_lookup_ascii(&env.catalog, 2, "SUB2", &entry) == HFS_OK);
+    CHECK(entry.id == sub_cnid);
+    return 0;
+}
+
 struct test_case {
     const char *name;
     int (*run)(void);
@@ -592,7 +900,11 @@ struct test_case {
 int main(void)
 {
     static const struct test_case tests[] = {
-        { "create and delete empty file", test_create_delete_file }
+        { "create and delete empty file", test_create_delete_file },
+        { "create and delete folder", test_create_delete_folder },
+        { "rename file same parent", test_rename_file_same_parent },
+        { "rename move case collision", test_rename_move_case_collision },
+        { "rename folder cycle", test_rename_folder_cycle }
     };
     int failures = 0;
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); ++i) {

@@ -24,11 +24,23 @@ int hfs_catalog_create_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
                             hfs_btree_key_compare_fn compare,
                             void *compare_context, uint32_t *cnid);
 
+int hfs_catalog_create_folder(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                              uint32_t parent, const uint8_t *name,
+                              size_t units, uint16_t mode,
+                              hfs_btree_key_compare_fn compare,
+                              void *compare_context, uint32_t *cnid);
+
 int hfs_catalog_delete_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
                             uint32_t parent, const uint8_t *name,
                             size_t units, uint32_t cnid,
                             hfs_btree_key_compare_fn compare,
                             void *compare_context);
+
+int hfs_catalog_delete_folder(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                              uint32_t parent, const uint8_t *name,
+                              size_t units, uint32_t cnid,
+                              hfs_btree_key_compare_fn compare,
+                              void *compare_context);
 
 /*
  * Append at EOF using inline extents plus extents-overflow records. Data blocks
@@ -40,6 +52,14 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
                             const void *data, size_t length,
                             hfs_btree_key_compare_fn compare,
                             void *compare_context);
+
+/* Rename or move a file/folder; the record kind is read from the catalog. */
+int hfs_catalog_rename(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                       uint32_t parent, const uint8_t *name, size_t units,
+                       uint32_t cnid, uint32_t new_parent,
+                       const uint8_t *new_name, size_t new_units,
+                       hfs_btree_key_compare_fn compare,
+                       void *compare_context);
 
 /* Truncate a file to size zero and free its inline and overflow extents. */
 int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
