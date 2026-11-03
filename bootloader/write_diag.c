@@ -158,6 +158,7 @@ int boot_write_diag_run(hfs_read_fn outer_read, hfs_write_fn outer_write,
                         size_t outer_extents_scratch_size,
                         void *inner_catalog_scratch,
                         size_t inner_catalog_scratch_size,
+                        uint32_t now,
                         uint32_t *cut_at,
                         struct boot_write_diag_result *result)
 {
@@ -269,6 +270,7 @@ int boot_write_diag_run(hfs_read_fn outer_read, hfs_write_fn outer_write,
         return HFS_OK;
     }
     result->inner_catalog = BOOT_WRITE_PASS;
+    inner_catalog.now = now;
 
     /* The transaction object alone is ~256 KiB; keep it out of the 8 KiB
      * bootloader stack. The writer is single-threaded. */

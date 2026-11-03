@@ -4,6 +4,7 @@
 #include <string.h>
 
 #define HEADER_SIZE 512u
+#define MODIFY_DATE_OFFSET 20u
 #define FILE_COUNT_OFFSET 32u
 #define FOLDER_COUNT_OFFSET 36u
 #define NEXT_CNID_OFFSET 64u
@@ -31,6 +32,8 @@ static int stage_one(struct hfs_txn *tx, const struct hfs_volume *volume,
                      sizeof(header)))
         return HFS_ERR_IO;
 
+    if (update->set_modify_date)
+        put32(header + MODIFY_DATE_OFFSET, update->modify_date);
     if (update->set_file_count)
         put32(header + FILE_COUNT_OFFSET, update->file_count);
     if (update->set_folder_count)

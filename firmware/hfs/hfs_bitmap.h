@@ -12,6 +12,7 @@ struct hfs_bitmap {
     uint32_t block_size;
     uint32_t total_blocks;
     uint32_t free_blocks;
+    uint32_t modify_date; /* 0 leaves the volume modify date unchanged. */
 };
 
 int hfs_bitmap_open(struct hfs_bitmap *bitmap, struct hfs_volume *volume);

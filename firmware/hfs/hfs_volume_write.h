@@ -14,6 +14,8 @@ struct hfs_volume_update {
     uint32_t folder_count;
     int set_next_cnid;
     uint32_t next_cnid;
+    int set_modify_date;
+    uint32_t modify_date;
 };
 
 /*

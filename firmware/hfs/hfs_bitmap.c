@@ -76,7 +76,7 @@ static int stage_bitmap_block(struct hfs_txn *tx, uint32_t volume_block,
 }
 
 static int stage_header(struct hfs_txn *tx, const struct hfs_volume *volume,
-                        uint32_t free_blocks)
+                        uint32_t free_blocks, uint32_t modify_date)
 {
     uint8_t header[HFS_VOLUME_HEADER_SIZE];
     if (volume->length < 2048u)
@@ -86,6 +86,8 @@ static int stage_header(struct hfs_txn *tx, const struct hfs_volume *volume,
     if (volume->read(volume->context, primary, header, sizeof(header)))
         return HFS_ERR_IO;
     put_be32(header + HFS_VH_FREE_BLOCKS, free_blocks);
+    if (modify_date != 0)
+        put_be32(header + 20u, modify_date);
     put_be32(header + HFS_VH_WRITE_COUNT,
              be32(header + HFS_VH_WRITE_COUNT) + 1u);
     int rc = hfs_txn_stage_replace(tx, HFS_VOLUME_HEADER_OFFSET / 512u, header,
@@ -98,6 +100,8 @@ static int stage_header(struct hfs_txn *tx, const struct hfs_volume *volume,
     if (volume->read(volume->context, alternate, header, sizeof(header)))
         return HFS_ERR_IO;
     put_be32(header + HFS_VH_FREE_BLOCKS, free_blocks);
+    if (modify_date != 0)
+        put_be32(header + 20u, modify_date);
     put_be32(header + HFS_VH_WRITE_COUNT,
              be32(header + HFS_VH_WRITE_COUNT) + 1u);
     return hfs_txn_stage_replace(tx, alternate_offset / 512u, header, sizeof(header));
@@ -234,7 +238,8 @@ int hfs_bitmap_alloc(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
             if (rc != HFS_OK)
                 return rc;
             uint32_t new_free = bitmap->free_blocks - count;
-            rc = stage_header(tx, bitmap->volume, new_free);
+            rc = stage_header(tx, bitmap->volume, new_free,
+                              bitmap->modify_date);
             if (rc != HFS_OK)
                 return rc;
             bitmap->free_blocks = new_free;
@@ -291,7 +296,8 @@ int hfs_bitmap_free(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
     }
 
     uint32_t new_free = bitmap->free_blocks + count;
-    int rc = stage_header(tx, bitmap->volume, new_free);
+    int rc = stage_header(tx, bitmap->volume, new_free,
+                              bitmap->modify_date);
     if (rc != HFS_OK)
         return rc;
     bitmap->free_blocks = new_free;

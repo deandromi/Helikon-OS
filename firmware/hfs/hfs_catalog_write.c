@@ -56,6 +56,25 @@ static void put64(uint8_t *p, uint64_t value)
     put32(p + 4, (uint32_t)value);
 }
 
+static void set_record_dates(uint8_t *record, uint32_t now)
+{
+    if (now == 0)
+        return;
+    put32(record + 12, now); /* createDate */
+    put32(record + 16, now); /* contentModDate */
+    put32(record + 20, now); /* attributeModDate */
+    put32(record + 24, now); /* accessDate */
+    /* backupDate stays 0 until a backup tool records one. */
+}
+
+static void touch_record(uint8_t *record, uint32_t now)
+{
+    if (now == 0)
+        return;
+    put32(record + 16, now); /* contentModDate */
+    put32(record + 20, now); /* attributeModDate */
+}
+
 
 static size_t build_key(uint8_t *buffer, uint32_t parent,
                         const uint8_t *name, size_t units)
@@ -113,6 +132,7 @@ static int update_valence(struct hfs_catalog *catalog, struct hfs_txn *tx,
     if (valence > 32767u)
         return HFS_ERR_NO_SPACE;
     put32(folder + 4, valence);
+    touch_record(folder, catalog->now);
 
     rc = hfs_btree_delete(&catalog->btree, tx, folder_key + 2,
                           folder_key_length, compare, compare_context);
@@ -175,6 +195,7 @@ static int create_object(struct hfs_catalog *catalog, struct hfs_txn *tx,
     put32(record + data_offset + 8, next_cnid);
     put16(record + data_offset + 42,
           (uint16_t)(mode_type | (mode & 0777u)));
+    set_record_dates(record + data_offset, catalog->now);
     size_t record_length = data_offset + record_size;
 
     rc = hfs_btree_insert(&catalog->btree, tx, record, record_length,
@@ -212,6 +233,8 @@ static int create_object(struct hfs_catalog *catalog, struct hfs_txn *tx,
     }
     update.set_next_cnid = 1;
     update.next_cnid = next_cnid + 1u;
+    update.set_modify_date = catalog->now != 0;
+    update.modify_date = catalog->now;
     rc = hfs_volume_stage(tx, volume, &update);
     if (rc != HFS_OK)
         return rc;
@@ -314,6 +337,8 @@ static int delete_object(struct hfs_catalog *catalog, struct hfs_txn *tx,
         update.set_file_count = 1;
         update.file_count = file_count - 1u;
     }
+    update.set_modify_date = catalog->now != 0;
+    update.modify_date = catalog->now;
     return hfs_volume_stage(tx, volume, &update);
 }
 
@@ -458,6 +483,7 @@ int hfs_catalog_rename(struct hfs_catalog *catalog, struct hfs_txn *tx,
                                       new_canonical_units);
     size_t new_data_offset = 2u + new_key_length;
     memcpy(new_record + new_data_offset, data, object_size);
+    touch_record(new_record + new_data_offset, catalog->now);
     rc = hfs_btree_insert(&catalog->btree, tx, new_record,
                           new_data_offset + object_size, compare,
                           compare_context);
@@ -582,6 +608,8 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     rc = hfs_bitmap_open(&bitmap, volume);
     if (rc != HFS_OK)
         return rc;
+    bitmap.modify_date = catalog->now;
+    touch_record(record + data_offset, catalog->now);
     if (blocks + 5u > HFS_TXN_MAX_BLOCKS)
         return HFS_ERR_NO_SPACE;
     uint32_t firsts[32];
@@ -714,6 +742,8 @@ int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     rc = hfs_bitmap_open(&bitmap, catalog->btree.volume);
     if (rc != HFS_OK)
         return rc;
+    bitmap.modify_date = catalog->now;
+    touch_record(record + data_offset, catalog->now);
 
     uint32_t inline_blocks = 0;
     for (unsigned int i = 0; i < 8; ++i) {

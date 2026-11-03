@@ -892,6 +892,97 @@ static int test_rename_folder_cycle(void)
     return 0;
 }
 
+static int test_timestamps(void)
+{
+    struct test_env env;
+    CHECK(setup_env(&env) == 0);
+
+    static const uint8_t name[8] = { 0, 'T', 0, 'I', 0, 'M', 0, 'E' };
+    static const uint8_t root_name[8] = {
+        0, 'T', 0, 'E', 0, 'S', 0, 'T'
+    };
+    const uint32_t create_time = 0x11223344u;
+    const uint32_t modify_time = 0x22334455u;
+    const uint32_t truncate_time = 0x33445566u;
+
+    env.catalog.now = create_time;
+    uint32_t cnid = 0;
+    struct hfs_txn tx;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_file(&env.catalog, &tx, 2, name, 4, 0644,
+                                  hfs_catalog_key_compare, NULL, &cnid) ==
+          HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 20) == create_time);
+
+    uint8_t key[256];
+    uint8_t record[1024];
+    size_t record_length = 0;
+    size_t key_length = build_key(key, 2, name, 4);
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    size_t data_offset = 2u + key_length;
+    CHECK(get_be32(record + data_offset + 12) == create_time);
+    CHECK(get_be32(record + data_offset + 16) == create_time);
+    CHECK(get_be32(record + data_offset + 20) == create_time);
+    CHECK(get_be32(record + data_offset + 24) == create_time);
+    CHECK(get_be32(record + data_offset + 28) == 0);
+
+    key_length = build_key(key, 1, root_name, 4);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    data_offset = 2u + key_length;
+    CHECK(get_be32(record + data_offset + 16) == create_time);
+    CHECK(get_be32(record + data_offset + 20) == create_time);
+
+    env.catalog.now = modify_time;
+    uint8_t data[512];
+    memset(data, 0x5a, sizeof(data));
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_append_file(&env.catalog, &tx, 2, name, 4, 0, data,
+                                  sizeof(data), hfs_catalog_key_compare,
+                                  NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 20) == modify_time);
+
+    key_length = build_key(key, 2, name, 4);
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    data_offset = 2u + key_length;
+    CHECK(get_be32(record + data_offset + 12) == create_time);
+    CHECK(get_be32(record + data_offset + 16) == modify_time);
+    CHECK(get_be32(record + data_offset + 20) == modify_time);
+
+    env.catalog.now = truncate_time;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_truncate_file(&env.catalog, &tx, 2, name, 4,
+                                    hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 20) == truncate_time);
+
+    key_length = build_key(key, 2, name, 4);
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    data_offset = 2u + key_length;
+    CHECK(get_be32(record + data_offset + 12) == create_time);
+    CHECK(get_be32(record + data_offset + 16) == truncate_time);
+    CHECK(get_be32(record + data_offset + 20) == truncate_time);
+
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_delete_file(&env.catalog, &tx, 2, name, 4, cnid,
+                                  hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 20) == truncate_time);
+    return 0;
+}
+
 struct test_case {
     const char *name;
     int (*run)(void);
@@ -904,7 +995,8 @@ int main(void)
         { "create and delete folder", test_create_delete_folder },
         { "rename file same parent", test_rename_file_same_parent },
         { "rename move case collision", test_rename_move_case_collision },
-        { "rename folder cycle", test_rename_folder_cycle }
+        { "rename folder cycle", test_rename_folder_cycle },
+        { "timestamps", test_timestamps }
     };
     int failures = 0;
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); ++i) {

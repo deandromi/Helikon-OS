@@ -315,6 +315,13 @@ enabled on a real volume.
 - Update the volume header's write count, modify date, free blocks and next CNID.
 - Do not claim parity until macOS and `fsck_hfs` agree on a differential corpus.
 
+**Current status:** new file/folder records get create/access/content/attribute
+dates from `catalog->now`; append, truncate, rename and valence updates touch the
+content/attribute dates; the volume header modify date is staged on
+create/delete and on bitmap alloc/free. `backupDate` stays 0. BSD owner/group,
+flags, Finder info/prototype and a macOS differential corpus are still open
+(T-044).
+
 ## 8. `fsck_hfs` compatibility
 
 `fsck_hfs` is the external oracle. The writer must remain something macOS can

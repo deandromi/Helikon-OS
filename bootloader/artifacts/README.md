@@ -47,17 +47,17 @@ DFU-only experiment governed by D-22 and
 | Field | Value |
 |---|---|
 | Image | `bootloader-ipod6g-write-diag.ipod` |
-| Image size | 110,120 bytes |
-| Image SHA-256 | `7896878ce1586cdc36ba03455588762f0a8e42acae821cfff978416683443e8c` |
+| Image size | 110,920 bytes |
+| Image SHA-256 | `81350f7821d91c6e2672f7d477cb2e5a079b70748b1c128fe6aa4784d19b691f` |
 | DFU installer | `bootloader-ipod6g-write-diag.dfu` |
-| DFU size | 118,256 bytes |
-| DFU SHA-256 | `06ac01a07a25e9bb413419132b1072f39807ce5188b8168c678051009aecc76f` |
+| DFU size | 119,056 bytes |
+| DFU SHA-256 | `ce356e248b51b1a1efc1900c7c866c680be122cea18fc39ea3bf6ed1d5c2b03f` |
 | Uninstaller DFU | `bootloader-ipod6g-uninstall.dfu` |
 | Uninstaller size | 5,856 bytes |
 | Uninstaller SHA-256 | `203e836412b71d3a16b3b57a5bf7ef034a0f5dcae1ca193685b8bfee33868a3a` |
 | Marker | `HELIKON-OS WRITE DIAG` |
-| `_moveend` | `0x2203b620` |
-| `MOVE_AREA` | `0x22020800`–`0x22040000`; 18,912 bytes headroom |
+| `_moveend` | `0x2203b940` |
+| `MOVE_AREA` | `0x22020800`–`0x22040000`; 18,112 bytes headroom |
 | Build | `tools/build-write-diagnostic-bootloader.sh` |
 
 It keeps the outer HFS+ volume read-only and writes only inside a root-level

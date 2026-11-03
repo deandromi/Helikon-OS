@@ -80,7 +80,7 @@ int main(int argc, char **argv)
                                  outer_extents_scratch,
                                  sizeof(outer_extents_scratch),
                                  inner_catalog_scratch,
-                                 sizeof(inner_catalog_scratch),
+                                 sizeof(inner_catalog_scratch), 0,
                                  read_cut ? &cut_at : NULL, &result);
     close(io.fd);
     if (rc != HFS_OK) {

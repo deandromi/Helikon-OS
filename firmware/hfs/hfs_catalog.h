@@ -23,6 +23,8 @@ struct hfs_entry {
 
 struct hfs_catalog {
     struct hfs_btree btree;
+    /* HFS+ timestamp (seconds since 1904); 0 leaves dates untouched. */
+    uint32_t now;
 };
 
 struct hfs_catalog_iterator {

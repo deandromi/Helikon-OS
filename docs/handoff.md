@@ -11,6 +11,58 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-04 (metadata timestamps, current write image)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the metadata-timestamp commit; check `git log -1`.
+
+## What changed
+
+- `struct hfs_catalog` now carries `now` in HFS+ epoch seconds. New file/folder
+  records get create/access/content/attribute dates; append, truncate, rename
+  and valence updates touch content/attribute dates; `backupDate` stays 0.
+- The volume-header modify date is staged on create/delete and on bitmap
+  alloc/free.
+- The write diagnostic passes the 6G RTC time into the inner catalog; a failed
+  RTC read falls back to 0.
+- Current image: 110,920 bytes, SHA-256 `81350f…`, DFU 119,056 bytes,
+  SHA-256 `ce356e…`, 18,112 bytes `MOVE_AREA` headroom.
+- Host tests: 108 portable (96 HFS+, 12 bootloader), sanitizer-clean; timestamp
+  test covers create, parent touch, append, truncate, delete and volume date.
+- `write_diag_host` still passes the normal outer/inner sequence; the
+  `helikon-cut.txt` parser reports target 7.
+
+## What was verified
+
+- `make -C tests/hfsplus test` / `sanitize` — 96/96.
+- `make -C tests/bootloader test` — 12/12.
+- `make -C tests/image write-diag-test` — PASS, both images fsck-clean.
+- No PMU cut has run on hardware; T-043 is still the next device step.
+
+## What is next
+
+1. Run T-043 controlled PMU cuts on the 6G (targets in `WRITE_DIAG.md`).
+2. Complete metadata parity: BSD owner/group/flags, Finder info/prototype,
+   timestamp policy, macOS differential (T-044).
+3. Outer-volume disposable write test, then library-write plan.
+4. UI font licences and 320×240 mockup (T-041).
+
+## What must not be touched
+
+- Do not treat the RTC timestamp fallback as a metadata-parity claim.
+- Do not write outer metadata or the library.
+- Never use `--single`.
+- Do not retry after a failed `fsck_hfs` or dirty journal.
+
+## Device/test evidence
+
+- No new hardware run. Current image hash and DFU hash are in
+  `bootloader/WRITE_DIAG.md`; the last normal-mode 6G pass used `9e3881…`.
+
+---
+
 # Handoff — 2026-11-03 (controlled PMU cut support)
 
 ## Branch / commit

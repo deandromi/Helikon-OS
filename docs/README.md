@@ -105,7 +105,8 @@ status.
 | [`../bootloader/artifacts/README.md`](../bootloader/artifacts/README.md) | Diagnostic image hash, provenance and evidence status. | living |
 | [`log/README.md`](log/README.md) | What the dated work log is for. | living |
 | [`log/TEMPLATE.md`](log/TEMPLATE.md) | Dated log entry template. | template |
-| [`log/2026-11-03.md`](log/2026-11-03.md) | Documentation setup session. | living |
+| [`log/2026-11-03.md`](log/2026-11-03.md) | Documentation setup and first diagnostic/write sessions. | living |
+| [`log/2026-11-04.md`](log/2026-11-04.md) | Metadata timestamps and the current write-diagnostic image. | living |
 | [`adr/README.md`](adr/README.md) | When to create a long-form ADR. | living |
 | [`adr/0001-template.md`](adr/0001-template.md) | ADR template. | template |
 | [`prompts/README.md`](prompts/README.md) | Scope and rules for reusable prompts. | living |

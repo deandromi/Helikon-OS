@@ -61,8 +61,9 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Private NUL names | `implemented` | Directory iteration escapes NUL as U+2400 and marks the entry `name_escaped`/`unsupported`; path lookup skips the escaped entry and continues instead of aborting the directory; 1 catalog test |
 | Extents-overflow record | `implemented` | `hfs_extents_write.c`; data-fork records keyed by fork/file/startBlock, up to eight extents each; insert/get/delete; multiple records supported |
 | Inner-image mapping | `implemented` | `bootloader/inner_image.c` maps a root-level outer file's data-fork extents into a block device, rejects out-of-range writes, and guards against overlap with outer metadata, journal, volume headers and forks; 4 host tests |
-| Separate write diagnostic | `implemented` | `bootloader-ipod6g-write-diag.ipod` (110,120 bytes, `789687…`, 18,912 bytes headroom) keeps the outer HFS+ volume read-only and runs the writer inside `helikon-test.img`; host outer/inner test passes twice, and one owner-reported 6G run reported every stage PASS; inner `fsck_hfs` and outer `diskutil verifyVolume` both exited 0 |
-| Controlled PMU cut | `unproven` | Current image `789687…` reads `helikon-cut.txt` and powers off at a target write count; target parser is host-tested, no hardware cut run yet |
+| Separate write diagnostic | `implemented` | `bootloader-ipod6g-write-diag.ipod` (110,920 bytes, `81350f…`, 18,112 bytes headroom) keeps the outer HFS+ volume read-only and runs the writer inside `helikon-test.img`; host outer/inner test passes twice, and one owner-reported 6G run reported every stage PASS; inner `fsck_hfs` and outer `diskutil verifyVolume` both exited 0 |
+| Catalog timestamps | `implemented` | Create/access/content/attribute dates on new files/folders, content/attribute updates on append/truncate/rename/valence, and volume-header modify date on create/delete/append/truncate; host timestamp test; backupDate remains 0; BSD/Finder/flags parity not done |
+| Controlled PMU cut | `unproven` | Current image `81350f…` reads `helikon-cut.txt` and powers off at a target write count; target parser is host-tested, no hardware cut run yet |
 | Write diagnostic 6G run | `pass` | One owner-reported run, 2026-11-03: all stages PASS, extracted inner image SHA-256 `156060…`, `fsck_hfs -fn` exit 0, no `diag` folder, outer `diskutil verifyVolume` exit 0; not a library-write or support claim |
 | Journal crash injection | `implemented` | `tests/image/run-crash-macos.sh` injects a failed write at every cut point of create (25), append (43), truncate (34) and delete (25) transactions, reopens the image, replays the journal and runs `fsck_hfs -fn`; all 127 cuts recover to a consistent state and an fsck-clean volume; rename, partial-sector writes, fsync failures and power-loss timing remain |
 | Disposable-image writer validation | `implemented` | `tests/image/run-macos.sh` creates a 16 MiB journaled HFS+ image, creates/appends/truncates/deletes a file, mounts it in macOS to read back 4096 bytes, and `fsck_hfs -fn` reports the volume OK after create and after delete; host-only, no device or library write |
@@ -73,7 +74,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Fork block staging | `implemented` | `firmware/hfs/hfs_fork_io.c`; full/partial block write staging into `hfs_txn`; inline extents only; 4 host tests |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
 | Default UI typography | `planned` | D-23 and `docs/ui.md` record IBM Plex Sans 14/17/12/11 px and Manrope Bold logo; font licences/subset and the 320×240 mockup are not done; no UI code exists |
-| Host test harness | `in progress` | 107 portable tests (95 HFS+, 12 bootloader), sanitizer clean, plus the macOS disposable-image, crash-injection and write-diagnostic tests; first diagnostic boot is owner-reported |
+| Host test harness | `in progress` | 108 portable tests (96 HFS+, 12 bootloader), sanitizer clean, plus the macOS disposable-image, crash-injection and write-diagnostic tests; first diagnostic boot is owner-reported |
 
 ## What does not exist
 

@@ -20,6 +20,7 @@
 #include "kernel.h"
 #include "lcd.h"
 #include "power.h"
+#include "rtc.h"
 #include "storage.h"
 #include "system.h"
 
@@ -137,6 +138,17 @@ static int diag_flush(void *context)
     return ata_flush() == 0 ? 0 : -1;
 }
 
+static uint32_t diag_now(void)
+{
+    struct tm tm;
+    if (rtc_read_datetime(&tm) != 0)
+        return 0;
+    int64_t seconds = (int64_t)mktime(&tm);
+    if (seconds <= 0 || seconds > (int64_t)UINT32_MAX - 2082844800LL)
+        return 0;
+    return (uint32_t)(seconds + 2082844800LL);
+}
+
 static void show_report(const struct boot_write_diag_result *result,
                         const struct hfs_partition *partition)
 {
@@ -224,7 +236,7 @@ void helikon_write_diagnostic(void)
             best->length, TEST_IMAGE_NAME, outer_catalog_scratch,
             sizeof(outer_catalog_scratch), outer_extents_scratch,
             sizeof(outer_extents_scratch), inner_catalog_scratch,
-            sizeof(inner_catalog_scratch), &diag_cut_at, &result);
+            sizeof(inner_catalog_scratch), diag_now(), &diag_cut_at, &result);
         if (rc != HFS_OK) {
             result.outer_volume = BOOT_WRITE_FAIL;
             result.error = rc;
