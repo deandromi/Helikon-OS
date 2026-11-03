@@ -26,10 +26,11 @@ it the largest single change from the donor and the critical path of the product
 D-06 (Apple `FastUnicodeCompare`) are accepted; the interface and failure model
 in §10 are frozen. The Apple HFS+ journal append/replay path, a bounded
 transaction engine, the allocation bitmap, B-tree insert/delete/split/growth,
-catalog/extents mutation, fork block staging and catalog key comparison are
-implemented and host-tested. HFS+ decomposition/normalization and the write
-diagnostic are not implemented. Do not infer a device write or a complete
-writer from this document.
+catalog/extents mutation, fork block staging, catalog key comparison and HFS+
+normalization are implemented and host-tested. A disposable 16 MiB journaled
+HFS+ image passes create/append/mount/delete with `fsck_hfs -fn` clean. The
+write diagnostic and any device write do not exist. Do not infer a device write
+or a complete writer from this document.
 
 ## 2. Minimum surface
 
@@ -541,7 +542,7 @@ No partial success:
 | Allocation/extents | Property tests, full volume, fragmentation, truncate, `NO_SPACE` |
 | Journal | Commit/replay/abort at every boundary; idempotent replay |
 | Power loss | 100 cuts per operation; `fsck_hfs` zero repairs |
-| macOS differential | Same tree/names/metadata; `diskutil verifyVolume` |
+| macOS differential | Disposable image: macOS mount/read parity, `fsck_hfs -fn` clean after create/delete |
 | Unicode | Composed/decomposed/case/length fixtures; macOS-created names |
 | Metadata parity | BSD/Finder/flags/timestamps/CNID/volume header |
 | Device | Disposable volume first; then a backed-up library; adapter matrix |

@@ -22,7 +22,12 @@ typedef int (*hfs_flush_fn)(void *context);
 
 #define HFS_JOURNAL_HEADER_SIZE 44u
 #define HFS_JOURNAL_MAX_SECTOR 4096u
-#define HFS_JOURNAL_MAX_BLOCK_LIST 4096u
+/*
+ * macOS commonly uses 4096 or 8192; 16384 covers the observed range without
+ * putting an unbounded buffer on the stack. Larger lists return FORMAT until a
+ * scratch-buffer design exists.
+ */
+#define HFS_JOURNAL_MAX_BLOCK_LIST 16384u
 
 struct hfs_journal_entry {
     uint64_t sector; /* target sector within the volume */

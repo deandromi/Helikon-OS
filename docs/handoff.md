@@ -11,6 +11,77 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-03 (disposable-image fsck validation)
+
+## Branch / commit
+
+- Branch: `main`
+- Current head: the disposable-image test commit; check `git log -1`.
+
+## What changed
+
+- Added `tests/image/`: a macOS-only disposable-image test. `run-macos.sh`
+  creates its own 16 MiB journaled HFS+ image under `mktemp -d`, never accepts
+  an existing image or device path, and cleans up on exit.
+- `hfs_image_test.c` opens the image through `hfs_volume_probe`, opens and
+  replays the journal if needed, creates a file, appends 4096 bytes through
+  `hfs_txn`, reads it back through the read core, and later truncates and
+  deletes it. It checks file/free-block counts at each step.
+- The driver runs `fsck_hfs -fn` on the raw device after create and after
+  delete, mounts the image in macOS to verify the 4096-byte content, and fails
+  if `fsck_hfs` reports a repair.
+- Raised `HFS_JOURNAL_MAX_BLOCK_LIST` from 4096 to 16384: macOS created an
+  8192-byte block list on the 16 MiB test image. Larger lists still fail
+  closed until a scratch-buffer design exists.
+- Recorded T-039: directory iteration aborts on the macOS NUL-prefixed
+  `.HFS+ Private Data` record. The image test uses the ASCII lookup probe, and
+  the reader issue is documented rather than hidden.
+
+## What was verified
+
+- `make -C tests/image test`:
+  - create: file_count 2 -> 3, free_blocks 3868 -> 3867;
+  - `fsck_hfs -fn`: "appears to be OK";
+  - macOS mount: 4096 bytes of 0x5a read back correctly;
+  - delete: file_count 3 -> 2, free_blocks 3867 -> 3868;
+  - `fsck_hfs -fn`: "appears to be OK" again.
+- `make -C tests/hfsplus test` — 90/90 pass; `sanitize` 90/90; bootloader 8/8.
+- No device write and no write-capable bootloader image. The test writes only
+  its own temporary image.
+
+## What is next
+
+1. T-039: handle NUL-prefixed private names in directory iteration without
+   aborting or hiding unrelated entries.
+2. T-038: wider macOS name corpus and the `:`/`/` mapping.
+3. Power-loss/crash injection around `hfs_txn_commit` and journal replay.
+4. Write diagnostic; only after that, plan a device write with a verified
+   backup and recovery.
+
+## What must not be touched
+
+- No write on the library or the only copy.
+- No write-capable bootloader image until the writer passes host and disposable
+  image tests.
+- No journal deletion/truncation/zeroing or dirty-journal "clean" claim.
+- Do not turn `tests/image` into an arbitrary-image writer; it creates its own
+  disposable image and refuses device paths.
+
+## Open questions
+
+- D-05 cache/dirty-set budget.
+- `:`/`/` mapping and wider macOS name corpus (T-038).
+- NUL-prefixed private-name representation (T-039).
+- Fork-of-fork overflow and transaction-block budget for growth.
+
+## Device/test evidence
+
+- No new device run. The disposable-image run is host evidence recorded above.
+- `fsck_hfs` version hfs-751, macOS host. The image was created with
+  `hdiutil create -size 16m -fs HFS+J -layout NONE`.
+
+---
+
 # Handoff — 2026-11-03 (HFS+ name normalization)
 
 ## Branch / commit

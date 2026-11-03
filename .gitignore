@@ -17,3 +17,5 @@ tests/hfsplus/test_btree_tree
 tests/hfsplus/test_btree_grow
 tests/hfsplus/test_catalog_compare
 tests/hfsplus/test_catalog_write
+tests/image/hfs_image_test
+tests/image/*.dSYM/

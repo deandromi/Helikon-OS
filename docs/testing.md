@@ -82,6 +82,20 @@ Create the same tree on macOS and on the device/test image:
 Compare names, sizes, types, metadata and `fsck_hfs` output. Compare CNID
 uniqueness and monotonicity, not exact CNID values.
 
+### 5.1 Disposable-image writer test
+
+`tests/image/run-macos.sh` creates a fresh 16 MiB journaled HFS+ image under a
+temporary directory and runs the host writer against it. It never accepts an
+existing image or device path. The test:
+
+- creates and appends a 4096-byte file through `hfs_txn`;
+- runs `fsck_hfs -fn` on the raw device and requires a clean report;
+- mounts the image in macOS and verifies the file content;
+- truncates and deletes the file and runs `fsck_hfs -fn` again.
+
+`fsck_hfs` zero repairs and macOS content parity are the pass criteria. This is
+host evidence; it is not a device run and does not authorize a library write.
+
 ## 6. Device tests
 
 Device tests require a recorded inventory and backup. Minimum matrix:

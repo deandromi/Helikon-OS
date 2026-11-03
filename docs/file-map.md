@@ -78,6 +78,10 @@ Helikon-OS/
       test_btree_grow.c     B-tree fork growth test
       test_catalog_compare.c catalog key/FastUnicodeCompare ordering tests
       test_catalog_write.c  empty-file catalog create/delete test
+    image/
+      Makefile              disposable-image writer test build
+      hfs_image_test.c      create/append/delete on a journaled HFS+ image
+      run-macos.sh          hdiutil + fsck_hfs + macOS mount driver
     bootloader/
       Makefile              bootloader host test target
       test_diag.c           diagnostic core/splash tests
