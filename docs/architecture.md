@@ -7,8 +7,8 @@
 > Last updated: 2026-11-03
 > Source: design paper §5–§19, §21, §24; `docs/hfsplus-write-engine.md`
 
-**Only a host HFS+ volume probe exists.** The bootloader, kernel, block layer,
-VFS, player, UI and writer below are planned. Nothing in this file is evidence
+**Only host HFS+ volume and B-tree validation modules exist.** The bootloader,
+kernel, block layer, VFS, player, UI and writer below are planned. Nothing in this file is evidence
 that Helikon-OS boots, mounts, plays, writes or updates.
 
 ## 1. Boot chain

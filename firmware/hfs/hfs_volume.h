@@ -17,7 +17,8 @@ enum hfs_error {
     HFS_ERR_FORMAT = -3,
     HFS_ERR_UNSUPPORTED = -4,
     HFS_ERR_DIRTY = -5,
-    HFS_ERR_ARGUMENT = -6
+    HFS_ERR_ARGUMENT = -6,
+    HFS_ERR_BUFFER = -7
 };
 
 struct hfs_extent {
@@ -69,6 +70,14 @@ struct hfs_volume {
  */
 int hfs_volume_probe(struct hfs_volume *volume, hfs_read_fn read,
                      void *context, uint64_t base, uint64_t length);
+
+/*
+ * Read a fork whose extents are fully inline. Extents-overflow reads are a
+ * later module; returning HFS_ERR_UNSUPPORTED is deliberate, not a fallback.
+ */
+int hfs_fork_read(const struct hfs_volume *volume,
+                  const struct hfs_fork *fork, uint64_t offset,
+                  void *buffer, size_t length);
 
 const char *hfs_strerror(int error);
 

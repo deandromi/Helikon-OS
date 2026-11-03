@@ -3,17 +3,27 @@ CC ?= cc
 CFLAGS ?= -O2 -g
 CFLAGS += -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow
 CPPFLAGS += -I../../firmware/hfs
-SOURCES = test_volume.c ../../firmware/hfs/hfs_volume.c
+HFS = ../../firmware/hfs
+TESTS = test_volume test_btree
 
 .PHONY: all test sanitize clean
 
-all: test_volume
+all: $(TESTS)
 
-test_volume: $(SOURCES) ../../firmware/hfs/hfs_volume.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(SOURCES) $(LDFLAGS) -o $@
+test_volume: test_volume.c test_image.c test_image.h test_check.h \
+             $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) test_volume.c test_image.c \
+	  $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
 
-test: test_volume
+test_btree: test_btree.c test_image.c test_image.h test_check.h \
+            $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h \
+            $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) test_btree.c test_image.c \
+	  $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
+
+test: $(TESTS)
 	./test_volume
+	./test_btree
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
@@ -31,4 +41,4 @@ sanitize:
 	$(MAKE) CFLAGS='$(SAN_CFLAGS)' LDFLAGS='$(SAN_LDFLAGS)' test
 
 clean:
-	rm -rf test_volume test_volume.dSYM
+	rm -rf $(TESTS) *.dSYM

@@ -7,15 +7,16 @@
 > Source: design paper §17, §24, §26, §28; `docs/verification.md`
 
 **Helikon-OS has a small host test tree.** It currently covers the HFS+ volume
-header/journal probe only: 12 host tests, sanitizer-clean. There are no B-tree,
-catalog, writer, device or power-loss tests yet. Donor tests are reference
-material only. Do not describe a donor test pass as Helikon-OS validation.
+header/journal probe and generic B-tree header/node validation: 21 host tests
+(12 volume, 9 B-tree), sanitizer-clean. There are no catalog, extents, writer,
+device or power-loss tests yet. Donor tests are reference material only. Do not
+describe a donor test pass as Helikon-OS validation.
 
 ## 1. Test layers
 
 | Layer | What it proves | Runs on | Current status | Required for |
 |---|---|---|---|---|
-| Host unit | Parser, allocator, name, state-machine logic | Host | `in progress` — volume probe only | Every module |
+| Host unit | Parser, allocator, name, state-machine logic | Host | `in progress` — volume + B-tree only | Every module |
 | Fuzzing | Malformed B-trees, extents, names, journal records do not crash/escape bounds | Host | `planned` | Reader, writer, journal |
 | Model-based B-tree | Insert/update/delete, split/merge, key order, free-node map | Host | `planned` | Writer |
 | Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `planned` | Writer/journal |
@@ -150,7 +151,7 @@ reporting the skip.
 
 ## 11. Current vs future commands
 
-**Current:** the host HFS+ volume probe has a real test command:
+**Current:** the host HFS+ volume/B-tree validation has a real test command:
 
 ```sh
 make -C tests/hfsplus test

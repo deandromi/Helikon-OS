@@ -97,6 +97,7 @@ status.
 | [`faq.md`](faq.md) | User-facing questions from Appendix G. | living |
 | [`design-paper.md`](design-paper.md) | Full read-only design paper copy with provenance. | source |
 | [`../assets/logo/README.md`](../assets/logo/README.md) | Logo source notes and the owner-supplied mountain reference image. | living |
+| [`../assets/branding/README.md`](../assets/branding/README.md) | Owner-supplied poster and 320×240 startup crop. | living |
 | [`log/README.md`](log/README.md) | What the dated work log is for. | living |
 | [`log/TEMPLATE.md`](log/TEMPLATE.md) | Dated log entry template. | template |
 | [`log/2026-11-03.md`](log/2026-11-03.md) | Documentation setup session. | living |

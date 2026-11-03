@@ -22,14 +22,21 @@ Helikon-OS/
   NOTICE                    license notice and upstream attribution
   .github/ISSUE_TEMPLATE/   bug, feature and device-test issue forms
   assets/logo/              mountain reference image; owner will design the logo
+  assets/branding/          owner-supplied poster; README embeds it
+  assets/startup/           320×240 startup crop; not wired into boot yet
   firmware/
     hfs/
       hfs_volume.c          HFS+ volume header/journal probe
       hfs_volume.h          read-only volume API and error taxonomy
+      hfs_btree.c           generic B-tree header/node validation
+      hfs_btree.h           B-tree handle and node-record API
   tests/
     hfsplus/
       Makefile              host test build/sanitizer targets
-      test_volume.c         volume header/journal fixture tests
+      test_image.c/.h       shared in-memory image fixture
+      test_check.h          shared test assertion macro
+      test_volume.c         volume header/journal tests
+      test_btree.c          B-tree header/node tests
   docs/
     README.md               documentation index and reading order
     state.md                current phase and blockers
@@ -102,11 +109,13 @@ is created; do not let it drift.
 | `LICENSE`, `NOTICE` | Project license and attribution | owner/legal | `docs/decisions.md` D-18 | license text check | Do not edit the GPLv2 text; change the notice only with owner approval |
 | `.github/ISSUE_TEMPLATE/` | Bug/feature/device issue forms | docs lead | `CONTRIBUTING.md`, `docs/verification.md` | YAML parse + field check | No secrets, backups, disk images, serial numbers or personal data |
 | `assets/logo/` | Owner-supplied mountain reference; owner will design the logo | owner/branding | `assets/logo/README.md` | image opens, no generated assets | Do not replace or redistribute the reference image; source/licence is an open question |
+| `assets/branding/` | Owner-supplied Helikon-OS poster and branding notes | owner/branding | `assets/branding/README.md` | image opens, README embed resolves | Do not replace the poster without owner approval |
+| `assets/startup/` | 320×240 startup crop for the iPod screen | boot/UI | `assets/branding/README.md` | exact 320×240, no writes in future display path | Not wired into firmware yet; do not claim it displays |
 | `docs/` | Agent documentation | docs lead | `docs/conventions.md` | `git diff --check`, link check | One canonical file per topic; no duplicate `agent.md`/`decision-log.md` |
 | `bootloader/` | Rescue loader; native HFS+ read-only; manifest verify | boot lead | `docs/architecture.md`, paper §5, §16 | boot, manifest, recovery, no-write hash | No filesystem writes; no overlay; no `--single`; no write modules linked |
 | `firmware/hal/` | S5L8702 clocks, GPIO, PMU, ATA, LCD, codec | hardware lead | paper §6–§7, `docs/architecture.md` | register-level bring-up, sleep/wake | No filesystem, UI or policy; no unmeasured overclock/undervolt |
 | `firmware/block/` | Sector I/O, flush, power state | storage lead | paper §7, `docs/architecture.md` | read/write/flush, 512/4096, error injection | No paths/files/caches; a flush error must propagate |
-| `firmware/hfs/` | HFS+ read core: volume probe implemented; B-tree/catalog/extents/Unicode planned | HFS+ lead | paper §8, §10.4, `docs/hfsplus-write-engine.md` | host volume tests now; unit/fuzz/malformed/macOS differential planned | Read-only; no write path; never hide unsupported entries |
+| `firmware/hfs/` | HFS+ read core: volume + B-tree validation implemented; catalog/extents/Unicode planned | HFS+ lead | paper §8, §10.4, `docs/hfsplus-write-engine.md` | 21 host tests now; unit/fuzz/malformed/macOS differential planned | Read-only; no write path; never hide unsupported entries |
 | `firmware/hfs/write/` | Catalog/bitmap/extents mutation | HFS+ lead | `docs/hfsplus-write-engine.md`, invariants I-03–I-15 | model/property/crash tests, `fsck_hfs` | No journal format, UI or boot policy; no direct writes outside a transaction |
 | `firmware/journal/` | Journal append, commit, replay, barriers | journal lead | paper §9.3–§9.4, `docs/hfsplus-write-engine.md` | crash injection, idempotent replay | No product policy/UI; never delete/disable/zero the journal |
 | `firmware/vfs/` | Lookup, handles, capabilities, path rules | VFS lead | paper §10, `docs/architecture.md` | path/name tests, capability tests | No hardware registers; no overlay branch; no errno guessing |
@@ -122,7 +131,7 @@ is created; do not let it drift.
 | `tools/migrate/` | Donor overlay exporter | migration lead | paper §22 | fixture/hash/verify tests | Host-side only; never a runtime overlay; never overwrite silently |
 | `tools/installer/` | Guided install, backup, model checks | release lead | paper §28.4.3, `docs/release.md` | clean-device install, recovery | No `--single`; no format as first response; backup first |
 | `tools/desktop/` | macOS-first desktop app | host lead | paper §28.4.2, D-09 | task matrix, failed-transfer consistency | No silent overwrite; host scrobbling opt-in; no secrets |
-| `tests/` | Fixtures, fuzz, model, power-loss, device | test lead | `docs/testing.md`, `docs/validation.md` | all layers | No proprietary themes/art/fonts; no personal data; no disk images in repo |
+| `tests/` | Host volume/B-tree fixtures now; fuzz/model/power-loss/device planned | test lead | `docs/testing.md`, `docs/validation.md` | all layers | No proprietary themes/art/fonts; no personal data; no disk images in repo |
 | `docs/adr/` | Long-form decisions | docs lead | `docs/decisions.md` | review | Only for decisions too large for `decisions.md`; do not duplicate |
 | `docs/log/` | Dated work logs | docs lead | `docs/log/TEMPLATE.md` | review | One file per active day/session; no secrets |
 | `docs/prompts/` | Reusable task prompts | docs lead | `docs/prompts/README.md` | review | Prompts link to docs; they are not a second spec |

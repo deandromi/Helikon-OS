@@ -18,36 +18,38 @@ Date of this snapshot: **2026-11-03**.
 
 | Item | Document status | Evidence |
 |---|---|---|
-| Root `README.md` with 25 owner-authored goals | living | Repo commit `7bfe58b40ea7f0444368c4eb61d97cf57a0ec74b`, 29 lines |
+| Root `README.md` with 25 owner-authored goals and poster | living | Current `README.md`; goals unchanged, poster added 2026-11-03 |
 | Design paper, revision 2, 2026-11-03 | source | [`design-paper.md`](design-paper.md), source commit `3f220a73d0cceb083b3c057c6fe914d88468800a` |
 | Agent contract and documentation set | living | `main`, merged 2026-11-03 |
 | Product intent, safety rules, roadmap, goals, open decisions | living | `docs/` |
 | Donor file references and provenance | living | [`file-map.md`](file-map.md) |
 | License: GPL-2.0-or-later | living | `LICENSE`, `NOTICE`, D-18 |
 | GitHub issue templates | living | `.github/ISSUE_TEMPLATE/` |
+| Helikon-OS poster | living | `assets/branding/helikon-os-poster.png`; embedded in README |
+| 320×240 startup crop | living (asset); `planned` display | `assets/startup/helikon-os-320x240.png`; not yet wired into bootloader |
 | Mountain reference image | living | `assets/logo/mount-helikon-sunset.jpg`; source/licence open question |
 
 The "document status" column uses the document statuses from
 [`conventions.md`](conventions.md); it does not mean firmware exists.
 
-The requested README title, summary and 25-goal block were already present at
-the top of `README.md`. The merge did not modify the README; its SHA-256 is
-unchanged from the base commit.
+The README summary and 25-goal block are unchanged. The owner added the
+Helikon-OS poster above the goals on 2026-11-03.
 
 ## Host code
 
 | Item | Status | Evidence |
 |---|---|---|
-| HFS+ volume header/journal probe | `in progress` | `firmware/hfs/hfs_volume.c`; 12 host tests; sanitizer clean; no device run |
-| Host test harness | `in progress` | `tests/hfsplus/`; `make -C tests/hfsplus test` |
+| HFS+ volume header/journal probe | `in progress` | `firmware/hfs/hfs_volume.c`; 12 host tests |
+| Generic HFS+ B-tree header/node validation | `in progress` | `firmware/hfs/hfs_btree.c`; 9 host tests |
+| Host test harness | `in progress` | `tests/hfsplus/`; 21 tests total; sanitizer clean; no device run |
 
 ## What does not exist
 
 | Item | Status | Note |
 |---|---|---|
-| Helikon-OS firmware source tree | `in progress` | Host HFS+ volume module only; no bootloader/kernel yet |
+| Helikon-OS firmware source tree | `in progress` | Host HFS+ volume/B-tree modules only; no bootloader/kernel yet |
 | Helikon-OS bootloader source/image | `planned` | No `bootloader/` directory or image |
-| HFS+ B-tree/catalog/extents reader | `planned` | Volume header probe only; catalog not parsed |
+| HFS+ catalog/extents reader | `planned` | B-tree header/node validation exists; catalog/extents not parsed |
 | HFS+ write engine | `planned` | No writer |
 | Journal/transaction engine | `planned` | Design requirements only |
 | Installer or desktop app | `planned` | No host application |
@@ -64,7 +66,7 @@ unchanged from the base commit.
   (`Updated README.MD`, 2026-11-03)
 - **Documentation branch:** `docs/agent-handbook`, fast-forwarded to `main` on
   2026-11-03.
-- **Last known-good code commit:** the host HFS+ volume-probe commit; check
+- **Last known-good code commit:** the host HFS+ volume/B-tree commit; check
   `git log -- firmware/hfs tests/hfsplus`. No device code exists.
 - **Last known-good documentation commit:** `6df63ef63bacc93d253db40d1bb7f2efdd289a6c`
   on `main` (license/COC/issue-template follow-up, fast-forwarded). Any later
@@ -85,9 +87,9 @@ writes, the transaction engine, the bootloader, or any goal in
 
 ## Current blockers
 
-1. **No firmware implementation.** There is only a host HFS+ volume probe;
-   bootloader, kernel, writer, journal, VFS, player, UI, database, installer and
-   host app do not exist.
+1. **No firmware implementation.** There are only host HFS+ volume/B-tree
+   validation modules; bootloader, kernel, writer, journal, VFS, player, UI,
+   database, installer and host app do not exist.
 2. **Journal decisions are unresolved.** D-03 (journal strategy) and D-04
    (journal ownership) must be recorded before phase 2 starts. The paper
    recommends journaled release writes and Helikon-OS-owned replay; neither is

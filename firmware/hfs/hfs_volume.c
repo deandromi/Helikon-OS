@@ -101,6 +101,52 @@ static int parse_fork(const struct hfs_volume *volume, const uint8_t *p,
     return HFS_OK;
 }
 
+static int fork_inline(const struct hfs_fork *fork)
+{
+    uint64_t sum = 0;
+    for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i)
+        sum += fork->extents[i].count;
+    return sum == fork->blocks;
+}
+
+int hfs_fork_read(const struct hfs_volume *volume,
+                  const struct hfs_fork *fork, uint64_t offset,
+                  void *buffer, size_t length)
+{
+    if (volume == NULL || fork == NULL ||
+        (buffer == NULL && length != 0))
+        return HFS_ERR_ARGUMENT;
+    if (offset > fork->size || length > fork->size - offset)
+        return HFS_ERR_FORMAT;
+    if (!fork_inline(fork))
+        return HFS_ERR_UNSUPPORTED;
+
+    uint8_t *out = buffer;
+    for (unsigned int i = 0; i < HFS_EXTENT_COUNT && length != 0; ++i) {
+        const struct hfs_extent *extent = &fork->extents[i];
+        uint64_t extent_bytes = (uint64_t)extent->count * volume->block_size;
+        if (offset >= extent_bytes) {
+            offset -= extent_bytes;
+            continue;
+        }
+
+        size_t chunk = length;
+        if (extent_bytes - offset < chunk)
+            chunk = (size_t)(extent_bytes - offset);
+        int rc = read_volume(volume,
+                             (uint64_t)extent->start * volume->block_size +
+                                 offset,
+                             out, chunk);
+        if (rc != HFS_OK)
+            return rc;
+        out += chunk;
+        length -= chunk;
+        offset = 0;
+    }
+
+    return length == 0 ? HFS_OK : HFS_ERR_FORMAT;
+}
+
 static int check_journal(struct hfs_volume *volume, uint32_t info_block)
 {
     uint8_t info[52];
@@ -289,6 +335,7 @@ const char *hfs_strerror(int error)
     case HFS_ERR_UNSUPPORTED: return "unsupported HFS+ feature";
     case HFS_ERR_DIRTY: return "volume is dirty or needs journal replay";
     case HFS_ERR_ARGUMENT: return "invalid argument";
+    case HFS_ERR_BUFFER: return "buffer too small";
     default: return "unknown HFS+ error";
     }
 }

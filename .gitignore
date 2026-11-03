@@ -1,3 +1,4 @@
 .DS_Store
 tests/hfsplus/test_volume
+tests/hfsplus/test_btree
 tests/hfsplus/*.dSYM/
