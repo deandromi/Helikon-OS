@@ -25,4 +25,5 @@ A new bootloader/firmware for the iPod Classic 6th and 7th Generation. I'm curre
 - Improved album view (taking inspiration from Roonserver)
 - Improved artist view (taking inspiration from Roonserver)
 - Improved car/receiver playback
+- Support a wide range of iPod devices and maybe other MP3 players
 - A modern feasible alternative to Rockbox/Rockpod or others.
