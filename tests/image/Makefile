@@ -2,7 +2,7 @@
 CC ?= cc
 CFLAGS ?= -O2 -g
 CFLAGS += -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow
-CPPFLAGS += -I../../firmware/hfs -I../../bootloader
+CPPFLAGS += -I../../firmware/hfs -idirafter ../../firmware/lib -I../../bootloader
 HFS = ../../firmware/hfs
 
 COMMON = $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog_compare.c \

@@ -173,6 +173,7 @@ cp "$ROOT/bootloader/sha256.c" "$ROOT/bootloader/sha256.h" \
    "$ROOT/bootloader/hardware/helikon_loader_hw.c" \
    "$ROOT/bootloader/hardware/helikon_build_keys.h" "$HELIKON_DIR/"
 cp "$ROOT"/firmware/hfs/hfs_*.c "$ROOT"/firmware/hfs/hfs_*.h "$HELIKON_DIR/"
+cp "$ROOT/firmware/lib/error.h" "$HELIKON_DIR/"
 
 python3 - "$OUT_DIR/test-public-key.txt" "$HELIKON_DIR/helikon_build_keys.c" <<'PY'
 import sys

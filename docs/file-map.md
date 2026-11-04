@@ -57,6 +57,15 @@ Helikon-OS/
       bootloader-ipod6g.ipod  built diagnostic image (unproven on hardware)
       SHA256SUMS            hash for the committed image
   firmware/
+    Makefile              F1 build: ELF, raw image, manifest, dev signing
+    boot/                 _start, vectors, linker script, boot-info, panic, stack
+    lib/                  freestanding mem/string/CRC/endian/ring/pool/fixed/format
+    board/6g/             BSP constants, board description, runtime wiring
+    hal/6g/               clock, PMU, backlight, LCD, ATA read, buttons, CPU
+    block/                read-only block device, bounce, APM/MBR/raw scan
+    diag/                 stage machine, RAM trace, crash record, RGB565 screen
+    hfs/hfs_block_adapter.c/.h  hfs_read_fn over the read-only block device
+    hfs/hfs_file.c/.h     one-file read helper (lookup + inline/overflow)
     inner_image.c/.h      outer-file extent mapping + metadata guard
     write_diag.c/.h       inner-image writer sequence and result
     write_report.c/.h     write-diagnostic screen formatter
@@ -89,6 +98,16 @@ Helikon-OS/
       hfs_btree_tree.c/.h   tree-level insert, parent/root split, rebalance, fork growth
       hfs_fork_io.c/.h      fork block staging into a transaction
   tests/
+    firmware/
+      Makefile              host tests for the F1 freestanding modules
+      test_lib.c            mem/string/endian/CRC/fixed/format
+      test_boot_info.c      D-28 page validation and fallback
+      test_block.c          block adapter, bounce reads and partition scan
+      test_stages.c         stage order/timeout/failure
+      test_ring.c           wrap/overwrite
+      test_pool.c           alloc/free/exhaustion/double free
+      test_screen.c         text pixels, clipping and present
+      test_trace.c          bounded trace ring
     hfsplus/
       Makefile              host test build/sanitizer targets
       test_image.c/.h       shared in-memory image fixture
@@ -161,6 +180,10 @@ Helikon-OS/
 
 ## Planned tree
 
+The F1 directories (`boot/`, `lib/`, `board/6g/`, `hal/6g/`, `block/`, `diag/`)
+now exist in the current tree above. The list below is the remaining design
+target, including the later VFS, player, UI and release modules.
+
 ```text
 bootloader/                 rescue bootloader; native HFS+ read-only
 firmware/
@@ -185,6 +208,8 @@ tools/
   build-loader-bootloader.sh      loader test image, test key/manifest/payload, checks
   make-bootloader-splash.py       pre-final owner splash variants and 4bpp C data
   make-final-bootloader-splash.py final green/red PNGs, mask and 4bpp C data
+  make-firmware-image.py          F1 manifest/bootstate and development signing
+  firmware-size.py                F1 map, headroom and undefined-symbol checks
   check-loader-artifact.sh        HFS+ host verification of the generated artifact
   build-write-diagnostic-bootloader.sh  separate inner-image write-diagnostic build
   build-outer-diagnostic-bootloader.sh  separate outer-volume write-diagnostic build
@@ -248,6 +273,8 @@ is created; do not let it drift.
 | `tools/build-diagnostic-bootloader.sh` | Render the diagnostic image from a pinned donor checkout | boot/release lead | D-21, `bootloader/README.md` | Thumb build, `MOVE_AREA`, hash, `mks5lboot` dry-run | Uses a clean `git archive`; never modifies the donor checkout; image is unproven |
 | `tools/build-loader-bootloader.sh` | Render the DFU-only loader test image and signed test files | boot lead | D-01, D-02, T-049, `bootloader/LOADER_TEST.md` | test key reuse, manifest signature, image/marker/`MOVE_AREA`, HFS+ artifact check, `mks5lboot` dry-run | Test key stays under `build/`; only the public half is linked; no device run; production handoff disabled |
 | `tools/check-loader-artifact.sh` | Verify the exact loader test artifact through the host HFS+ core | boot lead | T-049 | disposable HFS+ image, `fsck_hfs`, `loader: OK`, `bootstate: GOOD` | Host-only; never touches a device |
+| `tools/make-firmware-image.py` | Build the F1 manifest, bootstate and signed development image | firmware/release lead | D-01, D-02, ADR-0004, T-054 | Ed25519 signature, bootstate checksum, loader host-core verification | Development key only; never commit the private key; not a release image |
+| `tools/firmware-size.py` | Print the F1 map/size/headroom and check undefined symbols | firmware lead | ADR-0003, T-054 | `__image_end`, `__bss_end`, raw-size equality, banned hosted symbols | Host check only; not a device measurement |
 | `tools/make-bootloader-splash.py` | Generate the pre-final owner splash PNG variants and 4bpp C data | boot/UI | T-045 | version, label mask, palette, packed base, preview | Requires the owner-provided ITC Benguiat file; font is not committed; historical design only |
 | `tools/make-final-bootloader-splash.py` | Generate the final splash variants and 4bpp C data from the owner green/red PNGs | boot/UI | T-045, `assets/bootloader/README.md` | pair-difference mask, palette, packed base, preview | Uses the exact owner PNGs; no font file required; 6bc6927c refresh is not device-tested |
 | `tools/render-ui-mockup.py` | Host 320×240 typography mockups | UI lead | `docs/ui.md`, `assets/fonts/README.md` | image is 320×240 grayscale; text fits | Host artifact only; not a device panel run |

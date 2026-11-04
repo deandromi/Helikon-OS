@@ -11,6 +11,53 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-04 (F1 firmware skeleton)
+
+## What happened
+
+- Added the F1/T-054 read-only firmware tree: `firmware/boot` (entry,
+  vectors, linker script, boot-info parser, panic, stack guards), `firmware/lib`
+  (freestanding mem/string/CRC/endian/ring/pool/fixed/format), `firmware/board/6g`
+  (BSP and runtime wiring), `firmware/hal/6g` (clock, PMU, backlight, LCD, ATA
+  read, buttons, CPU), `firmware/block` (read-only block device, bounce reads,
+  APM/MBR/raw partition scan), `firmware/diag` (stage machine, trace ring,
+  crash record, RGB565 screen) and the HFS+ read adapter/file helper.
+- `make -C firmware BOARD=6g image` builds a 38,744-byte signed development
+  image, SHA-256 `10bf7684…`; `__image_end` `0x08009758`, `__bss_end`
+  `0x08837f80`, image headroom 8,345,768 bytes. The manifest and bootstate verify
+  through the host loader core: `loader: OK`, `bootstate: GOOD`.
+- Added eight host test groups under `tests/firmware/` and the
+  `make -C firmware BOARD=6g {,size,test,image}` targets. The F1 host groups
+  pass with ASan/UBSan. The existing HFS+ (104) and bootloader (31) suites still
+  pass with sanitizers; the disposable-image and loader fixtures still pass.
+- Moved the canonical error enum to `firmware/lib/error.h` and kept the
+  `HFS_ERR_*` aliases; added `BOOT_INFO_INVALID`. Updated the HFS and bootloader
+  host include paths and the donor build scripts to copy `error.h`.
+- Updated `state.md`, `tasks.md`, `file-map.md`, `failures.md`, `testing.md` and
+  `agents.md`.
+
+## What is next
+
+1. Run F1 on the 6G using the existing loader test image and the generated
+   `build/firmware/6g/out/` files. Record the image hash, stage timings, screen
+   photo and `fsck_hfs -fn`; update `device-matrix.md`, `state.md` and
+   `tasks.md`. Stop before F2.
+2. T-059 is still optional for the first run: the current loader test image does
+   not fill the boot-info page, so F1 shows `BOOT-INFO MISSING`/`INVALID` and
+   continues on the read-only diagnostic path.
+3. T-055/F2 follows only after F1 has a recorded device run.
+
+## Do not claim
+
+- No firmware device run exists. The F1 image is host-built and host-verified,
+  not device-proven.
+- The image is signed with the development loader test key, not a release key;
+  it is not a product or a release.
+- The host tests are not a device run, and the boot-info page is not filled by
+  the current loader.
+
+---
+
 # Handoff — 2026-11-04 (session-start prompt)
 
 ## What happened

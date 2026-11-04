@@ -15,15 +15,16 @@ P0. Status uses `planned`, `in progress`, `unproven`, `implemented` or
 T-010 are closed, D-01/D-02 are accepted, and T-011/T-027 are implemented.
 T-049's test image is owner-reported working on `3979de6f…` and `6bc6927c…`
 (6.5 s startup, clean `fsck_hfs -fn`) and is implemented. T-006/D-20 and T-050 are closed by owner decision; T-050 is
-rejected as an explicit no-A/B decision. The active P0 line is **T-051**
-(production firmware handoff, blocked on a real signed firmware image). The P1
-line is T-029 (read-only diagnostic finish), T-045 (final splash, now
-device-checked) and T-053 (release-key certificate). Firmware bring-up starts
-with T-054/T-055 (F1/F2), which are P0 because they produce the first real
-signed firmware image and unblock T-051. D-27/D-28 (firmware memory map and
-entry ABI) are accepted; T-059 fills the boot-info page in the loader. T-056 and
-T-058 are P1; T-057 is P2. T-041 is implemented. T-042/T-013/T-052 are P2;
-T-024 is rejected as superseded by T-045.
+rejected as an explicit no-A/B decision. The active P0 line is **T-054/F1**
+(read-only firmware skeleton): the source and signed development image now build,
+the host tests pass and the loader host core verifies the manifest/bootstate; the
+remaining acceptance evidence is one recorded 6G run. T-051 (production firmware
+handoff) follows F1 and needs a real signed firmware image. The P1 line is T-029
+(read-only diagnostic finish), T-045 (final splash, now device-checked) and T-053
+(release-key certificate). D-27/D-28 (firmware memory map and entry ABI) are
+accepted; T-059 fills the boot-info page in the loader. T-056 and T-058 are P1;
+T-057 is P2. T-041 is implemented. T-042/T-013/T-052 are P2; T-024 is rejected as
+superseded by T-045.
 
 UI fonts/mockup and the splash must not take device testing time from the
 writer. T-017 is rejected; the journaled writer was implemented directly.
@@ -32,13 +33,14 @@ T-030 is complete through T-032/T-040/T-047.
 ## Now
 
 Production firmware handoff and the first firmware bring-up. T-051 needs a real
-signed firmware image; T-054 and T-055 produce it and prove the bootstate loop.
-T-006 and T-049 are done.
+signed firmware image; T-054 produces it and T-055 proves the bootstate loop.
+T-054 source/host evidence exists; the 6G run is the remaining gate. T-006 and
+T-049 are done.
 
 | ID | Task | Priority | Dependencies | Acceptance criteria | Status | Owner | Links |
 |---|---|---|---|---|---|---|---|
 | T-051 | Build the production firmware handoff. | P0 | T-049, D-01, D-02, D-20, T-054, T-055, T-059, a real signed firmware image | Production bootloader verifies a real signed firmware image and jumps without returning; no test payload, no unsigned image and no in-bootloader OF/recovery menu (D-26; native Menu+Play and DFU cover recovery). End-to-end device validation requires a real signed firmware build; host tests can cover the handoff/failure paths earlier. | `planned` | boot lead | [architecture.md](architecture.md), [release.md](release.md), [LOADER.md](../bootloader/LOADER.md) |
-| T-054 | Build the first read-only firmware skeleton (F1). | P0 | D-27, D-28, T-049 | A signed firmware image boots from the loader, shows a banner, initializes ATA, probes HFS+, reads one known file, reports PASS and powers off. No filesystem write, no journal replay, no unsigned image. One recorded 6G run with a screen photo, boot-stage timings and `fsck_hfs -fn` clean. | `planned` | firmware/boot | [firmware-architecture.md](firmware-architecture.md), [build-firmware prompt](prompts/build-firmware.md), [ADR-0003](adr/0003-firmware-memory-map.md), [ADR-0004](adr/0004-firmware-entry-abi.md) |
+| T-054 | Build the first read-only firmware skeleton (F1). | P0 | D-27, D-28, T-049 | A signed firmware image boots from the loader, shows a banner, initializes ATA, probes HFS+, reads one known file, reports PASS and powers off. No filesystem write, no journal replay, no unsigned image. One recorded 6G run with a screen photo, boot-stage timings and `fsck_hfs -fn` clean. **Current evidence:** F1 source tree and signed development image `10bf7684…` (38,744 bytes) exist; 8 host test groups are sanitizer-clean; the loader host core reports `loader: OK` / `bootstate: GOOD`; no device run yet. **Remaining:** one 6G run with photo, stage timings, `fsck_hfs -fn` clean, then stop before F2. | `in progress` | firmware/boot | [firmware-architecture.md](firmware-architecture.md), [build-firmware prompt](prompts/build-firmware.md), [ADR-0003](adr/0003-firmware-memory-map.md), [ADR-0004](adr/0004-firmware-entry-abi.md) |
 | T-055 | Promote `/.helikon/bootstate` to `GOOD` from the firmware through the transaction engine (F2). | P0 | T-054, D-02 | Firmware re-reads bootstate through the VFS, validates both slots, stages `GOOD` with a higher sequence, commits through `hfs_txn`, flushes and reads back; the loader sees `GOOD`; `fsck_hfs -fn` clean; a power cut during promotion recovers to a consistent state. No other file is written. | `planned` | firmware/HFS+ | [firmware-architecture.md](firmware-architecture.md), [build-firmware prompt](prompts/build-firmware.md), [LOADER.md](../bootloader/LOADER.md), [hfsplus-write-engine.md](hfsplus-write-engine.md) |
 
 ## Next

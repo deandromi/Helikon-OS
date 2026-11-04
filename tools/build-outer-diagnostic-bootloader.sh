@@ -70,6 +70,7 @@ cp "$ROOT/bootloader/outer_diag.c" "$ROOT/bootloader/outer_diag.h" \
    "$ROOT/bootloader/splash.c" "$ROOT/bootloader/splash.h" \
    "$ROOT/bootloader/hardware/helikon_outer_diag_hw.c" "$HELIKON_DIR/"
 cp "$ROOT"/firmware/hfs/hfs_*.c "$ROOT"/firmware/hfs/hfs_*.h "$HELIKON_DIR/"
+cp "$ROOT/firmware/lib/error.h" "$HELIKON_DIR/"
 
 # The Rockbox bootloader formatter supports %lu but not long-long. A stray
 # long-long conversion shifts later varargs and corrupts the on-screen report.

@@ -6,14 +6,17 @@
 > Last updated: 2026-11-04
 > Source: design paper §17, §24, §26, §28; `docs/verification.md`
 
-**Helikon-OS has a small host test tree.** It covers the HFS+ read core, the
-read-only diagnostic bootloader core, and the writer foundation: 76 tests total
-(68 HFS+, 8 bootloader), sanitizer-clean. The writer foundation covers the Apple
-HFS+ journal append/replay path, a bounded transaction engine, the allocation
-bitmap, node-level B-tree insert/delete and fork block staging. Tree-level
-split/merge, catalog and extents mutation tests do not exist yet. There are no device or
-power-loss tests. Donor tests are reference material only. Do not describe a
-donor test pass as Helikon-OS validation.
+**Helikon-OS has a host test tree.** It covers the HFS+ read/write core, the
+read-only diagnostic bootloader core, the host firmware loader and the F1
+firmware modules. The portable HFS+/bootloader suites are 135 tests (104 HFS+,
+31 bootloader), sanitizer-clean. The F1 firmware adds eight host test groups
+(`tests/firmware/`: boot-info, block/partition, stages, lib, ring, pool, screen
+and trace), also sanitizer-clean. The writer foundation covers the Apple HFS+
+journal append/replay path, a bounded transaction engine, the allocation
+bitmap, node-level B-tree insert/delete and fork block staging; the disposable
+image and crash matrices add the macOS-visible behaviour. There are no firmware
+device or power-loss tests yet. Donor tests are reference material only. Do not
+describe a donor test pass as Helikon-OS validation.
 
 ## 1. Test layers
 
@@ -208,11 +211,44 @@ built for the host with a fake block device, deterministic clock, scripted input
 and frame capture; the same `firmware/lib/` code is linked where possible. The
 host harness is a fast loop, not a device result.
 
+The F1 tree has an initial host suite. It compiles the freestanding modules with
+`-DHELIKON_HOST_TEST` and the target-style memory names, then links the test
+driver against the host toolchain:
+
+```sh
+make -C tests/firmware test
+make -C tests/firmware sanitize
+```
+
+The groups are:
+
+- `test_lib` — mem/string/endian/CRC-32/fixed-point/bounded format;
+- `test_boot_info` — D-28 page magic/version/size/CRC/board/range/manifest and
+  `r0 = 0` fallback;
+- `test_block` — block bounds, read-only write/flush, unaligned bounce reads,
+  APM/raw partition scan, malformed signature and I/O error;
+- `test_stages` — boot-stage order, completion, failure and timeout;
+- `test_ring`, `test_pool` — bounded ring wrap/overwrite and fixed pool
+  exhaustion/double free;
+- `test_screen`, `test_trace` — text pixels/clipping and trace wrap.
+
+The target build is separate:
+
+```sh
+make -C firmware BOARD=6g          # ELF + raw image
+make -C firmware BOARD=6g size     # map/size/headroom and symbol checks
+make -C firmware BOARD=6g image    # signed development image
+```
+
+`tools/check-loader-artifact.sh build/firmware/6g/out` verifies the generated
+manifest, image and bootstate through the host loader core. It is host evidence,
+not a device run.
+
 The device bring-up ladder is recorded rung by rung: banner, ATA identify,
 partition scan, HFS+ probe, read one known file, input, bootstate promotion,
 browser, first UI, first audio. A rung is not skipped because a host test
-passes. The planned firmware commands (`make -C firmware BOARD=6g ...`) do not
-exist yet; the firmware tree is still `planned` (T-054–T-058).
+passes. The F1 image `10bf7684…` is built and host-verified; it has no device
+run.
 
 ## 6. Device tests
 
@@ -294,6 +330,17 @@ make -C tests/hfsplus test
 make -C tests/hfsplus sanitize
 make -C tests/bootloader test
 make -C tests/bootloader sanitize
+make -C tests/firmware test
+make -C tests/firmware sanitize
+```
+
+The target firmware build is:
+
+```sh
+make -C firmware BOARD=6g
+make -C firmware BOARD=6g size
+make -C firmware BOARD=6g test
+make -C firmware BOARD=6g image
 ```
 
 Donor commands remain reference-only; they do not test Helikon-OS:

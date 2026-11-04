@@ -64,6 +64,11 @@ images, backups or serial numbers to the repository.
 diagnostic rows name the bootloader image hash. Do not write a donor version into
 this column.
 
+The F1 firmware image `10bf7684…` (38,744 bytes) is built and host-verified but
+has no device run. Do not add a support row until the owner records the run; the
+current loader test image does not fill the boot-info page (T-059), so F1 uses
+the missing/invalid fallback.
+
 ### 2.1 Diagnostic runs — owner-reported, 2026-11-03
 
 The first Helikon-OS diagnostic image (`bd0ebc92…`, 66,920 bytes) booted on the

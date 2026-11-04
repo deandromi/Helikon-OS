@@ -137,11 +137,18 @@ docs/prompts/             reusable task prompts
 `docs/file-map.md` is the authoritative map, including donor files referenced by
 the paper. A directory shown as planned does not exist yet.
 ## 6. Build and test commands
-**No firmware or production firmware-loading bootloader can be built yet.** The
+**The F1 read-only firmware skeleton can be built and host-tested. F2–F5, the
+production firmware handoff and a release firmware image cannot.** The
 read-only diagnostic bootloader and the separate DFU-only loader test image can
-be built and host-tested:
+also be built and host-tested:
 
 ```sh
+PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g
+PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g size
+PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g image
+make -C tests/firmware test
+make -C tests/firmware sanitize
+
 make -C tests/hfsplus test
 make -C tests/hfsplus sanitize
 make -C tests/bootloader test
@@ -172,7 +179,8 @@ The loader test script writes to `build/loader-bootloader/out/` and keeps its
 generated test key under `build/`; only the public key is linked. The read-only
 image and inner-image diagnostic have owner-reported runs; the outer-volume
 image has one owner-reported 6G run (2026-11-04) and remains one device/one
-volume. The loader test image has no device run. A successful link is not a
+volume. The loader test image has owner-reported passes on `3979de6f…` and the
+final-splash `6bc6927c…`; see `docs/device-matrix.md`. A successful link is not a
 device run. The inner-image write diagnostic may write only inside a
 preallocated `helikon-test.img`; see `bootloader/WRITE_DIAG.md`. The outer-volume
 diagnostic writes only `/helikon-outer-test` after the opt-in and full-backup
@@ -189,8 +197,9 @@ python3 tools/hfsplus/tests/check_integration.py
 ```
 
 They must run in a separate donor checkout, never here. They prove donor host
-tests, not Helikon-OS correctness or device safety. Future firmware commands are
-added only when that tree exists and `docs/testing.md` records them.
+tests, not Helikon-OS correctness or device safety. The F1 commands above are
+current; do not add F2–F5 commands until those modules exist and
+`docs/testing.md` records them.
 
 ## 7. Change recipes
 

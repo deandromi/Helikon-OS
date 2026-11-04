@@ -8,13 +8,16 @@
 > Source: design paper §5–§19, §27; `docs/architecture.md`; `docs/ui.md`;
 > ADR-0003; ADR-0004
 
-**Evidence statement.** This paper describes **planned** firmware. There is no
-kernel, HAL, VFS, player, UI or firmware image in the repository. Nothing here
-is a device result, a performance measurement or a support claim. Values marked
-"design target" are budgets to be measured later; values marked "open question"
-are not decided. The only measured firmware-adjacent fact in this repository is
-the loader test image's owner-reported **6.5 s** startup on one 6G with an iFlash
-SD adapter, and that number belongs to the loader, not to the firmware.
+**Evidence statement.** This paper describes the firmware design and the F1
+implementation skeleton. The F1/T-054 source tree now exists under `firmware/`
+and builds a signed development image; its host tests pass. There is **no
+firmware device run**, and the VFS, player, UI, database, USB, update path and
+F2–F5 do not exist. Nothing here is a device result, a performance measurement or
+a support claim. Values marked "design target" are budgets to be measured later;
+values marked "open question" are not decided. The only measured
+firmware-adjacent fact in this repository is the loader test image's
+owner-reported **6.5 s** startup on one 6G with an iFlash SD adapter, and that
+number belongs to the loader, not to the firmware.
 
 **How to read this paper.** Sections 1–4 define the problem, the boot boundary
 and memory. Sections 5–7 define the runtime and the modules. Section 8 is about

@@ -28,3 +28,13 @@ tests/bootloader/test_loader
 tests/bootloader/test_loader_hfs
 tests/bootloader/test_ed25519
 tests/hfsplus/test_catalog_index
+tests/firmware/build/
+tests/firmware/test_lib
+tests/firmware/test_boot_info
+tests/firmware/test_block
+tests/firmware/test_stages
+tests/firmware/test_ring
+tests/firmware/test_pool
+tests/firmware/test_screen
+tests/firmware/test_trace
+tests/firmware/*.dSYM/

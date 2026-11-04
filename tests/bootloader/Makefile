@@ -2,7 +2,7 @@
 CC ?= cc
 CFLAGS ?= -O2 -g
 CFLAGS += -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow
-CPPFLAGS += -I../../firmware/hfs -I../../bootloader -I../hfsplus
+CPPFLAGS += -I../../firmware/hfs -idirafter ../../firmware/lib -I../../bootloader -I../hfsplus
 HFS = ../../firmware/hfs
 SOURCES = test_diag.c ../hfsplus/test_image.c ../hfsplus/test_fs_image.c \
           ../../bootloader/diagnostics.c ../../bootloader/report.c ../../bootloader/splash.c \

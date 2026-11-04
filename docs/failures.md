@@ -24,9 +24,11 @@ recorded here or in the paper.
 | `NAME_INVALID` | The name violates the HFS+ name policy. | >255 UTF-16 units, NUL, `/`, reserved `.`/`..`, invalid normalization. | Reject the create/rename with a specific reason. | Do not silently truncate or rewrite the name. |
 | `DB_STALE` | The database entry no longer matches the catalog. | File moved/deleted/renamed outside the database. | Fall back to a catalog scan and refresh the entry. | Do not report "file missing" from a stale DB. |
 | `IO` | The block device or transport failed. | ATA error, short transfer, timeout, flush failure. | Propagate the error; retry only within the documented policy; fail the transaction. | Do not swallow a flush error or assume the device is fine. |
+| `BOOT_INFO_INVALID` | The loader boot-info page failed validation. | `r0 = 0`, bad magic/version/size/CRC/board, image range mismatch, or a mismatched manifest copy. | Continue in the read-only diagnostic mode; show the stage and code; do not write bootstate. | Do not treat a RAM page as a trust anchor or guess the missing facts. |
 
 `NOT_FOUND`, `NOT_DIR`, `IS_DIR`, `EXISTS` are VFS lookup errors, not filesystem
-corruption. They must not trigger repair.
+corruption. They must not trigger repair. `BOOT_INFO_INVALID` is the firmware
+handoff error added by D-28; it is not a filesystem error.
 
 **On-disk NUL names:** macOS HFS+ volumes contain private records whose names
 include NUL code units (for example the `.HFS+ Private Data` directory). The

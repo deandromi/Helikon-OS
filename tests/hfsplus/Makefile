@@ -2,7 +2,7 @@
 CC ?= cc
 CFLAGS ?= -O2 -g
 CFLAGS += -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow
-CPPFLAGS += -I../../firmware/hfs
+CPPFLAGS += -I../../firmware/hfs -idirafter ../../firmware/lib
 HFS = ../../firmware/hfs
 TESTS = test_volume test_btree test_unicode test_catalog test_extents test_journal test_txn test_bitmap test_btree_write test_fork_io test_btree_tree test_catalog_compare test_catalog_write test_btree_grow test_catalog_index
 

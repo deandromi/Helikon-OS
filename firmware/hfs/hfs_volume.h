@@ -5,30 +5,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* The project has one error taxonomy; see firmware/lib/error.h. */
+#include "error.h"
+
 #define HFS_VOLUME_HEADER_OFFSET 1024u
 #define HFS_VOLUME_HEADER_SIZE 512u
 #define HFS_EXTENT_COUNT 8u
 #define HFS_MAX_NODE_SIZE 8192u
-
-enum hfs_error {
-    HFS_OK = 0,
-    HFS_ERR_IO = -1,
-    HFS_ERR_NOT_HFS = -2,
-    HFS_ERR_FORMAT = -3,
-    HFS_ERR_UNSUPPORTED = -4,
-    HFS_ERR_DIRTY = -5,
-    HFS_ERR_ARGUMENT = -6,
-    HFS_ERR_BUFFER = -7,
-    HFS_ERR_NOT_FOUND = -8,
-    HFS_ERR_NOT_DIR = -9,
-    HFS_ERR_IS_DIR = -10,
-    HFS_ERR_NAME_INVALID = -11,
-    HFS_ERR_NO_SPACE = -12,
-    HFS_ERR_READ_ONLY = -13,
-    HFS_ERR_BUSY = -14,
-    HFS_ERR_POWER = -15,
-    HFS_ERR_NOT_EMPTY = -16
-};
 
 struct hfs_extent {
     uint32_t start;
