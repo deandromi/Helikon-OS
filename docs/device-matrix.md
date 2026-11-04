@@ -10,7 +10,8 @@
 **Helikon-OS has four completed owner-reported diagnostic runs on one 6G:**
 two read-only-image runs (one partial/failed, one corrected report), one
 inner-image write run, and one outer-volume write run. The loader test image
-also has an owner-reported pass on `3979de6f…` with a 6.5 s startup. The outer diagnostic also
+also has an owner-reported pass on `3979de6f…` with a 6.5 s startup; the
+final-splash refresh `6bc6927c…` is built but not yet device-tested. The outer diagnostic also
 had two earlier boots on 2026-11-04: the first reached rename and the second
 stopped at `Cleanup: FAIL` (`-14`); the third reported every stage PASS. This is
 recorded evidence for those tests, not a support claim.
@@ -48,6 +49,7 @@ images, backups or serial numbers to the repository.
 | iPod Classic 6G (reference) | `open question` | iFlash SD | loader test `ca26b5a6…` | Alpha splash + batched ATA + stage line | `partial` | Owner report 2026-11-04: startup completed in 1 minute 20 seconds; longest stalls at `firmware manifest` and `verify firmware`. Exact `JUMP OK` and post-run `fsck_hfs` to confirm | owner/boot |
 | iPod Classic 6G (reference) | `open question` | iFlash SD | loader test `9600332f…` | Alpha splash + indexed catalog lookup | `fail` | Owner report 2026-11-04: boot was fast but `Cannot read firmware manifest` / `not found (-4)`. The first indexed descent picked a separator at/after the parent and skipped a shared leaf. Superseded by `3979de6f…` | owner/boot |
 | iPod Classic 6G (reference) | `open question` | iFlash SD | loader test `3979de6f…` | Alpha splash + lower-bound catalog descent | `pass` | Owner report 2026-11-04: everything works, very fast and consistent; splash and loader path complete. Startup 6.5 s; post-run `fsck_hfs` still to record. One device/iFlash SD only | owner/boot |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | loader test `6bc6927c…` | Final Alpha splash + no stage line | `not run` | Visual-only refresh of the tested `3979de6f…` loader path; device check and post-run `fsck_hfs` pending | boot lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | journal replay | `not run` | none | journal lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | sleep/wake 100 cycles | `not run` | none | test lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | USB read-only | `not run` | none | USB lead |

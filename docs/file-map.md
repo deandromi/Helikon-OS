@@ -36,7 +36,7 @@ Helikon-OS/
     diagnostics.c/.h        read-only volume/catalog/file diagnostic
     report.c/.h             on-screen report formatter
     splash.c/.h             320×240 1-bit splash for the write diagnostics
-    splash_color.c/.h       generated 4bpp Alpha splash and RGB565 renderer
+    splash_color.c/.h       generated final 4bpp Alpha splash and RGB565 renderer
     sha256.c/.h             SHA-256 for manifest/image verification
     manifest.c/.h           signed manifest parser and split verifier
     bootstate.c/.h          two-slot boot-state parser/selector
@@ -179,7 +179,8 @@ firmware/
 tools/
   build-diagnostic-bootloader.sh  pinned donor export, patch, Thumb build, checks
   build-loader-bootloader.sh      loader test image, test key/manifest/payload, checks
-  make-bootloader-splash.py       owner splash variants and generated 4bpp C data
+  make-bootloader-splash.py       pre-final owner splash variants and 4bpp C data
+  make-final-bootloader-splash.py final green/red PNGs, mask and 4bpp C data
   check-loader-artifact.sh        HFS+ host verification of the generated artifact
   build-write-diagnostic-bootloader.sh  separate inner-image write-diagnostic build
   build-outer-diagnostic-bootloader.sh  separate outer-volume write-diagnostic build
@@ -238,7 +239,8 @@ is created; do not let it drift.
 | `tools/build-diagnostic-bootloader.sh` | Render the diagnostic image from a pinned donor checkout | boot/release lead | D-21, `bootloader/README.md` | Thumb build, `MOVE_AREA`, hash, `mks5lboot` dry-run | Uses a clean `git archive`; never modifies the donor checkout; image is unproven |
 | `tools/build-loader-bootloader.sh` | Render the DFU-only loader test image and signed test files | boot lead | D-01, D-02, T-049, `bootloader/LOADER_TEST.md` | test key reuse, manifest signature, image/marker/`MOVE_AREA`, HFS+ artifact check, `mks5lboot` dry-run | Test key stays under `build/`; only the public half is linked; no device run; production handoff disabled |
 | `tools/check-loader-artifact.sh` | Verify the exact loader test artifact through the host HFS+ core | boot lead | T-049 | disposable HFS+ image, `fsck_hfs`, `loader: OK`, `bootstate: GOOD` | Host-only; never touches a device |
-| `tools/make-bootloader-splash.py` | Generate the owner splash PNG variants and 4bpp C data | boot/UI | T-045, `assets/bootloader/README.md` | version, label mask, palette, packed base, preview | Requires the owner-provided ITC Benguiat file; font is not committed; 4bpp is the device representation |
+| `tools/make-bootloader-splash.py` | Generate the pre-final owner splash PNG variants and 4bpp C data | boot/UI | T-045 | version, label mask, palette, packed base, preview | Requires the owner-provided ITC Benguiat file; font is not committed; historical design only |
+| `tools/make-final-bootloader-splash.py` | Generate the final splash variants and 4bpp C data from the owner green/red PNGs | boot/UI | T-045, `assets/bootloader/README.md` | pair-difference mask, palette, packed base, preview | Uses the exact owner PNGs; no font file required; 6bc6927c refresh is not device-tested |
 | `tools/render-ui-mockup.py` | Host 320×240 typography mockups | UI lead | `docs/ui.md`, `assets/fonts/README.md` | image is 320×240 grayscale; text fits | Host artifact only; not a device panel run |
 | `tools/hfsplus/` | Host inspector, fixtures, tests | test lead | paper §8, §17, donor `tools/hfsplus` | host tests, sanitizer | Donor code is reference; do not modify donor; no device claims |
 | `tools/db/` | Host database builder | database lead | paper §12, §28.4.1 | 10k-track parity | No on-device claim without device evidence |

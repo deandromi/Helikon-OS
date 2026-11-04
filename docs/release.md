@@ -23,8 +23,8 @@ production version claim from this repository yet.
 | Tag | `alpha-1.0` |
 | Type | GitHub prerelease; bootloader test image only |
 | Image | `bootloader-ipod6g-loader-test.ipod` |
-| Image SHA-256 | `3979de6ff4bb7634f2b48b2e2e72b2d16c84a32288c161057f46b875bc6a0c9a` |
-| Tested | One 6G/iFlash SD; owner-reported pass; 6.5 s startup |
+| Image SHA-256 | `6bc6927cb282f7c01b34b07020419171adb9fa61e6ffe1180156b7579b0b2388` |
+| Tested | `3979de6f…` was one 6G/iFlash SD, owner-reported pass, 6.5 s; final-splash `6bc6927c…` device run pending |
 | Not included | Firmware image, kernel, release key, A/B rollback, recovery menu |
 | Open evidence | `fsck_hfs -fn` after the run; repeat/power-cut matrix; other devices |
 

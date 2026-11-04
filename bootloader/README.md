@@ -2,8 +2,9 @@
 
 > Purpose: read-only HFS+ diagnostics and the 320×240 splash for the first
 > bootloader screen.
-> Status: **diagnostic image built and unproven; loader test image built and
-> unproven.** Not a release and not a firmware loader.
+> Status: **diagnostic image built and unproven; loader test image owner-reported
+> working; final-splash refresh pending a device check.** A bootloader-only Alpha
+> prerelease exists; not a firmware loader.
 > Owner: boot lead
 > Last updated: 2026-11-04
 > Source: design paper §5, §24, §27; `docs/state.md`; D-21
@@ -25,23 +26,24 @@ diagnostic image. The host core now implements:
 
 Formats and paths are fixed in [`LOADER.md`](LOADER.md). The host tests, the
 macOS HFS+ fixture and the exact-artifact check pass. A separate DFU-only
-[`LOADER_TEST.md`](LOADER_TEST.md) image builds and executes a signed test
-payload; production handoff is disabled. No firmware image exists and no device
-run is recorded, so no firmware boot is claimed.
+[`LOADER_TEST.md`](LOADER_TEST.md) image executes a signed test payload;
+production handoff is disabled. The `3979de6f…` loader image was owner-reported
+working; the final-splash `6bc6927c…` refresh still needs a device check. No
+firmware image exists, so no firmware boot is claimed.
 
 ## Bootloader splash
 
 The loader test image uses the owner-supplied Alpha design in
 [`../assets/bootloader/`](../assets/bootloader/README.md): a 320×240 off-white
-engraving with `VERSION Alpha` and an `HFS+ DETAILS` label that is green when the
+engraving with `VERSION ALPHA` and an `HFS+ DETAILS` label that is green when the
 HFS+ volume and catalog open, red on an HFS+ probe/catalog error, and neutral
-while probing. The source illustration and title are preserved.
+while probing. The final owner green/red PNGs and illustration are preserved.
 
 The device stores the base as a 16-colour 4bpp image (38,400 bytes) plus a 4bpp
-alpha mask (592 bytes) and renders it to RGB565. The exact sRGB variants are in
+alpha mask (324 bytes) and renders it to RGB565. The exact sRGB variants are in
 `assets/bootloader/`; the 4bpp representation is the device limit. The label
-font is ITC Benguiat Std Book 9px, provided by the owner and **not committed**;
-see the asset README for the licence note and regeneration command.
+font is ITC Benguiat Std in the owner PNGs, not committed; see the asset README
+for provenance and regeneration.
 
 `splash_color.c/.h` implement the loader splash. `splash.c` remains the 1-bit
 splash for the separate write diagnostics. The diagnostic read-only image still

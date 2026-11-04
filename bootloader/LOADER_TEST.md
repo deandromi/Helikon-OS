@@ -2,7 +2,7 @@
 
 > Purpose: install and run the read-only firmware-loader test image on an iPod
 > Classic 6G, record the result, and recover.
-> Status: owner-reported pass on `3979de6f…` (one 6G/iFlash SD, 6.5 s startup); post-run `fsck_hfs` still to record.
+> Status: `3979de6f…` owner-reported pass (one 6G/iFlash SD, 6.5 s startup); final-splash `6bc6927c…` refresh pending a device check. Post-run `fsck_hfs` still to record.
 > Owner: boot lead
 > Last updated: 2026-11-04
 > Source: D-01, D-02, T-049; [`LOADER.md`](LOADER.md), [`DFU.md`](DFU.md)
@@ -95,7 +95,7 @@ with different flags.
 The screen should show, in order:
 
 ```text
-HELIKON-OS splash, VERSION Alpha
+HELIKON-OS splash, VERSION ALPHA
 HFS+ DETAILS turns green after the volume/catalog open
 HELIKON-OS LOADER TEST
 Firmware verified.
@@ -113,15 +113,12 @@ The splash starts with a neutral `HFS+ DETAILS`, then turns green when the HFS+
 volume and catalog open. A red label or a failure screen shows the HFS+ or
 loader error name and code. Record the full screen before pressing a button.
 
-The current bring-up build also prints a temporary bottom line:
-`storage ready`, `partition scan`, `HFS+ volume`, `HFS+ catalog`,
-`firmware manifest`, `verify firmware`, `jump`. It locates a slow stage and is
-removed from the final splash after the timing is understood. A startup that
-takes minutes is not acceptable release behaviour; record the last visible
-stage and the measured duration.
+The final-splash build does not print the temporary bottom stage line. The
+earlier `3979de6f…` build used that line during bring-up; the release image
+`6bc6927c…` is a visual-only refresh and still needs its own device check.
 
 The splash is a 16-colour RGB565 representation of the owner artwork; the
-illustration is not redrawn. `VERSION Alpha` is baked into the current build.
+illustration is not redrawn. `VERSION ALPHA` is baked into the current build.
 The exact image version/size values in the text screen come from the generated
 manifest.
 

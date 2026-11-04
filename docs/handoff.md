@@ -70,14 +70,20 @@ file grows. Do not rely on chat history for current state.
   the recovery paths.
 - Published the bootloader-only Alpha prerelease
   [`alpha-1.0`](https://github.com/deandromi/Helikon-OS/releases/tag/alpha-1.0):
-  `Alpha 1.0 Bootloader Only - A Quick Start`. Assets include the tested
-  `3979de6f…` image, DFU installer, test manifest/payload/bootstate, uninstaller
-  and quick start. It is not a firmware release and uses a test key.
+  `Alpha 1.0 Bootloader Only - A Quick Start`. Assets include the loader image,
+  DFU installer, test manifest/payload/bootstate, uninstaller, quick start and
+  the final green/red splash PNGs. It is not a firmware release and uses a test
+  key.
+- Replaced the splash with the owner's final green/red PNGs (`VERSION ALPHA`).
+  The refreshed image is `6bc6927c…` (106,536 bytes, 22,496 bytes headroom); the
+  temporary bottom stage line is removed. It is a visual-only refresh of the
+  tested `3979de6f…` loader path and still needs its own device check. The
+  GitHub release assets and body were updated in place.
 
 ## What is next
 
-1. Record post-run `fsck_hfs -fn` for `3979de6f…`; remove the temporary bottom
-   stage line when the owner's final splash designs arrive.
+1. Record post-run `fsck_hfs -fn`; device-check the final-splash `6bc6927c…`
+   image.
 2. T-051: build the production firmware handoff. It needs a real signed firmware
    image for end-to-end device validation; no OF/recovery menu (D-26). The
    current image executes a signed 12-byte test payload.

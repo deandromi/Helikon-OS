@@ -1,74 +1,73 @@
 # Bootloader splash assets
 
 > Purpose: source, variants and regeneration of the Helikon-OS bootloader splash.
-> Status: Alpha design built into the loader test image; no device run.
+> Status: final Alpha green/red artwork built into the loader image; refreshed
+> image not device-tested yet.
 > Owner: project owner / boot lead
 > Last updated: 2026-11-04
-> Source: owner-supplied `bootloader-design.jpg`; D-23/D-24; T-045
+> Source: owner final `Bootloader design Version Alpha Green/Red.png`; T-045
 
 ## Files
 
 | File | Purpose |
 |---|---|
-| `bootloader-design.jpg` | Owner-supplied 320×240 source artwork. Do not edit. |
-| `helikon-os-splash-alpha-hfs-ok.png` | Exact sRGB mockup, HFS+ label green. |
-| `helikon-os-splash-alpha-hfs-fail.png` | Exact sRGB mockup, HFS+ label red. |
-| `helikon-os-splash-alpha-hfs-unknown.png` | Exact sRGB mockup, neutral label while probing. |
+| `helikon-os-splash-alpha-hfs-ok.png` | Exact owner green PNG; HFS+ label green. |
+| `helikon-os-splash-alpha-hfs-fail.png` | Exact owner red PNG; HFS+ label red. |
+| `helikon-os-splash-alpha-hfs-unknown.png` | Neutral label while probing. |
 | `helikon-os-splash-alpha-quantized.png` | 16-colour preview of the device representation. |
+| `bootloader-design.jpg` | Earlier design source; provenance only, not the final source. |
 
-Only two areas differ from the source:
-
-1. the `VERSION ...` dots are replaced by `VERSION Alpha`;
-2. the `HFS+ DETAILS` ink is recoloured green, red or neutral.
-
-The title, ornament, illustration and off-white background are copied from the
-source. The PNG files are lossless sRGB; the illustration is not redrawn or
-cropped.
+The version line is **`VERSION ALPHA`** (uppercase) in the owner artwork. The
+illustration, title, ornament and off-white background are the owner PNGs; only
+the HFS+ label is composited at runtime.
 
 ## Device representation
 
 The 6G LCD is RGB565 and the bootloader `MOVE_AREA` is size-limited, so
-`bootloader/splash_color.c` stores the base as a 16-colour (4bpp) image
-(38,400 bytes) plus a 4bpp alpha mask for `HFS+ DETAILS` (592 bytes). The
-illustration is therefore quantised to 16 warm greys on the device; the PNG
-mockups preserve the full source colours. The label mask is composited at
-runtime in green, red or neutral grey.
+`bootloader/splash_color.c` stores the base as a 16-colour 4bpp image
+(38,400 bytes) plus a 4bpp alpha mask for `HFS+ DETAILS` (324 bytes). The label
+is drawn at runtime in:
+
+- green `#00BF63` (`0, 191, 99`);
+- red `#FE3131` (`254, 49, 49`);
+- neutral grey `#6B665C` (`107, 102, 92`).
+
+The off-white base is `#EFEDE5` (`239, 237, 229`). The PNGs preserve the full
+source colours; the device uses 16 warm greys because of the LCD/framebuffer
+limit.
 
 ## Font
 
-The labels use **ITC Benguiat Std Book** at 9 px. The owner supplied the font
-files under `/Users/deandromink/Downloads/ITC Benguiat/`; they are **not
-committed**. ITC Benguiat is a Monotype trademark and font software is licensed
-separately. Do not add the `.otf` files to this repository or redistribute them.
-The owner is responsible for the font licence used for the raster artwork.
-
-The existing `assets/fonts/` IBM Plex/Manrope assets are unrelated.
+The labels use **ITC Benguiat Std** in the owner PNGs. The font files were
+supplied by the owner and are **not committed**. ITC Benguiat is a Monotype
+trademark and font software is licensed separately. Do not add the `.otf` files
+to this repository or redistribute them.
 
 ## Regenerate
 
-From the repository root, with the licensed font available:
+From the repository root, with the two owner PNGs available:
 
 ```sh
-./tools/make-bootloader-splash.py \
-  --font '/path/to/BenguiatStd-Book.otf' \
-  --font-size 9 \
-  --version Alpha \
+./tools/make-final-bootloader-splash.py \
+  --green '/path/to/Bootloader design Version Alpha Green.png' \
+  --red '/path/to/Bootloader design Version Alpha Red.png' \
   --emit-c
 ```
 
-This rewrites the three PNG variants, the quantized preview, and
-`bootloader/splash_color.c/.h`. Change `--version` for a later build. The script
-refuses a non-Benguiat font unless `--allow-non-benguiat` is passed for a layout
-mockup only.
+This rewrites the three PNG variants, the quantized preview and
+`bootloader/splash_color.c/.h`. The red/green pair is verified to differ only in
+the HFS+ label before the mask is generated.
 
-Source image SHA-256:
-`e4fbb980df441db4e754037118c7673c375845ea0536bc1bd137c3eda73ba001`.
+The earlier `tools/make-bootloader-splash.py` remains for the pre-final design
+and font mockups; it is not used for the final artwork.
 
 ## Provenance and limits
 
 - The source artwork is owner-supplied; do not redistribute the images
   separately without owner approval.
 - The bootloader splash does not write the filesystem.
-- The loader test image shows the neutral label during storage/probe, then green
-  when the HFS+ volume and catalog open, or red on an HFS+ probe/catalog error.
-- No device-run evidence exists yet; the loader image remains `unproven`.
+- The loader image shows the neutral label during probe, then green when the
+  HFS+ volume/catalog open, or red on an HFS+ error.
+- The refreshed `6bc6927c…` image is a visual-only rebuild of the tested
+  `3979de6f…` loader path. A device run of the refreshed image is pending.
+- No firmware boot or support claim follows from the splash.

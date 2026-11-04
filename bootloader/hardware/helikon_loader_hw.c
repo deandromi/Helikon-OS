@@ -50,10 +50,10 @@
 #define LOADER_TEST_RETURN 0x4F4C4548u /* "HELO" little-endian */
 
 /*
- * Temporary device bring-up aid: one short line at the bottom of the splash.
- * The final splash build should set this to 0 after the HFS+ path is proven.
+ * Temporary device bring-up aid. The final splash build sets this to 0; keep
+ * the progress calls for a future instrumented build.
  */
-#define HELIKON_LOADER_PROGRESS 1
+#define HELIKON_LOADER_PROGRESS 0
 
 static uint8_t catalog_scratch[LOADER_SCRATCH_SIZE]
     __attribute__((aligned(4)));
