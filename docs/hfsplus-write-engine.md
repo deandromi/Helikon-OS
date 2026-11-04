@@ -30,7 +30,7 @@ catalog/extents mutation (including folders and rename/move), fork block
 staging, catalog key comparison and HFS+ normalization are implemented and
 host-tested. A disposable 16 MiB journaled
 HFS+ image passes create/append/mount/delete with `fsck_hfs -fn` clean, and a
-create/append/truncate/delete/rename write-failure matrices (148 cuts) replay to an
+create/append/truncate/delete/rename write/flush/partial matrices (280 cuts) replay to an
 fsck-clean volume. The write diagnostic and any device write do not exist. Do not infer a
 device write or a complete writer from this document.
 
@@ -579,7 +579,7 @@ No partial success:
 | Model-based B-tree | Insert/split/merge/delete, key order, leaf links, free-node map |
 | Allocation/extents | Property tests, full volume, fragmentation, truncate, `NO_SPACE` |
 | Journal | Commit/replay/abort at every boundary; idempotent replay |
-| Power loss | Create/append/truncate/delete/rename: 148 injected-write cuts, replay + `fsck_hfs` clean. Partial-sector, fsync and timing matrices remain. |
+| Power loss | Create/append/truncate/delete/rename: 280 injected write/flush/partial cuts, replay + `fsck_hfs` clean. Timing and the remaining operations remain. |
 | macOS differential | Disposable image: macOS mount/read parity, `fsck_hfs -fn` clean after create/delete |
 | Unicode | Composed/decomposed/case/length fixtures; macOS-created names |
 | Metadata parity | BSD/Finder/flags/timestamps/CNID/volume header |

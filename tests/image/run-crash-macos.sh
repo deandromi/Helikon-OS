@@ -99,13 +99,19 @@ prepare_scenario() {
 
 run_scenario() {
     SCENARIO=$1
-    echo "== scenario $SCENARIO =="
+    FAILMODE=${2:-write}
+    echo "== scenario $SCENARIO ($FAILMODE) =="
     prepare_scenario "$SCENARIO"
     CUT=1
     while [ "$CUT" -le "$MAX_CUTS" ]; do
         cp "$PREP" "$WORK"
-        CRASH=$("$HERE/hfs_crash_test" "$WORK" crash "$SCENARIO" "$CUT") ||
-            fail "crash injection at $SCENARIO cut $CUT failed"
+        if [ "$FAILMODE" = write ]; then
+            CRASH=$("$HERE/hfs_crash_test" "$WORK" crash "$SCENARIO" "$CUT") ||
+                fail "write injection at $SCENARIO cut $CUT failed"
+        else
+            CRASH=$("$HERE/hfs_crash_test" "$WORK" crash "$SCENARIO" "$CUT" "$FAILMODE") ||
+                fail "$FAILMODE injection at $SCENARIO cut $CUT failed"
+        fi
         echo "$SCENARIO cut $CUT: $CRASH"
 
         RECOVER=$("$HERE/hfs_crash_test" "$WORK" recover "$SCENARIO") ||
@@ -142,5 +148,15 @@ run_scenario append
 run_scenario truncate
 run_scenario delete
 run_scenario rename
+run_scenario create flush
+run_scenario append flush
+run_scenario truncate flush
+run_scenario delete flush
+run_scenario rename flush
+run_scenario create partial
+run_scenario append partial
+run_scenario truncate partial
+run_scenario delete partial
+run_scenario rename partial
 
-echo "PASS: create/append/truncate/delete/rename crash matrices are fsck-clean"
+echo "PASS: create/append/truncate/delete/rename write, flush and partial matrices are fsck-clean"

@@ -69,7 +69,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Outer-volume device write | `pass` | T-048 closed 2026-11-04: one 6G run, every stage PASS, test folder removed, `fsck_hfs` zero repairs, `diskutil verifyVolume` pass; `.rockpod-rw` unchanged and `.rockbox` only `.DS_Store`. The owner confirmed the full backup/diff; the agent did not rerun it. Power-cut matrix and timing remain. Not a support claim |
 | Controlled PMU cut | `pass` | Current image `81350f…`: targets 7/56 were pre-commit clean controls; target 96 cut after commit, recovered on the next boot, all stages PASS, and the extracted inner image passed `fsck_hfs` with `The volume HelikonInner appears to be OK`. Further replay targets are optional coverage |
 | Write diagnostic 6G run | `pass` | One owner-reported run, 2026-11-03: all stages PASS, extracted inner image SHA-256 `156060…`, `fsck_hfs -fn` exit 0, no `diag` folder, outer `diskutil verifyVolume` exit 0; not a library-write or support claim |
-| Journal crash injection | `implemented` | `tests/image/run-crash-macos.sh` injects a failed write at every cut point of create (25), append (43), truncate (34), delete (25) and rename (21) transactions, reopens the image, replays the journal and runs `fsck_hfs -fn`; all 148 cuts recover to a consistent state and an fsck-clean volume; partial-sector writes, fsync failures and power-loss timing remain |
+| Journal crash injection | `implemented` | `tests/image/run-crash-macos.sh` injects write, flush and partial-sector failures at every cut point of create (25 write + 4 flush + 25 partial), append (34 + 4 + 34), truncate (25 + 4 + 25), delete (25 + 4 + 25) and rename (21 + 4 + 21) transactions, reopens the image, replays the journal and runs `fsck_hfs -fn`; all 280 cuts recover to a consistent state and an fsck-clean volume; power-loss timing and the remaining operations remain |
 | Disposable-image writer validation | `implemented` | `tests/image/run-macos.sh` creates a 16 MiB journaled HFS+ image, creates a folder/file, appends 4096 bytes, renames, truncates and deletes through the outer volume, mounts at each stage and checks content, modes, timestamps and paths; `fsck_hfs -fn` is clean after every stage. Host-only; no device or library write |
 | B-tree fork growth | `implemented` | `hfs_btree_grow()` allocates a volume block, extends the catalog/extents fork in the primary/alternate headers, adds a free node to the header map and updates `totalNodes`; requires `node_size == block_size` and an inline fork extent slot; 1 host test |
 | Catalog create/delete/rename | `implemented` | `hfs_catalog_write.c`; file and folder records, thread records, CNID allocation, file/folder counts, parent valence, rename/move with a folder-cycle check; names are normalized to HFS+ canonical form; 5 host tests |
@@ -205,7 +205,7 @@ The next writer tasks are:
   marked unsupported; path lookup continues past them instead of aborting.
 - **D-05** — cache/dirty-set limits.
 - **T-010** — the create/append/truncate/delete/rename write-failure matrices
-  pass (148 cuts, fsck clean). Partial-sector/fsync failures, power-loss
+  pass (280 write/flush/partial cuts, fsck clean). Power-loss
   timing and the evidence format remain.
 - **D-22** — the separate write diagnostic is built and host-tested. Next: a
   recorded 6G run with `helikon-test.img`, then extract the inner image and run

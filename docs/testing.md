@@ -111,9 +111,9 @@ copy, replays the journal and runs `fsck_hfs -fn`. The loop stops when the cut
 is beyond the transaction's write count. It expects the file to be absent when
 the cut precedes the journal commit header and present after replay when the
 commit header was written; every case must be fsck-clean. The create/append/truncate/delete
-matrices currently cover 148 cuts (create 25, append 43, truncate 34, delete 25,
-rename 21). Partial-sector writes, fsync failures and power-loss timing remain
-T-010.
+matrices currently cover 280 cuts: 130 write cuts (create 25, append 34,
+truncate 25, delete 25, rename 21), 20 flush cuts (4 per operation) and 130
+partial-sector cuts. Power-loss timing and the remaining operations are T-010.
 
 ### 5.3 Write-diagnostic outer/inner image test
 

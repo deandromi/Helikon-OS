@@ -37,6 +37,9 @@ struct io {
     int fd;
     unsigned long writes;
     unsigned long fail_at;
+    unsigned long flushes;
+    unsigned long fail_flush_at;
+    unsigned long partial_at;
     int failed;
 };
 
@@ -63,6 +66,14 @@ static int write_at(void *context, uint64_t offset, const void *buffer,
         io->failed = 1;
         return -1;
     }
+    if (io->partial_at != 0 && io->writes + 1u >= io->partial_at) {
+        size_t part = length / 2u;
+        if (part == 0)
+            part = 1;
+        (void)pwrite(io->fd, buffer, part, (off_t)offset);
+        io->failed = 1;
+        return -1;
+    }
     ssize_t done = pwrite(io->fd, buffer, length, (off_t)offset);
     if (done != (ssize_t)length)
         return -1;
@@ -73,6 +84,11 @@ static int write_at(void *context, uint64_t offset, const void *buffer,
 static int flush_at(void *context)
 {
     struct io *io = context;
+    ++io->flushes;
+    if (io->fail_flush_at != 0 && io->flushes >= io->fail_flush_at) {
+        io->failed = 1;
+        return -1;
+    }
     return fsync(io->fd) == 0 ? 0 : -1;
 }
 
@@ -219,7 +235,7 @@ static int prepare(struct image *image, enum scenario scenario)
 }
 
 static int inject(struct image *image, enum scenario scenario,
-                  unsigned long fail_at)
+                  unsigned long fail_at, int failure_mode)
 {
     size_t units = 0;
     const uint8_t *name = crash_name(&units);
@@ -267,14 +283,23 @@ static int inject(struct image *image, enum scenario scenario,
         return rc;
     }
 
-    image->io.fail_at = fail_at;
+    if (failure_mode == 1)
+        image->io.fail_flush_at = fail_at;
+    else if (failure_mode == 2)
+        image->io.partial_at = fail_at;
+    else
+        image->io.fail_at = fail_at;
     rc = hfs_txn_commit(&tx);
     if (rc == HFS_OK) {
-        printf("commit-ok writes=%lu\n", image->io.writes);
+        printf("commit-ok writes=%lu flushes=%lu\n", image->io.writes,
+               image->io.flushes);
         return HFS_OK;
     }
     if (rc == HFS_ERR_IO && image->io.failed) {
-        printf("commit-cut writes=%lu\n", image->io.writes);
+        printf("%s-cut writes=%lu flushes=%lu\n",
+               failure_mode == 1 ? "flush" :
+               failure_mode == 2 ? "partial" : "commit",
+               image->io.writes, image->io.flushes);
         return HFS_OK;
     }
     return rc;
@@ -338,8 +363,8 @@ int main(int argc, char **argv)
 {
     if (argc < 4) {
         fprintf(stderr,
-                "usage: %s IMAGE setup SCENARIO | crash SCENARIO CUT | "
-                "recover SCENARIO\n", argv[0]);
+                "usage: %s IMAGE setup SCENARIO | crash SCENARIO CUT "
+                "[flush|partial] | recover SCENARIO\n", argv[0]);
         return 2;
     }
 
@@ -359,12 +384,21 @@ int main(int argc, char **argv)
         if (rc == HFS_OK)
             rc = prepare(&image, scenario);
     } else if (strcmp(mode, "crash") == 0) {
-        if (argc != 5)
+        if (argc != 5 && argc != 6)
             return 2;
+        int failure_mode = 0;
+        if (argc == 6) {
+            if (strcmp(argv[5], "flush") == 0)
+                failure_mode = 1;
+            else if (strcmp(argv[5], "partial") == 0)
+                failure_mode = 2;
+            else
+                return 2;
+        }
         unsigned long cut = strtoul(argv[4], NULL, 10);
         rc = open_image(argv[1], &image, 1);
         if (rc == HFS_OK)
-            rc = inject(&image, scenario, cut);
+            rc = inject(&image, scenario, cut, failure_mode);
     } else if (strcmp(mode, "recover") == 0) {
         if (argc != 4)
             return 2;

@@ -34,7 +34,8 @@ file grows. Do not rely on chat history for current state.
   macOS `GetFileInfo` checks.
 - T-038 is implemented: scripted macOS Unicode corpus (NFC/NFD, CJK, emoji,
   Hangul, combining, U+2126/U+F900, `:`/`/`, 255-unit and rejected 256-unit).
-- T-010 now has a rename matrix; 148 injected-write cuts are fsck-clean.
+- T-010 now has rename, flush-failure and partial-sector injection; 280
+  write/flush/partial cuts are fsck-clean.
 - T-034 is implemented: index-node insert/split recursion, below-minimum
   insert, deep delete/merge and recursive parent-key propagation are fixed. The
   model now inserts, updates and deletes 60 records at depth 3.
@@ -55,7 +56,8 @@ T-030 is complete through T-032/T-040/T-047.
    another controlled run is planned. To return to the normal boot path, put
    the iPod in DFU and run `tools/uninstall-bootloader.sh` (never `--single`).
 2. Extend T-010 with partial-sector/fsync injection and the evidence format;
-   rename is now covered and the matrix is 148 cuts.
+   rename, flush and partial-sector failures are covered; the matrix is 280
+   cuts. Power-loss timing and the remaining operations are open.
 3. Close T-003 with a restore rehearsal and T-006 with the signing policy.
 4. Rebuild the inner-image write diagnostic (`81350f…` predates the journal
    `max_blocks` fix) before another inner power-cut run.
