@@ -119,7 +119,8 @@ Helikon-OS poster above the goals on 2026-11-03.
 ## Last known-good commit and branch
 
 - **Base branch:** `main`
-- **Base commit:** `c0ef679` (`Docs: add session-start prompt`, 2026-11-04)
+- **Base commit:** `2788f73` (`Docs: record F1 device run and close T-054`,
+  2026-11-04); the F1 branch was cut from `c0ef679`.
 - **F1 work:** merged to `main` from `firmware/f1-skeleton`; the source, host
   tests and docs carry the owner-reported 6G run. Check
   `git log -- firmware tests/firmware`.
