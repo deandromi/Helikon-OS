@@ -75,36 +75,44 @@ static int stage_bitmap_block(struct hfs_txn *tx, uint32_t volume_block,
     return hfs_txn_stage_replace(tx, sector, buffer, block_size);
 }
 
+static int stage_header_at(struct hfs_txn *tx,
+                           const struct hfs_volume *volume, uint64_t offset,
+                           uint32_t free_blocks, uint32_t modify_date)
+{
+    uint32_t sector_size = tx->journal->sector_size;
+    if (sector_size < 512u || sector_size > 4096u ||
+        volume->length < sector_size || offset > volume->length ||
+        sector_size > volume->length - offset % sector_size)
+        return HFS_ERR_FORMAT;
+
+    uint64_t block_start = offset - offset % sector_size;
+    static uint8_t block[4096];
+    if (volume->read(volume->context, volume->base + block_start, block,
+                     sector_size))
+        return HFS_ERR_IO;
+
+    uint8_t *header = block + (offset - block_start);
+    put_be32(header + HFS_VH_FREE_BLOCKS, free_blocks);
+    if (modify_date != 0)
+        put_be32(header + 20u, modify_date);
+    put_be32(header + HFS_VH_WRITE_COUNT,
+             be32(header + HFS_VH_WRITE_COUNT) + 1u);
+    return hfs_txn_stage_replace(tx, block_start / sector_size, block,
+                                 sector_size);
+}
+
 static int stage_header(struct hfs_txn *tx, const struct hfs_volume *volume,
                         uint32_t free_blocks, uint32_t modify_date)
 {
-    uint8_t header[HFS_VOLUME_HEADER_SIZE];
     if (volume->length < 2048u)
         return HFS_ERR_FORMAT;
 
-    uint64_t primary = volume->base + HFS_VOLUME_HEADER_OFFSET;
-    if (volume->read(volume->context, primary, header, sizeof(header)))
-        return HFS_ERR_IO;
-    put_be32(header + HFS_VH_FREE_BLOCKS, free_blocks);
-    if (modify_date != 0)
-        put_be32(header + 20u, modify_date);
-    put_be32(header + HFS_VH_WRITE_COUNT,
-             be32(header + HFS_VH_WRITE_COUNT) + 1u);
-    int rc = hfs_txn_stage_replace(tx, HFS_VOLUME_HEADER_OFFSET / 512u, header,
-                           sizeof(header));
+    int rc = stage_header_at(tx, volume, HFS_VOLUME_HEADER_OFFSET,
+                             free_blocks, modify_date);
     if (rc != HFS_OK)
         return rc;
-
-    uint64_t alternate_offset = volume->length - 1024u;
-    uint64_t alternate = volume->base + alternate_offset;
-    if (volume->read(volume->context, alternate, header, sizeof(header)))
-        return HFS_ERR_IO;
-    put_be32(header + HFS_VH_FREE_BLOCKS, free_blocks);
-    if (modify_date != 0)
-        put_be32(header + 20u, modify_date);
-    put_be32(header + HFS_VH_WRITE_COUNT,
-             be32(header + HFS_VH_WRITE_COUNT) + 1u);
-    return hfs_txn_stage_replace(tx, alternate_offset / 512u, header, sizeof(header));
+    return stage_header_at(tx, volume, volume->length - 1024u, free_blocks,
+                           modify_date);
 }
 
 static int bit_is_set(const uint8_t *buffer, uint32_t bit)

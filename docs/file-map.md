@@ -43,10 +43,15 @@ Helikon-OS/
     inner_image.c/.h      outer-file extent mapping + metadata guard
     write_diag.c/.h       inner-image writer sequence and result
     write_report.c/.h     write-diagnostic screen formatter
+    outer_diag.c/.h       outer-volume writer sequence and safety gates
+    outer_report.c/.h     outer-volume screen formatter
     hardware/
       helikon_write_diag_hw.c  ATA read/write/flush, splash, report, power-off
+      helikon_outer_diag_hw.c  outer-volume ATA glue, report and power-off
       donor-write-diag.patch   separate write-diagnostic donor integration
-    WRITE_DIAG.md         separate DFU-only write diagnostic runbook
+      donor-outer-diag.patch   separate outer-volume donor integration
+    WRITE_DIAG.md         separate DFU-only inner-image write diagnostic runbook
+    OUTER_DIAG.md         separate DFU-only outer-volume write diagnostic runbook
     hfs/
       hfs_volume.c          HFS+ volume header/journal probe
       hfs_volume.h          read-only volume API and error taxonomy
@@ -93,6 +98,8 @@ Helikon-OS/
       run-crash-macos.sh    per-cut crash/replay/fsck driver
       write_diag_host.c     host outer/inner write-diagnostic runner
       run-write-diag-macos.sh  outer/inner image fsck integration test
+      outer_diag_host.c     host outer-volume diagnostic runner and dirty-journal fixture
+      run-outer-diag-macos.sh  outer-volume sequence, dirty replay and safety test
     bootloader/
       Makefile              bootloader host test target
       test_diag.c           diagnostic core/splash tests
@@ -147,9 +154,12 @@ firmware/
   diagnostics/              events, counters, recovery screens
 tools/
   build-diagnostic-bootloader.sh  pinned donor export, patch, Thumb build, checks
-  build-write-diagnostic-bootloader.sh  separate write-diagnostic build
+  build-write-diagnostic-bootloader.sh  separate inner-image write-diagnostic build
+  build-outer-diagnostic-bootloader.sh  separate outer-volume write-diagnostic build
   make-write-diag-image.sh  create the disposable inner HFS+ image
-  install-write-diagnostic.sh  send the write-diagnostic DFU with hash check
+  make-outer-opt-in.sh      create the outer-volume opt-in file
+  install-write-diagnostic.sh  send the inner-image DFU with hash check
+  install-outer-diagnostic.sh  send the outer-volume DFU with hash check
   uninstall-bootloader.sh   send the 6G bootloader uninstaller DFU
   gen-hfs-unicode-table.py  generate the HFS+ fold/decomposition tables
   hfsplus/                  host inspector, fixtures, tests

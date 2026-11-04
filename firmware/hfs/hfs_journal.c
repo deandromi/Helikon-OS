@@ -15,6 +15,7 @@
 #define HFS_JOURNAL_ENDIAN 0x12345678u
 #define HFS_BLOCK_INFO_SIZE 16u
 #define HFS_BLOCK_LIST_HEADER 16u
+#define HFS_BLOCK_FIRST_HEADER 0x0002u
 
 static uint16_t be16(const uint8_t *p)
 {
@@ -418,11 +419,17 @@ int hfs_journal_append(struct hfs_journal *journal,
     if (new_end == journal->start)
         return HFS_ERR_NO_SPACE;
 
+    uint32_t max_blocks = journal->block_list_size / HFS_BLOCK_INFO_SIZE - 1u;
+    if (max_blocks == 0 || max_blocks > UINT16_MAX ||
+        count + 1u > max_blocks)
+        return HFS_ERR_NO_SPACE;
+
     memset(header, 0, journal->block_list_size);
+    put16(header, (uint16_t)max_blocks, journal->little_endian);
     put16(header + 2, (uint16_t)(count + 1u), journal->little_endian);
     put32(header + 4, (uint32_t)bytes_used, journal->little_endian);
     put32(header + 8, 0, journal->little_endian);
-    put32(header + 12, 0, journal->little_endian);
+    put32(header + 12, HFS_BLOCK_FIRST_HEADER, journal->little_endian);
     /* First binfo is the continuation marker; next = 0 ends the transaction. */
     put64(header + 16, 0, journal->little_endian);
     put32(header + 24, 0, journal->little_endian);

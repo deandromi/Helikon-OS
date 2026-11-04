@@ -63,6 +63,10 @@ make -C tests/hfsplus test
 make -C tests/hfsplus sanitize
 make -C tests/bootloader test
 make -C tests/bootloader sanitize
+make -C tests/image test
+make -C tests/image crash-test
+make -C tests/image write-diag-test
+make -C tests/image outer-diag-test
 ```
 
 Record the exact command, toolchain version and commit. Do not copy donor
@@ -90,6 +94,8 @@ verified pre-test image.
 make -C tools/hfsplus test          # donor reader reference only
 make -C tools/hfsplus sanitize      # donor reader reference only
 # Helikon-OS writer tests: model-based, property, crash injection, fsck oracle.
+# The disposable-image, inner-image and outer-volume tests are the current
+# host-side writer oracles; see docs/testing.md.
 ```
 
 **Required checks:**

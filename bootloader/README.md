@@ -29,9 +29,11 @@ overlay, FAT mount and write-capable HFS+ paths are not linked into the image.
 
 ## Safety boundary
 
-- This image is **read-only**. It never writes to the HFS+ volume. A separate
-  DFU-only write diagnostic is documented in [`WRITE_DIAG.md`](WRITE_DIAG.md);
-  it writes only inside a preallocated inner image file and is not this image.
+- This image is **read-only**. It never writes to the HFS+ volume. Two separate
+  DFU-only write diagnostics exist: [`WRITE_DIAG.md`](WRITE_DIAG.md) writes only
+  inside a preallocated inner image file, and [`OUTER_DIAG.md`](OUTER_DIAG.md)
+  writes the real outer volume for one dedicated test folder after an opt-in
+  file and a full backup. Neither is this image.
 - `HFS+ write` is always reported as `NOT IMPLEMENTED`; the HFS+ transaction
   engine does not exist yet. Do not turn this into a write test on a real
   library.

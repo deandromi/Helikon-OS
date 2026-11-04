@@ -111,6 +111,29 @@ use `--single`. If the diagnostic reports FAIL, preserve the inner image and do
 not retry writes until it has been recreated and checked on macOS. No hardware
 run of this image is recorded.
 
+## 0b. Outer-volume write diagnostic image
+
+This is a separate, higher-risk image. It writes the real outer HFS+ journal,
+catalog, bitmap and volume header, but only for `/helikon-outer-test`. It
+requires a **full** verified backup (music included), a restore path and the
+root-level opt-in file `helikon-outer-ok.txt` with magic
+`HELIKON-OUTER-WRITE-OK`. It must never be installed without reading
+[`OUTER_DIAG.md`](OUTER_DIAG.md).
+
+| Field | Value |
+|---|---|
+| Image | `artifacts/bootloader-ipod6g-outer-diag.ipod` |
+| Image size | 109,288 bytes |
+| Image SHA-256 | `9eacde18ee0b6b8d2c583ea1786f1b079c8f76b78c0dddbcad80e201a23692b2` |
+| DFU installer | `artifacts/bootloader-ipod6g-outer-diag.dfu` |
+| DFU size | 117,424 bytes |
+| DFU SHA-256 | `dd027696b1710985fd9979904d2be8b29dcee48727819b95f26a5929b75ece0a` |
+| Marker | `HELIKON-OS OUTER DIAG` |
+| `MOVE_AREA` | `0x22020800`–`0x22040000`; `_moveend` `0x2203b2e0`; 19,744 bytes headroom |
+
+The one-command sender is `tools/install-outer-diagnostic.sh`. It verifies the
+DFU hash and never uses `--single`. No device run of this image is recorded.
+
 ## 1. Back up the Rockbox state
 
 Connect the iPod in **Apple Disk Mode**. Music is deliberately not copied. If

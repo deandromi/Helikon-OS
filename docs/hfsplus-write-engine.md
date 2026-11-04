@@ -194,13 +194,20 @@ Apple Technical Note TN1150, "HFS Plus Volume Format", Journal section.
 - The journal buffer is circular: block-list headers and block contents may wrap
   at `size`, resuming at `jhdr_size`.
 - A transaction is one or more block lists. Each block list starts with a
-  `block_list_header`: `max_blocks` (reserved on disk), `num_blocks`,
-  `bytes_used`, `checksum`, `pad`, then `block_info[]`.
-- The first `block_info` is the continuation marker. `next == 0` ends the
-  transaction; non-zero means another block list follows. The remaining
-  `block_info` entries describe data blocks. Each has `bnum` (target sector),
-  `bsize` (bytes, multiple of 512) and `next` (meaningful only in the first
-  entry). `bnum == 0xffffffffffffffff` means "skip this block".
+  16-byte `block_list_header`: `max_blocks` (maximum number of `block_info`
+  entries that fit), `num_blocks` (including the continuation entry),
+  `bytes_used`, `checksum`, `flags`, then `block_info[]`.
+- `max_blocks` must be `blhdr_size / 16 - 1`, not zero. The first block list of
+  a transaction sets `flags` bit `0x0002` (`BLHDR_FIRST_HEADER`). A zero
+  `max_blocks` is rejected by macOS replay even when the rest of the header is
+  valid.
+- The first `block_info` is the continuation marker. Its `bnum` is zero for the
+  last block list, or the next block-list offset when the transaction
+  continues. The remaining `block_info` entries describe data blocks. Each has
+  `bnum` (target sector), `bsize` (bytes, multiple of the journal sector) and a
+  fourth field that is a data checksum when `BLHDR_CHECK_CHECKSUMS` is set;
+  this writer leaves that flag clear and writes zero.
+  `bnum == 0xffffffffffffffff` means "skip this block".
 - `bytes_used` includes the block-list header and data. The next block list is
   `bytes_used` bytes after the current header, wrapping at the end of the
   journal buffer.
@@ -221,6 +228,9 @@ Append:
    If the transaction cannot fit without making `start == end`, return
    `HFS_ERR_NO_SPACE` before writing.
 2. Write the block-list headers and block contents, then flush/barrier.
+   Every `block_info` size must be a multiple of `jhdr_size`; a 4 KiB journal
+   sector therefore requires whole-4 KiB volume-header and bitmap stages, not a
+   512-byte header write.
 3. Update the journal header's `end` to the end of the last block list,
    recompute the header checksum, write the one-sector header and flush. This
    is the commit point.

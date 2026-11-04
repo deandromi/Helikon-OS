@@ -11,7 +11,11 @@
 | File | Purpose |
 |---|---|
 | `helikon_diag_hw.c` | ATA read callback, donor partition scan, splash packing/blit, report screen, button wait and power-off |
+| `helikon_write_diag_hw.c` | Inner-image write diagnostic: ATA read/write/flush, cut hook, splash, report and power-off |
+| `helikon_outer_diag_hw.c` | Outer-volume write diagnostic: ATA read/write/flush, splash, report and power-off |
 | `donor-bootloader.patch` | Removes the donor firmware-loading/USB path, adds the Helikon sources and calls the diagnostic after `storage_init()` |
+| `donor-write-diag.patch` | Inner-image write diagnostic integration |
+| `donor-outer-diag.patch` | Outer-volume write diagnostic integration |
 
 The build script is [`../../tools/build-diagnostic-bootloader.sh`](../../tools/build-diagnostic-bootloader.sh).
 It exports the donor at commit `55603bd4bc2524ded900fa17feae99a223b04349`,

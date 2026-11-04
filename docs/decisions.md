@@ -55,12 +55,14 @@ re-litigate them.
 | D-22 | Separate write diagnostic scope | accepted | owner | §5, §24, §27; D-21 |
 | D-23 | Default UI typography | accepted | owner | §14, §28.3.4; D-10, D-15 |
 | D-24 | UI text/icon rendering | accepted | owner | §14, §28.3.3; D-23 |
+| D-25 | Outer-volume write diagnostic scope | accepted | owner | §5, §24, §27; D-03, D-04, D-22 |
 
 The paper's §25 lists 17 decisions. D-18, D-19 and D-20 are added from §18 and
 §28.4.4. D-18 is accepted; D-19 was adopted and then rejected when the owner
 deleted `CODE_OF_CONDUCT.md` on 2026-11-03; D-20 remains open. D-21 records the
 first diagnostic bootloader scope. D-22 records the separate inner-image write
-diagnostic. See C-08.
+diagnostic; D-25 records the separate outer-volume diagnostic and its backup
+gate. See C-08.
 
 ## D-01 — Boot image verification
 
@@ -451,7 +453,8 @@ diagnostic. See C-08.
   experimental. The outer file's data blocks change; outer metadata does not.
   The test image is disposable and must be created by the user. No device or
   support claim is allowed until a recorded run and an external `fsck_hfs`
-  pass.
+  pass. D-25 adds a separate outer-volume diagnostic; it does not relax this
+  image's inner-only rule.
 - **Follow-up:** run it on the owner's 6G with a verified backup, record the
   report and extracted-image fsck in `docs/device-matrix.md`; if it fails,
   preserve the image and stop. The production bootloader stays read-only.
@@ -501,6 +504,28 @@ diagnostic. See C-08.
 - **Follow-up:** implement in the renderer (T-042), include in the 320×240 mockup
   (T-041), and record a 6G panel result before a UI support claim.
 - **Evidence:** owner direction, 2026-11-04.
+
+## D-25 — Outer-volume write diagnostic scope
+
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-04. **Paper:** §5, §24, §27; D-03, D-04, D-22.
+- **Context:** the inner-image diagnostic cannot exercise the outer journal,
+  catalog, bitmap or volume header. The owner wants the first real outer-volume
+  write on their own 6G after a full backup.
+- **Decision:** build a **separate DFU-only outer-volume write diagnostic**. It
+  requires a root-level `helikon-outer-ok.txt` with magic
+  `HELIKON-OUTER-WRITE-OK`, a clean valid journal, native HFS+ v4, an inline
+  catalog/allocation fork and no pre-existing `/helikon-outer-test`. It writes
+  only that folder's marker and test files, then deletes them and the folder.
+  It never replays a dirty journal, never deletes an existing folder
+  automatically, never touches another root entry and never loads firmware.
+  The full-backup and restore-rehearsal gate is in
+  [`outer-volume-test.md`](outer-volume-test.md); the runbook is
+  [`../bootloader/OUTER_DIAG.md`](../bootloader/OUTER_DIAG.md).
+- **Consequences:** this image writes outer metadata (journal, catalog, bitmap,
+  volume header) and is higher risk than D-22. It is not the production
+  bootloader and is never installed with `--single`. The first device run
+  requires T-048 and a recorded `fsck_hfs` and backup diff.
+- **Evidence:** owner direction, 2026-11-04; host test passes, no device run.
 
 ## Conflicts and source separation
 

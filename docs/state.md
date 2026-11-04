@@ -3,17 +3,19 @@
 > Purpose: what is true today. This file is not a plan and not a design paper.
 > Status: living document
 > Owner: project owner; maintained by the documentation agent
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: `README.md`, `docs/design-paper.md`, repository inspection
 
 ## Current phase
 
 **Pre-phase 0 — design, host read core and a first diagnostic bootloader.** The
 roadmap in [`roadmap.md`](roadmap.md) starts at phase 0 (rescue bootloader and
-read-only firmware skeleton). The first read-only diagnostic bootloader image
-exists, but it has no device run and does not load firmware.
+read-only firmware skeleton). The read-only diagnostic image exists and has
+owner-reported 6G runs; the inner-image write diagnostic has one owner-reported
+run, and the outer-volume diagnostic is built but has no device run. None loads
+firmware.
 
-Date of this snapshot: **2026-11-03**.
+Date of this snapshot: **2026-11-04**.
 
 ## What exists
 
@@ -51,19 +53,20 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Diagnostic build script | `in progress` | `tools/build-diagnostic-bootloader.sh`; pinned donor commit, Thumb build, `MOVE_AREA` check, hash output |
 | Writer interface/failure model | design | `docs/hfsplus-write-engine.md` §10; D-03/D-04 accepted; implementation not started |
 | Journal format/commit/replay design | design | `docs/hfsplus-write-engine.md` §6.5–§6.7; Apple HFS+ journal format |
-| Journal append/replay engine | `implemented` | `firmware/hfs/hfs_journal.c`; header/block-list checksum validation, wrap, append, idempotent replay; 8 host tests |
+| Journal append/replay engine | `implemented` | `firmware/hfs/hfs_journal.c`; header/block-list checksum validation, wrap, append, idempotent replay; Apple `max_blocks` and `BLHDR_FIRST_HEADER` fields now written, and a committed-unreplayed journal is replayed by macOS `fsck_hfs` in the host test; 9 host tests |
 | Bounded transaction engine | `implemented` | `firmware/hfs/hfs_txn.c`; staged-block commit through the journal; 7 host tests |
-| Allocation bitmap | `implemented` | `firmware/hfs/hfs_bitmap.c`; first-fit alloc/free, free-block counts, header/alternate staging, `NO_SPACE`; 5 host tests; allocation-file overflow extents unsupported |
+| Allocation bitmap | `implemented` | `firmware/hfs/hfs_bitmap.c`; first-fit alloc/free, free-block counts, header/alternate staging, `NO_SPACE`; 6 host tests; allocation-file overflow extents unsupported |
 | B-tree node mutation helpers | `implemented` | `firmware/hfs/hfs_btree_write.c`; node offset table insert/delete, free-space checks and node split; 7 host tests |
 | B-tree tree insertion | `implemented` | `firmware/hfs/hfs_btree_tree.c`; root-to-leaf traversal, free-node map, leaf/index split, parent insertion, recursive split, root creation, leaf below-minimum insert and parent-key propagation; index-node below-minimum insert at depth >2 still fails closed; 1 model test with 20 records plus a below-minimum case |
 | B-tree delete | `implemented` | `hfs_btree_delete` removes records including first records, propagates changed parent keys, unlinks/frees empty leaves, merges/redistributes with both siblings, collapses a one-child root to its nonempty leaf, and collapses an empty parent into its grandparent; fork growth is implemented separately; covered by the same model test |
-| Volume header staging | `implemented` | `hfs_volume_write.c`; primary/alternate header file/folder counts, next CNID and write count; no `modifyDate` update |
+| Volume header staging | `implemented` | `hfs_volume_write.c`; primary/alternate header file/folder counts, next CNID, modify date and write count; stages a journal-sector-sized block so 512-byte and 4 KiB journal headers work; 4 KiB unit test |
 | Private NUL names | `implemented` | Directory iteration escapes NUL as U+2400 and marks the entry `name_escaped`/`unsupported`; path lookup skips the escaped entry and continues instead of aborting the directory; 1 catalog test |
 | Extents-overflow record | `implemented` | `hfs_extents_write.c`; data-fork records keyed by fork/file/startBlock, up to eight extents each; insert/get/delete; multiple records supported |
 | Inner-image mapping | `implemented` | `bootloader/inner_image.c` maps a root-level outer file's data-fork extents into a block device, rejects out-of-range writes, and guards against overlap with outer metadata, journal, volume headers and forks; 4 host tests |
-| Separate write diagnostic | `implemented` | `bootloader-ipod6g-write-diag.ipod` (110,920 bytes, `81350f…`, 18,112 bytes headroom) keeps the outer HFS+ volume read-only and runs the writer inside `helikon-test.img`; host outer/inner test passes twice, and one owner-reported 6G run reported every stage PASS; inner `fsck_hfs` and outer `diskutil verifyVolume` both exited 0 |
+| Separate write diagnostic | `implemented` | `bootloader-ipod6g-write-diag.ipod` (110,920 bytes, `81350f…`, 18,112 bytes headroom) keeps the outer HFS+ volume read-only and runs the writer inside `helikon-test.img`; host outer/inner test passes twice, and one owner-reported 6G run reported every stage PASS; inner `fsck_hfs` and outer `diskutil verifyVolume` both exited 0. This artifact predates the journal `max_blocks` fix; rebuild before another inner power-cut run |
+| Outer-volume write diagnostic | `implemented` | `bootloader-ipod6g-outer-diag.ipod` (109,288 bytes, `9eacde18…`) writes only `/helikon-outer-test` after an opt-in file and a clean-journal check; host test covers create/append/readback/rename/truncate/delete, dirty-journal refusal, macOS replay, 512/4 KiB journal sectors, non-destructive cleanup and a second run. No device run |
 | Catalog metadata | `implemented` | Timestamps: create/access/content/attribute on create; content/attribute on data changes; attribute-only on rename; parent dates and volume modify date on mutation; backupDate 0. BSD owner/group 0, flags 0, file/folder mode, Finder info/textEncoding zero, special 0; preserved on append/truncate/rename. Host metadata tests; macOS outer-image test verifies modes, current-year timestamps, rename/truncate paths. Wider differential and Finder creator/type policy remain |
-| Outer-volume device write | `blocked` | Host disposable-image path passes; the real outer-volume test needs a full verified backup, recovery rehearsal and the separate T-047 image. Do not run on the library |
+| Outer-volume device write | `blocked` | Image `9eacde18…` is built and host-tested; T-048 needs the owner's full verified backup, a rehearsed restore and a clean-journal window. Do not run on the library |
 | Controlled PMU cut | `pass` | Current image `81350f…`: targets 7/56 were pre-commit clean controls; target 96 cut after commit, recovered on the next boot, all stages PASS, and the extracted inner image passed `fsck_hfs` with `The volume HelikonInner appears to be OK`. Further replay targets are optional coverage |
 | Write diagnostic 6G run | `pass` | One owner-reported run, 2026-11-03: all stages PASS, extracted inner image SHA-256 `156060…`, `fsck_hfs -fn` exit 0, no `diag` folder, outer `diskutil verifyVolume` exit 0; not a library-write or support claim |
 | Journal crash injection | `implemented` | `tests/image/run-crash-macos.sh` injects a failed write at every cut point of create (25), append (43), truncate (34) and delete (25) transactions, reopens the image, replays the journal and runs `fsck_hfs -fn`; all 127 cuts recover to a consistent state and an fsck-clean volume; rename, partial-sector writes, fsync failures and power-loss timing remain |
@@ -76,7 +79,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
 | Default UI typography | `planned` | D-23 and `docs/ui.md` record IBM Plex Sans 14/17/12/11 px and Manrope Bold logo; D-24 requires grayscale anti-aliased glyph masks/atlases with a 1-bit fallback. Font licences/subset and the 320×240 mockup are not done; no UI code exists |
 | Bootloader splash redesign | `planned` | Current splash is the owner-supplied 320×240 1-bit image; owner will design a new splash (T-045). Rendering path and licence/source are open |
-| Host test harness | `in progress` | 110 portable tests (98 HFS+, 12 bootloader), sanitizer clean, plus the macOS disposable-image, crash-injection and write-diagnostic tests; first diagnostic boot is owner-reported |
+| Host test harness | `in progress` | 112 portable tests (100 HFS+, 12 bootloader), sanitizer clean, plus the macOS disposable-image, crash-injection, inner-image and outer-volume tests; first diagnostic boot is owner-reported |
 
 ## What does not exist
 
@@ -84,7 +87,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 |---|---|---|
 | Helikon-OS firmware source tree | `in progress` | Host HFS+ read core and a diagnostic bootloader exist; no kernel, VFS or player |
 | Helikon-OS firmware-loading bootloader | `planned` | The diagnostic image does not load firmware; D-01/D-02 still open |
-| Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; separate write diagnostic built; neither image loads firmware, and the write image has no device run |
+| Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; separate inner-image and outer-volume write diagnostics built; none loads firmware. The inner image has one owner-reported run; the outer image has none |
 | Bootloader manifest/boot state | `planned` | D-01/D-02 still open |
 | VFS, player, UI, database | `planned` | No implementation |
 | HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete/growth/below-minimum, fork staging, file/folder create/delete/rename, multi-extent/overflow data append/truncate, FastUnicodeCompare, HFS+ normalization and disposable-image `fsck_hfs` validation exist; metadata parity, the broader macOS name corpus and any device write do not |
@@ -105,8 +108,10 @@ Helikon-OS poster above the goals on 2026-11-03.
   2026-11-03.
 - **Last known-good code commit:** `4898a6f` (`Code: add separate inner-image
   write diagnostic`, 2026-11-03); the write diagnostic from this commit passed
-  one owner-reported 6G run on 2026-11-03. Check
-  `git log -- firmware/hfs bootloader tests tools`. No firmware run exists.
+  one owner-reported 6G run on 2026-11-03. Later commits add the journal
+  `max_blocks` fix and the outer-volume diagnostic; those are host-tested only.
+  Check `git log -- firmware/hfs bootloader tests tools`. No firmware run
+  exists.
 - **Last known-good documentation commit:** `59db37e` (`Docs: record first
   write-diagnostic hardware pass`, 2026-11-03). Any later docs housekeeping
   commit is on `main`; check `git log -1`.

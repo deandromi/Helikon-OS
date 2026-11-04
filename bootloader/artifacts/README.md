@@ -31,16 +31,19 @@ the hash printed by the build script in that case.
 
 ## Two images
 
-This directory now contains two separate artifacts:
+This directory now contains three separate artifacts:
 
 | Image | Purpose | Status |
 |---|---|---|
 | `bootloader-ipod6g.ipod` | Read-only HFS+ diagnostic + splash | unproven on hardware |
-| `bootloader-ipod6g-write-diag.ipod` | Separate write diagnostic inside a preallocated inner image file | host-tested, unproven on hardware |
+| `bootloader-ipod6g-write-diag.ipod` | Separate write diagnostic inside a preallocated inner image file | host-tested, hardware-run on 2026-11-03 |
+| `bootloader-ipod6g-outer-diag.ipod` | Separate outer-volume write diagnostic | host-tested, no device run |
 
-The production diagnostic remains read-only. The write image is a separate,
-DFU-only experiment governed by D-22 and
-[`../WRITE_DIAG.md`](../WRITE_DIAG.md); it is never installed with `--single`.
+The production diagnostic remains read-only. The inner-image write image is a
+separate, DFU-only experiment governed by D-22 and
+[`../WRITE_DIAG.md`](../WRITE_DIAG.md); the outer-volume image is governed by
+D-25 and [`../OUTER_DIAG.md`](../OUTER_DIAG.md). Neither is ever installed with
+`--single`.
 
 ### Write diagnostic artifact
 
@@ -70,6 +73,27 @@ extracted inner image (SHA-256
 `156060075eef60c463f421ce459c2138a00e1c43de44da802b77ce89c79ca0e8`) passed
 `fsck_hfs -fn` exit 0, the `diag` folder was gone, and the outer volume passed
 `diskutil verifyVolume` exit 0. This is not a library-write or release claim.
+
+### Outer-volume write diagnostic artifact
+
+| Field | Value |
+|---|---|
+| Image | `bootloader-ipod6g-outer-diag.ipod` |
+| Image size | 109,288 bytes |
+| Image SHA-256 | `9eacde18ee0b6b8d2c583ea1786f1b079c8f76b78c0dddbcad80e201a23692b2` |
+| DFU installer | `bootloader-ipod6g-outer-diag.dfu` |
+| DFU size | 117,424 bytes |
+| DFU SHA-256 | `dd027696b1710985fd9979904d2be8b29dcee48727819b95f26a5929b75ece0a` |
+| Marker | `HELIKON-OS OUTER DIAG` |
+| `_moveend` | `0x2203b2e0` |
+| `MOVE_AREA` | `0x22020800`–`0x22040000`; 19,744 bytes headroom |
+| Build | `tools/build-outer-diagnostic-bootloader.sh` |
+
+This image writes the real outer HFS+ journal, catalog, bitmap and volume
+header, but only for the dedicated `/helikon-outer-test` folder after an opt-in
+file and a clean-journal check. It is **not** installed on a library without the
+full verified backup and restore rehearsal in
+[`../OUTER_DIAG.md`](../OUTER_DIAG.md). No device run is recorded.
 
 ## What it does
 

@@ -23,9 +23,9 @@ HEADERS = $(HFS)/hfs_catalog.h $(HFS)/hfs_catalog_compare.h \
 	  $(HFS)/hfs_extents_write.h $(HFS)/hfs_txn.h \
 	  $(HFS)/hfs_journal.h $(HFS)/hfs_btree.h $(HFS)/hfs_volume.h
 
-.PHONY: all test crash-test write-diag-test clean
+.PHONY: all test crash-test write-diag-test outer-diag-test clean
 
-all: hfs_image_test hfs_crash_test write_diag_host
+all: hfs_image_test hfs_crash_test write_diag_host outer_diag_host
 
 hfs_image_test: hfs_image_test.c $(COMMON) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) hfs_image_test.c $(COMMON) $(LDFLAGS) -o $@
@@ -40,6 +40,11 @@ write_diag_host: write_diag_host.c ../../bootloader/write_diag.c \
 	  ../../bootloader/write_diag.c ../../bootloader/inner_image.c \
 	  $(COMMON) $(LDFLAGS) -o $@
 
+outer_diag_host: outer_diag_host.c ../../bootloader/outer_diag.c \
+                 ../../bootloader/outer_diag.h $(COMMON) $(HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) outer_diag_host.c \
+	  ../../bootloader/outer_diag.c $(COMMON) $(LDFLAGS) -o $@
+
 # The shell drivers create their own disposable images. Never point them at a
 # library or a mounted device.
 test: hfs_image_test
@@ -51,5 +56,8 @@ crash-test: hfs_crash_test
 write-diag-test: write_diag_host
 	./run-write-diag-macos.sh
 
+outer-diag-test: outer_diag_host
+	./run-outer-diag-macos.sh
+
 clean:
-	rm -rf hfs_image_test hfs_crash_test write_diag_host *.dSYM
+	rm -rf hfs_image_test hfs_crash_test write_diag_host outer_diag_host *.dSYM

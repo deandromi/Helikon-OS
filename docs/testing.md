@@ -122,6 +122,37 @@ runs `fsck_hfs -fn` on both images. It runs the sequence twice to check that the
 inner image is reusable and leaves no `diag` folder. This is host evidence for
 the separate write diagnostic; it is not a device run.
 
+### 5.4 Outer-volume write-diagnostic test
+
+`make -C tests/image outer-diag-test` (driver
+`tests/image/run-outer-diag-macos.sh`) creates a disposable 32 MiB journaled
+HFS+ image and runs the same core as the outer diagnostic. It checks:
+
+- the full create/append/readback/rename/truncate/delete sequence and
+  `Restored: PASS` (root file/folder counts and no test folder);
+- `fsck_hfs -fn` clean after the sequence;
+- a committed-but-unreplayed journal is refused with zero writes, and macOS
+  `fsck_hfs` can replay it;
+- a missing opt-in file is refused with zero writes;
+- a pre-existing unmarked or marked `/helikon-outer-test` is left untouched;
+- a sentinel file and the opt-in file are unchanged;
+- a second run succeeds on the same volume;
+- a disposable image with a patched 4 KiB journal header runs the same sequence
+  and stays `fsck_hfs` clean, covering whole-sector volume/bitmap staging.
+
+This is host evidence for T-047. It is not a device run and does not authorize
+a library write.
+
+### 5.5 Journal format compatibility
+
+The journal unit test checks the Apple `block_list_header` layout: `max_blocks`
+is `blhdr_size / 16 - 1`, the first header sets `BLHDR_FIRST_HEADER`, the
+checksum covers the first 32 bytes, and the first `block_info` is a zero
+continuation marker. A separate host integration check leaves a committed but
+unreplayed journal and requires macOS `fsck_hfs -fy` to replay it to a clean
+volume. This closes a compatibility gap where the writer's own replay worked
+but macOS rejected the journal.
+
 ## 6. Device tests
 
 Device tests require a recorded inventory and backup. Minimum matrix:

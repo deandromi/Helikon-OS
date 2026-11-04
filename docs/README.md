@@ -103,6 +103,8 @@ status.
 | [`../assets/branding/README.md`](../assets/branding/README.md) | Owner-supplied poster and 320×240 startup crop. | living |
 | [`../bootloader/README.md`](../bootloader/README.md) | Read-only diagnostic bootloader; image built, unproven on hardware. | living |
 | [`../bootloader/DFU.md`](../bootloader/DFU.md) | Backup and DFU install runbook for the diagnostic image. | living |
+| [`../bootloader/WRITE_DIAG.md`](../bootloader/WRITE_DIAG.md) | Separate inner-image write diagnostic and PMU-cut runbook. | living |
+| [`../bootloader/OUTER_DIAG.md`](../bootloader/OUTER_DIAG.md) | Separate outer-volume write diagnostic runbook and backup gate. | living |
 | [`../bootloader/hardware/README.md`](../bootloader/hardware/README.md) | S5L8702/ATA/LCD glue and donor integration patch. | living |
 | [`../bootloader/artifacts/README.md`](../bootloader/artifacts/README.md) | Diagnostic image hash, provenance and evidence status. | living |
 | [`log/README.md`](log/README.md) | What the dated work log is for. | living |

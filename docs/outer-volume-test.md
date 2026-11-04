@@ -1,10 +1,10 @@
 # Outer-volume write test — real HFS+ volume
 
 > Purpose: the first write test on the iPod's **real** outer HFS+ volume.
-> Status: `planned`; not built and not run. Host disposable-image validation is done.
+> Status: `in progress`; image built and host-tested, no device run. Host disposable-image validation is done.
 > Owner: project owner; HFS+/boot leads
 > Last updated: 2026-11-04
-> Source: D-03, D-04, D-22; `docs/device-matrix.md`; `docs/validation.md`
+> Source: D-03, D-04, D-22, D-25; `docs/device-matrix.md`; `docs/validation.md`
 
 This is the bridge from the inner-image write diagnostic to a real HFS+ volume.
 It writes the outer volume's journal, catalog, bitmap and a dedicated test
@@ -12,7 +12,7 @@ folder. It is **not** safe on the only copy of the library.
 
 ## 1. Hard preconditions
 
-Do not build or run the outer-write image until every item is true:
+Do not install or run the outer-write image until every item is true:
 
 - [ ] A **full** backup of the entire iPod volume exists: music, `.rockbox`,
       `/.rockpod-rw` and all hidden files. The `.rockbox`/`/.rockpod-rw` backup
@@ -25,7 +25,10 @@ Do not build or run the outer-write image until every item is true:
       restore as the last resort.
 - [ ] `diskutil verifyVolume /Volumes/IPOD` passes.
 - [ ] The outer journal is clean and the volume was ejected cleanly.
-- [ ] The outer-write diagnostic image is built and its SHA-256 recorded.
+- [ ] The outer-write diagnostic image is built and its SHA-256 recorded
+      (`9eacde18…`, see [`../bootloader/OUTER_DIAG.md`](../bootloader/OUTER_DIAG.md)).
+- [ ] `helikon-outer-ok.txt` with the magic `HELIKON-OUTER-WRITE-OK` is at the
+      iPod root and `/helikon-outer-test` does not exist.
 - [ ] The owner explicitly confirms the backup and the test window.
 
 If any box is unchecked, stop. Never format, erase, repartition or delete the
@@ -61,26 +64,33 @@ The device test uses a dedicated root folder, never a library file:
 
 ```text
 /helikon-outer-test/
+  marker          contents: HELIKON-OUTER-TEST
   test            created, appended 4096 bytes, renamed, truncated, deleted
 ```
 
-The outer-write diagnostic must:
+The outer-write diagnostic:
 
-- require an opt-in root file, e.g. `helikon-outer-ok.txt` with a magic string;
-- refuse if the outer journal is dirty or the volume is not HFS+ v4;
-- create only `helikon-outer-test`, append/read/rename/truncate/delete its file,
-  then delete the folder;
-- report PASS/FAIL and write count;
-- never touch another root entry;
-- be a separate DFU-only image, not the read-only or inner-image diagnostic.
+- requires the root file `helikon-outer-ok.txt` with the magic
+  `HELIKON-OUTER-WRITE-OK`;
+- refuses a dirty journal, a non-HFS+ v4 volume, an unsupported catalog or
+  allocation fork, or an existing `/helikon-outer-test`;
+- creates only `helikon-outer-test` and its `marker`/`test` files, appends 4096
+  bytes, reads back, renames, truncates, deletes, and removes the folder;
+- reports PASS/FAIL, a write count and `Restored: PASS` only when the root file
+  and folder counts return to the pre-test values; the free-block delta is
+  evidence and may reflect legitimate catalog-fork growth;
+- never touches another root entry;
+- is a separate DFU-only image, not the read-only or inner-image diagnostic.
 
-The image is not built yet. T-047 tracks it; the host outer-volume test already
-covers the same writer sequence on a disposable image.
+The image is built (`9eacde18…`, `bootloader-ipod6g-outer-diag.ipod`) and the
+host test passes. See [`../bootloader/OUTER_DIAG.md`](../bootloader/OUTER_DIAG.md)
+for the runbook. T-047 tracks the build; T-048 tracks the device run.
 
 ## 4. Run and pass criteria
 
 1. Complete and verify the backup.
-2. Install the separate outer-write image by DFU (never `--single`).
+2. Install the separate outer-write image by DFU (never `--single`) with
+   `tools/install-outer-diagnostic.sh`.
 3. Run the sequence. It should create, append, read back, rename, truncate and
    delete `helikon-outer-test`.
 4. `fsck_hfs -fn` on the outer volume: zero repairs.
@@ -88,6 +98,7 @@ covers the same writer sequence on a disposable image.
    backup (`diff -qr`), and `diskutil verifyVolume` passes.
 6. Record the image hash, report text, `fsck_hfs` output and backup comparison in
    `docs/device-matrix.md`.
+7. Remove `helikon-outer-ok.txt` after recording the evidence.
 
 ## 5. Stop conditions
 

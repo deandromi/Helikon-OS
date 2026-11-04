@@ -22,3 +22,4 @@ tests/image/hfs_image_test
 tests/image/*.dSYM/
 tests/image/hfs_crash_test
 tests/image/write_diag_host
+tests/image/outer_diag_host

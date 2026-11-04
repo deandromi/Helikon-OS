@@ -57,6 +57,17 @@ static void put_be64(uint8_t *p, uint64_t value)
     put_be32(p + 4, (uint32_t)value);
 }
 
+static uint16_t get_be16(const uint8_t *p)
+{
+    return (uint16_t)(((uint16_t)p[0] << 8) | p[1]);
+}
+
+static uint32_t get_be32(const uint8_t *p)
+{
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+           ((uint32_t)p[2] << 8) | p[3];
+}
+
 static uint32_t journal_checksum(const uint8_t *p, size_t length)
 {
     uint32_t sum = 0;
@@ -134,6 +145,37 @@ static int test_append_and_replay(void)
     CHECK(hfs_journal_replay(&journal) == HFS_OK);
     CHECK(memcmp(device + TEST_TARGET_SECTOR * TEST_SECTOR, data,
                  sizeof(data)) == 0);
+    return 0;
+}
+
+static int test_apple_block_list_layout(void)
+{
+    struct hfs_journal journal;
+    uint8_t data[TEST_SECTOR];
+    memset(data, 0x6b, sizeof(data));
+
+    make_journal(TEST_SECTOR, TEST_SECTOR);
+    CHECK(open_clean(&journal) == HFS_OK);
+    struct hfs_journal_entry entry = { TEST_TARGET_SECTOR, data, sizeof(data) };
+    CHECK(hfs_journal_append(&journal, &entry, 1) == HFS_OK);
+
+    const uint8_t *header = device + TEST_JOURNAL_OFFSET + TEST_SECTOR;
+    CHECK(get_be16(header) == TEST_BLOCK_LIST / 16u - 1u);
+    CHECK(get_be16(header + 2) == 2);
+    CHECK(get_be32(header + 4) == TEST_BLOCK_LIST + TEST_SECTOR);
+    CHECK(get_be32(header + 12) == 2); /* BLHDR_FIRST_HEADER */
+
+    uint8_t copy[32];
+    memcpy(copy, header, sizeof(copy));
+    put_be32(copy + 8, 0);
+    CHECK(get_be32(header + 8) == journal_checksum(copy, sizeof(copy)));
+
+    /* binfo[0] is the continuation marker; binfo[1] is the data block. */
+    CHECK(get_be32(header + 16) == 0);
+    CHECK(get_be32(header + 20) == 0);
+    CHECK(get_be32(header + 32) == 0);
+    CHECK(get_be32(header + 36) == TEST_TARGET_SECTOR);
+    CHECK(get_be32(header + 40) == TEST_SECTOR);
     return 0;
 }
 
@@ -232,6 +274,7 @@ int main(void)
     static const struct test_case tests[] = {
         { "clean open", test_clean_open },
         { "append and replay", test_append_and_replay },
+        { "apple block list layout", test_apple_block_list_layout },
         { "corrupt block list checksum", test_corrupt_block_list_checksum },
         { "wrapped transaction", test_wrapped_transaction },
         { "no space", test_no_space },

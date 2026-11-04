@@ -3,7 +3,6 @@
 
 #include <string.h>
 
-#define HEADER_SIZE 512u
 #define MODIFY_DATE_OFFSET 20u
 #define FILE_COUNT_OFFSET 32u
 #define FOLDER_COUNT_OFFSET 36u
@@ -24,14 +23,30 @@ static void put32(uint8_t *p, uint32_t value)
     p[3] = (uint8_t)value;
 }
 
+/*
+ * Stage the journal-sector-sized block containing a volume header, not just
+ * the 512-byte header. A journal with 4 KiB sectors requires whole-sector
+ * transaction blocks; a 512-byte stage is rejected by hfs_txn_stage().
+ */
 static int stage_one(struct hfs_txn *tx, const struct hfs_volume *volume,
                      uint64_t offset, const struct hfs_volume_update *update)
 {
-    uint8_t header[HEADER_SIZE];
-    if (volume->read(volume->context, volume->base + offset, header,
-                     sizeof(header)))
+    uint32_t sector_size = tx->journal->sector_size;
+    if (sector_size < 512u || sector_size > 4096u ||
+        volume->length < sector_size || offset > volume->length ||
+        sector_size > volume->length - offset % sector_size)
+        return HFS_ERR_FORMAT;
+
+    uint64_t block_start = offset - offset % sector_size;
+    if (block_start > volume->length - sector_size)
+        return HFS_ERR_FORMAT;
+
+    static uint8_t block[4096];
+    if (volume->read(volume->context, volume->base + block_start, block,
+                     sector_size))
         return HFS_ERR_IO;
 
+    uint8_t *header = block + (offset - block_start);
     if (update->set_modify_date)
         put32(header + MODIFY_DATE_OFFSET, update->modify_date);
     if (update->set_file_count)
@@ -43,9 +58,7 @@ static int stage_one(struct hfs_txn *tx, const struct hfs_volume *volume,
     put32(header + WRITE_COUNT_OFFSET,
           be32(header + WRITE_COUNT_OFFSET) + 1u);
 
-    if (offset % 512u != 0)
-        return HFS_ERR_FORMAT;
-    return hfs_txn_stage(tx, offset / 512u, header, sizeof(header));
+    return hfs_txn_stage(tx, block_start / sector_size, block, sector_size);
 }
 
 int hfs_volume_stage(struct hfs_txn *tx, const struct hfs_volume *volume,

@@ -17,11 +17,13 @@ Helikon-OS is a planned native-HFS+ bootloader and firmware for the iPod Classic
 greenfield design, not a working firmware release.
 
 - **Design stage:** a host HFS+ read/write core, a read-only diagnostic
-  bootloader image and a separate write-diagnostic image exist. There is no
-  kernel/firmware, firmware-loading bootloader, installer or release artifact.
-  The read-only image has two owner-reported 6G runs; the write image has one
-  owner-reported 6G run with every stage PASS and a clean inner `fsck_hfs`.
-  These are diagnostic runs, not firmware support claims.
+  bootloader image, an inner-image write diagnostic and an outer-volume write
+  diagnostic exist. There is no kernel/firmware, firmware-loading bootloader,
+  installer or release artifact. The read-only image has two owner-reported 6G
+  runs; the inner-image write image has one owner-reported 6G run with every
+  stage PASS and a clean inner `fsck_hfs`. The outer-volume image is built and
+  host-tested but has no device run. These are diagnostic runs, not firmware
+  support claims.
 - **Current repository content:** the owner-authored root `README.md`, this
   documentation set, `firmware/hfs/`, `bootloader/` (diagnostic core, hardware
   glue and built image) and `tests/`.
@@ -74,10 +76,12 @@ writes in `/.rockpod-rw`) is the opposite of Helikon-OS by design.
 5. **No destructive repair.** Never format, erase, restore, repartition, delete
    the journal, or zero catalog/bitmap/metadata to "fix" a software error.
 6. **The production bootloader is read-only.** It reads native HFS+, verifies
-   a firmware manifest, reads boot state, and never writes the filesystem. The
-   separate DFU-only write diagnostic (D-22) may write only inside a
-   preallocated inner HFS+ image file; it never writes the outer volume's
-   metadata, catalog, bitmap or journal.
+   a firmware manifest, reads boot state, and never writes the filesystem. Two
+   separate DFU-only write diagnostics exist: the inner-image diagnostic
+   (D-22) writes only inside a preallocated `helikon-test.img`; the outer-volume
+   diagnostic writes only `/helikon-outer-test` after a root opt-in file, a
+   clean-journal check and a full verified backup. Neither is the production
+   bootloader.
 7. **Never install a bootloader with `--single`.** It destroys the Apple NOR
    path. Bootloader changes are DFU-only.
 8. **Never test writes on the only copy of the library.** A verified backup and
@@ -112,14 +116,15 @@ docs/                     agent documentation (current)
   verification.md         per-change proof checklist
   architecture.md         layers, boundaries, memory, security
   file-map.md             where to change what
-bootloader/               read-only diagnostic and separate write diagnostic
+bootloader/               read-only diagnostic and separate write diagnostics
   hardware/               S5L8702/ATA/LCD glue and donor integration patches
   artifacts/              built images, hashes and provenance
   WRITE_DIAG.md            separate inner-image write diagnostic runbook
+  OUTER_DIAG.md            separate outer-volume write diagnostic runbook
 firmware/                 host HFS+ read core exists; HAL/VFS/player/UI planned
   hfs/                    HFS+ read core; volume header/journal probe implemented
 tools/                    diagnostic build script; host tools/inspectors planned
-tests/                    host HFS+ and bootloader tests; device/writer tests planned
+tests/                    host HFS+, bootloader and image/outer-volume tests; device tests planned
 docs/adr/                 long-form decisions
 docs/log/                 dated work logs
 docs/prompts/             reusable task prompts
@@ -139,20 +144,27 @@ make -C tests/bootloader sanitize
 make -C tests/image test
 make -C tests/image crash-test
 make -C tests/image write-diag-test
+make -C tests/image outer-diag-test
 
 DONOR_DIR=/path/to/hfsplus-rockboxed-ipod \
   ./tools/build-diagnostic-bootloader.sh
 
 DONOR_DIR=/path/to/hfsplus-rockboxed-ipod \
   ./tools/build-write-diagnostic-bootloader.sh
+
+DONOR_DIR=/path/to/hfsplus-rockboxed-ipod \
+  ./tools/build-outer-diagnostic-bootloader.sh
 ```
 
 The scripts export the pinned donor commit, apply the corresponding patch,
 build Thumb, check `_moveend` against `MOVE_AREA`, copy the image to
 `bootloader/artifacts/` and print its SHA-256. The read-only image and the
-separate write diagnostic are both unproven on hardware; a successful link is
-not a device run. The write image may write only inside a preallocated
-`helikon-test.img`; see `bootloader/WRITE_DIAG.md`. Do not invent firmware
+inner-image diagnostic have owner-reported runs but remain unproven for support;
+the outer-volume image has no device run. A successful link is not a device run.
+The inner-image write diagnostic may write only inside a preallocated
+`helikon-test.img`; see `bootloader/WRITE_DIAG.md`. The outer-volume diagnostic
+writes only `/helikon-outer-test` after the opt-in and full-backup gates in
+`bootloader/OUTER_DIAG.md`; it has no device run. Do not invent firmware
 commands, images, test counts or device results. The
 donor repository's commands are reference material only and do not test
 Helikon-OS:
@@ -264,7 +276,20 @@ writes only inside its preallocated inner image; it never relaxes this recipe. *
 output, device screen/report and power-off result. **Rollback:** DFU uninstall
 or Apple restore; never `--single`, format, erase or delete the journal.
 
-### 7.9 Write diagnostic image change
+### 7.9 Outer-volume write diagnostic change
+
+**Read first:** `bootloader/OUTER_DIAG.md`, `docs/outer-volume-test.md`,
+`docs/decisions.md` D-25, `docs/state.md`. **Do:** keep the opt-in file, clean
+journal, native HFS+ v4 and inline-fork checks; write only
+`/helikon-outer-test`; keep cleanup non-destructive; never replay a dirty
+journal, add `--single` or load firmware. **Test:** `make -C
+tests/image outer-diag-test`, the journal-layout unit test, the dirty-journal
+macOS replay check, `fsck_hfs -fn` on the outer image, and a recorded device run
+before any claim. **Evidence:** image hash, report, `fsck_hfs` output, backup
+diff and device state. **Rollback:** DFU uninstall or Apple restore; do not
+format, erase, delete the journal or delete an unknown test folder.
+
+### 7.10 Write diagnostic image change
 
 **Read first:** `bootloader/WRITE_DIAG.md`, `bootloader/DFU.md`,
 `docs/decisions.md` D-22, `docs/state.md`. **Do:** keep the outer volume
@@ -316,9 +341,9 @@ normalization with generated Unicode 2.1.9 tables, D-17 product name
 (clearance open), D-18 GPL-2.0-or-later, D-21 read-only diagnostic-first
 bootloader scope, D-22 separate inner-image write diagnostic scope, D-23 default
 UI typography (IBM Plex Sans UI, Manrope Bold logo), D-24 grayscale
-anti-aliased UI text/icons with a 1-bit fallback. The real outer-volume write
-test requires a full verified backup and the separate diagnostic in
-`docs/outer-volume-test.md`.
+anti-aliased UI text/icons with a 1-bit fallback, D-25 separate outer-volume
+write diagnostic scope. The real outer-volume write test requires a full
+verified backup and the separate diagnostic in `docs/outer-volume-test.md`.
 **Rejected:** D-19 Contributor Covenant (owner deleted the file; no replacement).
 
 **Open:** D-01 boot image verification and key storage · D-02 boot state and

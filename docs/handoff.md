@@ -3,11 +3,70 @@
 > Purpose: the latest session handoff and the reusable template.
 > Status: living document
 > Owner: session author; next agent reads this first
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: `docs/state.md`, `docs/tasks.md`, repository history
 
 Keep the newest handoff at the top. Move older entries to `docs/log/` when this
 file grows. Do not rely on chat history for current state.
+
+---
+
+# Handoff — 2026-11-04 (outer-volume diagnostic built, journal compatibility)
+
+## What changed
+
+- Built the separate outer-volume write diagnostic:
+  `bootloader-ipod6g-outer-diag.ipod` (109,288 bytes, `9eacde18…`), DFU
+  `dd027696…` (117,424 bytes). It requires `helikon-outer-ok.txt`, refuses a
+  dirty journal and an existing `/helikon-outer-test`, and writes only that
+  folder's marker/test files.
+- Added `bootloader/OUTER_DIAG.md`, `tools/build-outer-diagnostic-bootloader.sh`,
+  `tools/install-outer-diagnostic.sh`, `tools/make-outer-opt-in.sh` and
+  `bootloader/hardware/donor-outer-diag.patch`.
+- Added D-25 and T-048. T-047 is `implemented`; T-048 (device run) is `blocked`
+  on the owner's verified full backup and restore rehearsal.
+- Host test `make -C tests/image outer-diag-test` passes: sequence, root-count
+  restoration, fsck, dirty-journal refusal, macOS journal replay, missing
+  opt-in, marked/unmarked folder refusal, a second run and a patched 4 KiB
+  journal-header image.
+- Found and fixed a journal compatibility bug: `block_list_header.max_blocks`
+  was zero and `BLHDR_FIRST_HEADER` was not set, so macOS rejected a committed
+  journal. The writer now writes both; a unit test and the host dirty-journal
+  replay test cover it.
+- Generalized volume-header and bitmap staging to a journal-sector-sized block
+  (512 or 4 KiB), with a 4 KiB journal-sector unit test. The outer diagnostic
+  refuses block/journal size combinations the writer cannot stage.
+- Host suite is now 112 portable tests (100 HFS+, 12 bootloader),
+  sanitizer-clean.
+
+## What is next
+
+1. Owner: confirm the full backup was read back and the restore path rehearsed;
+   then run T-048 with `tools/install-outer-diagnostic.sh`.
+2. After the run: `fsck_hfs -fn`, macOS mount, `diff -qr` against the backup,
+   `diskutil verifyVolume`; record in `device-matrix.md`.
+3. Rebuild the inner-image write diagnostic (`81350f…` predates the journal
+   `max_blocks` fix) before another inner power-cut run.
+4. T-044 remaining: Finder creator/type policy and wider macOS differential.
+5. T-041/T-042: font licences and anti-aliased 320×240 mockup; T-045 splash.
+
+## What must not be touched
+
+- No outer-volume write without the full verified backup, restore rehearsal,
+  opt-in file and clean journal.
+- No `--single`; no journal deletion, format or destructive cleanup.
+- Do not delete a pre-existing `/helikon-outer-test` automatically; inspect it
+  on macOS first.
+- Do not treat the host outer test as a device run.
+
+## Device/test evidence
+
+- No new device run. Host outer test passes; dirty journal is replayed by macOS
+  `fsck_hfs` in the host test.
+- `diskutil verifyVolume /Volumes/IPOD` passed on 2026-11-04; the owner reports
+  a full backup, but the backup has not been independently verified and no
+  restore has been rehearsed in this session. No opt-in file was written.
+- Outer image `9eacde18…`; DFU `dd027696…`; 19,744 bytes `MOVE_AREA` headroom.
 
 ---
 

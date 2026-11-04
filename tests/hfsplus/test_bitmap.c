@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "hfs_bitmap.h"
+#include "hfs_volume_write.h"
 #include "test_check.h"
 #include "test_image.h"
 
@@ -184,6 +185,95 @@ static int test_bad_free_range(void)
     return 0;
 }
 
+static int test_4k_journal_sector(void)
+{
+    struct hfs_volume volume;
+    struct hfs_bitmap bitmap;
+    struct hfs_journal journal;
+    struct hfs_txn tx;
+    uint32_t first = 0;
+
+    test_image_clear();
+    test_image_make_header(test_image + 1024, 0x482bu, 4,
+                            TEST_ATTR_UNMOUNTED, 4096, 16, 13);
+    uint8_t *fork = test_image + 1024 + 112;
+    test_image_put_be64(fork, 2);
+    test_image_put_be32(fork + 12, 1);
+    test_image_put_be32(fork + 16, 2);
+    test_image_put_be32(fork + 20, 1);
+    uint8_t *bitmap_block = test_image + 2 * 4096;
+    bitmap_block[0] = 0xe0u; /* blocks 0, 1 and 2 are used */
+
+    CHECK(hfs_volume_probe(&volume, test_image_read, NULL, 0,
+                           TEST_IMAGE_SIZE) == HFS_OK);
+    CHECK(hfs_bitmap_open(&bitmap, &volume) == HFS_OK);
+
+    memset(&journal, 0, sizeof(journal));
+    journal.sector_size = 4096;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_bitmap_alloc(&bitmap, &tx, 0, 1, &first) == HFS_OK);
+    CHECK(first == 3);
+
+    const struct hfs_txn_block *primary = NULL;
+    const struct hfs_txn_block *alternate = NULL;
+    for (size_t i = 0; i < tx.count; ++i) {
+        if (tx.blocks[i].sector == 0)
+            primary = &tx.blocks[i];
+        if (tx.blocks[i].sector == 15)
+            alternate = &tx.blocks[i];
+    }
+    CHECK(primary != NULL);
+    CHECK(alternate != NULL);
+    if (primary != NULL) {
+        CHECK(primary->size == 4096);
+        CHECK(primary->data[1024 + 48] == 0);
+        CHECK(primary->data[1024 + 49] == 0);
+        CHECK(primary->data[1024 + 50] == 0);
+        CHECK(primary->data[1024 + 51] == 12);
+    }
+    if (alternate != NULL) {
+        CHECK(alternate->size == 4096);
+        CHECK(alternate->data[3072 + 48] == 0);
+        CHECK(alternate->data[3072 + 49] == 0);
+        CHECK(alternate->data[3072 + 50] == 0);
+        CHECK(alternate->data[3072 + 51] == 12);
+    }
+
+    struct hfs_txn volume_tx;
+    memset(&volume_tx, 0, sizeof(volume_tx));
+    volume_tx.journal = &journal;
+    volume_tx.active = 1;
+    struct hfs_volume_update update;
+    memset(&update, 0, sizeof(update));
+    update.set_file_count = 1;
+    update.file_count = 7;
+    CHECK(hfs_volume_stage(&volume_tx, &volume, &update) == HFS_OK);
+
+    primary = NULL;
+    alternate = NULL;
+    for (size_t i = 0; i < volume_tx.count; ++i) {
+        if (volume_tx.blocks[i].sector == 0)
+            primary = &volume_tx.blocks[i];
+        if (volume_tx.blocks[i].sector == 15)
+            alternate = &volume_tx.blocks[i];
+    }
+    CHECK(primary != NULL);
+    CHECK(alternate != NULL);
+    if (primary != NULL) {
+        CHECK(primary->size == 4096);
+        CHECK(primary->data[1024 + 32] == 0);
+        CHECK(primary->data[1024 + 35] == 7);
+    }
+    if (alternate != NULL) {
+        CHECK(alternate->size == 4096);
+        CHECK(alternate->data[3072 + 32] == 0);
+        CHECK(alternate->data[3072 + 35] == 7);
+    }
+    return 0;
+}
+
 struct test_case {
     const char *name;
     int (*run)(void);
@@ -196,7 +286,8 @@ int main(void)
         { "alloc two blocks", test_alloc_two_blocks },
         { "free restores block", test_free_restores_block },
         { "no space", test_no_space },
-        { "bad free range", test_bad_free_range }
+        { "bad free range", test_bad_free_range },
+        { "4 KiB journal sector", test_4k_journal_sector }
     };
 
     int failures = 0;

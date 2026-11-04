@@ -230,28 +230,34 @@ static int update_volume_fork(struct hfs_btree *btree, struct hfs_txn *tx,
     fork->size += btree->node_size;
     ++fork->blocks;
 
-    uint8_t header[512];
+    uint32_t sector_size = tx->journal->sector_size;
+    if (sector_size < 512u || sector_size > 4096u)
+        return HFS_ERR_UNSUPPORTED;
+
+    static uint8_t header[4096];
     for (unsigned int alt = 0; alt < 2u; ++alt) {
         uint64_t base = alt == 0 ? 1024u :
                         btree->volume->length - 1024u;
+        if (base > btree->volume->length ||
+            sector_size > btree->volume->length - base % sector_size)
+            return HFS_ERR_FORMAT;
+        uint64_t block_start = base - base % sector_size;
         if (btree->volume->read(btree->volume->context,
-                                btree->volume->base + base, header,
-                                sizeof(header)))
+                                btree->volume->base + block_start, header,
+                                sector_size))
             return HFS_ERR_IO;
-        int rc = hfs_txn_overlay(tx, base, header, sizeof(header));
+        int rc = hfs_txn_overlay(tx, block_start, header, sector_size);
         if (rc < 0)
             return rc;
-        uint8_t *dest = header + offset;
+        uint8_t *dest = header + (base - block_start) + offset;
         put64(dest, fork->size);
         put32(dest + 12, fork->blocks);
         for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i) {
             put32(dest + 16 + i * 8, fork->extents[i].start);
             put32(dest + 20 + i * 8, fork->extents[i].count);
         }
-        if (base % 512u != 0)
-            return HFS_ERR_FORMAT;
-        rc = hfs_txn_stage_replace(tx, base / 512u, header,
-                                   sizeof(header));
+        rc = hfs_txn_stage_replace(tx, block_start / sector_size, header,
+                                   sector_size);
         if (rc != HFS_OK)
             return rc;
     }

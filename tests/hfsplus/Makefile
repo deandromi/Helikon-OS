@@ -65,10 +65,11 @@ test_bitmap: test_bitmap.c test_image.c test_image.h test_check.h \
              $(HFS)/hfs_bitmap.c $(HFS)/hfs_bitmap.h \
              $(HFS)/hfs_txn.c $(HFS)/hfs_txn.h \
              $(HFS)/hfs_journal.c $(HFS)/hfs_journal.h \
-             $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
+             $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h \
+             $(HFS)/hfs_volume_write.c $(HFS)/hfs_volume_write.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_bitmap.c test_image.c \
 	  $(HFS)/hfs_bitmap.c $(HFS)/hfs_txn.c $(HFS)/hfs_journal.c \
-	  $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
+	  $(HFS)/hfs_volume.c $(HFS)/hfs_volume_write.c $(LDFLAGS) -o $@
 
 test_btree_write: test_btree_write.c test_check.h \
                   $(HFS)/hfs_btree_write.c $(HFS)/hfs_btree_write.h \
