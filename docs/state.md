@@ -78,7 +78,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Fork block staging | `implemented` | `firmware/hfs/hfs_fork_io.c`; full/partial block write staging into `hfs_txn`; inline extents only; 4 host tests |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
 | Default UI typography | `in progress` | D-23/D-24 and `docs/ui.md` record the 14/17/12/11 px scale and grayscale anti-aliasing. Licensed IBM Plex Sans and Manrope subsets, OFL texts, hashes and two 320×240 host mockups are in `assets/fonts/` and `assets/ui/`; `tools/render-ui-mockup.py` reproduces them with clipping checks. Firmware renderer and 6G panel run remain T-042 |
-| Bootloader splash redesign | `in progress` | Owner design in `assets/bootloader/` with `VERSION Alpha` and a green/red `HFS+ DETAILS` mask. The loader test image uses a 16-colour 4bpp RGB565 representation (38,400-byte base + 592-byte mask); the PNG mockups preserve the source. Font: ITC Benguiat Std Book 9px, owner-provided, not committed. Splash displayed in one owner-reported startup; the HFS+ label transition is not yet observed; new build not installed |
+| Bootloader splash redesign | `in progress` | Owner design in `assets/bootloader/` with `VERSION Alpha` and a green/red `HFS+ DETAILS` mask. The loader test image uses a 16-colour 4bpp RGB565 representation (38,400-byte base + 592-byte mask); the PNG mockups preserve the source. Font: ITC Benguiat Std Book 9px, owner-provided, not committed. Owner-reported working in the `3979de6f…` loader pass (6.5 s startup); the temporary bottom stage line remains. Owner has new splash designs; final asset and stage-line removal are T-045 work |
 | Host test harness | `in progress` | 133 portable tests (102 HFS+, 31 bootloader), sanitizer clean, plus the macOS disposable-image, Unicode, crash-injection, inner-image, outer-volume and loader tests; fixture plan in `fixtures.md`; first diagnostic boot is owner-reported |
 | Backup/recovery protocol | `implemented` | Full-volume backup, read-back, disposable restore rehearsal and Apple-restore/DFU path owner-confirmed 2026-11-04; protocol and stop conditions in `outer-volume-test.md` |
 | Fixture plan | `implemented` | `docs/fixtures.md` lists synthetic reader/journal/B-tree/catalog/extents/bitmap/Unicode fixtures, disposable-image writer fixtures and write/flush/partial crash fixtures; no disk images committed |
@@ -89,10 +89,10 @@ Helikon-OS poster above the goals on 2026-11-03.
 |---|---|---|
 | Helikon-OS firmware source tree | `in progress` | Host HFS+ read core, diagnostic bootloader, host write diagnostics and host firmware loader exist; no kernel, VFS or player |
 | Host firmware loader | `implemented` | `bootloader/manifest.c`, `bootstate.c`, `sha256.c`, `ed25519.c`, `keys.c`, `firmware_loader.c` and `hfs_loader.c`; formats frozen in `bootloader/LOADER.md`. Signature is verified before any image byte; then SHA-256 and bootstate. 13 manifest/loader tests, 2 HFS adapter tests, 4 Ed25519/key-table tests and a macOS HFS+ fixture with a real generated key pass. No jump and no writes |
-| Helikon-OS firmware-loading bootloader | `in progress` | Host loader exists and the separate DFU-only loader test image builds (107,112 bytes, 21,920 bytes `MOVE_AREA` headroom). It verifies Ed25519 before reading the image, reads directly to the signed DRAM address, executes only a signed development payload and disables production handoff. The owner splash with `VERSION Alpha` and a green/red HFS+ label is linked. One owner-reported startup took about 3 minutes; a later batched-read build took 1:20 with stalls at `firmware manifest`/`verify firmware`. The first indexed build `9600332f…` was fast but returned `not found (-4)`; `3979de6f…` fixes the shared-leaf descent and is not installed. T-006/D-20 still owns signing keys |
+| Helikon-OS firmware-loading bootloader | `in progress` | The DFU-only loader test image `3979de6f…` (107,112 bytes, 21,920 bytes headroom) is owner-reported working, fast and consistent at 6.5 s startup on one 6G/iFlash SD. It verifies Ed25519 before any image byte, reads directly to the signed DRAM address, executes only a signed development payload and still disables production handoff. Production handoff is T-051 and needs a real signed firmware image. |
 | Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; separate inner-image and outer-volume write diagnostics built; none loads firmware. The inner image has one owner-reported run; the outer image has one successful 6G run |
 | Loader test image | `implemented` | `build/loader-bootloader/out/bootloader-ipod6g-loader-test.ipod` (107,112 bytes, 21,920 bytes headroom) with the owner splash, indexed HFS+ lookup and Ed25519. Owner-reported 2026-11-04: everything works, very fast and consistent on one 6G/iFlash SD. Exact boot time and post-run `fsck_hfs` remain to record; the production handoff is disabled |
-| Bootloader manifest/boot state | `implemented` | Formats frozen in `bootloader/LOADER.md`; host parser/verifier/selector, real Ed25519 and HFS loader tested; loader test image built but no device run. D-02 A/B fallback still has the single-image-path gap (C-10) |
+| Bootloader manifest/boot state | `implemented` | Formats frozen in `bootloader/LOADER.md`; host parser/verifier/selector, real Ed25519 and HFS loader tested; loader test image owner-reported working. D-02 is single-image fail-closed by owner decision: no A/B fallback; recovery is DFU/Apple restore |
 | VFS, player, UI, database | `planned` | No implementation |
 | HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete/growth/deep delete/in-place update, fork staging, file/folder create/delete/rename, multi-extent/overflow data append/truncate, FastUnicodeCompare, HFS+ normalization, metadata policy and disposable-image `fsck_hfs` validation exist. One outer-volume 6G run passed; D-05 cache limits, broader fuzzing, timing and the device power-cut/adapter matrix remain |
 | Journal replay on a real dirty volume | `unproven` | Replay is host-tested on synthetic journals; no macOS-created dirty volume or device run |
@@ -101,7 +101,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Helikon-OS device run | `unproven` | Three earlier owner-reported diagnostic runs, the 2026-11-04 outer-volume run with every stage PASS, and the loader-test pass on `3979de6f…`. No firmware run or support claim; one device/iFlash SD only |
 | Supported device list | `unproven` | 6G is the reference; 7G physical audit is deferred from the active queue by owner direction (2026-11-04) |
 | Code of conduct | `rejected` | Owner deleted Contributor Covenant 2.1 on 2026-11-03; no replacement |
-| Signing policy and key ownership | `planned` | D-20 is still open |
+| Signing policy and key ownership | `accepted` | D-20/ADR-0002 option A: offline Ed25519 root on two hardware tokens, certified release key, rotation/revocation/recovery; certificate verifier and a real signed release image are T-053/T-051 |
 
 ## Last known-good commit and branch
 
@@ -177,14 +177,16 @@ writes, the transaction engine, the bootloader, or any goal in
    rename are implemented; the disposable image and one outer-volume run pass
    `fsck_hfs`. Cache limits (D-05), broader fuzzing and the device power-cut/
    adapter matrix remain.
-4. **No signed-update or signing policy.** D-01/D-02 are accepted, but D-16
-   (update transport) and D-20 (key ownership) remain open; D-20 is the only
-   outstanding P0 decision.
+4. **No signed-update release path yet.** D-01/D-02 and D-20 are accepted, but
+   D-16 (update transport), the release-key certificate verifier (T-053) and a
+   real signed firmware image (T-051) remain.
 5. **Device-test programme is partial.** Backup, read-back, disposable restore
    rehearsal and the Apple-restore/DFU path are owner-confirmed. The adapter
    matrix, full device power-cut matrix and library-wide differential remain.
-6. **No release infrastructure.** No reproducible build, manifest, signing key,
-   staging flow, rollback test or support window. Signing policy is D-20.
+6. **No release infrastructure.** No reproducible build, release manifest,
+   signing-key ceremony record, staging flow, rollback test or support window.
+   The D-20 policy is accepted; no release key has been generated and no release
+   signing is claimed.
 
 ## Next task
 
@@ -194,21 +196,22 @@ The writer interface and failure model are frozen in
 probe is intentionally skipped; `-8` is correct because `/rockbox.ipod` is not a
 disk file on this iPod.
 
-The active P0 line is **T-049** (record a device run of the loader test image)
-and **T-006** (D-20 signing-key ownership, owner/legal). D-01/D-02 and
-T-011/T-027 are accepted/implemented; the proposed key scheme is in
-[`adr/0002-signing-key-ownership.md`](adr/0002-signing-key-ownership.md). The P1
-line is:
+The active P0 line is **T-051** (production firmware handoff), which needs a real
+signed firmware image for end-to-end device validation. T-006/D-20 and T-049 are
+implemented; T-050 is closed by owner decision as an explicit no-A/B,
+single-image fail-closed model. D-26 records that the bootloader has no
+OF/recovery menu; native Menu+Play and DFU cover recovery. The P1 line is:
 
 - **T-041** — UI font licences and the 320×240 typography mockup.
 - **T-012** — full 6G model/adapter/battery inventory; backup/restore is done.
 - **T-029** — finish the read-only diagnostic evidence.
-- **T-045** — new splash design and rendering path.
-- **T-050** — resolve the D-02 A/B image-path gap before claiming rollback.
+- **T-045** — final splash from the owner's upcoming designs; the test image
+  still carries a temporary bottom stage line.
+- **T-053** — release-key certificate, rotation and revocation verifier.
 
-T-042/T-013/T-024 are P2. The fixture plan is in
-[`fixtures.md`](fixtures.md); the writer crash matrix and evidence format are in
-[`validation.md`](validation.md) §2.
+T-042/T-013/T-052 are P2; T-052 tracks reducing startup from 6.5 s toward 2–3 s.
+The fixture plan is in [`fixtures.md`](fixtures.md); the writer crash matrix and
+evidence format are in [`validation.md`](validation.md) §2.
 
 ## Unproven claims and open questions
 
@@ -224,7 +227,7 @@ T-042/T-013/T-024 are P2. The fixture plan is in
 | Windows/Linux desktop support | `unproven` | Service-mode transport test; D-09 |
 | Apps/games are safely sandboxed | `unproven` | Adversarial tests; D-08 |
 | Anti-corruption detects injected corruption | `unproven` | Injection test and quarantine report; D-11 |
-| Signed updates reject bad images | `unproven` | Host Ed25519/manifest tests pass; device update/rollback and key custody remain; D-16, D-20 (D-01 accepted) |
+| Signed updates reject bad images | `unproven` | Host Ed25519/manifest tests pass; release-key certificate/revocation, a real signed image and device update testing remain; D-16, T-051, T-053 |
 
 Open questions are tracked in [`decisions.md`](decisions.md). Unknown hardware
 facts must be marked `open question`; do not fill them from memory.

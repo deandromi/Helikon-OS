@@ -28,7 +28,7 @@ Power-on
                 - native HFS+ read-only
                 - manifest magic/board/version/load/size/SHA-256/signature
                 - boot-state read only
-                - Apple / Helikon-OS / recovery / USB menu
+                - no in-bootloader OF/recovery menu (native Menu+Play + DFU)
                 - load validated image to DRAM
                        |
                        v
@@ -187,7 +187,8 @@ changes anything.
 ## 7. Security model
 
 - Signed firmware manifest; verify magic, board, version, load address, size,
-  SHA-256 and signature before jump.
+  SHA-256 and signature before jump. D-20/ADR-0002 defines the offline root and
+  certified release key; certificate verification is T-053.
 - Boot-state file is read-only from the bootloader and checksummed; the firmware
   writes it only through the HFS+ transaction engine.
 - Read-only USB by default; no writable mass-storage LUN.
@@ -213,10 +214,9 @@ changes anything.
    reads the image to the signed address and verifies SHA-256.
 5. On success, the bootloader loads the verified image and the firmware commits a
    boot-state record through the transaction engine.
-6. On failure, the bootloader does not jump and shows recovery. A previous
-   verified image is selectable only when a per-slot image path exists; the
-   current single-path format fails closed (C-10). DFU instructions remain
-   available.
+6. On failure, the bootloader does not jump and shows recovery. The owner
+   accepted a single-image fail-closed model (no A/B rollback, T-050); recovery
+   is DFU/Apple restore. Native Menu+Play remains the OF/disk-mode path.
 7. Bootloader changes are DFU-only with their own verification. They are never
    staged on HFS+ and never use `--single`.
 

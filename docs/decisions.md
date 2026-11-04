@@ -50,20 +50,21 @@ re-litigate them.
 | D-17 | Product identity | accepted | owner | §25.17, Appendix D |
 | D-18 | Licensing | accepted | owner/legal | §18, §28.4.4 |
 | D-19 | Code of conduct | rejected | owner | §18, §28.4.4 |
-| D-20 | Signing-key ownership | proposed | owner | §25.1, §16, §28.2.5 |
+| D-20 | Signing-key ownership | accepted | owner | §25.1, §16, §28.2.5 |
 | D-21 | First diagnostic bootloader scope | accepted | owner | §5, §24, §27 |
 | D-22 | Separate write diagnostic scope | accepted | owner | §5, §24, §27; D-21 |
 | D-23 | Default UI typography | accepted | owner | §14, §28.3.4; D-10, D-15 |
 | D-24 | UI text/icon rendering | accepted | owner | §14, §28.3.3; D-23 |
 | D-25 | Outer-volume write diagnostic scope | accepted | owner | §5, §24, §27; D-03, D-04, D-22 |
+| D-26 | Bootloader recovery/OF selection | accepted | owner | §5, §16, §21 |
 
-The paper's §25 lists 17 decisions. D-18, D-19 and D-20 are added from §18 and
-§28.4.4. D-18 is accepted; D-19 was adopted and then rejected when the owner
-deleted `CODE_OF_CONDUCT.md` on 2026-11-03; D-20 remains open. D-21 records the
-first diagnostic bootloader scope. D-01/D-02 are accepted for the
-firmware-loading bootloader. D-22 records the separate inner-image write
-diagnostic; D-25 records the separate outer-volume diagnostic and its backup
-gate. See C-08.
+The paper's §25 lists 17 decisions. D-18, D-19, D-20 and D-26 are added from §18,
+§28.4.4 and the bootloader recovery policy. D-18 and D-20 are accepted; D-19 was
+adopted and then rejected when the owner deleted `CODE_OF_CONDUCT.md` on
+2026-11-03. D-21 records the first diagnostic bootloader scope. D-01/D-02 are
+accepted for the firmware-loading bootloader. D-22 records the separate
+inner-image write diagnostic; D-25 records the separate outer-volume diagnostic
+and its backup gate. See C-08.
 
 ## D-01 — Boot image verification
 
@@ -82,10 +83,11 @@ gate. See C-08.
 - **Consequences:** no unsigned firmware is loaded. The bootloader carries only
   public-key material; no private key is on the device or in Git. A lost key
   must not brick the device; Apple/DFU recovery remains available. Release
-  signing stays blocked until D-20 is accepted.
-- **Follow-up:** host manifest/signature/boot-state core and real Ed25519
-  verification are implemented; the loader test image builds and passes host
-  gates. Device integration is T-049; no device run is recorded. Link D-20.
+  signing stays blocked until the release-key certificate verifier (T-053), a
+  real signed firmware image (T-051) and a release record exist.
+- **Follow-up:** host manifest/signature/boot-state core, real Ed25519 and the
+  loader test image are implemented; the test image is owner-reported working.
+  Production handoff is T-051. D-20 is accepted; link ADR-0002.
 
 ## D-02 — Boot state and fallback
 
@@ -96,20 +98,23 @@ gate. See C-08.
   read-only from the bootloader and written only through the HFS+ transaction
   engine. Each slot records magic/version/sequence/board/image version/load
   address/size/image SHA-256/state and a slot SHA-256. The bootloader selects the
-  highest valid `GOOD` slot; a newest `FAILED` slot falls back to the previous
-  `GOOD` slot. Missing or corrupt state falls back to the default image and
-  button-selected recovery. The bootloader never writes the state file.
+  highest valid `GOOD` slot that matches the installed manifest/image. A newest
+  `FAILED` slot, a mismatched selected slot, or corrupt state that cannot be
+  defaulted produces a recovery screen and **no jump**. Missing or corrupt state
+  may fall back to the single installed verified image and button/DFU recovery.
+  The bootloader never writes the state file.
+- **Owner resolution, 2026-11-04:** the single-image, fail-closed model is
+  accepted. The frozen format has one manifest/image path, not per-slot paths.
+  There is no A/B rollback and no previous-image boot. Recovery is DFU/Apple
+  restore; the owner tested the fail-closed behaviour. No A/B image-path work is
+  required.
 - **Consequences:** the state file cannot be a bootloader write path. A failed
-  boot must not boot the failed image; the previous verified image must remain
-  recoverable and become bootable once C-10 is resolved. Recovery is explicit
-  and visible; no silent repair or fallback to an unsigned image.
-- **Known implementation limit:** the frozen format has one image path, not a
-  per-slot path. The loader validates the selected `GOOD` slot against that
-  image; a previous slot naming a different image fails closed. Real A/B
-  fallback needs two fixed image paths or an update rollback writer. See C-10.
-- **Follow-up:** parser/selector implemented; test missing/corrupt/board-mismatch
-  and failed-newest cases. Define the A/B path or rollback writer, who may clear
-  a `FAILED` slot, and how recovery is displayed.
+  boot must not boot the failed image; it fails closed rather than silently
+  falling back to an unsigned or mismatched image. This closes C-10 and T-050 as
+  an explicit no-A/B decision.
+- **Follow-up:** parser/selector and fail-closed tests are implemented; keep
+  missing/corrupt/board-mismatch and failed-newest cases covered. No A/B path or
+  rollback writer is planned.
 
 ## D-03 — Journal strategy
 
@@ -404,20 +409,28 @@ gate. See C-08.
 
 ## D-20 — Signing-key ownership
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.1, §16, §28.2.5.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-04. **Paper:** §25.1, §16, §28.2.5.
 - **Context:** signed manifests and release integrity require key custody,
   rotation, revocation and recovery. The paper warns against a release process
   that depends on one person's laptop or an unpublished key.
-- **Options:** owner-held key; project maintainer roles; hardware token; offline
-  signing ceremony; key escrow/recovery; separate bootloader and firmware keys.
-- **Decision:** unresolved. No key, custodian, rotation or revocation policy is
-  chosen.
-- **Consequences:** no release signing until this is settled. Never commit a
-  private key, token, recovery phrase or signing secret. A lost key must not
-  brick devices; DFU/Apple recovery remains the fallback.
-- **Follow-up:** define roles, storage, ceremony, rotation, revocation and
-  emergency recovery; link to D-01 and `release.md`. A proposed option set is in
+- **Decision:** **ADR-0002 option A is accepted.** An offline Ed25519 root key,
+  held by the project owner on two hardware tokens in separate locations, only
+  certifies release keys, rotates them and revokes them. A separate Ed25519
+  release key signs firmware and bootloader manifests under a root-signed
+  release-key certificate with a bounded validity period (default 12 months).
+  The bootloader trust table carries the root and certified release key IDs. A
+  lost release key is replaced by a root-signed certificate; a lost root key
+  stops new signed updates but does not brick devices, because DFU/Apple restore
+  remains. No private key or token enters Git, CI secrets, chat or unrecorded
+  backups. The full policy is in
   [`adr/0002-signing-key-ownership.md`](adr/0002-signing-key-ownership.md).
+- **Consequences:** D-20 is settled; T-006 closes. The current loader test image
+  uses a build-local test key table and is not release-eligible. The
+  release-key certificate/revocation verifier and a real signed release image
+  are still implementation work; release signing is not claimed yet.
+- **Follow-up:** implement the certificate, revocation and rotation verifier
+  (T-053); record the first release-key fingerprints and validity period; add
+  bad-signature/wrong-key/expired/revoked/rotation tests.
 
 ## D-21 — First diagnostic bootloader scope
 
@@ -434,10 +447,10 @@ gate. See C-08.
   not load firmware. Backup scope is the current `.rockbox` build and
   `/.rockpod-rw`; music backup is deliberately omitted by the owner. The owner
   accepts that a failed flash may require Apple restore and can erase music.
-- **Consequences:** D-01/D-02 are now accepted for the later firmware-loading
-  bootloader; D-20 remains open. This diagnostic image is not a release and has
-  no signed manifest. It requires a recorded image hash, Thumb/`MOVE_AREA`
-  checks and a recovery rehearsal. No HFS+ writes are allowed.
+- **Consequences:** D-01/D-02/D-20 are accepted for the later firmware-loading
+  bootloader. This diagnostic image is not a release and has no signed
+  manifest. It requires a recorded image hash, Thumb/`MOVE_AREA` checks and a
+  recovery rehearsal. No HFS+ writes are allowed.
 - **Follow-up:** the image was built on 2026-11-03: 67,144 bytes, SHA-256
   `280ed7aee5dcf38d1a30470704f91740b299004692c2aebbb21d41744c05f43c`,
   `_moveend` `0x22030e40`, 61,888 bytes below `MOVE_AREA`. The first build
@@ -548,6 +561,26 @@ gate. See C-08.
 These are recorded so an agent does not silently pick a side. A conflict does
 not authorize a product change.
 
+## D-26 — Bootloader recovery/OF selection
+
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-04. **Paper:** §5, §16, §21.
+- **Context:** the earlier architecture sketch included an Apple/Helikon-OS/
+  recovery/USB menu in the rescue bootloader. The owner notes that an iPod
+  already enters OF/disk mode through the native Menu+Play startup gesture and
+  that DFU/Apple restore covers bootloader recovery.
+- **Options:** in-bootloader menu; native button gestures plus DFU; button-only
+  recovery with no bootloader UI.
+- **Decision:** **no in-bootloader Apple/OF/recovery menu.** The bootloader shows
+  its splash/status, verifies firmware and jumps; OF/disk mode and recovery stay
+  on the iPod's native Menu+Play and DFU/Apple restore paths. The bootloader
+  does not claim or replace those paths.
+- **Consequences:** T-051 is production firmware handoff only; the recovery menu
+  is removed from its scope and from the architecture boot chain. Documentation
+  and runbooks point to the native gestures and DFU.
+- **Follow-up:** keep the native recovery instructions in `bootloader/DFU.md`
+  and `docs/outer-volume-test.md`; do not add a bootloader menu without a new
+  owner decision.
+
 ### C-01 — Donor V3.2 safety model vs Helikon-OS native writes
 
 - **What:** the donor README/`agents.md` say native HFS+ metadata is immutable
@@ -609,19 +642,21 @@ not authorize a product change.
 - **What:** the README asks for regular updates and a community-friendly
   project; the paper requires signed manifests. Licensing is settled (D-18);
   the code of conduct was deleted by the owner (D-19 rejected); signing-key
-  ownership is still open (D-20).
-- **Status:** D-18 accepted; D-19 rejected; D-20 open. Do not publish release
-  artifacts or signing claims until D-20 is accepted.
+  ownership was open and is now accepted (D-20, 2026-11-04).
+- **Status:** D-18 and D-20 accepted; D-19 rejected. The D-20 policy is defined;
+  do not publish release artifacts or signing claims until the certificate
+  verifier, a real signed image and a release record exist.
 - **Affected docs:** `release.md`, `security.md`, `CONTRIBUTING.md`,
   `SECURITY.md`.
 
-### C-08 — Paper §25 has 17 decisions; this file has 20
+### C-08 — Paper §25 has 17 decisions; this file has 26
 
 - **What:** the paper's §25 lists 17 open decisions. The documentation task
   requires licensing, code of conduct and signing-key ownership as well.
 - **Resolution:** D-01–D-17 mirror §25; D-18–D-20 are added from §18 and
-  §28.4.4. D-18 is accepted; D-19 was rejected after the owner deleted the code
-  of conduct; D-20 remains `proposed`. This is a documentation reconciliation,
+  §28.4.4; D-21–D-26 record the diagnostic, splash, outer-volume and bootloader
+  recovery decisions. D-18 and D-20 are accepted; D-19 was rejected after the
+  owner deleted the code of conduct. This is a documentation reconciliation,
   not a new product decision.
 - **Affected docs:** this file, `agents.md`, `goals.md`.
 
@@ -634,17 +669,17 @@ not authorize a product change.
   permissive docs license would be a new owner decision.
 - **Affected docs:** `LICENSE`, `NOTICE`, `CONTRIBUTING.md`, `docs/README.md`.
 
-### C-10 — D-02 says previous GOOD, but the frozen format has one image path
+### C-10 — D-02 previous-GOOD wording vs one image path
 
-- **What:** D-02 selects the previous `GOOD` boot-state slot after a failed
-  newest slot, but `LOADER.md` defines only `/.helikon/firmware.img` and
-  `/.helikon/firmware.manifest`. A previous slot cannot name a different image
-  file, so the bootloader can validate metadata but cannot boot a previous image.
-- **Status:** open design gap. The loader fails closed when the selected slot
-  does not match the current manifest/image. Do not claim working A/B fallback.
-  Resolve with two fixed image paths or an update rollback writer.
+- **What:** D-02 originally said the bootloader selects the previous `GOOD` slot
+  after a failed newest slot, but `LOADER.md` defines only one manifest/image
+  path. A previous slot cannot name a different image file.
+- **Resolution (owner, 2026-11-04):** the single-image, fail-closed model is
+  accepted. There is no A/B fallback. A failed or mismatched slot produces a
+  recovery screen and no jump; recovery is through DFU/Apple restore. T-050 is
+  closed as an explicit no-A/B decision.
 - **Affected docs:** `bootloader/LOADER.md`, `bootloader/LOADER_TEST.md`,
-  `docs/state.md`, `docs/tasks.md`.
+  `docs/state.md`, `docs/tasks.md`, `docs/architecture.md`.
 
 ## Adding a decision
 

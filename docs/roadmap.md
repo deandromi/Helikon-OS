@@ -15,7 +15,7 @@ agreed.
 
 | Phase | Deliverable | Exit criteria | Dependencies | Status |
 |---:|---|---|---|---|
-| 0 | Rescue bootloader + native HFS+ read-only firmware skeleton | Boots, loads a verified image, Apple NOR path intact, recovery menu, zero filesystem writes; volume hash unchanged | Toolchain/donor build; backup/recovery; D-01/D-02 manifest/boot-state design | `planned` |
+| 0 | Rescue bootloader + native HFS+ read-only firmware skeleton | Boots, loads a verified image, Apple NOR path intact, zero filesystem writes; volume hash unchanged. No in-bootloader recovery menu (D-26); native Menu+Play and DFU cover recovery | Toolchain/donor build; backup/recovery; D-01/D-02 manifest/boot-state design | `planned` |
 | 1 | Read-only player: HAL, HFS+ read, audio, minimal UI | Plays music, browses the library, survives reboot, volume hash unchanged; unsupported files report a reason | Phase 0; HFS+ reader port; audio/UI bring-up | `planned` |
 | 2 | Native HFS+ write prototype on a non-journaled disposable volume | Create/write/rename/delete/mkdir/truncate; `fsck_hfs` zero repairs; macOS mounts and sees the same tree; reboot preserves it | Phase 1; D-03/D-04 recorded; T-002/T-004/T-003; writer design | `planned` |
 | 3 | Journaled HFS+ write engine | Journal append/replay; power-cut matrix; idempotent replay; `fsck_hfs` zero repairs | Phase 2; journal design; battery/charger gate; crash rig | `planned` |

@@ -36,9 +36,11 @@ The bootloader verifies before jumping. A bad magic, board, version, load
 address, size, hash or signature is rejected; the previous verified image stays
 bootable.
 
-**Status:** D-01 accepts Ed25519 signed manifests. Key storage, rotation,
-revocation, recovery and ownership remain D-20. No production key is chosen.
-Never commit a private key, token, recovery phrase or signing secret.
+**Status:** D-01 accepts Ed25519 signed manifests and D-20/ADR-0002 accepts an
+offline Ed25519 root on two hardware tokens plus a certified release key, with
+rotation, revocation and lost-key recovery. No release key has been generated
+yet; the certificate/revocation verifier is T-053. Never commit a private key,
+token, recovery phrase or signing secret.
 
 ## 3. Staging and verification
 
@@ -70,8 +72,9 @@ Rollback rules:
 - The Apple NOR path and DFU recovery are preserved. `--single` is never used.
 - No auto-format, no journal deletion, no metadata "repair".
 
-**Status:** D-02 accepts the two-slot read-only boot state. D-16 (update
-transport) remains open.
+**Status:** D-02 accepts the two-slot read-only boot state. The owner accepts a
+single-image fail-closed model with no A/B rollback (T-050 closed); recovery is
+DFU/Apple restore. D-16 (update transport) remains open.
 
 ## 5. Bootloader updates
 
@@ -94,7 +97,8 @@ Not chosen. The release policy must eventually state:
 
 Until the owner records this, do not promise a support window. The license
 (GPL-2.0-or-later) is settled; no code of conduct is currently adopted.
-Signing-key ownership and support terms are not. See D-20.
+Signing-key ownership is accepted (D-20); support terms are not. See D-20 and
+[`adr/0002-signing-key-ownership.md`](adr/0002-signing-key-ownership.md).
 
 ## 7. Release-note requirements
 
@@ -108,7 +112,7 @@ Every release note must state:
 - known limitations and unproven goals;
 - `fsck_hfs`/validation results, or "not run";
 - rollback/recovery instructions;
-- whether the release is signed and by which key (once D-20 is settled).
+- whether the release is signed and by which certified release key ID.
 
 No marketing claims. No battery/RAM/frame-time number without method and runs. No
 "host tests passed" presented as hardware validation. No hidden unexecuted gate.
@@ -129,8 +133,9 @@ No marketing claims. No battery/RAM/frame-time number without method and runs. N
 
 ## 9. Open items and completed follow-ups
 
-- **TODO (owner):** choose key ownership/custody (D-20); D-01 already accepts
-  Ed25519 signed manifests.
+- **TODO (owner/release):** generate the first offline root/release keys and
+  record fingerprints and certificate validity; implement the certificate and
+  revocation verifier (T-053).
 - **TODO (owner):** choose update transport (D-16) and support window.
 - **DONE:** license (GPL-2.0-or-later) is adopted; keep `LICENSE` and `NOTICE`
   current. No code of conduct is currently adopted (D-19 rejected).

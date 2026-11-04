@@ -53,6 +53,9 @@ Rules:
 - A development-only manifest is accepted only by a development bootloader; it
   is never release-eligible.
 - `key ID` is resolved through the public-key table; unknown IDs fail closed.
+  The current test image uses a build-local test-key table. The accepted D-20
+  policy is an offline Ed25519 root plus a certified release key; the
+  certificate/revocation verifier is T-053 and is not in the test image.
 - A bad magic, version, board, image version, load address, size, hash,
   signature, key ID or flag is a hard failure. Do not fall through to an
   unsigned image.
@@ -88,12 +91,12 @@ Selection:
 5. Missing/corrupt/board-mismatch state falls back to the default image and
    button-selected recovery. The bootloader never writes the state file.
 
-**Current limit.** The frozen format has one image path, not per-slot paths.
-The loader validates the selected `GOOD` slot against `/.helikon/firmware.img`
-and the manifest; a previous slot that names a different image fails closed
-rather than loading unverified bytes. Booting a previous image therefore needs
-either two fixed image paths or an update rollback writer. This is an open
-design item; it is not a claim that D-02 A/B fallback is complete.
+**Owner decision (2026-11-04).** The frozen format has one image path, not
+per-slot paths. The loader validates the selected `GOOD` slot against
+`/.helikon/firmware.img` and the manifest. A failed or mismatched slot fails
+closed: no jump and a recovery screen, with DFU/Apple restore as the recovery
+path. There is **no A/B rollback** and no two-path implementation (T-050 is
+closed as an explicit no-A/B decision).
 
 ## 4. Boot flow
 

@@ -36,7 +36,7 @@ greenfield design, not a working firmware release.
 - **Defining promise:** native HFS+ is writable through a real transaction
   engine. There is no namespace overlay and no FAT mount.
 - **Project policies:** license GPL-2.0-or-later. No code of conduct is
-  currently adopted. Signing-key ownership remains open (D-20).
+  currently adopted. Signing-key ownership is accepted (D-20/ADR-0002).
 
 Never describe Helikon-OS as implemented, working, validated, or supported on a
 device. Use `planned`, `in progress`, `unproven`, `implemented` or `rejected` as
@@ -314,8 +314,9 @@ do not format, erase or delete the journal.
 
 ## 8. Release policy
 - Channels: **stable**, **beta**, **development**.
-- Firmware images and manifests are signed. D-01 accepts Ed25519; key ownership
-  and custody remain open in D-20.
+- Firmware images and manifests are signed. D-01 accepts Ed25519 and D-20
+  accepts an offline root plus certified release key; certificate verification
+  is T-053.
 - Firmware is staged under `/.helikon/update/` through the HFS+ transaction
   engine, flushed, read back and verified.
 - The bootloader verifies before jumping and keeps the previous verified image
@@ -347,7 +348,7 @@ Record the exact error, stage, device state and what was not attempted.
 Full entries and status are in `docs/decisions.md`.
 
 **Settled:** D-01 Ed25519-signed firmware manifest, D-02 two-slot boot state
-with read-only bootloader fallback, D-03 journaled writes (non-journaled
+with single-image fail-closed recovery, D-03 journaled writes (non-journaled
 prototype disposable-only), D-04 Helikon-OS-owned replay, D-06 Apple
 FastUnicodeCompare and HFS+
 normalization with generated Unicode 2.1.9 tables, D-17 product name
@@ -364,7 +365,7 @@ D-07 database location · D-08 app/game runtime · D-09 desktop app transport ·
 D-10 skin compatibility scope · D-11 anti-corruption scope · D-12 battery
 target · D-13 7G and port scope ·
 D-14 car protocol · D-15 theme format · D-16 update transport · D-17 name
-clearance · D-20 signing-key ownership.
+clearance.
 
 ## 11. Handoff protocol
 1. Read `docs/state.md` and `docs/tasks.md` before starting.

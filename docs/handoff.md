@@ -11,7 +11,7 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
-# Handoff — 2026-11-04 (loader test image builds)
+# Handoff — 2026-11-04 (loader test image passes)
 
 ## What happened
 
@@ -59,21 +59,26 @@ file grows. Do not rely on chat history for current state.
   separator at/after the parent and skipped a shared leaf. `3979de6f…` uses the
   last separator below the parent.
 - Owner report 2026-11-04 on `3979de6f…`: everything works, very fast and
-  consistent. This closes the T-049 test-image scope. Exact boot time and
-  post-run `fsck_hfs` remain to record; the production handoff is still
-  disabled.
+  consistent, startup 6.5 s. This closes the T-049 test-image scope. Post-run
+  `fsck_hfs` remains to record; the production handoff is still disabled.
+- D-20/ADR-0002 option A is accepted and T-006 is closed: offline Ed25519 root
+  on two hardware tokens, certified release key, rotation/revocation/recovery.
+  The certificate verifier and first release key are T-053; no release signing
+  is claimed.
+- T-050 is closed by owner decision: single-image fail-closed, no A/B rollback.
+  D-26 removes the in-bootloader OF/recovery menu; native Menu+Play and DFU are
+  the recovery paths.
 
 ## What is next
 
-1. Record exact boot time and post-run `fsck_hfs -fn` for `3979de6f…`; remove
-   the temporary bottom stage line and rebuild the clean splash.
-2. T-051: build the production firmware handoff and recovery menu. The current
-   image executes a signed 12-byte test payload and disables production
-   handoff.
-3. T-050: resolve the D-02 A/B gap (single image path cannot boot a previous
-   GOOD slot). See C-10.
-4. T-006/D-20: signing-key ownership remains the P0 owner/legal decision. The
-   test key is not a release key.
+1. Record post-run `fsck_hfs -fn` for `3979de6f…`; remove the temporary bottom
+   stage line when the owner's final splash designs arrive.
+2. T-051: build the production firmware handoff. It needs a real signed firmware
+   image for end-to-end device validation; no OF/recovery menu (D-26). The
+   current image executes a signed 12-byte test payload.
+3. T-053: implement the root/release-key certificate, rotation and revocation
+   verifier. Generate the first release key only in the offline ceremony.
+4. T-052: reduce the 6.5 s startup toward 2–3 s later; not a T-051 blocker.
 5. Rebuild the inner-image and outer-volume diagnostics from current source
    before another device run; their tested artifacts predate the T-034/T-010
    fixes.
@@ -81,8 +86,9 @@ file grows. Do not rely on chat history for current state.
 ## Do not claim
 
 - No firmware boot, kernel, audio, UI or writable HFS+ from the loader test.
-- No working A/B fallback until T-050 closes C-10.
-- No release signature or support claim; D-20 is open.
+- No A/B rollback; the owner accepted single-image fail-closed (T-050).
+- No release signature, release key or support claim; D-20 is accepted but the
+  certificate verifier and a real signed release image are not implemented.
 
 ---
 

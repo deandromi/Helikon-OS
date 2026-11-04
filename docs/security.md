@@ -22,13 +22,16 @@ compromised.
 
 ## 2. Signing keys and ownership
 
-- D-01 accepts Ed25519-signed manifests. Key custody, rotation, revocation,
-  escrow and the release custodian are still open (D-20).
+- D-01 accepts Ed25519-signed manifests and D-20/ADR-0002 accepts an offline
+  Ed25519 root on two hardware tokens plus a certified release key. Rotation,
+  revocation and lost-key recovery are defined; the certificate verifier is
+  T-053.
 - The host loader and the DFU-only loader test image implement Ed25519
-  verification with public keys only; there is no release key yet.
+  verification with public keys only. The current image uses a build-local test
+  key; it is not release-eligible. No release key has been generated yet.
 - A release process must not depend on one person's laptop or an unpublished key.
-- Prefer an offline signing ceremony and a hardware token once the owner defines
-  the policy.
+- The accepted policy uses two offline hardware tokens for the root and an
+  offline release machine for the certified release key.
 - A lost key must not brick a device; Apple/DFU recovery remains available.
 - Never embed a private key in firmware, host tools, CI, docs or tests.
 
