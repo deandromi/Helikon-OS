@@ -3,7 +3,7 @@
 > Purpose: map “I need to change X” to the owning file or module.
 > Status: living document
 > Owner: architecture; each module owner
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: repository inspection; design paper §3, §8–§19, Appendices A/B
 
 **Early host code exists.** The HFS+ read core and a read-only diagnostic
@@ -30,13 +30,26 @@ Helikon-OS/
   bootloader/
     README.md               diagnostic bootloader scope, build and limits
     DFU.md                  backup, manual SHA-256, DFU install and recovery
+    LOADER.md               manifest/boot-state format, loader flow and limits
+    LOADER_TEST.md          DFU-only loader test-image runbook
     diagnostics.c/.h        read-only volume/catalog/file diagnostic
     report.c/.h             on-screen report formatter
     splash.c/.h             320×240 1-bit splash data and Rockbox packing
+    sha256.c/.h             SHA-256 for manifest/image verification
+    manifest.c/.h           signed manifest parser and split verifier
+    bootstate.c/.h          two-slot boot-state parser/selector
+    ed25519.c/.h            verification-only TweetNaCl derivative
+    keys.c/.h               public-key table and signature-hook adapter
+    firmware_loader.c/.h    read-only manifest/image/bootstate loader
+    hfs_loader.c/.h         HFS+ file-read adapter for the loader
+    loader_error.c/.h       loader error taxonomy
     hardware/
       README.md             donor integration notes
       helikon_diag_hw.c     ATA read callback, partition scan, splash/report
       donor-bootloader.patch  removes the firmware-loading path, wires the diag
+      helikon_loader_hw.c   loader test-image ATA/HFS/splash/jump glue
+      helikon_build_keys.h  generated public-key table declaration
+      donor-loader.patch    separate loader test-image donor integration
     artifacts/
       README.md             image hash, provenance and evidence status
       bootloader-ipod6g.ipod  built diagnostic image (unproven on hardware)
@@ -110,6 +123,7 @@ Helikon-OS/
       test_inner_image.c    inner-image extent mapping/metadata guard tests
       test_loader.c         manifest, SHA-256, bootstate and loader tests
       test_loader_hfs.c     HFS+ file-read adapter tests
+      test_ed25519.c        RFC 8032, 192-byte and key-table tests
   docs/
     README.md               documentation index and reading order
     state.md                current phase and blockers
@@ -161,6 +175,8 @@ firmware/
   diagnostics/              events, counters, recovery screens
 tools/
   build-diagnostic-bootloader.sh  pinned donor export, patch, Thumb build, checks
+  build-loader-bootloader.sh      loader test image, test key/manifest/payload, checks
+  check-loader-artifact.sh        HFS+ host verification of the generated artifact
   build-write-diagnostic-bootloader.sh  separate inner-image write-diagnostic build
   build-outer-diagnostic-bootloader.sh  separate outer-volume write-diagnostic build
   make-write-diag-image.sh  create the disposable inner HFS+ image
@@ -216,6 +232,8 @@ is created; do not let it drift.
 | `firmware/usb/` | Read-only LUN, descriptors, optional service mode | USB lead | paper §16, D-09 | read-only mount, descriptor/error tests | No filesystem writes; no writable mass-storage LUN; RAM-only relabel |
 | `firmware/diagnostics/` | Events, counters, recovery | diagnostics lead | paper §11.2, `docs/failures.md` | log/export tests | Do not write logs on a failing filesystem; bounded RAM ring |
 | `tools/build-diagnostic-bootloader.sh` | Render the diagnostic image from a pinned donor checkout | boot/release lead | D-21, `bootloader/README.md` | Thumb build, `MOVE_AREA`, hash, `mks5lboot` dry-run | Uses a clean `git archive`; never modifies the donor checkout; image is unproven |
+| `tools/build-loader-bootloader.sh` | Render the DFU-only loader test image and signed test files | boot lead | D-01, D-02, T-049, `bootloader/LOADER_TEST.md` | test key reuse, manifest signature, image/marker/`MOVE_AREA`, HFS+ artifact check, `mks5lboot` dry-run | Test key stays under `build/`; only the public half is linked; no device run; production handoff disabled |
+| `tools/check-loader-artifact.sh` | Verify the exact loader test artifact through the host HFS+ core | boot lead | T-049 | disposable HFS+ image, `fsck_hfs`, `loader: OK`, `bootstate: GOOD` | Host-only; never touches a device |
 | `tools/render-ui-mockup.py` | Host 320×240 typography mockups | UI lead | `docs/ui.md`, `assets/fonts/README.md` | image is 320×240 grayscale; text fits | Host artifact only; not a device panel run |
 | `tools/hfsplus/` | Host inspector, fixtures, tests | test lead | paper §8, §17, donor `tools/hfsplus` | host tests, sanitizer | Donor code is reference; do not modify donor; no device claims |
 | `tools/db/` | Host database builder | database lead | paper §12, §28.4.1 | 10k-track parity | No on-device claim without device evidence |

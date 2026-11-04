@@ -11,6 +11,60 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-04 (loader test image builds)
+
+## What happened
+
+- Replaced the full TweetNaCl drop with `bootloader/ed25519.c`, a
+  verification-only CC0 derivative. It has no key generation, signing or random
+  source. RFC 8032 vectors, a fixed 192-byte manifest-length vector and tamper
+  cases pass.
+- Added `bootloader/keys.c` (public-key table) and refactored the loader so the
+  Ed25519 signature is verified **before any image byte is read**; SHA-256 and
+  size are checked after the read.
+- Added a separate DFU-only loader test image:
+  `build/loader-bootloader/out/bootloader-ipod6g-loader-test.ipod`
+  (76,584 bytes, SHA-256 `09ea9cc4…`, `MOVE_AREA` headroom 52,448 bytes). It
+  reads `/.helikon/firmware.manifest|img` and `bootstate`, verifies the signed
+  manifest, reads the image directly to its signed DRAM address, executes a
+  signed 12-byte ARM payload returning `HELO`, and disables production handoff.
+- Added `tools/build-loader-bootloader.sh` (generated test key under `build/`,
+  never committed; signed manifest/bootstate; `mks5lboot` dry run) and
+  `tools/check-loader-artifact.sh` (exact generated files through the host HFS+
+  core). Both pass.
+- Added `bootloader/LOADER_TEST.md` with DFU-only install, expected screen, pass
+  criteria, recovery and the no-firmware-boot limit.
+
+## Evidence
+
+- `make -C tests/bootloader test`: 31 tests; `sanitize` clean.
+- `make -C tests/image loader-test`: real generated Ed25519 key, `loader: OK`,
+  `bootstate: GOOD`; wrong key and unknown key ID rejected.
+- `./tools/build-loader-bootloader.sh`: image/DFU dry run; exact artifact check
+  passes; `fsck_hfs -fn` clean on the disposable volume.
+- No device run. The test image is `unproven`.
+
+## What is next
+
+1. Install the loader test image through DFU using `LOADER_TEST.md`; record the
+   screens and post-run `fsck_hfs -fn` in `docs/device-matrix.md`. This is the
+   only missing T-049 evidence.
+2. T-050: resolve the D-02 A/B gap (single image path cannot boot a previous
+   GOOD slot). See C-10.
+3. T-006/D-20: signing-key ownership remains the P0 owner/legal decision. The
+   test key is not a release key.
+4. Rebuild the inner-image and outer-volume diagnostics from current source
+   before another device run; their tested artifacts predate the T-034/T-010
+   fixes.
+
+## Do not claim
+
+- No firmware boot, kernel, audio, UI or writable HFS+ from the loader test.
+- No working A/B fallback until T-050 closes C-10.
+- No release signature or support claim; D-20 is open.
+
+---
+
 # Handoff — 2026-11-04 (outer-volume test passed on the 6G)
 
 ## What happened

@@ -62,14 +62,14 @@ int helikon_manifest_parse(const uint8_t *data, size_t length,
     return HELIKON_LOADER_OK;
 }
 
-int helikon_manifest_verify(const uint8_t *data, size_t length,
-                            uint32_t expected_board, const uint8_t *image,
-                            size_t image_length, int allow_development,
-                            helikon_signature_verify_fn verify,
-                            void *verify_context,
-                            struct helikon_manifest *manifest)
+int helikon_manifest_verify_signature(const uint8_t *data, size_t length,
+                                      uint32_t expected_board,
+                                      int allow_development,
+                                      helikon_signature_verify_fn verify,
+                                      void *verify_context,
+                                      struct helikon_manifest *manifest)
 {
-    if (data == NULL || image == NULL || manifest == NULL)
+    if (data == NULL || manifest == NULL)
         return HELIKON_LOADER_ERR_ARGUMENT;
 
     struct helikon_manifest parsed;
@@ -84,21 +84,30 @@ int helikon_manifest_verify(const uint8_t *data, size_t length,
         if (!allow_development)
             return HELIKON_LOADER_ERR_FLAGS;
     }
-    if (image_length != parsed.image_size)
-        return HELIKON_LOADER_ERR_SIZE;
-
-    uint8_t digest[HELIKON_SHA256_SIZE];
-    helikon_sha256(image, image_length, digest);
-    if (memcmp(digest, parsed.image_sha256, sizeof(digest)) != 0)
-        return HELIKON_LOADER_ERR_HASH;
 
     if (verify == NULL)
         return HELIKON_LOADER_ERR_SIGNATURE;
-    rc = verify(verify_context, parsed.key_id, data, HELIKON_MANIFEST_SIGNED_SIZE,
-                parsed.signature, sizeof(parsed.signature));
+    rc = verify(verify_context, parsed.key_id, data,
+                HELIKON_MANIFEST_SIGNED_SIZE, parsed.signature,
+                sizeof(parsed.signature));
     if (rc != 0)
         return HELIKON_LOADER_ERR_SIGNATURE;
 
     *manifest = parsed;
+    return HELIKON_LOADER_OK;
+}
+
+int helikon_manifest_verify_image(const struct helikon_manifest *manifest,
+                                  const uint8_t *image, size_t image_length)
+{
+    if (manifest == NULL || image == NULL)
+        return HELIKON_LOADER_ERR_ARGUMENT;
+    if (image_length != manifest->image_size)
+        return HELIKON_LOADER_ERR_SIZE;
+
+    uint8_t digest[HELIKON_SHA256_SIZE];
+    helikon_sha256(image, image_length, digest);
+    if (memcmp(digest, manifest->image_sha256, sizeof(digest)) != 0)
+        return HELIKON_LOADER_ERR_HASH;
     return HELIKON_LOADER_OK;
 }

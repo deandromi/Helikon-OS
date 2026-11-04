@@ -26,3 +26,4 @@ tests/image/outer_diag_host
 tests/image/loader_host
 tests/bootloader/test_loader
 tests/bootloader/test_loader_hfs
+tests/bootloader/test_ed25519

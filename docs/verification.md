@@ -3,7 +3,7 @@
 > Purpose: per-change proof checklist and evidence template.
 > Status: living document
 > Owner: change author; reviewer verifies
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: design paper §24, §26.12, §27, §28.6
 
 **No claim without evidence.** A change is not verified because it compiles,
@@ -68,6 +68,8 @@ make -C tests/image crash-test
 make -C tests/image write-diag-test
 make -C tests/image outer-diag-test
 make -C tests/image loader-test
+./tools/build-loader-bootloader.sh
+./tools/check-loader-artifact.sh
 ```
 
 Record the exact command, toolchain version and commit. Do not copy donor

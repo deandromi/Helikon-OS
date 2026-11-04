@@ -3,7 +3,7 @@
 > Purpose: documentation index and reading order.
 > Status: living document
 > Owner: docs lead
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: `agents.md`, root `README.md`, design paper
 
 Helikon-OS is a **design-stage** project to build a native-HFS+ bootloader and
@@ -108,6 +108,7 @@ status.
 | [`../bootloader/WRITE_DIAG.md`](../bootloader/WRITE_DIAG.md) | Separate inner-image write diagnostic and PMU-cut runbook. | living |
 | [`../bootloader/OUTER_DIAG.md`](../bootloader/OUTER_DIAG.md) | Separate outer-volume write diagnostic runbook and backup gate. | living |
 | [`../bootloader/LOADER.md`](../bootloader/LOADER.md) | Firmware manifest, boot-state format and read-only loader flow. | living |
+| [`../bootloader/LOADER_TEST.md`](../bootloader/LOADER_TEST.md) | DFU-only loader test-image runbook, pass criteria and recovery. | living |
 | [`../bootloader/hardware/README.md`](../bootloader/hardware/README.md) | S5L8702/ATA/LCD glue and donor integration patch. | living |
 | [`../bootloader/artifacts/README.md`](../bootloader/artifacts/README.md) | Diagnostic image hash, provenance and evidence status. | living |
 | [`log/README.md`](log/README.md) | What the dated work log is for. | living |

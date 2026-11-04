@@ -12,6 +12,11 @@ if [ "$(uname -s)" != Darwin ]; then
     exit 0
 fi
 
+if ! python3 -c 'import cryptography' >/dev/null 2>&1; then
+    echo "SKIP: Python 'cryptography' is required for the Ed25519 fixture"
+    exit 0
+fi
+
 HERE=$(cd "$(dirname "$0")" && pwd)
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/helikon-loader.XXXXXX")
 IMAGE="$TMP/loader.dmg"
@@ -68,13 +73,20 @@ hdiutil attach -nobrowse -mountpoint "$MOUNT" "$IMAGE" \
     >"$TMP/mount.log" 2>&1 || fail "could not mount the disposable image"
 MOUNTED=1
 mkdir "$MOUNT/.helikon"
-python3 - "$MOUNT/.helikon" <<'PY'
+python3 - "$MOUNT/.helikon" "$TMP/public.txt" <<'PY'
 import hashlib
 import struct
 import sys
 
-base = sys.argv[1]
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+base, public_path = sys.argv[1], sys.argv[2]
 image = bytes((i * 3 + 1) & 0xff for i in range(64))
+key = Ed25519PrivateKey.generate()
+public_key = key.public_key().public_bytes(
+    serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+open(public_path, "w").write(public_key.hex())
 
 manifest = bytearray(256)
 manifest[0:8] = b"HELIKON1"
@@ -85,7 +97,8 @@ struct.pack_into("<I", manifest, 20, 0x08000000)
 struct.pack_into("<I", manifest, 24, len(image))
 struct.pack_into("<I", manifest, 28, 7)      # key ID
 manifest[32:64] = hashlib.sha256(image).digest()
-manifest[192:256] = b"\xa5" * 64
+struct.pack_into("<I", manifest, 64, 0)      # not development-only
+manifest[192:256] = key.sign(bytes(manifest[:192]))
 
 bootstate = bytearray(512)
 slot = bootstate
@@ -109,11 +122,26 @@ hdiutil detach "$MOUNT" >/dev/null 2>&1
 MOUNTED=""
 fsck_image "$IMAGE"
 
-OUT=$("$HERE/loader_host" "$IMAGE") ||
-    fail "the loader rejected a valid fixture"
+PUBLIC=$(cat "$TMP/public.txt")
+OUT=$("$HERE/loader_host" "$IMAGE" "$PUBLIC" 7) ||
+    fail "the loader rejected a valid signed fixture"
 echo "$OUT"
 echo "$OUT" | grep -q '^loader: OK$' || fail "loader did not report OK"
 echo "$OUT" | grep -q '^bootstate: GOOD$' ||
     fail "loader did not select the GOOD bootstate"
 
-echo "PASS: HFS+ firmware loader reads manifest/image/bootstate"
+BAD_PUBLIC=$(python3 - "$PUBLIC" <<'PY'
+import sys
+value = bytearray.fromhex(sys.argv[1])
+value[0] ^= 1
+print(value.hex())
+PY
+)
+if "$HERE/loader_host" "$IMAGE" "$BAD_PUBLIC" 7 >/dev/null 2>&1; then
+    fail "the loader accepted a signature under the wrong key"
+fi
+if "$HERE/loader_host" "$IMAGE" "$PUBLIC" 8 >/dev/null 2>&1; then
+    fail "the loader accepted an unknown key ID"
+fi
+
+echo "PASS: HFS+ firmware loader verifies Ed25519, image and bootstate"

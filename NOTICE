@@ -9,3 +9,10 @@ Rockbox and the donor HFSPlus Rockboxed iPod project are upstream lineage and
 are credited in the design paper and docs/file-map.md. Their copyrights and
 licenses remain with their respective owners. See docs/design-paper.md for the
 source provenance and docs/file-map.md for the component provenance.
+
+bootloader/ed25519.c is a verification-only derivative of TweetNaCl
+(https://tweetnacl.cr.yp.to/), by Daniel J. Bernstein, Bernard van Gastel,
+Wesley Janssen, Tanja Lange, Peter Schwabe and Sjaak Smetsers. TweetNaCl is
+released into the public domain (CC0-1.0). The derivative retains only the
+signature-verification path; it contains no key generation, signing or random
+number source.

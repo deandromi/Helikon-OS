@@ -51,11 +51,14 @@ loader_host: loader_host.c ../../bootloader/firmware_loader.c \
              ../../bootloader/manifest.h ../../bootloader/bootstate.c \
              ../../bootloader/bootstate.h ../../bootloader/sha256.c \
              ../../bootloader/sha256.h ../../bootloader/loader_error.c \
-             ../../bootloader/loader_error.h $(COMMON) $(HEADERS)
+             ../../bootloader/loader_error.h ../../bootloader/ed25519.c \
+             ../../bootloader/ed25519.h ../../bootloader/keys.c \
+             ../../bootloader/keys.h $(COMMON) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) loader_host.c \
 	  ../../bootloader/firmware_loader.c ../../bootloader/hfs_loader.c \
 	  ../../bootloader/manifest.c ../../bootloader/bootstate.c \
 	  ../../bootloader/sha256.c ../../bootloader/loader_error.c \
+	  ../../bootloader/ed25519.c ../../bootloader/keys.c \
 	  $(COMMON) $(LDFLAGS) -o $@
 
 # The shell drivers create their own disposable images. Never point them at a

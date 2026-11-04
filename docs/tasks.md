@@ -13,10 +13,11 @@ P0. Status uses `planned`, `in progress`, `unproven`, `implemented` or
 
 **Priority review, 2026-11-04.** T-048, T-044, T-038, T-034, T-003, T-004 and
 T-010 are closed, D-01/D-02 are accepted, and T-011/T-027 are implemented.
-The active P0 line is **T-049** (bootloader integration) and **T-006** (D-20
-signing-key ownership, owner/legal). The P1 line is T-012 (device inventory),
-T-029 (read-only diagnostic finish) and T-045 (splash); T-041 is implemented.
-T-042/T-013/T-024 are P2.
+The active P0 line is **T-049** (loader test-image device run) and **T-006**
+(D-20 signing-key ownership, owner/legal). T-049's host gates pass and the image
+builds; it is not yet a device run. The P1 line is T-012 (device inventory),
+T-029 (read-only diagnostic finish), T-045 (splash) and T-050 (D-02 A/B path
+gap); T-041 is implemented. T-042/T-013/T-024 are P2.
 
 UI fonts/mockup and the splash must not take device testing time from the
 writer. T-017 is rejected; the journaled writer was implemented directly.
@@ -29,7 +30,7 @@ Bootloader integration and the signing-key decision.
 | ID | Task | Priority | Dependencies | Acceptance criteria | Status | Owner | Links |
 |---|---|---|---|---|---|---|---|
 | T-006 | Record signing-key ownership and release-signing policy (D-20). | P0 | Owner/legal | D-20 is `accepted` with owner, key custody, rotation, revocation, recovery and a date; no release signing before then. ADR-0002 proposes an offline root plus delegated release key; owner decision pending. | `in progress` | owner/legal | [decisions.md](decisions.md#d-20--signing-key-ownership), [release.md](release.md), [security.md](security.md) |
-| T-049 | Integrate the verified loader into a read-only firmware-loading bootloader image. | P0 | T-027, D-01, D-02, T-029 | Bootloader reads `/.helikon/firmware.manifest`, `/.helikon/firmware.img` and `/.helikon/bootstate`; verifies signature/hash/board before copying to DRAM; jumps only to a verified image; falls back visibly on failure; no filesystem writes; host tests and a recorded device run. | `in progress` | boot lead | [LOADER.md](../bootloader/LOADER.md), [architecture.md](architecture.md), [validation.md](validation.md) |
+| T-049 | Integrate the verified loader into a read-only firmware-loading bootloader image. | P0 | T-027, D-01, D-02, T-029 | Separate DFU-only loader test image reads `/.helikon/firmware.manifest`, `/.helikon/firmware.img` and `/.helikon/bootstate`; verifies Ed25519 signature before any image byte, then SHA-256/board/range; reads directly to the signed DRAM address; executes only a signed development payload and disables production handoff; no filesystem writes. Host Ed25519/RFC-8032, loader and HFS+ artifact tests pass; image builds with 52,448 bytes headroom. Remaining: recorded device run and screen/power-off evidence. | `in progress` | boot lead | [LOADER.md](../bootloader/LOADER.md), [LOADER_TEST.md](../bootloader/LOADER_TEST.md), [architecture.md](architecture.md), [validation.md](validation.md) |
 
 ## Next
 
@@ -42,6 +43,7 @@ authorize a library write.
 | T-013 | Define the first-party UI task tests and the 20-skin corpus licence review. | P2 | D-10, D-15 | Five tasks (play, browse, settings, podcast, install) have success criteria; corpus list records licence/source; unsupported-tag report format defined. | `planned` | UI/test lead | [goals.md](goals.md), [validation.md](validation.md) |
 | T-029 | Build and run a hardware-testable diagnostic bootloader image. | P1 | T-028, T-003 | Image built: 67,144 bytes, SHA-256 `280ed7aee5dcf38d1a30470704f91740b299004692c2aebbb21d41744c05f43c`, `_moveend` `0x22030e40`, 61,888 bytes `MOVE_AREA` headroom. First run (`bd0ebc92…`) booted and splashed; volume/catalog PASS, read FAIL `-11`, report formatting corrupt. Fixed image (`280ed7ae…`) rerun: formatting correct, volume/catalog/write/journal/splash/partition correct, read `-8` because `/rockbox.ipod` is not a disk file; no write. Remaining: optional real-file probe, button/power-off record. | `in progress` | boot/release | [DFU.md](../bootloader/DFU.md), [artifact README](../bootloader/artifacts/README.md), [device-matrix.md](device-matrix.md) |
 | T-045 | Design and integrate a new bootloader splash. | P2 | owner design; bootloader display path | Owner-supplied 320×240 splash asset with recorded source/licence; rendering path chosen (1-bit mono or grayscale/colour); bootloader shows it during startup, writes nothing, and still reaches the diagnostic; device evidence recorded. | `planned` | owner/boot | [ui.md](ui.md), [splash.c](../bootloader/splash.c), [branding README](../assets/branding/README.md) |
+| T-050 | Resolve the D-02 A/B image-path gap before claiming rollback. | P1 | D-02, C-10, T-049 | Choose two fixed per-slot manifest/image paths or an update rollback writer; the bootloader can select a verified previous GOOD image without loading an unverified file; tests cover newest-failed fallback, missing previous image and mismatched slot metadata; no bootloader write path. | `planned` | boot lead | [decisions.md](decisions.md#c-10--d-02-says-previous-good-but-the-frozen-format-has-one-image-path), [LOADER.md](../bootloader/LOADER.md) |
 
 ## Done
 

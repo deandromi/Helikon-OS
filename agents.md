@@ -3,7 +3,7 @@
 **Purpose:** working contract and documentation index.
 **Status:** living document; design-stage project. No firmware implementation exists.
 **Owner:** project owner; every agent
-**Last updated:** 2026-11-03
+**Last updated:** 2026-11-04
 **Source:** root `README.md`, `docs/design-paper.md`
 **Entry point:** read this file first, then `docs/README.md`.
 
@@ -18,8 +18,9 @@ greenfield design, not a working firmware release.
 
 - **Design stage:** a host HFS+ read/write core, a read-only diagnostic
   bootloader image, an inner-image write diagnostic and an outer-volume write
-  diagnostic exist. There is no kernel/firmware, firmware-loading bootloader,
-  installer or release artifact. The read-only image has two owner-reported 6G
+  diagnostic exist. There is no kernel/firmware, production firmware-loading
+  bootloader, installer or release artifact. A separate DFU-only loader test
+  image verifies a signed test payload; it does not boot firmware. The read-only image has two owner-reported 6G
   runs; the inner-image write image has one owner-reported 6G run with every
   stage PASS and a clean inner `fsck_hfs`. The outer-volume image is built and
   host-tested but has no device run. These are diagnostic runs, not firmware
@@ -122,6 +123,7 @@ bootloader/               read-only diagnostic and separate write diagnostics
   WRITE_DIAG.md            separate inner-image write diagnostic runbook
   OUTER_DIAG.md            separate outer-volume write diagnostic runbook
   LOADER.md                firmware manifest/boot-state format and loader flow
+  LOADER_TEST.md           DFU-only loader test-image runbook
 firmware/                 host HFS+ read core exists; HAL/VFS/player/UI planned
   hfs/                    HFS+ read core; volume header/journal probe implemented
 tools/                    diagnostic build script; host tools/inspectors planned
@@ -134,8 +136,9 @@ docs/prompts/             reusable task prompts
 `docs/file-map.md` is the authoritative map, including donor files referenced by
 the paper. A directory shown as planned does not exist yet.
 ## 6. Build and test commands
-**No firmware or firmware-loading bootloader can be built yet.** The read-only
-diagnostic bootloader can be built and host-tested:
+**No firmware or production firmware-loading bootloader can be built yet.** The
+read-only diagnostic bootloader and the separate DFU-only loader test image can
+be built and host-tested:
 
 ```sh
 make -C tests/hfsplus test
@@ -147,6 +150,7 @@ make -C tests/image crash-test
 make -C tests/image write-diag-test
 make -C tests/image outer-diag-test
 make -C tests/image loader-test
+./tools/check-loader-artifact.sh
 
 DONOR_DIR=/path/to/hfsplus-rockboxed-ipod \
   ./tools/build-diagnostic-bootloader.sh
@@ -156,17 +160,22 @@ DONOR_DIR=/path/to/hfsplus-rockboxed-ipod \
 
 DONOR_DIR=/path/to/hfsplus-rockboxed-ipod \
   ./tools/build-outer-diagnostic-bootloader.sh
+
+./tools/build-loader-bootloader.sh
 ```
 
 The scripts export the pinned donor commit, apply the corresponding patch,
-build Thumb, check `_moveend` against `MOVE_AREA`, copy the image to
-`bootloader/artifacts/` and print its SHA-256. The read-only image and the
-inner-image diagnostic have owner-reported runs but remain unproven for support;
-the outer-volume image has no device run. A successful link is not a device run.
-The inner-image write diagnostic may write only inside a preallocated
-`helikon-test.img`; see `bootloader/WRITE_DIAG.md`. The outer-volume diagnostic
-writes only `/helikon-outer-test` after the opt-in and full-backup gates in
-`bootloader/OUTER_DIAG.md`; it has no device run. Do not invent firmware
+build Thumb, check `_moveend` against `MOVE_AREA` and print the image SHA-256.
+The diagnostic and write-diagnostic scripts copy to `bootloader/artifacts/`.
+The loader test script writes to `build/loader-bootloader/out/` and keeps its
+generated test key under `build/`; only the public key is linked. The read-only
+image and inner-image diagnostic have owner-reported runs; the outer-volume
+image has one owner-reported 6G run (2026-11-04) and remains one device/one
+volume. The loader test image has no device run. A successful link is not a
+device run. The inner-image write diagnostic may write only inside a
+preallocated `helikon-test.img`; see `bootloader/WRITE_DIAG.md`. The outer-volume
+diagnostic writes only `/helikon-outer-test` after the opt-in and full-backup
+gates in `bootloader/OUTER_DIAG.md`; see the recorded run there. Do not invent firmware
 commands, images, test counts or device results. The
 donor repository's commands are reference material only and do not test
 Helikon-OS:

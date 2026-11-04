@@ -3,7 +3,7 @@
 > Purpose: prevent secrets, data loss and unsafe device operations.
 > Status: living document
 > Owner: project owner; security lead
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: design paper §19.3, §20, §28.3.9–10, §28.4.4; root `SECURITY.md`
 
 ## 1. Secrets
@@ -22,8 +22,10 @@ compromised.
 
 ## 2. Signing keys and ownership
 
-- No signing scheme, key, custodian, rotation, revocation or escrow policy is
-  chosen (D-01, D-20).
+- D-01 accepts Ed25519-signed manifests. Key custody, rotation, revocation,
+  escrow and the release custodian are still open (D-20).
+- The host loader and the DFU-only loader test image implement Ed25519
+  verification with public keys only; there is no release key yet.
 - A release process must not depend on one person's laptop or an unpublished key.
 - Prefer an offline signing ceremony and a hardware token once the owner defines
   the policy.
@@ -81,12 +83,17 @@ These are design requirements, not implemented behaviour.
 
 ## 7. Firmware and update trust
 
-These are release requirements, not implemented behaviour.
+Host verification exists; production firmware trust is still a release
+requirement.
 
-- Bootloader verifies magic, board, version, load address, size, SHA-256 and
-  signature before jump.
-- Firmware is staged through the transaction engine and verified before install.
-- A bad image keeps the previous verified image bootable.
+- The loader verifies magic, board, version, load address, size, policy flags
+  and Ed25519 signature before reading any image byte, then verifies SHA-256
+  before jump.
+- Firmware staging through the transaction engine and install verification are
+  not implemented.
+- A bad image does not jump. A previous verified image is bootable only when a
+  per-slot image path exists; the current single-path format fails closed
+  (C-10).
 - Bootloader updates are DFU-only and preserve the Apple NOR path.
 - No unsigned firmware or plugin execution.
 - No debug bypass in a release build.

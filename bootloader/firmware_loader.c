@@ -47,22 +47,26 @@ int helikon_loader_run(helikon_file_read_fn read_file, void *context,
         return rc;
 
     struct helikon_manifest manifest;
-    rc = helikon_manifest_parse(manifest_data, sizeof(manifest_data),
-                                &manifest);
+    rc = helikon_manifest_verify_signature(
+        manifest_data, sizeof(manifest_data), expected_board,
+        allow_development, verify, verify_context, &manifest);
     if (rc != HELIKON_LOADER_OK)
         return rc;
     if (manifest.image_size > image_capacity)
         return HELIKON_LOADER_ERR_BUFFER;
 
+    /*
+     * The signed manifest is verified before any image byte reaches the
+     * destination buffer. The image hash is checked immediately after the
+     * read, before the caller may use the bytes.
+     */
     rc = read_exact(read_file, context, image_path, 0, image_buffer,
                     manifest.image_size);
     if (rc != 0)
         return rc;
 
-    rc = helikon_manifest_verify(manifest_data, sizeof(manifest_data),
-                                 expected_board, image_buffer,
-                                 manifest.image_size, allow_development,
-                                 verify, verify_context, &manifest);
+    rc = helikon_manifest_verify_image(&manifest, image_buffer,
+                                       manifest.image_size);
     if (rc != HELIKON_LOADER_OK)
         return rc;
 
@@ -75,12 +79,15 @@ int helikon_loader_run(helikon_file_read_fn read_file, void *context,
         uint8_t bootstate_data[HELIKON_BOOTSTATE_SIZE];
         rc = read_exact(read_file, context, bootstate_path, 0,
                         bootstate_data, sizeof(bootstate_data));
-        if (rc == HELIKON_LOADER_ERR_NOT_FOUND) {
+        if (rc != 0) {
+            /*
+             * Boot state is advisory. A missing, truncated or unreadable file
+             * falls back to the already verified default image. It is never a
+             * bootloader write path.
+             */
             result->bootstate_valid = 0;
             return HELIKON_LOADER_OK;
         }
-        if (rc != 0)
-            return rc;
 
         struct helikon_bootstate bootstate;
         rc = helikon_bootstate_parse(bootstate_data, sizeof(bootstate_data),

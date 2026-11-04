@@ -2,10 +2,10 @@
 
 > Purpose: read-only HFS+ diagnostics and the 320×240 splash for the first
 > bootloader screen.
-> Status: **image built; unproven on hardware.** Not a release and not a
-> firmware loader.
+> Status: **diagnostic image built and unproven; loader test image built and
+> unproven.** Not a release and not a firmware loader.
 > Owner: boot lead
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: design paper §5, §24, §27; `docs/state.md`; D-21
 
 ## Firmware-loading loader (host core)
@@ -14,14 +14,20 @@ The production firmware-loading bootloader is separate from this read-only
 diagnostic image. The host core now implements:
 
 - `sha256.c` — image hashing;
-- `manifest.c` — Ed25519-signed manifest parsing/verification (signature hook);
+- `manifest.c` — manifest parsing and split verification; the signature is
+  checked before any image byte is read;
 - `bootstate.c` — two-slot boot-state selection;
+- `ed25519.c` — verification-only TweetNaCl 20140427 derivative, CC0, no key
+  generation/signing/random source (RFC 8032 tested; see `NOTICE`);
+- `keys.c` — public-key table and signature-hook adapter;
 - `firmware_loader.c` — read-only manifest/image/bootstate loader;
 - `hfs_loader.c` — HFS+ file-read adapter.
 
-Formats and paths are fixed in [`LOADER.md`](LOADER.md). The host tests and the
-macOS HFS+ loader fixture pass. The bootloader **image** integration and jump are
-T-049; no firmware image exists, so no device boot is claimed.
+Formats and paths are fixed in [`LOADER.md`](LOADER.md). The host tests, the
+macOS HFS+ fixture and the exact-artifact check pass. A separate DFU-only
+[`LOADER_TEST.md`](LOADER_TEST.md) image builds and executes a signed test
+payload; production handoff is disabled. No firmware image exists and no device
+run is recorded, so no firmware boot is claimed.
 
 ## What this is
 

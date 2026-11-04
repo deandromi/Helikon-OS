@@ -79,7 +79,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
 | Default UI typography | `in progress` | D-23/D-24 and `docs/ui.md` record the 14/17/12/11 px scale and grayscale anti-aliasing. Licensed IBM Plex Sans and Manrope subsets, OFL texts, hashes and two 320×240 host mockups are in `assets/fonts/` and `assets/ui/`; `tools/render-ui-mockup.py` reproduces them with clipping checks. Firmware renderer and 6G panel run remain T-042 |
 | Bootloader splash redesign | `planned` | Current splash is the owner-supplied 320×240 1-bit image; owner will design a new splash (T-045). Rendering path and licence/source are open |
-| Host test harness | `in progress` | 126 portable tests (101 HFS+, 25 bootloader), sanitizer clean, plus the macOS disposable-image, Unicode, crash-injection, inner-image, outer-volume and loader tests; fixture plan in `fixtures.md`; first diagnostic boot is owner-reported |
+| Host test harness | `in progress` | 132 portable tests (101 HFS+, 31 bootloader), sanitizer clean, plus the macOS disposable-image, Unicode, crash-injection, inner-image, outer-volume and loader tests; fixture plan in `fixtures.md`; first diagnostic boot is owner-reported |
 | Backup/recovery protocol | `implemented` | Full-volume backup, read-back, disposable restore rehearsal and Apple-restore/DFU path owner-confirmed 2026-11-04; protocol and stop conditions in `outer-volume-test.md` |
 | Fixture plan | `implemented` | `docs/fixtures.md` lists synthetic reader/journal/B-tree/catalog/extents/bitmap/Unicode fixtures, disposable-image writer fixtures and write/flush/partial crash fixtures; no disk images committed |
 
@@ -88,10 +88,11 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Item | Status | Note |
 |---|---|---|
 | Helikon-OS firmware source tree | `in progress` | Host HFS+ read core, diagnostic bootloader, host write diagnostics and host firmware loader exist; no kernel, VFS or player |
-| Host firmware loader | `implemented` | `bootloader/manifest.c`, `bootstate.c`, `sha256.c`, `firmware_loader.c` and `hfs_loader.c`; manifest/bootstate formats are frozen in `bootloader/LOADER.md`; 11 manifest/loader tests, 2 HFS adapter tests and a macOS HFS+ loader fixture pass. No jump and no writes |
-| Helikon-OS firmware-loading bootloader | `in progress` | Host loader exists; the diagnostic image still does not load firmware. T-049 integrates the loader into a read-only bootloader image; T-006/D-20 still owns signing keys |
+| Host firmware loader | `implemented` | `bootloader/manifest.c`, `bootstate.c`, `sha256.c`, `ed25519.c`, `keys.c`, `firmware_loader.c` and `hfs_loader.c`; formats frozen in `bootloader/LOADER.md`. Signature is verified before any image byte; then SHA-256 and bootstate. 13 manifest/loader tests, 2 HFS adapter tests, 4 Ed25519/key-table tests and a macOS HFS+ fixture with a real generated key pass. No jump and no writes |
+| Helikon-OS firmware-loading bootloader | `in progress` | Host loader exists and the separate DFU-only loader test image builds (76,584 bytes, 52,448 bytes `MOVE_AREA` headroom). It verifies Ed25519 before reading the image, reads directly to the signed DRAM address, executes only a signed development payload and disables production handoff. No device run; T-006/D-20 still owns signing keys |
 | Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; separate inner-image and outer-volume write diagnostics built; none loads firmware. The inner image has one owner-reported run; the outer image has one successful 6G run |
-| Bootloader manifest/boot state | `implemented` | Formats frozen in `bootloader/LOADER.md`; host parser/verifier/selector and HFS loader tested; bootloader-image integration is T-049 |
+| Loader test image | `unproven` | `build/loader-bootloader/out/bootloader-ipod6g-loader-test.ipod` builds (76,584 bytes, 52,448 bytes headroom) and passes host/DFU dry-run gates; it executes a signed 12-byte ARM payload, not firmware. No device run is recorded |
+| Bootloader manifest/boot state | `implemented` | Formats frozen in `bootloader/LOADER.md`; host parser/verifier/selector, real Ed25519 and HFS loader tested; loader test image built but no device run. D-02 A/B fallback still has the single-image-path gap (C-10) |
 | VFS, player, UI, database | `planned` | No implementation |
 | HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete/growth/deep delete/in-place update, fork staging, file/folder create/delete/rename, multi-extent/overflow data append/truncate, FastUnicodeCompare, HFS+ normalization, metadata policy and disposable-image `fsck_hfs` validation exist. One outer-volume 6G run passed; D-05 cache limits, broader fuzzing, timing and the device power-cut/adapter matrix remain |
 | Journal replay on a real dirty volume | `unproven` | Replay is host-tested on synthetic journals; no macOS-created dirty volume or device run |
@@ -193,8 +194,8 @@ The writer interface and failure model are frozen in
 probe is intentionally skipped; `-8` is correct because `/rockbox.ipod` is not a
 disk file on this iPod.
 
-The active P0 line is **T-049** (integrate the host loader into a bootloader
-image) and **T-006** (D-20 signing-key ownership, owner/legal). D-01/D-02 and
+The active P0 line is **T-049** (record a device run of the loader test image)
+and **T-006** (D-20 signing-key ownership, owner/legal). D-01/D-02 and
 T-011/T-027 are accepted/implemented; the proposed key scheme is in
 [`adr/0002-signing-key-ownership.md`](adr/0002-signing-key-ownership.md). The P1
 line is:
@@ -203,6 +204,7 @@ line is:
 - **T-012** — full 6G model/adapter/battery inventory; backup/restore is done.
 - **T-029** — finish the read-only diagnostic evidence.
 - **T-045** — new splash design and rendering path.
+- **T-050** — resolve the D-02 A/B image-path gap before claiming rollback.
 
 T-042/T-013/T-024 are P2. The fixture plan is in
 [`fixtures.md`](fixtures.md); the writer crash matrix and evidence format are in
@@ -222,7 +224,7 @@ T-042/T-013/T-024 are P2. The fixture plan is in
 | Windows/Linux desktop support | `unproven` | Service-mode transport test; D-09 |
 | Apps/games are safely sandboxed | `unproven` | Adversarial tests; D-08 |
 | Anti-corruption detects injected corruption | `unproven` | Injection test and quarantine report; D-11 |
-| Signed updates reject bad images | `unproven` | Manifest/signature/rollback tests; D-16, D-20 (D-01 accepted) |
+| Signed updates reject bad images | `unproven` | Host Ed25519/manifest tests pass; device update/rollback and key custody remain; D-16, D-20 (D-01 accepted) |
 
 Open questions are tracked in [`decisions.md`](decisions.md). Unknown hardware
 facts must be marked `open question`; do not fill them from memory.

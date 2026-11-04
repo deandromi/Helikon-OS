@@ -3,7 +3,7 @@
 > Purpose: define the test pyramid and the evidence each layer produces.
 > Status: living document
 > Owner: test lead
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: design paper §17, §24, §26, §28; `docs/verification.md`
 
 **Helikon-OS has a small host test tree.** It covers the HFS+ read core, the
@@ -128,13 +128,34 @@ the separate write diagnostic; it is not a device run.
 
 ### 5.4 Firmware-loader host test
 
-`tests/bootloader/test_loader.c` checks SHA-256 vectors, manifest magic/board/
-address/size/hash/signature, the signature hook, missing/corrupt boot state and
-newest-failed fallback. `tests/bootloader/test_loader_hfs.c` checks the HFS+
-file-read adapter. `make -C tests/image loader-test` creates a disposable HFS+
-image with `/.helikon/firmware.manifest`, `firmware.img` and `bootstate`, then
-runs `loader_host` through the HFS+ core and requires `loader: OK` and
-`bootstate: GOOD`. No jump or write is performed.
+`tests/bootloader/test_ed25519.c` checks the RFC 8032 vectors, a fixed 192-byte
+manifest-length vector, tampered signatures, bad arguments and the public-key
+table. `tests/bootloader/test_loader.c` checks SHA-256 vectors, manifest
+magic/board/address/size/hash/signature, a real Ed25519-signed manifest, missing/
+corrupt/truncated boot state and newest-failed fallback.
+`tests/bootloader/test_loader_hfs.c` checks the HFS+ file-read adapter.
+
+`make -C tests/image loader-test` creates a disposable HFS+ image with
+`/.helikon/firmware.manifest`, `firmware.img` and `bootstate`, signs the
+manifest with a generated Ed25519 key, then runs `loader_host` through the HFS+
+core and requires `loader: OK` and `bootstate: GOOD`. It also rejects a wrong
+public key and an unknown key ID. No jump or write is performed.
+
+The loader fixture and the test-image builder require Python `cryptography` for
+Ed25519 key generation and signing. The private test key stays under
+`build/loader-bootloader/`; it is never committed.
+
+The loader test image has two additional gates:
+
+```sh
+./tools/build-loader-bootloader.sh
+./tools/check-loader-artifact.sh
+```
+
+The build checks `MOVE_AREA` headroom, the image marker and the DFU dry run.
+The artifact check installs the exact generated `firmware.img`,
+`firmware.manifest` and `bootstate` into a disposable HFS+ image and verifies
+them through the same HFS+ core. Neither gate is a device run.
 
 ### 5.5 Outer-volume write-diagnostic test
 

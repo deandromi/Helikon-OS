@@ -2,10 +2,12 @@
 /*
  * Host harness for the read-only HFS+ firmware loader. It opens a disposable
  * HFS+ image, reads the manifest/image/bootstate through the HFS+ core and
- * prints the verification result. It never writes the image.
+ * verifies the manifest signature against a public key supplied by the test
+ * driver. It never writes the image.
  */
 #include "firmware_loader.h"
 #include "hfs_loader.h"
+#include "keys.h"
 #include "loader_error.h"
 
 #include <fcntl.h>
@@ -28,23 +30,66 @@ static int read_at(void *context, uint64_t offset, void *buffer, size_t length)
     return done == (ssize_t)length ? 0 : -1;
 }
 
-static int signature_verify(void *context, uint32_t key_id,
-                            const uint8_t *message, size_t message_length,
-                            const uint8_t *signature, size_t signature_length)
+static int nibble(char c)
 {
-    (void)context;
-    (void)message;
-    (void)signature;
-    return key_id == 7 && message_length == HELIKON_MANIFEST_SIGNED_SIZE &&
-           signature_length == HELIKON_MANIFEST_SIGNATURE_SIZE ? 0 : -1;
+    if (c >= '0' && c <= '9')
+        return c - '0';
+    if (c >= 'a' && c <= 'f')
+        return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F')
+        return c - 'A' + 10;
+    return -1;
+}
+
+static int parse_public_key(const char *hex,
+                            uint8_t out[HELIKON_ED25519_PUBLIC_KEY_SIZE])
+{
+    if (strlen(hex) != HELIKON_ED25519_PUBLIC_KEY_SIZE * 2u)
+        return -1;
+    for (size_t i = 0; i < HELIKON_ED25519_PUBLIC_KEY_SIZE; ++i) {
+        int high = nibble(hex[i * 2u]);
+        int low = nibble(hex[i * 2u + 1u]);
+        if (high < 0 || low < 0)
+            return -1;
+        out[i] = (uint8_t)((high << 4) | low);
+    }
+    return 0;
+}
+
+static int parse_u32(const char *text, uint32_t *value)
+{
+    char *end = NULL;
+    unsigned long parsed = strtoul(text, &end, 0);
+    if (end == text || *end != '\0' || parsed > 0xfffffffful)
+        return -1;
+    *value = (uint32_t)parsed;
+    return 0;
 }
 
 int main(int argc, char **argv)
 {
-    if (argc != 2) {
-        fprintf(stderr, "usage: %s IMAGE\n", argv[0]);
+    if (argc != 4 && argc != 5) {
+        fprintf(stderr, "usage: %s IMAGE PUBLIC_KEY_HEX KEY_ID"
+                        " [ALLOW_DEVELOPMENT]\n", argv[0]);
         return 2;
     }
+    uint32_t development = 0;
+    if (argc == 5 && parse_u32(argv[4], &development) != 0) {
+        fprintf(stderr, "bad development flag\n");
+        return 2;
+    }
+    int allow_development = development != 0;
+
+    struct helikon_public_key public_key;
+    if (parse_public_key(argv[2], public_key.key) != 0) {
+        fprintf(stderr, "bad public key\n");
+        return 2;
+    }
+    if (parse_u32(argv[3], &public_key.id) != 0) {
+        fprintf(stderr, "bad key id\n");
+        return 2;
+    }
+    struct helikon_key_table key_table = { &public_key, 1 };
 
     struct io io;
     io.fd = open(argv[1], O_RDONLY);
@@ -86,8 +131,8 @@ int main(int argc, char **argv)
     int rc = helikon_loader_run(
         helikon_hfs_read_file, &hfs_loader,
         "/.helikon/firmware.manifest", "/.helikon/firmware.img",
-        "/.helikon/bootstate", HELIKON_BOARD_IPOD6G, 0, signature_verify,
-        NULL, image, sizeof(image), &result);
+        "/.helikon/bootstate", HELIKON_BOARD_IPOD6G, allow_development,
+        helikon_key_table_verify, &key_table, image, sizeof(image), &result);
     close(io.fd);
 
     if (rc != HELIKON_LOADER_OK) {

@@ -47,11 +47,22 @@ typedef int (*helikon_signature_verify_fn)(
 int helikon_manifest_parse(const uint8_t *data, size_t length,
                            struct helikon_manifest *manifest);
 
-int helikon_manifest_verify(const uint8_t *data, size_t length,
-                            uint32_t expected_board, const uint8_t *image,
-                            size_t image_length, int allow_development,
-                            helikon_signature_verify_fn verify,
-                            void *verify_context,
-                            struct helikon_manifest *manifest);
+/*
+ * Validate the board/version/policy fields and verify the Ed25519 signature
+ * over bytes 0..191. This does not read or inspect the image.
+ */
+int helikon_manifest_verify_signature(const uint8_t *data, size_t length,
+                                      uint32_t expected_board,
+                                      int allow_development,
+                                      helikon_signature_verify_fn verify,
+                                      void *verify_context,
+                                      struct helikon_manifest *manifest);
+
+/*
+ * Verify that `image` has exactly the signed size and SHA-256. Call this only
+ * after `helikon_manifest_verify_signature` succeeded.
+ */
+int helikon_manifest_verify_image(const struct helikon_manifest *manifest,
+                                  const uint8_t *image, size_t image_length);
 
 #endif

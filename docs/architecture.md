@@ -4,14 +4,16 @@
 > recovery. This is a design, not an implementation.
 > Status: living document
 > Owner: architecture lead
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: design paper §5–§19, §21, §24; `docs/hfsplus-write-engine.md`
 
-**A host HFS+ read core, a read-only diagnostic bootloader core and a host
-firmware manifest/boot-state loader exist.** The firmware-loading bootloader
-image, kernel, block layer, VFS, player and UI are planned; the HFS+ writer is
-host- and real-volume-tested but not a release. Nothing in this file is evidence
-that Helikon-OS boots, mounts, plays, writes or updates.
+**A host HFS+ read core, a read-only diagnostic bootloader core, a host
+manifest/boot-state loader and a verification-only Ed25519 module exist.** A
+separate DFU-only loader test image builds and executes a signed test payload;
+the production firmware-loading bootloader, kernel, block layer, VFS, player and
+UI are planned. The HFS+ writer is host- and real-volume-tested but not a
+release. Nothing in this file is evidence that Helikon-OS boots firmware, mounts,
+plays, writes or updates.
 
 ## 1. Boot chain
 
@@ -206,12 +208,15 @@ changes anything.
    HFS+ transaction engine.
 2. Staging files are flushed, read back and verified (size/hash).
 3. The user explicitly chooses "install update".
-4. The bootloader reads the manifest/image read-only, verifies signature, board,
-   version, load address and size.
-5. On success, the bootloader loads the image and the firmware commits a
+4. The bootloader reads the manifest read-only and verifies signature, board,
+   version, load address, size and policy before reading any image byte; it then
+   reads the image to the signed address and verifies SHA-256.
+5. On success, the bootloader loads the verified image and the firmware commits a
    boot-state record through the transaction engine.
-6. On failure, the previous verified image remains bootable; recovery offers
-   rollback and DFU instructions.
+6. On failure, the bootloader does not jump and shows recovery. A previous
+   verified image is selectable only when a per-slot image path exists; the
+   current single-path format fails closed (C-10). DFU instructions remain
+   available.
 7. Bootloader changes are DFU-only with their own verification. They are never
    staged on HFS+ and never use `--single`.
 

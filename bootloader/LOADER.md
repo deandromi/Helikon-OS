@@ -1,7 +1,7 @@
 # Firmware-loading bootloader — manifest and boot state
 
 > Purpose: fixed on-disk formats and the read-only boot/fallback flow.
-> Status: format frozen; host loader implemented and tested; bootloader image integration is T-049.
+> Status: format frozen; host loader implemented and tested; loader test image builds and passes host gates, no device run.
 > Owner: boot lead
 > Last updated: 2026-11-04
 > Source: D-01, D-02; design paper §5.3, §16, §25.1–§25.2
@@ -88,6 +88,13 @@ Selection:
 5. Missing/corrupt/board-mismatch state falls back to the default image and
    button-selected recovery. The bootloader never writes the state file.
 
+**Current limit.** The frozen format has one image path, not per-slot paths.
+The loader validates the selected `GOOD` slot against `/.helikon/firmware.img`
+and the manifest; a previous slot that names a different image fails closed
+rather than loading unverified bytes. Booting a previous image therefore needs
+either two fixed image paths or an update rollback writer. This is an open
+design item; it is not a claim that D-02 A/B fallback is complete.
+
 ## 4. Boot flow
 
 ```text
@@ -96,12 +103,13 @@ power-on
   -> storage init / partition scan
   -> HFS+ probe; dirty or invalid journal -> read-only recovery screen
   -> open catalog
-  -> read manifest, verify magic/board/version/range/hash/signature
-  -> read bootstate, select slot (optional; default image otherwise)
-  -> read firmware image into DRAM
+  -> read manifest, verify magic/version/board/range/policy/signature
+  -> read firmware image directly to its signed load address
+  -> verify SHA-256 and size
+  -> read bootstate, select a valid GOOD slot (optional; default otherwise)
   -> flush/invalidate caches
-  -> jump to load address
-  -> on any failure: recovery screen, button-selected fallback, power off
+  -> jump to the verified load address
+  -> on any failure: recovery screen, no jump, power off
 ```
 
 The bootloader does not:
@@ -120,8 +128,9 @@ The bootloader does not:
 | Bad board/version/size/load address | recovery screen; no jump |
 | Image hash mismatch | recovery screen; no jump |
 | Signature/key failure | recovery screen; no jump |
-| Bootstate missing/corrupt | use default image; recovery screen |
-| Newest slot failed | previous good slot; recovery screen |
+| Bootstate missing/corrupt/truncated | use the verified default image |
+| Bootstate valid but differs from the manifest | recovery screen; no jump |
+| Newest slot failed | previous good slot if it matches a verified image; otherwise recovery |
 | Dirty/invalid journal | read-only; no replay; recovery |
 | No valid image | recovery screen; DFU/Apple restore instructions |
 
@@ -132,18 +141,30 @@ unsigned image.
 
 The host loader (`bootloader/firmware_loader.c`) reads the manifest/image/boot
 state through the HFS+ read core and calls an explicit signature hook. The HFS+
-adapter is `bootloader/hfs_loader.c`. `tests/bootloader/test_loader.c`,
-`tests/bootloader/test_loader_hfs.c` and `tests/image/run-loader-macos.sh`
-cover:
+adapter is `bootloader/hfs_loader.c`. `bootloader/ed25519.c` is a
+verification-only TweetNaCl derivative; `bootloader/keys.c` resolves key IDs.
+Tests cover:
 
-- known SHA-256 vectors;
-- valid manifest and image;
-- bad magic/version/board/image version/load address/size;
-- truncated manifest/image;
-- hash mismatch;
-- signature hook rejection and unknown key ID;
-- bootstate newest-good, newest-failed fallback, corrupt slot and missing file;
-- no write calls in the loader path.
+- RFC 8032 Ed25519 vectors, a fixed 192-byte manifest-length vector, tampered
+  signatures and unknown key IDs (`tests/bootloader/test_ed25519.c`);
+- known SHA-256 vectors, valid manifest/image, real Ed25519 manifest
+  verification, bad magic/version/board/address/size, hash mismatch, truncated
+  manifest/image (`tests/bootloader/test_loader.c`);
+- the HFS+ file-read adapter (`tests/bootloader/test_loader_hfs.c`);
+- a disposable macOS HFS+ volume with a real generated key, a GOOD bootstate,
+  a wrong key and an unknown key ID (`tests/image/run-loader-macos.sh`);
+- the exact generated loader-test files through the HFS+ core
+  (`tools/check-loader-artifact.sh`).
 
-The signature hook is testable without a production key. No private key is
-stored in this repository.
+No production private key is stored in this repository. The loader-test build
+uses a generated key under `build/loader-bootloader/`; only its public half is
+linked into that image.
+
+## 7. Loader test image
+
+`tools/build-loader-bootloader.sh` builds a separate DFU-only
+`bootloader-ipod6g-loader-test.ipod`. It accepts a development-only manifest,
+reads the image directly to its signed load address, executes a 12-byte signed
+ARM payload that returns `HELO`, and then powers off. Production handoff is
+disabled. The install, expected screen, pass criteria and recovery are in
+[`LOADER_TEST.md`](LOADER_TEST.md). No device run is recorded yet.

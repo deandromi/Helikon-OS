@@ -24,10 +24,17 @@ INNER_HEADERS = ../../bootloader/inner_image.h \
 
 LOADER_SOURCES = test_loader.c ../../bootloader/sha256.c \
                  ../../bootloader/manifest.c ../../bootloader/bootstate.c \
-                 ../../bootloader/firmware_loader.c ../../bootloader/loader_error.c
+                 ../../bootloader/firmware_loader.c ../../bootloader/loader_error.c \
+                 ../../bootloader/ed25519.c ../../bootloader/keys.c
 LOADER_HEADERS = ../../bootloader/sha256.h ../../bootloader/manifest.h \
                  ../../bootloader/bootstate.h ../../bootloader/firmware_loader.h \
-                 ../../bootloader/loader_error.h ../hfsplus/test_check.h
+                 ../../bootloader/loader_error.h ../../bootloader/ed25519.h \
+                 ../../bootloader/keys.h ../hfsplus/test_check.h
+
+ED25519_SOURCES = test_ed25519.c ../../bootloader/ed25519.c \
+                  ../../bootloader/keys.c
+ED25519_HEADERS = ../../bootloader/ed25519.h ../../bootloader/keys.h \
+                  ../hfsplus/test_check.h
 
 HFS_LOADER_SOURCES = test_loader_hfs.c ../hfsplus/test_image.c \
                      ../hfsplus/test_fs_image.c ../../bootloader/hfs_loader.c \
@@ -44,7 +51,7 @@ HFS_LOADER_HEADERS = ../../bootloader/hfs_loader.h \
 
 .PHONY: all test sanitize clean
 
-all: test_diag test_inner_image test_loader test_loader_hfs
+all: test_diag test_inner_image test_loader test_loader_hfs test_ed25519
 
 test_diag: $(SOURCES) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SOURCES) $(LDFLAGS) -o $@
@@ -58,11 +65,15 @@ test_loader: $(LOADER_SOURCES) $(LOADER_HEADERS)
 test_loader_hfs: $(HFS_LOADER_SOURCES) $(HFS_LOADER_HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(HFS_LOADER_SOURCES) $(LDFLAGS) -o $@
 
-test: test_diag test_inner_image test_loader test_loader_hfs
+test_ed25519: $(ED25519_SOURCES) $(ED25519_HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(ED25519_SOURCES) $(LDFLAGS) -o $@
+
+test: test_diag test_inner_image test_loader test_loader_hfs test_ed25519
 	./test_diag
 	./test_inner_image
 	./test_loader
 	./test_loader_hfs
+	./test_ed25519
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
@@ -80,4 +91,4 @@ sanitize:
 	$(MAKE) CFLAGS='$(SAN_CFLAGS)' LDFLAGS='$(SAN_LDFLAGS)' test
 
 clean:
-	rm -rf test_diag test_inner_image test_loader test_loader_hfs *.dSYM
+	rm -rf test_diag test_inner_image test_loader test_loader_hfs test_ed25519 *.dSYM

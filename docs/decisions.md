@@ -3,7 +3,7 @@
 > Purpose: why the design is what it is, and what is still undecided.
 > Status: living document
 > Owner: project owner
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: design paper §18, §25, §28; Helikon-OS README
 
 This file is the index and short-form record. Use `docs/adr/` only for a
@@ -31,7 +31,7 @@ re-litigate them.
 
 | ID | Title | Status | Owner | Paper |
 |---|---|---|---|---|
-| D-01 | Boot image verification | proposed | owner | §25.1, §5.3 |
+| D-01 | Boot image verification | accepted | owner | §25.1, §5.3 |
 | D-02 | Boot state and fallback | accepted | owner | §25.2, §5.3 |
 | D-03 | Journal strategy | accepted | owner | §25.3, §9.3 |
 | D-04 | Journal ownership | accepted | owner | §25.4, §9.3 |
@@ -71,10 +71,11 @@ gate. See C-08.
 - **Context:** the donor bootloader trusts a fixed-path image. Helikon-OS needs a
   manifest with magic, board ID, version, load address, size, SHA-256 and a
   signature before jumping.
-- **Decision:** use an **Ed25519-signed manifest**. The bootloader verifies the
+- **Decision:** use an **Ed25519-signed manifest**. The bootloader validates the
   magic, manifest version, board ID, image version, load address, size and
-  SHA-256, then calls an explicit Ed25519 signature hook with a key ID before
-  loading. The manifest and boot-state formats are fixed in
+  policy flags, verifies the Ed25519 signature with a key ID **before reading
+  any image byte**, then reads the image and verifies its SHA-256. The manifest
+  and boot-state formats are fixed in
   [`../bootloader/LOADER.md`](../bootloader/LOADER.md). A hash-only manifest is
   development-only and is not release-eligible. Key custody, rotation,
   revocation and lost-key recovery remain D-20/ADR-0002.
@@ -82,9 +83,9 @@ gate. See C-08.
   public-key material; no private key is on the device or in Git. A lost key
   must not brick the device; Apple/DFU recovery remains available. Release
   signing stays blocked until D-20 is accepted.
-- **Follow-up:** implement the host manifest/signature/boot-state core (T-027),
-  then the bootloader integration; record bad magic/board/version/size/hash/
-  signature tests. Link D-20.
+- **Follow-up:** host manifest/signature/boot-state core and real Ed25519
+  verification are implemented; the loader test image builds and passes host
+  gates. Device integration is T-049; no device run is recorded. Link D-20.
 
 ## D-02 — Boot state and fallback
 
@@ -99,11 +100,16 @@ gate. See C-08.
   `GOOD` slot. Missing or corrupt state falls back to the default image and
   button-selected recovery. The bootloader never writes the state file.
 - **Consequences:** the state file cannot be a bootloader write path. A failed
-  boot must leave the previous verified image bootable. Recovery is explicit and
-  visible; no silent repair or fallback to an unsigned image.
-- **Follow-up:** implement the parser/selector in T-027; define who may clear a
-  `FAILED` slot and how recovery is displayed; test missing/corrupt/board-mismatch
-  and failed-newest cases.
+  boot must not boot the failed image; the previous verified image must remain
+  recoverable and become bootable once C-10 is resolved. Recovery is explicit
+  and visible; no silent repair or fallback to an unsigned image.
+- **Known implementation limit:** the frozen format has one image path, not a
+  per-slot path. The loader validates the selected `GOOD` slot against that
+  image; a previous slot naming a different image fails closed. Real A/B
+  fallback needs two fixed image paths or an update rollback writer. See C-10.
+- **Follow-up:** parser/selector implemented; test missing/corrupt/board-mismatch
+  and failed-newest cases. Define the A/B path or rollback writer, who may clear
+  a `FAILED` slot, and how recovery is displayed.
 
 ## D-03 — Journal strategy
 
@@ -428,10 +434,10 @@ gate. See C-08.
   not load firmware. Backup scope is the current `.rockbox` build and
   `/.rockpod-rw`; music backup is deliberately omitted by the owner. The owner
   accepts that a failed flash may require Apple restore and can erase music.
-- **Consequences:** D-01, D-02 and D-20 remain open for the later
-  firmware-loading bootloader. This diagnostic image is not a release and has no
-  signed manifest. It requires a recorded image hash, Thumb/`MOVE_AREA` checks
-  and a recovery rehearsal. No HFS+ writes are allowed.
+- **Consequences:** D-01/D-02 are now accepted for the later firmware-loading
+  bootloader; D-20 remains open. This diagnostic image is not a release and has
+  no signed manifest. It requires a recorded image hash, Thumb/`MOVE_AREA`
+  checks and a recovery rehearsal. No HFS+ writes are allowed.
 - **Follow-up:** the image was built on 2026-11-03: 67,144 bytes, SHA-256
   `280ed7aee5dcf38d1a30470704f91740b299004692c2aebbb21d41744c05f43c`,
   `_moveend` `0x22030e40`, 61,888 bytes below `MOVE_AREA`. The first build
@@ -627,6 +633,18 @@ not authorize a product change.
 - **Status:** resolved by the owner-authorized D-18 choice; a separate
   permissive docs license would be a new owner decision.
 - **Affected docs:** `LICENSE`, `NOTICE`, `CONTRIBUTING.md`, `docs/README.md`.
+
+### C-10 — D-02 says previous GOOD, but the frozen format has one image path
+
+- **What:** D-02 selects the previous `GOOD` boot-state slot after a failed
+  newest slot, but `LOADER.md` defines only `/.helikon/firmware.img` and
+  `/.helikon/firmware.manifest`. A previous slot cannot name a different image
+  file, so the bootloader can validate metadata but cannot boot a previous image.
+- **Status:** open design gap. The loader fails closed when the selected slot
+  does not match the current manifest/image. Do not claim working A/B fallback.
+  Resolve with two fixed image paths or an update rollback writer.
+- **Affected docs:** `bootloader/LOADER.md`, `bootloader/LOADER_TEST.md`,
+  `docs/state.md`, `docs/tasks.md`.
 
 ## Adding a decision
 

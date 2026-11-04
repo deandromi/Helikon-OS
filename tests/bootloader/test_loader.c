@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "firmware_loader.h"
+#include "keys.h"
 #include "loader_error.h"
 #include "sha256.h"
 #include "test_check.h"
@@ -69,11 +70,13 @@ struct memory_files {
     uint8_t manifest[HELIKON_MANIFEST_SIZE];
     uint8_t image[IMAGE_SIZE];
     uint8_t bootstate[HELIKON_BOOTSTATE_SIZE];
+    size_t bootstate_size;
     int has_manifest;
     int has_image;
     int has_bootstate;
     int reject_signature;
     uint32_t rejected_key;
+    int image_reads;
 };
 
 static int memory_read(void *context, const char *path, uint64_t offset,
@@ -86,11 +89,12 @@ static int memory_read(void *context, const char *path, uint64_t offset,
         source = files->manifest;
         source_size = sizeof(files->manifest);
     } else if (strcmp(path, IMAGE_PATH) == 0 && files->has_image) {
+        ++files->image_reads;
         source = files->image;
         source_size = sizeof(files->image);
     } else if (strcmp(path, BOOTSTATE_PATH) == 0 && files->has_bootstate) {
         source = files->bootstate;
-        source_size = sizeof(files->bootstate);
+        source_size = files->bootstate_size;
     } else {
         return HELIKON_LOADER_ERR_NOT_FOUND;
     }
@@ -126,6 +130,7 @@ static void make_valid_files(struct memory_files *files)
     files->has_manifest = 1;
     files->has_image = 1;
     files->has_bootstate = 1;
+    files->bootstate_size = sizeof(files->bootstate);
     memset(files->bootstate, 0, sizeof(files->bootstate));
     make_slot(files->bootstate, 1, HELIKON_BOARD_IPOD6G, 1,
               HELIKON_DRAM_BASE, IMAGE_SIZE, files->image,
@@ -160,6 +165,76 @@ static int test_sha256_vectors(void)
         0xb4, 0x10, 0xff, 0x61, 0xf2, 0x00, 0x15, 0xad
     };
     CHECK(memcmp(digest, abc, sizeof(abc)) == 0);
+    return 0;
+}
+
+/*
+ * A fixed manifest signed once with a throwaway Ed25519 key. Only the public
+ * key and signature are retained. The payload is make_image() above.
+ */
+static const uint8_t signed_public_key[HELIKON_ED25519_PUBLIC_KEY_SIZE] = {
+    0x60, 0x88, 0xe8, 0x10, 0xba, 0x83, 0x9f, 0xe2,
+    0x73, 0xb8, 0x0d, 0x6f, 0x01, 0xbf, 0xe5, 0x02,
+    0x36, 0x79, 0xa0, 0x19, 0xe7, 0x0e, 0x03, 0x52,
+    0xf4, 0x65, 0xba, 0xc0, 0x76, 0xf0, 0x0c, 0xa4
+};
+
+static const uint8_t signed_manifest_signature[HELIKON_ED25519_SIGNATURE_SIZE] = {
+    0x95, 0xf3, 0xe8, 0x48, 0x88, 0x93, 0xdb, 0xaf,
+    0x57, 0xd1, 0xc1, 0x24, 0x72, 0x7c, 0xa0, 0xd6,
+    0xbe, 0xc8, 0x02, 0xa7, 0x55, 0xaf, 0xdf, 0x94,
+    0x77, 0xbe, 0x36, 0xea, 0x18, 0x1a, 0x85, 0xb3,
+    0x2e, 0x59, 0x71, 0x9f, 0x7e, 0x98, 0x10, 0x66,
+    0x96, 0x97, 0x0d, 0xa9, 0x00, 0x0a, 0xf5, 0x9b,
+    0xcd, 0xa8, 0x69, 0x2b, 0x01, 0x5b, 0x0e, 0x9b,
+    0x90, 0x74, 0xcd, 0xb2, 0xb9, 0x00, 0xe3, 0x09
+};
+
+static int load_signed(struct memory_files *files, uint8_t *image,
+                       struct helikon_loader_result *result)
+{
+    struct helikon_public_key key;
+    memset(&key, 0, sizeof(key));
+    key.id = 7;
+    memcpy(key.key, signed_public_key, sizeof(key.key));
+    struct helikon_key_table table = { &key, 1 };
+    return helikon_loader_run(memory_read, files, MANIFEST_PATH, IMAGE_PATH,
+                              BOOTSTATE_PATH, HELIKON_BOARD_IPOD6G, 0,
+                              helikon_key_table_verify, &table, image,
+                              IMAGE_SIZE, result);
+}
+
+static void make_signed_files(struct memory_files *files)
+{
+    make_valid_files(files);
+    memcpy(files->manifest + HELIKON_MANIFEST_SIGNED_SIZE,
+           signed_manifest_signature, sizeof(signed_manifest_signature));
+}
+
+static int test_real_signature(void)
+{
+    struct memory_files files;
+    make_signed_files(&files);
+    uint8_t image[IMAGE_SIZE];
+    struct helikon_loader_result result;
+    CHECK(load_signed(&files, image, &result) == HELIKON_LOADER_OK);
+    CHECK(result.manifest.image_version == 1);
+
+    files.image[0] ^= 0xffu;
+    CHECK(load_signed(&files, image, &result) == HELIKON_LOADER_ERR_HASH);
+
+    /* A bad signature must be rejected before the image is read. */
+    make_signed_files(&files);
+    files.image_reads = 0;
+    files.manifest[HELIKON_MANIFEST_SIGNED_SIZE] ^= 1u;
+    CHECK(load_signed(&files, image, &result) ==
+          HELIKON_LOADER_ERR_SIGNATURE);
+    CHECK(files.image_reads == 0);
+
+    make_signed_files(&files);
+    files.manifest[17] ^= 1u; /* image version high byte, signed */
+    CHECK(load_signed(&files, image, &result) ==
+          HELIKON_LOADER_ERR_SIGNATURE);
     return 0;
 }
 
@@ -216,6 +291,7 @@ static int test_bad_magic(void)
     uint8_t image[IMAGE_SIZE];
     struct helikon_loader_result result;
     CHECK(load(&files, image, &result) == HELIKON_LOADER_ERR_MAGIC);
+    CHECK(files.image_reads == 0);
     return 0;
 }
 
@@ -261,6 +337,7 @@ static int test_signature_rejected(void)
     uint8_t image[IMAGE_SIZE];
     struct helikon_loader_result result;
     CHECK(load(&files, image, &result) == HELIKON_LOADER_ERR_SIGNATURE);
+    CHECK(files.image_reads == 0);
     return 0;
 }
 
@@ -273,6 +350,18 @@ static int test_bootstate_manifest_mismatch(void)
     uint8_t image[IMAGE_SIZE];
     struct helikon_loader_result result;
     CHECK(load(&files, image, &result) == HELIKON_LOADER_ERR_BOOTSTATE);
+    return 0;
+}
+
+static int test_truncated_bootstate_is_default(void)
+{
+    struct memory_files files;
+    make_valid_files(&files);
+    files.bootstate_size = 100;
+    uint8_t image[IMAGE_SIZE];
+    struct helikon_loader_result result;
+    CHECK(load(&files, image, &result) == HELIKON_LOADER_OK);
+    CHECK(result.bootstate_valid == 0);
     return 0;
 }
 
@@ -298,6 +387,7 @@ int main(void)
     static const struct test_case tests[] = {
         { "SHA-256 vectors", test_sha256_vectors },
         { "valid load", test_valid_load },
+        { "real Ed25519 manifest", test_real_signature },
         { "missing bootstate default", test_missing_bootstate_is_default },
         { "failed newest fallback", test_failed_newest_falls_back },
         { "bad magic", test_bad_magic },
@@ -306,6 +396,7 @@ int main(void)
         { "hash mismatch", test_hash_mismatch },
         { "signature rejected", test_signature_rejected },
         { "bootstate mismatch", test_bootstate_manifest_mismatch },
+        { "truncated bootstate default", test_truncated_bootstate_is_default },
         { "corrupt bootstate default", test_corrupt_bootstate_is_default }
     };
     int failures = 0;
