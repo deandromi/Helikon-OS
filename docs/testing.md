@@ -134,6 +134,9 @@ table. `tests/bootloader/test_loader.c` checks SHA-256 vectors, manifest
 magic/board/address/size/hash/signature, a real Ed25519-signed manifest, missing/
 corrupt/truncated boot state and newest-failed fallback.
 `tests/bootloader/test_loader_hfs.c` checks the HFS+ file-read adapter.
+`tests/hfsplus/test_catalog_index.c` builds a two-level catalog and checks that
+nested lookup descends the B-tree index instead of scanning every leaf, which is
+the path used by `/.helikon/...` on a large music catalog.
 
 `make -C tests/image loader-test` creates a disposable HFS+ image with
 `/.helikon/firmware.manifest`, `firmware.img` and `bootstate`, signs the

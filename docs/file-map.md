@@ -106,6 +106,7 @@ Helikon-OS/
       test_btree_tree.c     tree insert/delete/rebalance model test
       test_btree_grow.c     B-tree fork growth test
       test_catalog_compare.c catalog key/FastUnicodeCompare ordering tests
+      test_catalog_index.c   two-level catalog indexed nested-lookup test
       test_catalog_write.c  empty-file catalog create/delete test
     image/
       Makefile              disposable-image writer test build

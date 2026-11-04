@@ -24,7 +24,7 @@ file grows. Do not rely on chat history for current state.
   size are checked after the read.
 - Added a separate DFU-only loader test image:
   `build/loader-bootloader/out/bootloader-ipod6g-loader-test.ipod`
-  (106,600 bytes, SHA-256 `ca26b5a6…`, `MOVE_AREA` headroom 22,432 bytes). It
+  (107,112 bytes, SHA-256 `9600332f…`, `MOVE_AREA` headroom 21,920 bytes). It
   reads `/.helikon/firmware.manifest|img` and `bootstate`, verifies the signed
   manifest, reads the image directly to its signed DRAM address, executes a
   signed 12-byte ARM payload returning `HELO`, and disables production handoff.
@@ -50,14 +50,19 @@ file grows. Do not rely on chat history for current state.
 - One owner-reported startup on `c6125103…`: splash displayed, startup completed
   after about 3 minutes, `Battery status ok` shown, and `JUMP OK` confirmed.
   `HFS+ DETAILS` stayed neutral on that pre-`lcd_update` image. Post-run
-  `fsck_hfs` is still to record. The new `ca26b5a6…` build is not installed. The
-  test image remains `unproven`.
+  `fsck_hfs` is still to record.
+- A second owner-reported startup on `ca26b5a6…` completed in 1 minute
+  20 seconds, with the longest stalls at `firmware manifest` and
+  `verify firmware`. The `9600332f…` build replaces the full catalog leaf scan
+  with an indexed parent lookup; it is not installed. The test image remains
+  `unproven`.
 
 ## What is next
 
-1. Install `ca26b5a6…` through DFU using `LOADER_TEST.md`; the added bottom stage
-   line shows where the ~3-minute startup goes, and `lcd_update` pushes the
-   green HFS+ label. Record the screens and post-run `fsck_hfs -fn`.
+1. Install `9600332f…` through DFU using `LOADER_TEST.md`; the indexed lookup
+   removes the full catalog scan, `lcd_update` pushes the green HFS+ label and
+   the bottom stage line still shows the remaining stages. Record the screens
+   and post-run `fsck_hfs -fn`.
 2. T-050: resolve the D-02 A/B gap (single image path cannot boot a previous
    GOOD slot). See C-10.
 3. T-006/D-20: signing-key ownership remains the P0 owner/legal decision. The

@@ -183,21 +183,38 @@ int hfs_catalog_lookup(struct hfs_catalog *catalog, const char *path,
         if (strcmp(component, ".") == 0 || strcmp(component, "..") == 0)
             return HFS_ERR_NAME_INVALID;
 
-        struct hfs_catalog_iterator iterator;
-        int rc = hfs_catalog_iter_init(catalog, parent, &iterator);
-        if (rc != HFS_OK)
-            return rc;
-
-        int found = 0;
-        struct hfs_entry candidate;
-        while ((rc = hfs_catalog_iter_next(catalog, &iterator, &candidate)) > 0) {
-            if (strcmp(candidate.name, component) == 0) {
-                found = 1;
+        int ascii = 1;
+        for (const char *q = component; *q != '\0'; ++q) {
+            if ((unsigned char)*q >= 0x80u) {
+                ascii = 0;
                 break;
             }
         }
-        if (rc < 0)
-            return rc;
+
+        int found = 0;
+        struct hfs_entry candidate;
+        int rc;
+        if (ascii) {
+            rc = hfs_catalog_lookup_ascii(catalog, parent, component,
+                                          &candidate);
+            if (rc != HFS_OK)
+                return rc;
+            found = 1;
+        } else {
+            struct hfs_catalog_iterator iterator;
+            rc = hfs_catalog_iter_init(catalog, parent, &iterator);
+            if (rc != HFS_OK)
+                return rc;
+            while ((rc = hfs_catalog_iter_next(catalog, &iterator,
+                                               &candidate)) > 0) {
+                if (strcmp(candidate.name, component) == 0) {
+                    found = 1;
+                    break;
+                }
+            }
+            if (rc < 0)
+                return rc;
+        }
         if (!found)
             return HFS_ERR_NOT_FOUND;
 
@@ -218,6 +235,86 @@ int hfs_catalog_lookup(struct hfs_catalog *catalog, const char *path,
     }
 
     return HFS_ERR_NOT_FOUND;
+}
+
+/*
+ * Descend the catalog index to the first leaf whose first key is at or after
+ * `target_parent`. The catalog is sorted by parent ID first, so this needs no
+ * Unicode comparison. The leaf scan then covers the parent's contiguous range.
+ */
+static int parse_index_record(const uint8_t *record, size_t length,
+                              uint32_t *parent, uint32_t *child)
+{
+    if (length < 2)
+        return HFS_ERR_FORMAT;
+    uint16_t key_length = be16(record);
+    if ((size_t)key_length + 2u + 4u > length)
+        return HFS_ERR_FORMAT;
+    if (key_length == 0)
+        *parent = 0;
+    else if (key_length >= 6)
+        *parent = be32(record + 2);
+    else
+        return HFS_ERR_FORMAT;
+    *child = be32(record + 2 + key_length);
+    return HFS_OK;
+}
+
+static int catalog_seek_parent(struct hfs_btree *btree, uint32_t target,
+                               struct hfs_btree_leaf_iterator *leaf)
+{
+    uint32_t node = btree->root_node;
+
+    for (unsigned int level = 0; level < btree->depth; ++level) {
+        const uint8_t *data;
+        int rc = hfs_btree_read_node(btree, node, &data);
+        if (rc != HFS_OK)
+            return rc;
+
+        if (data[8] == 0xff) {
+            memset(leaf, 0, sizeof(*leaf));
+            leaf->node = node;
+            leaf->previous = be32(data + 4);
+            return HFS_OK;
+        }
+        if (data[8] != 0)
+            return HFS_ERR_FORMAT;
+
+        uint16_t count = be16(data + 10);
+        if (count == 0)
+            return HFS_ERR_FORMAT;
+
+        uint32_t first_child = 0;
+        uint32_t last_child = 0;
+        uint32_t chosen = 0;
+        for (uint16_t i = 0; i < count; ++i) {
+            const uint8_t *record;
+            size_t length;
+            rc = hfs_btree_node_record(data, btree->node_size, i, &record,
+                                       &length);
+            if (rc != HFS_OK)
+                return rc;
+
+            uint32_t parent;
+            uint32_t child;
+            rc = parse_index_record(record, length, &parent, &child);
+            if (rc != HFS_OK)
+                return rc;
+            if (i == 0)
+                first_child = child;
+            last_child = child;
+            if (chosen == 0 && parent >= target)
+                chosen = child;
+        }
+
+        if (chosen == 0)
+            chosen = last_child != 0 ? last_child : first_child;
+        if (chosen == 0 || chosen >= btree->total_nodes)
+            return HFS_ERR_FORMAT;
+        node = chosen;
+    }
+
+    return HFS_ERR_FORMAT;
 }
 
 static int ascii_key_matches(const uint8_t *name, uint16_t units,
@@ -249,7 +346,7 @@ int hfs_catalog_lookup_ascii(struct hfs_catalog *catalog, uint32_t parent,
     }
 
     struct hfs_btree_leaf_iterator iterator;
-    int rc = hfs_btree_leaf_init(&catalog->btree, &iterator);
+    int rc = catalog_seek_parent(&catalog->btree, parent, &iterator);
     if (rc != HFS_OK)
         return rc;
 
