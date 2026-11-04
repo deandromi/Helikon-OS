@@ -13,6 +13,7 @@
 
 BOARD ?= 6g
 VERSION ?= 1
+BOOTSTATE_STATE ?= good
 CROSS ?= arm-elf-eabi-
 CC := $(CROSS)gcc
 OBJCOPY := $(CROSS)objcopy
@@ -26,7 +27,7 @@ LIBGCC := $(shell $(CC) -mcpu=arm926ej-s -marm -print-libgcc-file-name)
 
 ARCH := -mcpu=arm926ej-s -marm -mno-thumb-interwork -mfloat-abi=soft
 CFLAGS := -std=c99 -O2 -g -ffreestanding -fno-builtin -nostdinc \
-          -isystem $(GCC_INCLUDE) \
+          -isystem $(GCC_INCLUDE) -DHELIKON_IMAGE_VERSION=$(VERSION) \
           -Ilib -Iboot -Iboard/$(BOARD) -Ihal/$(BOARD) -Iblock -Idiag -Ihfs \
           -Wall -Wextra -Werror -Wconversion -Wshadow -Wundef \
           -Wpointer-arith -ffunction-sections -fdata-sections -fno-common \
@@ -35,10 +36,10 @@ CFLAGS := -std=c99 -O2 -g -ffreestanding -fno-builtin -nostdinc \
 LDFLAGS := $(ARCH) -nostdlib -T boot/firmware.ld -Wl,--gc-sections \
            -Wl,-Map=$(BUILD)/firmware.map -Wl,--build-id=none
 
-BOOT_SRC := boot/start.S boot/vectors.S boot/boot_info.c boot/panic.c \
-            boot/stack.c boot/firmware_main.c
-LIB_SRC := lib/mem.c lib/string.c lib/crc32.c lib/ring.c lib/pool.c \
-           lib/fixed.c lib/format.c
+BOOT_SRC := boot/start.S boot/vectors.S boot/boot_info.c boot/bootstate.c \
+            boot/panic.c boot/stack.c boot/firmware_main.c
+LIB_SRC := lib/mem.c lib/string.c lib/crc32.c lib/sha256.c lib/ring.c \
+           lib/pool.c lib/fixed.c lib/format.c
 BOARD_SRC := board/$(BOARD)/board.c
 HAL_SRC := hal/$(BOARD)/cpu.c hal/$(BOARD)/clock.c hal/$(BOARD)/pmu.c \
            hal/$(BOARD)/backlight.c hal/$(BOARD)/lcd.c hal/$(BOARD)/ata.c \
@@ -47,23 +48,33 @@ BLOCK_SRC := block/block.c block/bounce.c block/partition.c
 DIAG_SRC := diag/stages.c diag/trace.c diag/crash.c diag/screen.c
 HFS_ADAPTER_SRC := hfs/hfs_block_adapter.c hfs/hfs_file.c
 HFS_SRC := hfs/hfs_volume.c hfs/hfs_btree.c hfs/hfs_catalog.c \
-           hfs/hfs_extents.c hfs/hfs_unicode.c hfs/hfs_unicode_data.c
+           hfs/hfs_extents.c hfs/hfs_unicode.c hfs/hfs_unicode_data.c \
+           hfs/hfs_catalog_compare.c \
+           hfs/hfs_journal.c hfs/hfs_txn.c hfs/hfs_bitmap.c \
+           hfs/hfs_fork_io.c hfs/hfs_volume_write.c \
+           hfs/hfs_btree_write.c hfs/hfs_btree_tree.c \
+           hfs/hfs_extents_write.c hfs/hfs_catalog_write.c
 
 ALL_SRC := $(BOOT_SRC) $(LIB_SRC) $(BOARD_SRC) $(HAL_SRC) $(BLOCK_SRC) \
            $(DIAG_SRC) $(HFS_ADAPTER_SRC) $(HFS_SRC)
 OBJS := $(patsubst %.c,$(BUILD)/%.o,$(patsubst %.S,$(BUILD)/%.o,$(ALL_SRC)))
 ELF := $(BUILD)/firmware.elf
 RAW := $(BUILD)/firmware.raw
+CONFIG_STAMP := $(BUILD)/config-$(BOARD)-v$(VERSION)
 
 .PHONY: all size test image clean
 
 all: $(ELF) $(RAW)
 
-$(BUILD)/%.o: %.c
+$(CONFIG_STAMP):
+	@mkdir -p $(BUILD)
+	@touch $@
+
+$(BUILD)/%.o: %.c $(CONFIG_STAMP)
 	@mkdir -p $(dir $@)
 	$(CC) $(ARCH) $(CFLAGS) -c $< -o $@
 
-$(BUILD)/%.o: %.S
+$(BUILD)/%.o: %.S $(CONFIG_STAMP)
 	@mkdir -p $(dir $@)
 	$(CC) $(ARCH) $(CFLAGS) -c $< -o $@
 
@@ -86,7 +97,8 @@ test:
 image: all
 	@mkdir -p $(OUT)
 	python3 ../tools/make-firmware-image.py --image $(RAW) --out $(OUT) \
-	  --board $(BOARD) --version $(VERSION) --load 0x08000000 --key-id 0x48454c01
+	  --board $(BOARD) --version $(VERSION) --load 0x08000000 \
+	  --bootstate-state $(BOOTSTATE_STATE) --key-id 0x48454c01
 	@python3 ../tools/firmware-size.py --nm $(NM) --elf $(ELF) --raw $(RAW)
 
 clean:

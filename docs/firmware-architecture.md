@@ -2,19 +2,19 @@
 
 > Purpose: specify how the Helikon-OS firmware should be structured
 > functionally, visually and for developer ergonomics before code exists.
-> Status: living document — design paper; the F1 read-only implementation exists
-> and has one owner-reported 6G run; F2–F5 are design only.
+> Status: living document — design paper; F1 has one owner-reported 6G run, the
+> F2 write path exists and is host-verified, and F3–F5 are design only.
 > Owner: architecture lead; firmware lead
 > Last updated: 2026-11-04
 > Source: design paper §5–§19, §27; `docs/architecture.md`; `docs/ui.md`;
 > ADR-0003; ADR-0004
 
-**Evidence statement.** This paper describes the firmware design and the F1
-implementation skeleton. The F1/T-054 source tree now exists under `firmware/`
-and builds a signed development image; its host tests pass. There is **no
-firmware device run**, and the VFS, player, UI, database, USB, update path and
-F2–F5 do not exist. Nothing here is a device result, a performance measurement or
-a support claim. Values marked "design target" are budgets to be measured later;
+**Evidence statement.** This paper describes the firmware design and the F1/F2
+implementation. The F1/T-054 source tree exists under `firmware/` and has one
+owner-reported 6G run. The F2/T-055 bootstate write path exists and is
+host-verified; it has **no device run**. The VFS, player, UI, database, USB,
+update path and F3–F5 do not exist. Nothing here is a device result, a
+performance measurement or a support claim. Values marked "design target" are budgets to be measured later;
 values marked "open question" are not decided. The only measured
 firmware-adjacent fact in this repository is the loader test image's
 owner-reported **6.5 s** startup on one 6G with an iFlash SD adapter, and that
@@ -281,8 +281,9 @@ From [`roadmap.md`](roadmap.md):
   unchanged; unsupported files report a reason.
 
 F1 completes the firmware half of phase 0 and has one owner-reported 6G run.
-F2–F5 complete phase 1. The loader half of phase 0 is already owner-reported on
-one 6G.
+F2's write path exists and is host-verified; its device run is next. F3–F5
+complete phase 1. The loader half of phase 0 is already owner-reported on one
+6G.
 
 ### 2.5 Non-goals for the first firmware
 
@@ -452,6 +453,16 @@ assumption for this paper:
 | `0x09800000`–`0x0affffff` | 24 MiB | Audio buffers, codec work area, DMA descriptors |
 | `0x0b000000`–`0x0b7fffff` | 8 MiB | Database mapped pages and index cache |
 | `0x0b800000`–`0x0bffffff` | 8 MiB | Reserve: diagnostics, crash record, future growth |
+
+**F2 loader-scratch reservation.** The loader test image keeps its BSS,
+framebuffer and LCD DMA scratch at `0x08800000`–`0x08884200`. The kernel region
+is still `0x08800000`–`0x09000000`, but F2 reserves
+`0x08800000`–`0x0888ffff` and starts the firmware BSS at `0x08890000`. F1's
+229 KB BSS stopped below the active LCD DMA buffers; F2's 601 KB BSS reached
+them, so zeroing from `0x08800000` blanked the display and could hang the
+controller before the firmware's first frame. The linker asserts
+`__bss_start >= 0x08890000`. Do not move it back without first making the
+loader quiesce its display controller before the jump.
 
 These are **design targets** derived from the 64 MiB budget in
 `docs/architecture.md` §6, not measurements. Audio takes the 24 MiB upper end of

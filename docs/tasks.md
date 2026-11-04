@@ -33,13 +33,15 @@ T-030 is complete through T-032/T-040/T-047.
 ## Now
 
 The first firmware write and production handoff. F1/T-054 produced the real
-signed development image and its owner-reported 6G run is accepted; T-055/F2
-proves the bootstate loop next, then T-051. T-006 and T-049 are done.
+signed development image and its owner-reported 6G run is accepted. F2/T-055 is
+implemented and host-verified: ATA write/flush, bootstate promotion, in-place
+HFS+ overwrite and the `WRITE` stage. The next gate is the F2 6G run, then
+T-051. T-006 and T-049 are done.
 
 | ID | Task | Priority | Dependencies | Acceptance criteria | Status | Owner | Links |
 |---|---|---|---|---|---|---|---|
 | T-051 | Build the production firmware handoff. | P0 | T-049, D-01, D-02, D-20, T-054, T-055, T-059, a real signed firmware image | Production bootloader verifies a real signed firmware image and jumps without returning; no test payload, no unsigned image and no in-bootloader OF/recovery menu (D-26; native Menu+Play and DFU cover recovery). End-to-end device validation requires a real signed firmware build; host tests can cover the handoff/failure paths earlier. | `planned` | boot lead | [architecture.md](architecture.md), [release.md](release.md), [LOADER.md](../bootloader/LOADER.md) |
-| T-055 | Promote `/.helikon/bootstate` to `GOOD` from the firmware through the transaction engine (F2). | P0 | T-054, D-02 | Firmware re-reads bootstate through the VFS, validates both slots, stages `GOOD` with a higher sequence, commits through `hfs_txn`, flushes and reads back; the loader sees `GOOD`; `fsck_hfs -fn` clean; a power cut during promotion recovers to a consistent state. No other file is written. | `planned` | firmware/HFS+ | [firmware-architecture.md](firmware-architecture.md), [build-firmware prompt](prompts/build-firmware.md), [LOADER.md](../bootloader/LOADER.md), [hfsplus-write-engine.md](hfsplus-write-engine.md) |
+| T-055 | Promote `/.helikon/bootstate` to `GOOD` from the firmware through the transaction engine (F2). | P0 | T-054, D-02 | Firmware re-reads bootstate through HFS+ (the minimal F2 path; the full VFS is F3/T-056), validates both slots, stages `GOOD` with a higher sequence, commits through `hfs_txn`, flushes and reads back; the loader sees `GOOD`; `fsck_hfs -fn` clean; a power cut during promotion recovers to a consistent state. No other file is written. **Current evidence:** ATA PIO write/flush, firmware bootstate parser/promoter, in-place `hfs_catalog_overwrite_file` through `hfs_txn`, `WRITE` stage; F2 image 75,472 bytes `5e14793f…` with `TRYING` sequence 1; 10 host test groups sanitizer-clean; `tools/check-f2-artifact.sh` promotes to `GOOD`, `fsck_hfs` clean, loader sees `GOOD`; overwrite crash matrix covers 22 write cuts plus flush/partial modes. **Remaining:** one 6G run, clean post-run `fsck_hfs`, next loader boot `GOOD`, and a device power-cut during promotion. Runbook: [f2-bootstate-test.md](f2-bootstate-test.md). | `in progress` | firmware/HFS+ | [firmware-architecture.md](firmware-architecture.md), [f2-bootstate-test.md](f2-bootstate-test.md), [build-firmware prompt](prompts/build-firmware.md), [LOADER.md](../bootloader/LOADER.md), [hfsplus-write-engine.md](hfsplus-write-engine.md) |
 
 ## Next
 

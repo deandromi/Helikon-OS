@@ -30,8 +30,9 @@ agreed.
 | 12 | Multi-device ports + release train/community | 7G and documented ports pass their matrix; public CI/docs/signed releases; support window | Phase 0–11; D-13; D-20 | `planned` |
 
 Phase 0 is `partial`: the loader test and the F1 read-only firmware have
-owner-reported 6G runs, but the volume-hash comparison, production handoff and
-release-key path remain.
+owner-reported 6G runs, and the F2 bootstate write path is host-verified, but
+the F2 6G run, volume-hash comparison, production handoff and release-key path
+remain.
 
 ## Critical path
 

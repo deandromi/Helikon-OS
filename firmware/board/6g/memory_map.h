@@ -16,6 +16,14 @@
 #define HELIKON_BOOT_INFO_SIZE 0x00001000u
 #define HELIKON_KERNEL_BASE 0x08800000u
 #define HELIKON_KERNEL_SIZE 0x00800000u
+/*
+ * The loader test image's BSS/framebuffer/LCD DMA scratch lives at the start
+ * of the kernel region. Its current _end is 0x08884200. Firmware BSS starts
+ * above the reserved range so the boot jump does not zero active LCD DMA.
+ */
+#define HELIKON_LOADER_SCRATCH_BASE 0x08800000u
+#define HELIKON_LOADER_SCRATCH_SIZE 0x00090000u
+#define HELIKON_KERNEL_DATA_BASE 0x08890000u
 #define HELIKON_UI_BASE 0x09000000u
 #define HELIKON_UI_SIZE 0x00800000u
 #define HELIKON_AUDIO_BASE 0x09800000u

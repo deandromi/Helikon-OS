@@ -11,7 +11,8 @@ read-only diagnostic bootloader core, the host firmware loader and the F1
 firmware modules. The portable HFS+/bootloader suites are 135 tests (104 HFS+,
 31 bootloader), sanitizer-clean. The F1 firmware adds nine host test groups
 (`tests/firmware/`: boot-info, block/partition, stages, lib, ring, pool, screen
-and trace), also sanitizer-clean. The writer foundation covers the Apple HFS+
+and trace), also sanitizer-clean. F2 adds a tenth group for bootstate parsing
+and promotion. The writer foundation covers the Apple HFS+
 journal append/replay path, a bounded transaction engine, the allocation
 bitmap, node-level B-tree insert/delete and fork block staging; the disposable
 image and crash matrices add the macOS-visible behaviour. The F1 read-only image
@@ -114,10 +115,11 @@ cut point of a create transaction, fails the nth device write, then reopens the
 copy, replays the journal and runs `fsck_hfs -fn`. The loop stops when the cut
 is beyond the transaction's write count. It expects the file to be absent when
 the cut precedes the journal commit header and present after replay when the
-commit header was written; every case must be fsck-clean. The create/append/truncate/delete
-matrices currently cover 280 cuts: 130 write cuts (create 25, append 34,
-truncate 25, delete 25, rename 21), 20 flush cuts (4 per operation) and 130
-partial-sector cuts. Power-loss timing and the remaining operations are T-010.
+commit header was written; every case must be fsck-clean. The
+create/append/truncate/delete/rename/overwrite matrices currently cover 346
+cuts: 152 write cuts (create 25, append 34, truncate 25, delete 25, rename 21,
+overwrite 22), 42 flush cuts and 152 partial-sector cuts. Power-loss timing and
+the remaining operations are T-010.
 
 ### 5.3 Write-diagnostic outer/inner image test
 
@@ -226,9 +228,13 @@ The groups are:
 - `test_lib` — mem/string/endian/CRC-32/fixed-point/bounded format;
 - `test_boot_info` — D-28 page magic/version/size/CRC/board/range/manifest and
   `r0 = 0` fallback;
-- `test_block` — block bounds, read-only write/flush, unaligned bounce reads,
-  APM/raw partition scan, malformed signature and I/O error;
-- `test_stages` — boot-stage order, completion, failure and timeout;
+- `test_bootstate` — SHA-256 vector, slot parse/checksum, TRYING→GOOD
+  promotion, two-slot sequence ordering, mismatch and corruption rejection;
+- `test_block` — block bounds, read-only rejection, writable sector writes,
+  aligned/unaligned write bounce, APM/raw partition scan, malformed signature
+  and I/O error;
+- `test_stages` — boot-stage order, completion, failure, timeout and the F2
+  `WRITE` rung;
 - `test_hfs_file` — one-path HFS+ read, offset, missing file, bounds and
   directory rejection;
 - `test_ring`, `test_pool` — bounded ring wrap/overwrite and fixed pool
@@ -240,17 +246,36 @@ The target build is separate:
 make -C firmware BOARD=6g          # ELF + raw image
 make -C firmware BOARD=6g size     # map/size/headroom and symbol checks
 make -C firmware BOARD=6g image    # signed development image
+make -C firmware BOARD=6g VERSION=2 BOOTSTATE_STATE=trying image  # F2 image
 ```
 
-`tools/check-loader-artifact.sh build/firmware/6g/out` verifies the generated
-manifest, image and bootstate through the host loader core. It is host evidence,
-not a device run.
+`tools/check-loader-artifact.sh build/firmware/6g/out` verifies the F1-style
+generated manifest, image and bootstate through the host loader core.
+`tools/check-f2-artifact.sh build/firmware/6g/out` installs the exact F2 set in
+a disposable HFS+ image, requires the loader to report `DEFAULT` before
+promotion, promotes the slot through the firmware-side path, requires a clean
+`fsck_hfs`, and then requires the loader to select `GOOD`. Both are host
+evidence, not device runs.
+
+The F2 disposable-image test is `tests/image/run-f2-macos.sh` (also reachable as
+`make -C tests/image f2-test`). It creates a 16 MiB journaled HFS+ image, starts
+the bootstate `TRYING`, promotes it through `hfs_catalog_overwrite_file` and
+`hfs_txn`, checks that the second run is a no-op, verifies the manifest and image
+hashes are unchanged, runs `fsck_hfs`, and asks the real loader host core to
+select `GOOD`.
+
+The crash matrix now includes an overwrite scenario: the harness injects write,
+flush and partial-sector failures across the in-place overwrite transaction and
+requires every recovered file to be exactly the old bytes or exactly the new
+bytes, followed by a clean `fsck_hfs`.
 
 The device bring-up ladder is recorded rung by rung: banner, ATA identify,
 partition scan, HFS+ probe, read one known file, input, bootstate promotion,
 browser, first UI, first audio. A rung is not skipped because a host test
 passes. The F1 image `d7916411…` is built and host-verified and has one
-owner-reported 6G device run (2026-11-04), accepted as the T-054 gate.
+owner-reported 6G device run (2026-11-04), accepted as the T-054 gate. The F2
+image `5e14793f…` is host-verified but has no device run;
+[`f2-bootstate-test.md`](f2-bootstate-test.md) is its runbook.
 
 ## 6. Device tests
 

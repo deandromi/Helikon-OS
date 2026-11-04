@@ -121,6 +121,7 @@ const char *helikon_stage_code(int stage)
     case HELIKON_STAGE_HFS: return "HFS";
     case HELIKON_STAGE_READ: return "READ";
     case HELIKON_STAGE_INPUT: return "INPUT";
+    case HELIKON_STAGE_WRITE: return "WRITE";
     case HELIKON_STAGE_PASS: return "PASS";
     case HELIKON_STAGE_FAIL: return "FAIL";
     default: return "?";
@@ -138,6 +139,7 @@ const char *helikon_stage_text(int stage)
     case HELIKON_STAGE_HFS: return "HFS+ OK";
     case HELIKON_STAGE_READ: return "Read OK";
     case HELIKON_STAGE_INPUT: return "Input OK";
+    case HELIKON_STAGE_WRITE: return "Bootstate OK";
     case HELIKON_STAGE_PASS: return "PASS";
     case HELIKON_STAGE_FAIL: return "FAIL";
     default: return "?";

@@ -345,6 +345,7 @@ const char *hfs_strerror(int error)
     case HFS_ERR_BUSY: return "writer is busy";
     case HFS_ERR_POWER: return "below the write power gate";
     case HFS_ERR_NOT_EMPTY: return "directory is not empty";
+    case HFS_ERR_BOOTSTATE: return "bootstate is missing, invalid or mismatched";
     default: return "unknown HFS+ error";
     }
 }

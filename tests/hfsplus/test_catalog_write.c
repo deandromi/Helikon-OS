@@ -1178,6 +1178,88 @@ static int test_finder_info_preserved(void)
     return 0;
 }
 
+static int test_overwrite_file(void)
+{
+    struct test_env env;
+    CHECK(setup_env(&env) == 0);
+
+    static const uint8_t name[8] = {
+        0, 'B', 0, 'O', 0, 'O', 0, 'T'
+    };
+    uint32_t cnid = 0;
+    struct hfs_txn tx;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_file(&env.catalog, &tx, 2, name, 4, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &cnid) == HFS_OK);
+    apply_txn(&tx);
+
+    uint8_t original[1200];
+    for (size_t i = 0; i < sizeof(original); ++i)
+        original[i] = (uint8_t)(i & 0xffu);
+    env.catalog.now = 0x11111111u;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_append_file(&env.catalog, &tx, 2, name, 4, 0,
+                                  original, sizeof(original),
+                                  hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    uint8_t key[256];
+    uint8_t record[1024];
+    size_t key_length = build_key(key, 2, name, 4);
+    size_t record_length = 0;
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    size_t data_offset = 2u + key_length;
+    uint8_t *fork = record + data_offset + 88u;
+    uint32_t first_block = get_be32(fork + 16);
+    uint32_t second_block = get_be32(fork + 24);
+    CHECK(get_be32(fork + 12) == 3);
+    CHECK(get_be32(record + data_offset + 16) == 0x11111111u);
+
+    uint8_t replacement[600];
+    for (size_t i = 0; i < sizeof(replacement); ++i)
+        replacement[i] = (uint8_t)(0xa0u + (i & 0x0fu));
+    env.catalog.now = 0x22222222u;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_overwrite_file(&env.catalog, &tx, 2, name, 4, 0,
+                                     replacement, sizeof(replacement),
+                                     hfs_catalog_key_compare, NULL) ==
+          HFS_OK);
+    CHECK(tx.count >= 2);
+    apply_txn(&tx);
+
+    CHECK(memcmp(test_image + first_block * TEST_BLOCK_SIZE, replacement,
+                 512) == 0);
+    CHECK(memcmp(test_image + second_block * TEST_BLOCK_SIZE,
+                 replacement + 512, 88) == 0);
+    CHECK(memcmp(test_image + second_block * TEST_BLOCK_SIZE + 88,
+                 original + 600, 424) == 0);
+
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    data_offset = 2u + key_length;
+    fork = record + data_offset + 88u;
+    CHECK(get_be32(record + data_offset + 16) == 0x22222222u);
+    CHECK(get_be32(record + data_offset + 20) == 0x22222222u);
+    CHECK(get_be32(fork + 4) == 1200);
+    CHECK(get_be32(fork + 12) == 3);
+
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_overwrite_file(&env.catalog, &tx, 2, name, 4, 1200,
+                                     replacement, 1,
+                                     hfs_catalog_key_compare, NULL) ==
+          HFS_ERR_ARGUMENT);
+    CHECK(tx.count == 0);
+    hfs_txn_abort(&tx);
+
+    return 0;
+}
+
 struct test_case {
     const char *name;
     int (*run)(void);
@@ -1194,7 +1276,8 @@ int main(void)
         { "timestamps", test_timestamps },
         { "metadata file", test_metadata_file },
         { "metadata folder", test_metadata_folder },
-        { "finder info preserved", test_finder_info_preserved }
+        { "finder info preserved", test_finder_info_preserved },
+        { "overwrite in place", test_overwrite_file }
     };
     int failures = 0;
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); ++i) {

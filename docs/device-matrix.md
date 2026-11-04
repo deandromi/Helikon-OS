@@ -55,6 +55,7 @@ images, backups or serial numbers to the repository.
 | iPod Classic 6G (reference) | `open question` | iFlash SD | loader test `3979de6f…` | Alpha splash + lower-bound catalog descent | `pass` | Owner report 2026-11-04: everything works, very fast and consistent; splash and loader path complete. Startup 6.5 s; post-run `fsck_hfs` still to record. One device/iFlash SD only | owner/boot |
 | iPod Classic 6G (reference) | `open question` | iFlash SD | loader test `6bc6927c…` | Final Alpha splash + no stage line | `pass` | Owner report 2026-11-04: device check passed; 6.5 s startup; post-run `fsck_hfs -fn` clean. One device/iFlash SD only | owner/boot |
 | iPod Classic 6G (reference) | `open question` | iFlash SD | F1 firmware `d7916411…` (39,108 bytes) | read-only firmware boot: banner, ATA, HFS+ probe, manifest read, PASS, power-off | `pass` | Owner report 2026-11-04: F1 device run completed and accepted as the T-054 gate; no filesystem write; photo/timings/`fsck` not attached. One device/iFlash SD only | owner/firmware |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | F2 firmware `5e14793f…` (75,472 bytes) | bootstate `TRYING` → `GOOD`, next loader boot, `fsck_hfs` clean | `not run` | Host-only: `tools/check-f2-artifact.sh` promotes and the loader selects `GOOD`; overwrite crash matrix passes. No device run yet | firmware/HFS+ |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | journal replay | `not run` | none | journal lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | sleep/wake 100 cycles | `not run` | none | test lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | USB read-only | `not run` | none | USB lead |
@@ -69,6 +70,17 @@ The F1 firmware image `d7916411…` (39,108 bytes) is built and host-verified an
 has one owner-reported 6G device run (2026-11-04), accepted as the T-054 gate.
 This is not a support claim. The current loader test image does not fill the
 boot-info page (T-059), so F1 uses the missing/invalid fallback.
+
+The F2 image `5e14793f…` (75,472 bytes) is host-verified: the real artifact is
+installed in a disposable HFS+ image, the `TRYING` slot is promoted to `GOOD`
+through `hfs_txn`, `fsck_hfs` is clean and the loader host core selects `GOOD`.
+There is no successful F2 device run yet; do not add a support row or claim a
+device power cut. The first installed F2 image (`bb30bbf…`) blanked the screen
+immediately after the loader's `Executing signed test payload...` line because
+its 601 KB BSS overlapped the loader test image's BSS/framebuffer/LCD DMA
+scratch. The corrected image reserves `0x08800000`–`0x0888ffff` and starts BSS
+at `0x08890000`. The runbook is
+[`f2-bootstate-test.md`](f2-bootstate-test.md).
 
 ### 2.1 Diagnostic runs — owner-reported, 2026-11-03
 

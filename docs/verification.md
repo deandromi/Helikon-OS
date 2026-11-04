@@ -10,10 +10,11 @@
 boots, "looks right", or passed on another device. Verification is the recorded
 command output, device run, image hash and oracle result that match the claim.
 
-Helikon-OS has a host code/test tree and an F1 read-only device build. The host
-read-core checks are current; F1 has one owner-reported 6G run. Device and
-writer commands must be added when those trees exist, not invented now. Donor
-commands are reference only and do not verify Helikon-OS.
+Helikon-OS has a host code/test tree, an F1 read-only device build and an F2
+bootstate write path. The host read-core and write-path checks are current; F1
+has one owner-reported 6G run and F2 has host-only evidence. Device and writer
+commands must be added when those trees exist, not invented now. Donor commands
+are reference only and do not verify Helikon-OS.
 
 ## 1. Choose the change class
 

@@ -54,18 +54,18 @@ def build_manifest(image, board, version, load, key_id):
     return manifest
 
 
-def build_bootstate(image, board, version, load):
+def build_bootstate(image, board, version, load, state, sequence):
     bootstate = bytearray(BOOTSTATE_SIZE)
     slot = bootstate[0:SLOT_SIZE]
     slot[0:4] = b"HBST"
     struct.pack_into("<I", slot, 4, 1)           # bootstate version
-    struct.pack_into("<I", slot, 8, 1)           # sequence
+    struct.pack_into("<I", slot, 8, sequence)
     struct.pack_into("<I", slot, 12, board)
     struct.pack_into("<I", slot, 16, version)
     struct.pack_into("<I", slot, 20, load)
     struct.pack_into("<I", slot, 24, len(image))
     slot[28:60] = hashlib.sha256(image).digest()
-    slot[60] = 2                                 # GOOD
+    slot[60] = 2 if state == "good" else 1       # GOOD or TRYING
     slot[64:96] = hashlib.sha256(slot[:64]).digest()
     bootstate[0:SLOT_SIZE] = slot
     return bootstate
@@ -79,6 +79,9 @@ def main():
                         help="board ID or name: 6, 6g, ipod6g")
     parser.add_argument("--version", required=True, type=int)
     parser.add_argument("--load", required=True, type=lambda v: int(v, 0))
+    parser.add_argument("--bootstate-state", choices=("good", "trying"),
+                        default="good")
+    parser.add_argument("--bootstate-sequence", type=int, default=1)
     parser.add_argument("--key-id", type=lambda v: int(v, 0),
                         default=0x48454C01)
     parser.add_argument("--key", default=None)
@@ -90,6 +93,10 @@ def main():
     board = 6
     if args.load != LOAD_ADDRESS:
         print("error: the accepted load address is 0x08000000",
+              file=sys.stderr)
+        return 1
+    if args.bootstate_sequence < 1:
+        print("error: the bootstate sequence must be at least 1",
               file=sys.stderr)
         return 1
 
@@ -116,7 +123,9 @@ def main():
                               args.key_id)
     manifest[MANIFEST_SIGNED:MANIFEST_SIZE] = key.sign(
         bytes(manifest[:MANIFEST_SIGNED]))
-    bootstate = build_bootstate(image, board, args.version, args.load)
+    bootstate = build_bootstate(image, board, args.version, args.load,
+                                args.bootstate_state,
+                                args.bootstate_sequence)
 
     # Verify the signature and the checksum before writing a single output.
     key.public_key().verify(bytes(manifest[MANIFEST_SIGNED:]),
@@ -152,6 +161,8 @@ def main():
     print("image sha:  %s" % hashlib.sha256(image).hexdigest())
     print("manifest:   %s" % hashlib.sha256(bytes(manifest)).hexdigest())
     print("bootstate:  %s" % hashlib.sha256(bytes(bootstate)).hexdigest())
+    print("boot state: %s, sequence %d"
+          % (args.bootstate_state.upper(), args.bootstate_sequence))
     print("key id:     0x%08x" % args.key_id)
     print("key file:   %s (not committed)" % key_path)
     print("public key: %s" % public_key.hex())

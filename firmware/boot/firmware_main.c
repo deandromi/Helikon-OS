@@ -16,26 +16,38 @@
  */
 #include "board.h"
 #include "boot_info.h"
+#include "bootstate.h"
 #include "clock.h"
 #include "cpu.h"
 #include "error.h"
 #include "format.h"
 #include "hfs_block_adapter.h"
 #include "hfs_catalog.h"
+#include "hfs_catalog_compare.h"
+#include "hfs_catalog_write.h"
 #include "hfs_extents.h"
 #include "hfs_file.h"
+#include "hfs_journal.h"
+#include "hfs_txn.h"
 #include "hfs_volume.h"
 #include "mem.h"
 #include "panic.h"
 #include "partition.h"
 #include "screen.h"
+#include "sha256.h"
 #include "stack.h"
 #include "stages.h"
 #include "static_assert.h"
 #include "string.h"
 #include "trace.h"
 
+#ifndef HELIKON_IMAGE_VERSION
+#define HELIKON_IMAGE_VERSION 1u
+#endif
+
 #define BOOT_INFO_PATH "/.helikon/firmware.manifest"
+#define BOOTSTATE_PATH "/.helikon/bootstate"
+#define BOOTSTATE_NAME_UNITS 9u
 #define BOOT_MANIFEST_SIZE 256u
 #define BOOT_CATALOG_SCRATCH 32768u
 #define BOOT_EXTENTS_SCRATCH 32768u
@@ -66,15 +78,20 @@ struct boot_context {
     struct hfs_volume volume;
     struct hfs_catalog catalog;
     struct hfs_extents extents;
+    struct hfs_journal journal;
+    struct hfs_txn txn;
     int boot_info_status;
     int have_extents;
     int screen_ready;
     uint32_t read_size;
+    uint32_t bootstate_sequence;
+    uint8_t bootstate_action; /* 0 none, 1 promoted, 2 already GOOD */
     uint8_t catalog_scratch[BOOT_CATALOG_SCRATCH] __attribute__((aligned(32)));
     uint8_t extents_scratch[BOOT_EXTENTS_SCRATCH] __attribute__((aligned(32)));
     uint8_t block_scratch[BOOT_BLOCK_SCRATCH] __attribute__((aligned(32)));
     uint8_t sector[512] __attribute__((aligned(32)));
     uint8_t manifest[BOOT_MANIFEST_SIZE] __attribute__((aligned(32)));
+    uint8_t bootstate[HELIKON_BOOTSTATE_SIZE] __attribute__((aligned(32)));
     uint16_t framebuffer[HELIKON_SCREEN_WIDTH * HELIKON_SCREEN_HEIGHT]
         __attribute__((aligned(32)));
 };
@@ -129,6 +146,8 @@ static const char *failure_reason(int error)
     case HELIKON_ERR_UNSUPPORTED: return "This object or feature is unsupported.";
     case HELIKON_ERR_NOT_FOUND: return "A required path was not found.";
     case HELIKON_ERR_BOOT_INFO_INVALID: return "The loader handoff did not validate.";
+    case HELIKON_ERR_BOOTSTATE: return "The bootstate does not match this image.";
+    case HELIKON_ERR_READ_ONLY: return "The storage write gate is closed.";
     case HELIKON_ERR_ARGUMENT: return "An internal argument check failed.";
     case HELIKON_ERR_BUFFER: return "A scratch buffer was too small.";
     default: return "An unexpected firmware error occurred.";
@@ -155,11 +174,20 @@ static int present_or_trace(struct boot_context *ctx,
     return rc;
 }
 
+static const char *bootstate_action_text(const struct boot_context *ctx)
+{
+    switch (ctx->bootstate_action) {
+    case 1u: return "PROMOTED";
+    case 2u: return "ALREADY GOOD";
+    default: return "NOT RUN";
+    }
+}
+
 static int paint_stages(struct boot_context *ctx)
 {
-    paint_title(ctx, "F1 READ-ONLY SKELETON");
+    paint_title(ctx, "F2 BOOTSTATE PROMOTION");
 
-    for (int stage = HELIKON_STAGE_BOOT; stage <= HELIKON_STAGE_INPUT;
+    for (int stage = HELIKON_STAGE_BOOT; stage <= HELIKON_STAGE_WRITE;
          ++stage) {
         uint32_t y = 64u + (uint32_t)stage * 16u;
         const struct helikon_stage_record *record =
@@ -196,15 +224,6 @@ static int paint_stages(struct boot_context *ctx)
     helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_NEUTRAL);
     helikon_screen_text(&ctx->screen, 20, 208, 2, line);
 
-    if (ctx->read_size != 0u) {
-        char read_line[64] = "READ ";
-        append_u32(read_line, sizeof(read_line), ctx->read_size);
-        text_append(read_line, sizeof(read_line),
-                    " B  firmware.manifest");
-        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
-        helikon_screen_text(&ctx->screen, 20, 192, 2, read_line);
-    }
-
     char sizes[64] = "IMAGE ";
     append_u32(sizes, sizeof(sizes),
                (uint32_t)(__image_end - __image_start));
@@ -217,7 +236,7 @@ static int paint_stages(struct boot_context *ctx)
 
 static int paint_pass(struct boot_context *ctx)
 {
-    paint_title(ctx, "F1 READ-ONLY SKELETON");
+    paint_title(ctx, "F2 BOOTSTATE PROMOTION");
 
     helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_SUCCESS);
     helikon_screen_text(&ctx->screen, 16, 62, 6, "PASS");
@@ -269,24 +288,47 @@ static int paint_pass(struct boot_context *ctx)
                                                    HELIKON_STAGE_INPUT));
     helikon_screen_text(&ctx->screen, 16, 142, 2, line);
 
+    helikon_strlcpy(line, "WRITE ", sizeof(line));
+    append_u32(line, sizeof(line),
+               (uint32_t)helikon_stages_elapsed_ms(&ctx->stages,
+                                                   HELIKON_STAGE_WRITE));
+    text_append(line, sizeof(line), "ms  ");
+    text_append(line, sizeof(line), bootstate_action_text(ctx));
+    helikon_screen_set_foreground(&ctx->screen,
+                                  ctx->bootstate_action != 0u
+                                      ? HELIKON_COLOR_SUCCESS
+                                      : HELIKON_COLOR_NEUTRAL);
+    helikon_screen_text(&ctx->screen, 16, 158, 2, line);
+
     helikon_strlcpy(line, "TRACE ", sizeof(line));
     append_u32(line, sizeof(line), (uint32_t)helikon_trace_count(&ctx->trace));
     text_append(line, sizeof(line), " DROPPED ");
     append_u32(line, sizeof(line), helikon_trace_dropped(&ctx->trace));
-    helikon_screen_text(&ctx->screen, 16, 158, 2, line);
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+    helikon_screen_text(&ctx->screen, 16, 174, 2, line);
 
     helikon_strlcpy(line, "BOOT-INFO ", sizeof(line));
     text_append(line, sizeof(line), boot_info_label(ctx->boot_info_status));
-    text_append(line, sizeof(line), "  NO WRITE");
     helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_NEUTRAL);
-    helikon_screen_text(&ctx->screen, 16, 174, 2, line);
+    helikon_screen_text(&ctx->screen, 16, 190, 2, line);
+
+    helikon_strlcpy(line, "BOOTSTATE ", sizeof(line));
+    text_append(line, sizeof(line),
+                ctx->bootstate_action != 0u ? "GOOD" : "?");
+    text_append(line, sizeof(line), " SEQ ");
+    append_u32(line, sizeof(line), ctx->bootstate_sequence);
+    helikon_screen_set_foreground(&ctx->screen,
+                                  ctx->bootstate_action != 0u
+                                      ? HELIKON_COLOR_SUCCESS
+                                      : HELIKON_COLOR_NEUTRAL);
+    helikon_screen_text(&ctx->screen, 16, 206, 2, line);
 
     if (ctx->read_size != 0u) {
         helikon_strlcpy(line, "READ ", sizeof(line));
         append_u32(line, sizeof(line), ctx->read_size);
         text_append(line, sizeof(line), " B  firmware.manifest");
         helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
-        helikon_screen_text(&ctx->screen, 16, 190, 2, line);
+        helikon_screen_text(&ctx->screen, 16, 222, 2, line);
     }
 
     return present_or_trace(ctx, HELIKON_TRACE_ERROR, HELIKON_STAGE_PASS);
@@ -475,6 +517,113 @@ static void select_partition(struct boot_context *ctx)
     ctx->partitions[0] = *best;
 }
 
+static int promote_bootstate(struct boot_context *ctx)
+{
+    struct hfs_entry entry;
+    int rc = hfs_catalog_lookup(&ctx->catalog, BOOTSTATE_PATH, &entry);
+    if (rc != HELIKON_OK)
+        return rc == HELIKON_ERR_NOT_FOUND ? HELIKON_ERR_BOOTSTATE : rc;
+    if (entry.kind != 2u || entry.unsupported != 0u ||
+        entry.data.size != HELIKON_BOOTSTATE_SIZE)
+        return HELIKON_ERR_BOOTSTATE;
+
+    size_t done = 0;
+    rc = helikon_hfs_read_file(&ctx->catalog,
+                               ctx->have_extents ? &ctx->extents : NULL,
+                               BOOTSTATE_PATH, 0u, ctx->bootstate,
+                               sizeof(ctx->bootstate), &done);
+    if (rc != HELIKON_OK)
+        return rc == HELIKON_ERR_NOT_FOUND ? HELIKON_ERR_BOOTSTATE : rc;
+    if (done != sizeof(ctx->bootstate))
+        return HELIKON_ERR_BOOTSTATE;
+
+    uint8_t digest[HELIKON_SHA256_SIZE];
+    uint32_t image_size = (uint32_t)(__image_end - __image_start);
+    helikon_sha256(__image_start, image_size, digest);
+
+    uint32_t sequence = 0;
+    int changed = 0;
+    rc = helikon_bootstate_promote(ctx->bootstate, sizeof(ctx->bootstate),
+                                   ctx->board.board->id,
+                                   HELIKON_IMAGE_VERSION,
+                                   ctx->board.board->image_base,
+                                   image_size, digest, &sequence, &changed);
+    if (rc != HELIKON_OK)
+        return rc;
+    ctx->bootstate_sequence = sequence;
+    if (!changed) {
+        ctx->bootstate_action = 2u;
+        return HELIKON_OK;
+    }
+
+    /*
+     * The bootstate write is the first firmware write. Re-check the journal
+     * cleanly before opening the write gate; a dirty volume stays read-only.
+     */
+    struct hfs_journal probe;
+    rc = hfs_journal_open(&probe, &ctx->volume, NULL, NULL);
+    if (rc != HELIKON_OK)
+        return rc;
+    if (!hfs_journal_is_clean(&probe))
+        return HELIKON_ERR_DIRTY;
+
+    rc = helikon_board_enable_write(&ctx->board);
+    if (rc != HELIKON_OK)
+        return rc;
+    rc = hfs_journal_open(&ctx->journal, &ctx->volume,
+                          helikon_hfs_block_write, helikon_hfs_block_flush);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    rc = hfs_txn_begin(&ctx->txn, &ctx->journal);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    static const uint8_t name[BOOTSTATE_NAME_UNITS * 2u] = {
+        0, 'b', 0, 'o', 0, 'o', 0, 't', 0, 's', 0, 't', 0, 'a', 0, 't',
+        0, 'e'
+    };
+    rc = hfs_catalog_overwrite_file(&ctx->catalog, &ctx->txn, entry.parent,
+                                    name, BOOTSTATE_NAME_UNITS, 0u,
+                                    ctx->bootstate, sizeof(ctx->bootstate),
+                                    hfs_catalog_key_compare, NULL);
+    if (rc != HELIKON_OK) {
+        hfs_txn_abort(&ctx->txn);
+        return rc;
+    }
+
+    rc = hfs_txn_commit(&ctx->txn);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    uint8_t readback[HELIKON_BOOTSTATE_SIZE];
+    done = 0;
+    rc = helikon_hfs_read_file(&ctx->catalog,
+                               ctx->have_extents ? &ctx->extents : NULL,
+                               BOOTSTATE_PATH, 0u, readback,
+                               sizeof(readback), &done);
+    if (rc != HELIKON_OK)
+        return rc;
+    if (done != sizeof(readback) ||
+        memcmp(readback, ctx->bootstate, sizeof(readback)) != 0)
+        return HELIKON_ERR_BOOTSTATE;
+
+    uint32_t readback_sequence = 0;
+    int readback_changed = 0;
+    rc = helikon_bootstate_promote(readback, sizeof(readback),
+                                   ctx->board.board->id,
+                                   HELIKON_IMAGE_VERSION,
+                                   ctx->board.board->image_base,
+                                   image_size, digest, &readback_sequence,
+                                   &readback_changed);
+    if (rc != HELIKON_OK || readback_changed != 0 ||
+        readback_sequence != ctx->bootstate_sequence)
+        return HELIKON_ERR_BOOTSTATE;
+
+    ctx->bootstate_action = 1u;
+    return HELIKON_OK;
+}
+
 void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
 {
     (void)reserved;
@@ -654,6 +803,16 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
     }
     stage_pass(ctx, HELIKON_STAGE_INPUT);
     paint_stages_checked(ctx, HELIKON_STAGE_INPUT);
+
+    stage_begin(ctx, HELIKON_STAGE_WRITE);
+    rc = promote_bootstate(ctx);
+    if (rc != HELIKON_OK)
+        boot_fail(ctx, HELIKON_STAGE_WRITE, rc,
+                  rc == HELIKON_ERR_DIRTY
+                      ? "The journal is not clean; no write was attempted."
+                      : failure_reason(rc));
+    stage_pass(ctx, HELIKON_STAGE_WRITE);
+    paint_stages_checked(ctx, HELIKON_STAGE_WRITE);
 
     stage_begin(ctx, HELIKON_STAGE_PASS);
     if (!helikon_stack_guards_ok())

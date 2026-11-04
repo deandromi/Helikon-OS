@@ -3,7 +3,8 @@
 > Purpose: a self-contained execution prompt for an agent that will create the
 > first Helikon-OS firmware for the iPod Classic 6G.
 > Status: living — full-procedure prompt; F1/T-054 complete with an owner-reported
-> 6G run (2026-11-04); F2/T-055 is next.
+> 6G run (2026-11-04); F2/T-055 is implemented and host-verified, with its 6G
+> run next.
 > Owner: firmware lead; docs lead
 > Last updated: 2026-11-04
 > Source: `agents.md`, `docs/firmware-architecture.md`, ADR-0003, ADR-0004,
@@ -65,8 +66,10 @@ It must:
 10. record a device run with a screen photo and `fsck_hfs -fn` clean.
 
 **Status 2026-11-04: F1/T-054 is complete.** The owner reports the 6G device run
-accepted; the image is `d7916411…` (39,108 bytes). F2/T-055 is the next phase
-and needs explicit owner authorization.
+accepted; the image is `d7916411…` (39,108 bytes). **F2/T-055 is implemented and
+host-verified** (75,472 bytes, `5e14793f…`, `TRYING` sequence 1); its device run
+and power-cut check are the remaining gate. See
+[`../f2-bootstate-test.md`](../f2-bootstate-test.md).
 
 Do not start F2 until F1 has a recorded device run and the owner (or the next
 explicit session instruction) says continue.
@@ -632,6 +635,8 @@ The accepted map is ADR-0003. Do not invent an address.
 Rules:
 
 - Linker `ASSERT(__image_end <= 0x087ff000)`.
+- Linker `ASSERT(__bss_start >= 0x08890000)`; the loader test image owns
+  `0x08800000`–`0x0888ffff` for its BSS, framebuffer and LCD DMA scratch.
 - Linker `ASSERT(__bss_end <= 0x09000000)`.
 - `static_assert` every pool, stack and cache size.
 - Print the map, `__image_end`, `__bss_end` and headroom in the build.

@@ -20,15 +20,16 @@ TEST_CFLAGS := $(CFLAGS) -I../../firmware/lib -I../../firmware/boot \
                -I../../firmware/hfs
 
 FW_OBJS := $(BUILD)/lib/mem.o $(BUILD)/lib/string.o $(BUILD)/lib/crc32.o \
-           $(BUILD)/lib/ring.o $(BUILD)/lib/pool.o $(BUILD)/lib/fixed.o \
-           $(BUILD)/lib/format.o $(BUILD)/boot/boot_info.o \
+           $(BUILD)/lib/sha256.o $(BUILD)/lib/ring.o $(BUILD)/lib/pool.o \
+           $(BUILD)/lib/fixed.o $(BUILD)/lib/format.o \
+           $(BUILD)/boot/boot_info.o $(BUILD)/boot/bootstate.o \
            $(BUILD)/block/block.o $(BUILD)/block/bounce.o \
            $(BUILD)/block/partition.o $(BUILD)/diag/stages.o \
            $(BUILD)/diag/trace.o $(BUILD)/diag/crash.o \
            $(BUILD)/diag/screen.o $(BUILD)/hfs/hfs_block_adapter.o
 
-TESTS := test_lib test_boot_info test_block test_stages test_ring \
-         test_pool test_screen test_trace test_hfs_file
+TESTS := test_lib test_boot_info test_bootstate test_block test_stages \
+         test_ring test_pool test_screen test_trace test_hfs_file
 
 .PHONY: all test sanitize clean
 
@@ -48,6 +49,12 @@ test_boot_info: test_boot_info.c test_check.h $(BUILD)/boot/boot_info.o \
                 $(BUILD)/lib/mem.o $(BUILD)/lib/crc32.o
 	$(HOSTCC) $(TEST_CFLAGS) test_boot_info.c $(BUILD)/boot/boot_info.o \
 	  $(BUILD)/lib/mem.o $(BUILD)/lib/crc32.o $(LDFLAGS) -o $@
+
+test_bootstate: test_bootstate.c test_check.h $(BUILD)/boot/bootstate.o \
+                $(BUILD)/lib/sha256.o $(BUILD)/lib/mem.o $(BUILD)/lib/string.o
+	$(HOSTCC) $(TEST_CFLAGS) test_bootstate.c $(BUILD)/boot/bootstate.o \
+	  $(BUILD)/lib/sha256.o $(BUILD)/lib/mem.o $(BUILD)/lib/string.o \
+	  $(LDFLAGS) -o $@
 
 test_block: test_block.c test_check.h $(BUILD)/block/block.o \
             $(BUILD)/block/bounce.o $(BUILD)/block/partition.o \
@@ -93,6 +100,7 @@ test_hfs_file: test_hfs_file.c test_check.h $(HFS_TEST_SRC)
 test: $(TESTS)
 	./test_lib
 	./test_boot_info
+	./test_bootstate
 	./test_block
 	./test_stages
 	./test_ring

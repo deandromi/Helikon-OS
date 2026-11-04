@@ -15,7 +15,14 @@ OUTPUT_ARCH(arm)
 MEMORY
 {
     IMAGE (rx)  : ORIGIN = 0x08000000, LENGTH = 0x007ff000
-    KERNEL (rw) : ORIGIN = 0x08800000, LENGTH = 0x00800000
+    /*
+     * The loader test image keeps its BSS, framebuffer and LCD DMA scratch at
+     * 0x08800000..0x08884200. The firmware must not zero that range while the
+     * loader's display controller may still be using its DMA buffers. Reserve
+     * it and start the firmware BSS above it.
+     */
+    LOADER_SCRATCH (rw) : ORIGIN = 0x08800000, LENGTH = 0x00090000
+    KERNEL (rw)  : ORIGIN = 0x08890000, LENGTH = 0x00770000
 }
 
 SECTIONS
@@ -101,6 +108,7 @@ SECTIONS
     /* Accepted map assertions (ADR-0003). */
     ASSERT(__image_start == 0x08000000, "image must start at 0x08000000")
     ASSERT(__image_end <= 0x087ff000, "image overlaps the boot-info page")
+    ASSERT(__bss_start >= 0x08890000, "BSS overlaps loader scratch/LCD DMA")
     ASSERT(__bss_end <= 0x09000000, "BSS exceeds the kernel region")
     ASSERT(__kernel_end <= 0x09000000, "kernel region exceeds 0x09000000")
 

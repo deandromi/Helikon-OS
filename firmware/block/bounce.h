@@ -20,4 +20,14 @@ int helikon_block_read_bytes(const struct helikon_block_device *device,
                              uint8_t *scratch, size_t scratch_size,
                              uint32_t timeout_ms);
 
+/*
+ * Byte-range write over a sector device. Aligned ranges go straight to the
+ * block layer; unaligned or partial ranges use the caller's scratch sector for
+ * a read-modify-write. The block device's read-only flag still wins.
+ */
+int helikon_block_write_bytes(const struct helikon_block_device *device,
+                              uint64_t offset, const void *buffer,
+                              size_t length, uint8_t *scratch,
+                              size_t scratch_size, uint32_t timeout_ms);
+
 #endif

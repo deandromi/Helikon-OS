@@ -34,19 +34,22 @@ static int fake_read(void *context, uint64_t lba, uint32_t count, void *buffer,
 static int fake_write(void *context, uint64_t lba, uint32_t count,
                       const void *buffer, uint32_t timeout_ms)
 {
-    (void)context;
-    (void)lba;
-    (void)count;
-    (void)buffer;
     (void)timeout_ms;
-    return HELIKON_ERR_READ_ONLY;
+    struct fake_disk *disk = context;
+    if (disk->fail && lba == disk->fail_lba)
+        return HELIKON_ERR_IO;
+    if (lba > DISK_SECTORS || count > DISK_SECTORS - lba)
+        return HELIKON_ERR_IO;
+    helikon_memcpy(disk->data + (size_t)lba * SECTOR_SIZE, buffer,
+                   (size_t)count * SECTOR_SIZE);
+    return HELIKON_OK;
 }
 
 static int fake_flush(void *context, uint32_t timeout_ms)
 {
     (void)context;
     (void)timeout_ms;
-    return HELIKON_ERR_READ_ONLY;
+    return HELIKON_OK;
 }
 
 static int fake_power(void *context, int on, uint32_t timeout_ms)
@@ -150,6 +153,45 @@ int main(void)
     CHECK_EQ(HELIKON_ERR_BUFFER,
              helikon_block_read_bytes(&device, 513, bytes, sizeof(bytes),
                                       scratch, 256, 100));
+
+    struct helikon_block_info rw_info = {
+        .sector_size = SECTOR_SIZE,
+        .sector_count = DISK_SECTORS,
+        .flags = 0
+    };
+    struct helikon_block_device rw_device;
+    CHECK_EQ(HELIKON_OK, helikon_block_init(&rw_device, &ops, &disk,
+                                            &rw_info));
+    uint8_t write_sector[SECTOR_SIZE];
+    helikon_memset(write_sector, 0x3c, sizeof(write_sector));
+    CHECK_EQ(HELIKON_OK,
+             helikon_block_write(&rw_device, 5, 1, write_sector, 100));
+    CHECK(helikon_memcmp(disk.data + 5 * SECTOR_SIZE, write_sector,
+                         SECTOR_SIZE) == 0);
+    CHECK_EQ(HELIKON_OK, helikon_block_flush(&rw_device, 100));
+
+    uint8_t partial[100];
+    helikon_memset(partial, 0x7e, sizeof(partial));
+    CHECK_EQ(HELIKON_OK,
+             helikon_block_write_bytes(&rw_device, 6 * SECTOR_SIZE + 100,
+                                       partial, sizeof(partial), scratch,
+                                       sizeof(scratch), 100));
+    CHECK(helikon_memcmp(disk.data + 6 * SECTOR_SIZE + 100, partial,
+                         sizeof(partial)) == 0);
+    uint8_t copy[512];
+    helikon_memset(copy, 0x11, sizeof(copy));
+    CHECK_EQ(HELIKON_OK,
+             helikon_block_write_bytes(&rw_device, 7 * SECTOR_SIZE, copy,
+                                       sizeof(copy), scratch,
+                                       sizeof(scratch), 100));
+    CHECK(helikon_memcmp(disk.data + 7 * SECTOR_SIZE, copy,
+                         sizeof(copy)) == 0);
+    CHECK_EQ(HELIKON_ERR_BUFFER,
+             helikon_block_write_bytes(&rw_device, 8 * SECTOR_SIZE + 1,
+                                       partial, sizeof(partial), scratch,
+                                       256, 100));
+    CHECK_EQ(HELIKON_ERR_READ_ONLY,
+             helikon_block_write(&device, 0, 1, write_sector, 100));
 
     struct helikon_partition parts[4];
     unsigned int count = 0;

@@ -57,14 +57,14 @@ Helikon-OS/
       bootloader-ipod6g.ipod  built diagnostic image (unproven on hardware)
       SHA256SUMS            hash for the committed image
   firmware/
-    Makefile              F1 build: ELF, raw image, manifest, dev signing
-    boot/                 _start, vectors, linker script, boot-info, panic, stack
-    lib/                  freestanding mem/string/CRC/endian/ring/pool/fixed/format
-    board/6g/             BSP constants, board description, runtime wiring
-    hal/6g/               clock, PMU, backlight, LCD, ATA read, buttons, CPU
-    block/                read-only block device, bounce, APM/MBR/raw scan
+    Makefile              F1/F2 build: ELF, raw image, manifest, bootstate, dev signing
+    boot/                 _start, vectors, linker script, boot-info, bootstate, panic, stack
+    lib/                  freestanding mem/string/CRC/SHA-256/endian/ring/pool/fixed/format
+    board/6g/             BSP constants, board description, runtime wiring, write gate
+    hal/6g/               clock, PMU, backlight, LCD, ATA read/write/flush, buttons, CPU
+    block/                block device with read-only gate, bounce, APM/MBR/raw scan
     diag/                 stage machine, RAM trace, crash record, RGB565 screen
-    hfs/hfs_block_adapter.c/.h  hfs_read_fn over the read-only block device
+    hfs/hfs_block_adapter.c/.h  hfs read/write/flush over the block device
     hfs/hfs_file.c/.h     one-file read helper (lookup + inline/overflow)
     inner_image.c/.h      outer-file extent mapping + metadata guard
     write_diag.c/.h       inner-image writer sequence and result
@@ -92,23 +92,27 @@ Helikon-OS/
       hfs_txn.c/.h          bounded staged-block transaction engine
       hfs_bitmap.c/.h       allocation bitmap alloc/free and header staging
       hfs_volume_write.c/.h primary/alternate header count staging
-      hfs_catalog_write.c/.h empty-file catalog create/delete
+      hfs_catalog_write.c/.h catalog create/delete and in-place overwrite
       hfs_extents_write.c/.h one extents-overflow record
       hfs_btree_write.c/.h  node-level record insert/delete/split and offset tables
       hfs_btree_tree.c/.h   tree-level insert, parent/root split, rebalance, fork growth
       hfs_fork_io.c/.h      fork block staging into a transaction
   tests/
     firmware/
-      Makefile              host tests for the F1 freestanding modules
+      Makefile              host tests for the F1/F2 freestanding modules
       test_lib.c            mem/string/endian/CRC/fixed/format
       test_boot_info.c      D-28 page validation and fallback
-      test_block.c          block adapter, bounce reads and partition scan
-      test_stages.c         stage order/timeout/failure
+      test_bootstate.c      bootstate parse, checksum and TRYING->GOOD promotion
+      test_block.c          block adapter, bounce reads/writes and partition scan
+      test_stages.c         stage order/timeout/failure including WRITE
       test_ring.c           wrap/overwrite
       test_pool.c           alloc/free/exhaustion/double free
       test_screen.c         text pixels, clipping and present
       test_trace.c          bounded trace ring
       test_hfs_file.c       one-path HFS+ read, bounds and missing file
+    image/
+      f2_host.c             F2 bootstate promotion through the HFS+ writer
+      run-f2-macos.sh       disposable-image F2 promotion, fsck and loader GOOD
     hfsplus/
       Makefile              host test build/sanitizer targets
       test_image.c/.h       shared in-memory image fixture
@@ -252,13 +256,14 @@ is created; do not let it drift.
 | `assets/fonts/` | Licensed IBM Plex Sans and Manrope subsets for the UI | UI lead | `assets/fonts/README.md` | OFL present, hashes match, host mockup renders | Do not add proprietary fonts or use the IBM Plex reserved name for a modified subset |
 | `assets/ui/` | Host 320×240 typography mockups | UI lead | `assets/ui/README.md`, `docs/ui.md` | 320×240 grayscale, no clipping, reproducible script | Host artifacts only; not a device panel run |
 | `docs/` | Agent documentation | docs lead | `docs/conventions.md` | `git diff --check`, link check | One canonical file per topic; no duplicate `agent.md`/`decision-log.md` |
+| `docs/f2-bootstate-test.md` | F2 build, host gates and 6G bootstate runbook | firmware/test lead | T-055, D-02, `docs/hfsplus-write-engine.md` | host artifact check, clean `fsck_hfs`, next loader `GOOD`, device power-cut | Writes only `/.helikon/bootstate`; no other file; no device run yet |
 | `bootloader/` | Diagnostic core and splash exist; hardware entry/manifest still planned | boot lead | `bootloader/README.md`, `docs/architecture.md`, paper §5, §16 | 7 host tests; device tests planned | No filesystem writes; no overlay; no `--single`; no write modules linked; not flashable yet |
-| `firmware/boot/` | Entry, vectors, linker script, boot-info parser, panic | boot lead | `docs/firmware-architecture.md` §3, ADR-0004 | boot-info and fault tests | No C before stacks/BSS; entry never returns; no filesystem |
-| `firmware/lib/` | Freestanding mem/string/CRC/ring/pool helpers | firmware lead | `docs/firmware-architecture.md` §8.9 | host unit tests; no hosted symbols | No `malloc`, `stdio` or locale |
+| `firmware/boot/` | Entry, vectors, linker script, boot-info parser, bootstate parser/promoter, panic | boot lead | `docs/firmware-architecture.md` §3, ADR-0004, `docs/f2-bootstate-test.md` | boot-info, bootstate and fault tests | No C before stacks/BSS; entry never returns; the bootstate write is the only F2 filesystem write |
+| `firmware/lib/` | Freestanding mem/string/CRC/SHA-256/ring/pool helpers | firmware lead | `docs/firmware-architecture.md` §8.9 | host unit tests; no hosted symbols | No `malloc`, `stdio` or locale |
 | `firmware/board/6g/` | BSP constants, init sequence, memory map | hardware lead | ADR-0003, paper §6 | map assertions, board audit | No target `#ifdef` in shared core |
-| `firmware/hal/6g/` | S5L8702 clocks, GPIO, PMU, ATA, LCD, codec | hardware lead | paper §6–§7, `docs/architecture.md` | register-level bring-up, sleep/wake | No filesystem, UI or policy; no unmeasured overclock/undervolt |
+| `firmware/hal/6g/` | S5L8702 clocks, GPIO, PMU, ATA read/write/flush, LCD, codec | hardware lead | paper §6–§7, `docs/architecture.md` | register-level bring-up, sleep/wake, PIO write/flush | No filesystem, UI or policy; no unmeasured overclock/undervolt |
 | `firmware/block/` | Sector I/O, flush, power state | storage lead | paper §7, `docs/architecture.md` | read/write/flush, 512/4096, error injection | No paths/files/caches; a flush error must propagate |
-| `firmware/hfs/` | HFS+ read core and writer: volume, B-tree, catalog, Unicode, extents, journal, txn | HFS+ lead | paper §8, §10.4, `docs/hfsplus-write-engine.md` | 104 host tests; fuzz/malformed/macOS differential planned | Writes only through `hfs_txn`; never hide unsupported entries |
+| `firmware/hfs/` | HFS+ read core and writer: volume, B-tree, catalog, Unicode, extents, journal, txn, in-place overwrite | HFS+ lead | paper §8, §10.4, `docs/hfsplus-write-engine.md` | 104 host tests; overwrite and crash tests; fuzz/malformed/macOS differential planned | Writes only through `hfs_txn`; never hide unsupported entries |
 | `firmware/hfs/hfs_catalog_write.c`, `hfs_btree_tree.c`, `hfs_bitmap.c`, `hfs_extents_write.c` | Catalog/bitmap/extents mutation | HFS+ lead | `docs/hfsplus-write-engine.md`, invariants I-03–I-15 | model/property/crash tests, `fsck_hfs` | No journal format, UI or boot policy; no direct writes outside a transaction |
 | `firmware/hfs/hfs_journal.c`, `hfs_txn.c` | Journal append/commit/replay, bounded transaction engine | journal lead | paper §9.3–§9.4, `docs/hfsplus-write-engine.md` | crash injection, idempotent replay | No product policy/UI; never delete/disable/zero the journal |
 | `firmware/vfs/` | Lookup, handles, capabilities, path rules | VFS lead | paper §10, `docs/architecture.md` | path/name tests, capability tests | No hardware registers; no overlay branch; no errno guessing |
@@ -274,7 +279,8 @@ is created; do not let it drift.
 | `tools/build-diagnostic-bootloader.sh` | Render the diagnostic image from a pinned donor checkout | boot/release lead | D-21, `bootloader/README.md` | Thumb build, `MOVE_AREA`, hash, `mks5lboot` dry-run | Uses a clean `git archive`; never modifies the donor checkout; image is unproven |
 | `tools/build-loader-bootloader.sh` | Render the DFU-only loader test image and signed test files | boot lead | D-01, D-02, T-049, `bootloader/LOADER_TEST.md` | test key reuse, manifest signature, image/marker/`MOVE_AREA`, HFS+ artifact check, `mks5lboot` dry-run | Test key stays under `build/`; only the public half is linked; device runs recorded in `docs/device-matrix.md`; production handoff disabled |
 | `tools/check-loader-artifact.sh` | Verify the exact loader test artifact through the host HFS+ core | boot lead | T-049 | disposable HFS+ image, `fsck_hfs`, `loader: OK`, `bootstate: GOOD` | Host-only; never touches a device |
-| `tools/make-firmware-image.py` | Build the F1 manifest, bootstate and signed development image | firmware/release lead | D-01, D-02, ADR-0004, T-054 | Ed25519 signature, bootstate checksum, loader host-core verification | Development key only; never commit the private key; not a release image |
+| `tools/check-f2-artifact.sh` | Verify the exact F2 image/manifest/TRYING bootstate through the write path and host loader core | firmware/HFS+ lead | T-055, D-02, `docs/f2-bootstate-test.md` | `DEFAULT` before, promotion to `GOOD`, clean `fsck_hfs`, loader `GOOD`, unchanged manifest/image | Host-only; never touches a device |
+| `tools/make-firmware-image.py` | Build the F1/F2 manifest, bootstate and signed development image | firmware/release lead | D-01, D-02, ADR-0004, T-054, T-055 | Ed25519 signature, bootstate checksum, `VERSION`, `BOOTSTATE_STATE`, loader host-core verification | Development key only; never commit the private key; not a release image |
 | `tools/firmware-size.py` | Print the F1 map/size/headroom and check undefined symbols | firmware lead | ADR-0003, T-054 | `__image_end`, `__bss_end`, raw-size equality, banned hosted symbols | Host check only; not a device measurement |
 | `tools/make-bootloader-splash.py` | Generate the pre-final owner splash PNG variants and 4bpp C data | boot/UI | T-045 | version, label mask, palette, packed base, preview | Requires the owner-provided ITC Benguiat file; font is not committed; historical design only |
 | `tools/make-final-bootloader-splash.py` | Generate the final splash variants and 4bpp C data from the owner green/red PNGs | boot/UI | T-045, `assets/bootloader/README.md` | pair-difference mask, palette, packed base, preview | Uses the exact owner PNGs; no font file required; 6bc6927c refresh is not device-tested |

@@ -19,6 +19,7 @@ tests/hfsplus/test_btree_grow
 tests/hfsplus/test_catalog_compare
 tests/hfsplus/test_catalog_write
 tests/image/hfs_image_test
+tests/image/f2_host
 tests/image/*.dSYM/
 tests/image/hfs_crash_test
 tests/image/write_diag_host
@@ -31,6 +32,7 @@ tests/hfsplus/test_catalog_index
 tests/firmware/build/
 tests/firmware/test_lib
 tests/firmware/test_boot_info
+tests/firmware/test_bootstate
 tests/firmware/test_block
 tests/firmware/test_stages
 tests/firmware/test_ring

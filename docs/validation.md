@@ -56,7 +56,7 @@ operation. A single required repair blocks release.
 
 `tests/image/run-crash-macos.sh` injects a failed device write at every cut
 point, reopens the image, replays the journal and runs `fsck_hfs -fn`. Current
-coverage is **280 cuts**:
+coverage is **346 cuts**:
 
 | Operation | Write cuts | Flush cuts | Partial-sector cuts | Status |
 |---|---:|---:|---:|---|
@@ -65,6 +65,7 @@ coverage is **280 cuts**:
 | Truncate | 25 | 4 | 25 | `implemented`, fsck clean |
 | Delete | 25 | 4 | 25 | `implemented`, fsck clean |
 | Rename | 21 | 4 | 21 | `implemented`, fsck clean |
+| Overwrite | 22 | 22 | 22 | `implemented`, fsck clean; F2 bootstate template |
 
 This is host evidence, not the device power-cut matrix above. Power-loss timing
 and the remaining operations (close, mkdir, settings, database, artwork) are
@@ -75,7 +76,7 @@ still open; the device cells remain `not run`.
 Each power-cut result must record:
 
 ```text
-operation: create | append | truncate | delete | rename | mkdir | ...
+operation: create | append | truncate | delete | rename | overwrite | mkdir | ...
 image: SHA-256 before the test
 cut: write number and journal phase (before commit / commit / apply / clean)
 journal: start, end, dirty/clean before replay

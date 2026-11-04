@@ -24,13 +24,16 @@
 #define RENAMED_NAME "Crash Renamed"
 #define DATA_SIZE 4096u
 #define DATA_PATTERN 0x5au
+#define OVERWRITE_SIZE 512u
+#define OVERWRITE_PATTERN 0xc3u
 
 enum scenario {
     SCENARIO_CREATE,
     SCENARIO_APPEND,
     SCENARIO_TRUNCATE,
     SCENARIO_DELETE,
-    SCENARIO_RENAME
+    SCENARIO_RENAME,
+    SCENARIO_OVERWRITE
 };
 
 struct io {
@@ -155,6 +158,8 @@ static int parse_scenario(const char *name, enum scenario *scenario)
         *scenario = SCENARIO_DELETE;
     } else if (strcmp(name, "rename") == 0) {
         *scenario = SCENARIO_RENAME;
+    } else if (strcmp(name, "overwrite") == 0) {
+        *scenario = SCENARIO_OVERWRITE;
     } else {
         return HFS_ERR_ARGUMENT;
     }
@@ -258,6 +263,12 @@ static int inject(struct image *image, enum scenario scenario,
     } else if (scenario == SCENARIO_TRUNCATE) {
         rc = hfs_catalog_truncate_file(&image->catalog, &tx, 2, name, units,
                                        hfs_catalog_key_compare, NULL);
+    } else if (scenario == SCENARIO_OVERWRITE) {
+        uint8_t data[OVERWRITE_SIZE];
+        memset(data, OVERWRITE_PATTERN, sizeof(data));
+        rc = hfs_catalog_overwrite_file(&image->catalog, &tx, 2, name, units,
+                                        0, data, sizeof(data),
+                                        hfs_catalog_key_compare, NULL);
     } else if (scenario == SCENARIO_RENAME) {
         struct hfs_entry entry;
         rc = lookup(image, &entry);
@@ -333,6 +344,33 @@ static int recover(struct image *image, enum scenario scenario)
         if (scenario != SCENARIO_CREATE && scenario != SCENARIO_DELETE)
             return HFS_ERR_FORMAT;
         printf("recovered present=0\n");
+        return HFS_OK;
+    }
+
+    if (scenario == SCENARIO_OVERWRITE) {
+        if (rc != HFS_OK || entry.kind != 2 ||
+            entry.data.size != DATA_SIZE)
+            return HFS_ERR_FORMAT;
+        uint8_t data[DATA_SIZE];
+        size_t done = 0;
+        rc = hfs_catalog_read_file(&image->catalog, &entry, 0, data,
+                                   sizeof(data), &done);
+        if (rc != HFS_OK || done != sizeof(data))
+            return rc != HFS_OK ? rc : HFS_ERR_FORMAT;
+
+        int old = 1;
+        int replacement = 1;
+        for (size_t i = 0; i < sizeof(data); ++i) {
+            if (data[i] != DATA_PATTERN)
+                old = 0;
+            uint8_t expected = i < OVERWRITE_SIZE ? OVERWRITE_PATTERN
+                                                  : DATA_PATTERN;
+            if (data[i] != expected)
+                replacement = 0;
+        }
+        if (old == replacement)
+            return HFS_ERR_FORMAT;
+        printf("recovered old=%d new=%d\n", old, replacement);
         return HFS_OK;
     }
     if (rc != HFS_OK)

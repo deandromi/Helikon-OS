@@ -59,4 +59,10 @@ int helikon_board_storage_init(struct helikon_board_runtime *runtime,
 int helikon_board_input_init(struct helikon_board_runtime *runtime,
                              uint32_t timeout_ms);
 
+/*
+ * Open the block layer's write gate. F1 never calls this. F2 calls it only
+ * after the read-only self-test, a clean-journal check and a bootstate match.
+ */
+int helikon_board_enable_write(struct helikon_board_runtime *runtime);
+
 #endif

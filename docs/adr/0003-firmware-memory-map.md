@@ -78,6 +78,15 @@ The map is a set of constants in the 6G BSP, mirrored in a linker script and a
 | `0x0b000000`–`0x0b7fffff` | 8 MiB | Database mapped pages and index cache | Top of the 4–8 MiB design target; read-only mapping, not a full library copy; D-07 still open |
 | `0x0b800000`–`0x0bffffff` | 8 MiB | Reserve: diagnostics, crash record, future growth | Not assigned to a feature without a new budget entry |
 
+**Implementation note (2026-11-04).** The loader test image keeps its own BSS,
+framebuffer and LCD DMA scratch at `0x08800000`–`0x08884200`. F2 reserves
+`0x08800000`–`0x0888ffff` and starts the firmware BSS at `0x08890000`. The
+kernel region remains `0x08800000`–`0x09000000`; this is a sub-allocation, not a
+new region. F1's 229 KB BSS stopped below the active LCD DMA buffers; F2's
+601 KB BSS reached them and blanked the display after the jump. The linker
+asserts `__bss_start >= 0x08890000`. Do not move it back without first making
+the loader quiesce its display controller before the jump.
+
 Audio gets the **24 MiB** upper end of its 16–24 MiB design target and the
 database gets **8 MiB**, the top of its 4–8 MiB target. Audio is the real-time
 budget that is hardest to recover at runtime; the database is a read-only cache

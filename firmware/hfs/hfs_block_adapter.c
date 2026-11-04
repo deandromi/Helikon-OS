@@ -33,3 +33,25 @@ int helikon_hfs_block_read(void *context, uint64_t offset, void *buffer,
                                       adapter->timeout_ms);
     return rc == HELIKON_OK ? 0 : rc;
 }
+
+int helikon_hfs_block_write(void *context, uint64_t offset,
+                            const void *buffer, size_t length)
+{
+    struct helikon_hfs_block_adapter *adapter = context;
+    if (adapter == NULL || adapter->device == NULL ||
+        (buffer == NULL && length != 0u))
+        return HELIKON_ERR_ARGUMENT;
+
+    int rc = helikon_block_write_bytes(adapter->device, offset, buffer, length,
+                                       adapter->scratch, adapter->scratch_size,
+                                       adapter->timeout_ms);
+    return rc == HELIKON_OK ? 0 : rc;
+}
+
+int helikon_hfs_block_flush(void *context)
+{
+    struct helikon_hfs_block_adapter *adapter = context;
+    if (adapter == NULL || adapter->device == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    return helikon_block_flush(adapter->device, adapter->timeout_ms);
+}

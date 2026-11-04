@@ -119,3 +119,11 @@ int helikon_board_input_init(struct helikon_board_runtime *runtime,
     return helikon_buttons_init(&runtime->buttons, &runtime->pmu,
                                 &runtime->clock, timeout_ms);
 }
+
+int helikon_board_enable_write(struct helikon_board_runtime *runtime)
+{
+    if (runtime == NULL || runtime->block.ops == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    runtime->block.info.flags &= ~HELIKON_BLOCK_FLAG_READ_ONLY;
+    return HELIKON_OK;
+}

@@ -54,7 +54,20 @@ int main(void)
     CHECK(!helikon_stages_expired(&stages, 5000));
     CHECK_EQ(HELIKON_OK, helikon_stages_pass(&stages, HELIKON_STAGE_ATA));
 
+    CHECK_EQ(HELIKON_OK, helikon_stages_begin(&stages, HELIKON_STAGE_PART));
+    CHECK_EQ(HELIKON_OK, helikon_stages_pass(&stages, HELIKON_STAGE_PART));
+    CHECK_EQ(HELIKON_OK, helikon_stages_begin(&stages, HELIKON_STAGE_HFS));
+    CHECK_EQ(HELIKON_OK, helikon_stages_pass(&stages, HELIKON_STAGE_HFS));
+    CHECK_EQ(HELIKON_OK, helikon_stages_begin(&stages, HELIKON_STAGE_READ));
+    CHECK_EQ(HELIKON_OK, helikon_stages_pass(&stages, HELIKON_STAGE_READ));
+    CHECK_EQ(HELIKON_OK, helikon_stages_begin(&stages, HELIKON_STAGE_INPUT));
+    CHECK_EQ(HELIKON_OK, helikon_stages_pass(&stages, HELIKON_STAGE_INPUT));
+    CHECK_EQ(HELIKON_OK, helikon_stages_begin(&stages, HELIKON_STAGE_WRITE));
+    CHECK_EQ(HELIKON_OK, helikon_stages_pass(&stages, HELIKON_STAGE_WRITE));
+
     CHECK(helikon_stage_code(HELIKON_STAGE_HFS) != NULL);
+    CHECK(helikon_stage_code(HELIKON_STAGE_WRITE) != NULL);
+    CHECK(helikon_stage_text(HELIKON_STAGE_WRITE) != NULL);
     CHECK(helikon_stages_record(&stages, HELIKON_STAGE_COUNT) == NULL);
 
     return helikon_test_report("stages");

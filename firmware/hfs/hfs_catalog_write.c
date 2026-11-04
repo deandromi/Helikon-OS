@@ -4,6 +4,7 @@
 #include "hfs_bitmap.h"
 #include "hfs_btree_tree.h"
 #include "hfs_extents_write.h"
+#include "hfs_fork_io.h"
 #include "hfs_unicode.h"
 #include "hfs_volume_write.h"
 
@@ -717,6 +718,56 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
         }
     }
 
+    return hfs_btree_update(&catalog->btree, tx, record, record_length,
+                            compare, compare_context);
+}
+
+int hfs_catalog_overwrite_file(struct hfs_catalog *catalog,
+                               struct hfs_txn *tx, uint32_t parent,
+                               const uint8_t *name, size_t units,
+                               uint64_t offset, const void *data,
+                               size_t length,
+                               hfs_btree_key_compare_fn compare,
+                               void *compare_context)
+{
+    if (catalog == NULL || tx == NULL || name == NULL || data == NULL ||
+        compare == NULL || units == 0u || units > 255u || parent < 2u ||
+        length == 0u)
+        return HFS_ERR_ARGUMENT;
+
+    static uint8_t canonical[255u * 2u];
+    size_t canonical_units = 0;
+    int rc = hfs_unicode_normalize_name(name, units, canonical,
+                                        sizeof(canonical), &canonical_units);
+    if (rc != HFS_OK)
+        return rc;
+
+    static uint8_t record[CATALOG_MAX_RECORD];
+    size_t record_length;
+    size_t key_length;
+    rc = find_file_record(catalog, tx, parent, canonical, canonical_units,
+                          compare, compare_context, record, &record_length,
+                          &key_length);
+    if (rc != HFS_OK)
+        return rc;
+    size_t data_offset = 2u + key_length;
+    if (record_length < data_offset + 88u + 80u)
+        return HFS_ERR_FORMAT;
+
+    uint8_t *fork_bytes = record + data_offset + 88u;
+    struct hfs_fork fork;
+    rc = hfs_fork_parse(catalog->btree.volume, fork_bytes, &fork);
+    if (rc != HFS_OK)
+        return rc;
+    if (offset > fork.size || length > fork.size - offset)
+        return HFS_ERR_ARGUMENT;
+
+    rc = hfs_fork_stage(tx, catalog->btree.volume, &fork, offset, data,
+                        length);
+    if (rc != HFS_OK)
+        return rc;
+
+    touch_record(record + data_offset, catalog->now);
     return hfs_btree_update(&catalog->btree, tx, record, record_length,
                             compare, compare_context);
 }

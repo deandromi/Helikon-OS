@@ -9,6 +9,10 @@
 #define ATA_CMD_READ_SECTORS 0x20u
 #define ATA_CMD_READ_MULTIPLE_EXT 0x29u
 #define ATA_CMD_READ_MULTIPLE 0xc4u
+#define ATA_CMD_WRITE_SECTORS 0x30u
+#define ATA_CMD_WRITE_MULTIPLE_EXT 0x39u
+#define ATA_CMD_FLUSH_CACHE 0xe7u
+#define ATA_CMD_FLUSH_CACHE_EXT 0xeau
 #define ATA_CMD_IDENTIFY 0xecu
 #define ATA_CMD_SET_FEATURES 0xefu
 
@@ -249,6 +253,22 @@ static int ata_power_up(struct helikon_ata *ata, uint32_t timeout_ms)
             return rc;
     }
 
+    /*
+     * F2 must not claim durability without a cache flush. Enable the volatile
+     * write cache only when the device advertises a flush command; otherwise
+     * leave the cache policy alone and let hfs_txn fail closed at flush time.
+     */
+    ata->can_flush = ((ata->identify[83] & 0x2000u) != 0u) ||
+                     ((ata->identify[83] & 0x1000u) != 0u) ||
+                     ata->identify[80] >= 0x0020u;
+    ata->write_cache = 0;
+    if (ata->can_flush && (ata->identify[82] & 0x0020u) != 0u) {
+        rc = ata_set_feature(ata, 0x02u, 0x00u, timeout_ms);
+        if (rc != HELIKON_OK)
+            return rc;
+        ata->write_cache = 1;
+    }
+
     ata->powered = 1;
     return HELIKON_OK;
 }
@@ -264,6 +284,8 @@ int helikon_ata_init(struct helikon_ata *ata, struct helikon_pmu *pmu,
     ata->sector_size = 0;
     ata->total_sectors = 0;
     ata->lba48 = 0;
+    ata->write_cache = 0;
+    ata->can_flush = 0;
     ata->powered = 0;
     ata->initialized = 0;
 
@@ -355,6 +377,85 @@ static int ata_read_chunk(struct helikon_ata *ata, uint64_t lba,
     return HELIKON_OK;
 }
 
+static int ata_write_chunk(struct helikon_ata *ata, uint64_t lba,
+                           uint32_t count, const uint8_t *buffer,
+                           uint32_t timeout_ms)
+{
+    int rc = ata_wait_rdy(ata, timeout_ms);
+    if (rc != HELIKON_OK)
+        return rc;
+    rc = ata_write_cbr(ata, &S5L_ATA_PIO_DVR, 0u, timeout_ms);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    if (ata->lba48) {
+        rc = ata_write_cbr(ata, &S5L_ATA_PIO_SCR, 0u, timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = ata_write_cbr(ata, &S5L_ATA_PIO_SCR, (uint16_t)count,
+                               timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = ata_write_cbr(ata, &S5L_ATA_PIO_LHR,
+                               (uint16_t)(lba >> 40), timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = ata_write_cbr(ata, &S5L_ATA_PIO_LMR,
+                               (uint16_t)(lba >> 32), timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = ata_write_cbr(ata, &S5L_ATA_PIO_LLR,
+                               (uint16_t)(lba >> 24), timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = ata_write_cbr(ata, &S5L_ATA_PIO_LHR,
+                               (uint16_t)(lba >> 16), timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = ata_write_cbr(ata, &S5L_ATA_PIO_LMR,
+                               (uint16_t)(lba >> 8), timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = ata_write_cbr(ata, &S5L_ATA_PIO_LLR, (uint16_t)lba,
+                               timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = ata_write_cbr(ata, &S5L_ATA_PIO_DVR, 0x40u, timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = ata_write_cbr(ata, &S5L_ATA_PIO_CSD,
+                               ATA_CMD_WRITE_MULTIPLE_EXT, timeout_ms);
+    } else {
+        rc = ata_write_cbr(ata, &S5L_ATA_PIO_SCR, (uint16_t)count,
+                           timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = ata_write_cbr(ata, &S5L_ATA_PIO_LHR,
+                               (uint16_t)(lba >> 16), timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = ata_write_cbr(ata, &S5L_ATA_PIO_LMR,
+                               (uint16_t)(lba >> 8), timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = ata_write_cbr(ata, &S5L_ATA_PIO_LLR, (uint16_t)lba,
+                               timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = ata_write_cbr(ata, &S5L_ATA_PIO_DVR,
+                               (uint16_t)(0xe0u | ((lba >> 24) & 0x0fu)),
+                               timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = ata_write_cbr(ata, &S5L_ATA_PIO_CSD,
+                               ATA_CMD_WRITE_SECTORS, timeout_ms);
+    }
+    if (rc != HELIKON_OK)
+        return rc;
+
+    const uint16_t *input = (const uint16_t *)(const void *)buffer;
+    uint32_t words = ata->sector_size / 2u;
+    for (uint32_t sector = 0; sector < count; ++sector) {
+        rc = ata_wait_start(ata, timeout_ms);
+        if (rc != HELIKON_OK)
+            return rc;
+        for (uint32_t word = 0; word < words; ++word) {
+            rc = ata_write_cbr(ata, &S5L_ATA_PIO_DTR, input[word],
+                               timeout_ms);
+            if (rc != HELIKON_OK)
+                return rc;
+        }
+        input += words;
+    }
+    return ata_wait_end(ata, timeout_ms);
+}
+
 int helikon_ata_read(void *context, uint64_t lba, uint32_t count, void *buffer,
                      uint32_t timeout_ms)
 {
@@ -382,19 +483,49 @@ int helikon_ata_read(void *context, uint64_t lba, uint32_t count, void *buffer,
 int helikon_ata_write(void *context, uint64_t lba, uint32_t count,
                       const void *buffer, uint32_t timeout_ms)
 {
-    (void)context;
-    (void)lba;
-    (void)count;
-    (void)buffer;
-    (void)timeout_ms;
-    return HELIKON_ERR_READ_ONLY;
+    struct helikon_ata *ata = context;
+    if (ata == NULL || !ata->initialized || buffer == NULL || count == 0u)
+        return HELIKON_ERR_ARGUMENT;
+    if (lba > ata->total_sectors || count > ata->total_sectors - lba)
+        return HELIKON_ERR_ARGUMENT;
+    if ((((uintptr_t)buffer) & 1u) != 0u)
+        return HELIKON_ERR_ARGUMENT;
+
+    const uint8_t *input = buffer;
+    while (count != 0u) {
+        uint32_t chunk = count > ATA_CHUNK_SECTORS ? ATA_CHUNK_SECTORS : count;
+        int rc = ata_write_chunk(ata, lba, chunk, input, timeout_ms);
+        if (rc != HELIKON_OK)
+            return rc;
+        input += (size_t)chunk * ata->sector_size;
+        lba += chunk;
+        count -= chunk;
+    }
+    return HELIKON_OK;
 }
 
 int helikon_ata_flush(void *context, uint32_t timeout_ms)
 {
-    (void)context;
-    (void)timeout_ms;
-    return HELIKON_ERR_READ_ONLY;
+    struct helikon_ata *ata = context;
+    if (ata == NULL || !ata->initialized)
+        return HELIKON_ERR_ARGUMENT;
+    if (!ata->can_flush)
+        return HELIKON_ERR_UNSUPPORTED;
+
+    int rc = ata_wait_rdy(ata, timeout_ms);
+    if (rc != HELIKON_OK)
+        return rc;
+    rc = ata_write_cbr(ata, &S5L_ATA_PIO_DVR, 0u, timeout_ms);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    uint8_t command = ATA_CMD_FLUSH_CACHE;
+    if (ata->lba48 && (ata->identify[83] & 0x2000u) != 0u)
+        command = ATA_CMD_FLUSH_CACHE_EXT;
+    rc = ata_write_cbr(ata, &S5L_ATA_PIO_CSD, command, timeout_ms);
+    if (rc != HELIKON_OK)
+        return rc;
+    return ata_wait_rdy(ata, timeout_ms);
 }
 
 int helikon_ata_power(void *context, int on, uint32_t timeout_ms)

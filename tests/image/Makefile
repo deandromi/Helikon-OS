@@ -23,15 +23,23 @@ HEADERS = $(HFS)/hfs_catalog.h $(HFS)/hfs_catalog_compare.h \
 	  $(HFS)/hfs_extents_write.h $(HFS)/hfs_txn.h \
 	  $(HFS)/hfs_journal.h $(HFS)/hfs_btree.h $(HFS)/hfs_volume.h
 
-.PHONY: all test crash-test write-diag-test outer-diag-test clean
+.PHONY: all test f2-test crash-test write-diag-test outer-diag-test clean
 
-all: hfs_image_test hfs_crash_test write_diag_host outer_diag_host loader_host
+all: hfs_image_test hfs_crash_test f2_host write_diag_host outer_diag_host loader_host
 
 hfs_image_test: hfs_image_test.c $(COMMON) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) hfs_image_test.c $(COMMON) $(LDFLAGS) -o $@
 
 hfs_crash_test: hfs_crash_test.c $(COMMON) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) hfs_crash_test.c $(COMMON) $(LDFLAGS) -o $@
+
+f2_host: f2_host.c ../../firmware/boot/bootstate.c \
+         ../../firmware/boot/bootstate.h ../../firmware/lib/sha256.c \
+         ../../firmware/lib/sha256.h ../../firmware/lib/mem.c \
+         $(COMMON) $(HEADERS)
+	$(CC) -DHELIKON_HOST_TEST -I../../firmware/boot $(CPPFLAGS) $(CFLAGS) \
+	  f2_host.c ../../firmware/boot/bootstate.c ../../firmware/lib/sha256.c \
+	  ../../firmware/lib/mem.c $(COMMON) $(LDFLAGS) -o $@
 
 write_diag_host: write_diag_host.c ../../bootloader/write_diag.c \
                  ../../bootloader/write_diag.h ../../bootloader/inner_image.c \
@@ -63,8 +71,12 @@ loader_host: loader_host.c ../../bootloader/firmware_loader.c \
 
 # The shell drivers create their own disposable images. Never point them at a
 # library or a mounted device.
-test: hfs_image_test
+test: hfs_image_test f2_host
 	./run-macos.sh
+	./run-f2-macos.sh
+
+f2-test: f2_host
+	./run-f2-macos.sh
 
 crash-test: hfs_crash_test
 	./run-crash-macos.sh
@@ -79,4 +91,5 @@ loader-test: loader_host
 	./run-loader-macos.sh
 
 clean:
-	rm -rf hfs_image_test hfs_crash_test write_diag_host outer_diag_host loader_host *.dSYM
+	rm -rf hfs_image_test hfs_crash_test f2_host write_diag_host \
+	  outer_diag_host loader_host *.dSYM

@@ -29,7 +29,9 @@ enum helikon_error {
     HELIKON_ERR_POWER = -15,
     HELIKON_ERR_NOT_EMPTY = -16,
     /* Firmware addition (D-28): the loader handoff failed validation. */
-    HELIKON_ERR_BOOT_INFO_INVALID = -17
+    HELIKON_ERR_BOOT_INFO_INVALID = -17,
+    /* Firmware addition (F2): bootstate is missing, invalid or mismatched. */
+    HELIKON_ERR_BOOTSTATE = -18
 };
 
 /* HFS+ core compatibility names. */
@@ -51,5 +53,6 @@ enum helikon_error {
 #define HFS_ERR_POWER HELIKON_ERR_POWER
 #define HFS_ERR_NOT_EMPTY HELIKON_ERR_NOT_EMPTY
 #define HFS_ERR_BOOT_INFO_INVALID HELIKON_ERR_BOOT_INFO_INVALID
+#define HFS_ERR_BOOTSTATE HELIKON_ERR_BOOTSTATE
 
 #endif

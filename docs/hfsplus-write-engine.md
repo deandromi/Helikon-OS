@@ -30,9 +30,11 @@ catalog/extents mutation (including folders and rename/move), fork block
 staging, catalog key comparison and HFS+ normalization are implemented and
 host-tested. A disposable 16 MiB journaled
 HFS+ image passes create/append/mount/delete with `fsck_hfs -fn` clean, and a
-create/append/truncate/delete/rename write/flush/partial matrices (280 cuts) replay to an
-fsck-clean volume. The write diagnostic and any device write do not exist. Do not infer a
-device write or a complete writer from this document.
+create/append/truncate/delete/rename/overwrite write/flush/partial matrices
+(346 cuts) replay to an fsck-clean volume. The F2 bootstate overlay uses the
+same in-place overwrite transaction. The write diagnostic and any device write
+do not exist. Do not infer a device write or a complete writer from this
+document.
 
 ## 2. Minimum surface
 

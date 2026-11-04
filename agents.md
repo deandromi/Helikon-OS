@@ -18,10 +18,12 @@ greenfield design, not a working firmware release.
 
 - **Design stage:** a host HFS+ read/write core, an F1 read-only firmware tree,
   a read-only diagnostic bootloader image, an inner-image write diagnostic and
-  an outer-volume write diagnostic exist. F1 has one owner-reported 6G run.
-  There is no production firmware-loading bootloader, installer or release
+  an outer-volume write diagnostic exist. F1 has one owner-reported 6G run. The
+  F2 write path exists and is host-verified: ATA write/flush, bootstate
+  promotion, in-place HFS+ overwrite and the `WRITE` stage; it has no device
+  run. There is no production firmware-loading bootloader, installer or release
   artifact. A separate DFU-only loader test image verifies a signed test payload
-  and loads the F1 development image. The read-only diagnostic image has two
+  and loads the F1/F2 development image. The read-only diagnostic image has two
   owner-reported 6G runs; the inner-image write image has one owner-reported 6G
   run with every stage PASS and a clean inner `fsck_hfs`; the outer-volume image
   has one successful owner-reported 6G run. These are development runs, not
@@ -138,9 +140,10 @@ docs/prompts/             reusable task prompts
 `docs/file-map.md` is the authoritative map, including donor files referenced by
 the paper. A directory shown as planned does not exist yet.
 ## 6. Build and test commands
-**The F1 read-only firmware skeleton can be built and host-tested, and has one
-owner-reported 6G run. F2–F5, the production firmware handoff and a release
-firmware image cannot.** The
+**The F1 read-only firmware skeleton and the F2 bootstate write path can be
+built and host-tested. F1 has one owner-reported 6G run; F2 has no device run.
+F3–F5, the production firmware handoff and a release firmware image cannot.**
+The
 read-only diagnostic bootloader and the separate DFU-only loader test image can
 also be built and host-tested:
 
@@ -148,8 +151,11 @@ also be built and host-tested:
 PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g
 PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g size
 PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g image
+PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g \
+    VERSION=2 BOOTSTATE_STATE=trying image
 make -C tests/firmware test
 make -C tests/firmware sanitize
+./tools/check-f2-artifact.sh build/firmware/6g/out
 
 make -C tests/hfsplus test
 make -C tests/hfsplus sanitize
@@ -199,8 +205,8 @@ python3 tools/hfsplus/tests/check_integration.py
 ```
 
 They must run in a separate donor checkout, never here. They prove donor host
-tests, not Helikon-OS correctness or device safety. The F1 commands above are
-current; do not add F2–F5 commands until those modules exist and
+tests, not Helikon-OS correctness or device safety. The F1 and F2 commands
+above are current; do not add F3–F5 commands until those modules exist and
 `docs/testing.md` records them.
 
 ## 7. Change recipes

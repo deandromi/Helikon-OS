@@ -294,12 +294,12 @@ Active task: T-055 / F2 — bootstate promotion
 Why this task: P0; first firmware write; follows the completed F1 gate
 Dependencies: T-054 done; D-02; hfs_txn/hfs_journal host-tested
 Blocked by: owner authorization for the first firmware write
-Last evidence: F1 d7916411…, 39,108 bytes, owner-reported 6G run 2026-11-04
-In scope: re-read bootstate, validate both slots, stage a higher-sequence GOOD,
-          commit through hfs_txn, flush, read back, fsck_hfs
+Last evidence: F1 d7916411… owner-reported 6G run; F2 5e14793f… host-verified,
+              artifact promotes TRYING→GOOD and loader sees GOOD; no F2 device run
+In scope: F2 6G run, clean fsck_hfs, next loader boot GOOD, device power-cut
 Out of scope: VFS, browser, UI, audio, USB, database, update
 Hard stops: no write outside bootstate, no journal bypass, no unsigned image, no --single
-Next smallest step: read /.helikon/bootstate through HFS+ and validate both slots
+Next smallest step: run the F2 image on a backed-up 6G and record the promotion
 Docs to update: state, tasks, handoff, log, device-matrix after the run
 ```
 
