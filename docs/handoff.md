@@ -57,20 +57,24 @@ file grows. Do not rely on chat history for current state.
 - The first indexed build `9600332f…` booted fast but failed
   `Cannot read firmware manifest` / `not found (-4)`: the descent picked a
   separator at/after the parent and skipped a shared leaf. `3979de6f…` uses the
-  last separator below the parent and is not installed. The test image remains
-  `unproven`.
+  last separator below the parent.
+- Owner report 2026-11-04 on `3979de6f…`: everything works, very fast and
+  consistent. This closes the T-049 test-image scope. Exact boot time and
+  post-run `fsck_hfs` remain to record; the production handoff is still
+  disabled.
 
 ## What is next
 
-1. Install `3979de6f…` through DFU using `LOADER_TEST.md`; the lower-bound
-   indexed descent should find the shared `.helikon` leaf, `lcd_update` pushes
-   the green HFS+ label and the bottom stage line shows the remaining stages.
-   Record the screens and post-run `fsck_hfs -fn`.
-2. T-050: resolve the D-02 A/B gap (single image path cannot boot a previous
+1. Record exact boot time and post-run `fsck_hfs -fn` for `3979de6f…`; remove
+   the temporary bottom stage line and rebuild the clean splash.
+2. T-051: build the production firmware handoff and recovery menu. The current
+   image executes a signed 12-byte test payload and disables production
+   handoff.
+3. T-050: resolve the D-02 A/B gap (single image path cannot boot a previous
    GOOD slot). See C-10.
-3. T-006/D-20: signing-key ownership remains the P0 owner/legal decision. The
+4. T-006/D-20: signing-key ownership remains the P0 owner/legal decision. The
    test key is not a release key.
-4. Rebuild the inner-image and outer-volume diagnostics from current source
+5. Rebuild the inner-image and outer-volume diagnostics from current source
    before another device run; their tested artifacts predate the T-034/T-010
    fixes.
 

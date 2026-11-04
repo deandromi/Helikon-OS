@@ -2,7 +2,7 @@
 
 > Purpose: install and run the read-only firmware-loader test image on an iPod
 > Classic 6G, record the result, and recover.
-> Status: image builds and passes host gates; **no device run is recorded**.
+> Status: owner-reported pass on `3979de6f…` (one 6G/iFlash SD); exact boot time and post-run `fsck_hfs` still to record.
 > Owner: boot lead
 > Last updated: 2026-11-04
 > Source: D-01, D-02, T-049; [`LOADER.md`](LOADER.md), [`DFU.md`](DFU.md)

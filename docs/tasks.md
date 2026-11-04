@@ -13,11 +13,11 @@ P0. Status uses `planned`, `in progress`, `unproven`, `implemented` or
 
 **Priority review, 2026-11-04.** T-048, T-044, T-038, T-034, T-003, T-004 and
 T-010 are closed, D-01/D-02 are accepted, and T-011/T-027 are implemented.
-The active P0 line is **T-049** (loader test-image device run) and **T-006**
-(D-20 signing-key ownership, owner/legal). T-049's host gates pass and the image
-builds; it is not yet a device run. The P1 line is T-012 (device inventory),
-T-029 (read-only diagnostic finish), T-045 (splash, owner design implemented in
-the loader test image) and T-050 (D-02 A/B path gap); T-041 is implemented.
+T-049's test image is owner-reported working on `3979de6f…` and is implemented.
+The active P0 line is **T-051** (production firmware handoff and recovery menu)
+and **T-006** (D-20 signing-key ownership, owner/legal). The P1 line is T-012
+(device inventory), T-029 (read-only diagnostic finish), T-045 (splash, pending
+stage-line removal) and T-050 (D-02 A/B path gap); T-041 is implemented.
 T-042/T-013 are P2; T-024 is rejected as superseded by T-045.
 
 UI fonts/mockup and the splash must not take device testing time from the
@@ -45,6 +45,7 @@ authorize a library write.
 | T-029 | Build and run a hardware-testable diagnostic bootloader image. | P1 | T-028, T-003 | Image built: 67,144 bytes, SHA-256 `280ed7aee5dcf38d1a30470704f91740b299004692c2aebbb21d41744c05f43c`, `_moveend` `0x22030e40`, 61,888 bytes `MOVE_AREA` headroom. First run (`bd0ebc92…`) booted and splashed; volume/catalog PASS, read FAIL `-11`, report formatting corrupt. Fixed image (`280ed7ae…`) rerun: formatting correct, volume/catalog/write/journal/splash/partition correct, read `-8` because `/rockbox.ipod` is not a disk file; no write. Remaining: optional real-file probe, button/power-off record. | `in progress` | boot/release | [DFU.md](../bootloader/DFU.md), [artifact README](../bootloader/artifacts/README.md), [device-matrix.md](device-matrix.md) |
 | T-045 | Design and integrate a new bootloader splash. | P2 | owner design; bootloader display path | Owner design is in `assets/bootloader/` with `VERSION Alpha` and a green/red `HFS+ DETAILS` mask; only the version and HFS+ label differ from the source. The loader test image uses a 16-colour 4bpp RGB565 representation and links `splash_color.c`; the PNG mockups preserve the source. No writes. Splash displayed in one owner-reported startup; remaining: the HFS+ label colour transition and the final timing/device evidence. | `in progress` | owner/boot | [bootloader assets README](../assets/bootloader/README.md), [splash_color.c](../bootloader/splash_color.c), [LOADER_TEST.md](../bootloader/LOADER_TEST.md) |
 | T-050 | Resolve the D-02 A/B image-path gap before claiming rollback. | P1 | D-02, C-10, T-049 | Choose two fixed per-slot manifest/image paths or an update rollback writer; the bootloader can select a verified previous GOOD image without loading an unverified file; tests cover newest-failed fallback, missing previous image and mismatched slot metadata; no bootloader write path. | `planned` | boot lead | [decisions.md](decisions.md#c-10--d-02-says-previous-good-but-the-frozen-format-has-one-image-path), [LOADER.md](../bootloader/LOADER.md) |
+| T-051 | Build the production firmware handoff and recovery menu. | P0 | T-049, D-01, D-02, D-20 | Production bootloader verifies a real signed firmware image, jumps without returning, offers Apple/OF and recovery choices, keeps the previous verified image on failure, and has a recorded device run. No test payload and no unsigned image. | `planned` | boot lead | [architecture.md](architecture.md), [release.md](release.md), [LOADER.md](../bootloader/LOADER.md) |
 
 ## Done
 
