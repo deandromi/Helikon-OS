@@ -24,6 +24,13 @@ file grows. Do not rely on chat history for current state.
 - This is the first successful outer-volume writer run on the real 6G volume.
   It is one run on one device; no power-cut or support claim.
 
+## Task list review
+
+`docs/tasks.md` was regrouped on 2026-11-04. The active P0 line is T-048
+evidence, T-044/T-034/T-038 writer hardening, T-010 power loss, then T-003/T-006
+release gates. UI work is P1/P2. T-017 is rejected and T-030 is complete through
+T-032/T-040/T-047.
+
 ## What is next
 
 1. The outer diagnostic bootloader is still installed and `helikon-outer-ok.txt`
