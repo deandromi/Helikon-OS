@@ -44,7 +44,8 @@ scope, licensing, or app/plugin compatibility — stop and record it in
 Then read the specialist files you need:
 [`hfsplus-write-engine.md`](hfsplus-write-engine.md),
 [`ui.md`](ui.md), [`outer-volume-test.md`](outer-volume-test.md),
-[`testing.md`](testing.md), [`validation.md`](validation.md),
+[`fixtures.md`](fixtures.md), [`testing.md`](testing.md),
+[`validation.md`](validation.md),
 [`release.md`](release.md), [`security.md`](security.md),
 [`conventions.md`](conventions.md), [`handoff.md`](handoff.md),
 [`faq.md`](faq.md).
@@ -90,7 +91,8 @@ status.
 | [`handoff.md`](handoff.md) | Latest session handoff and template. | living |
 | [`conventions.md`](conventions.md) | Doc/code/commit/PR style and status rules. | living |
 | [`glossary.md`](glossary.md) | Plain-language terms. | living |
-| [`testing.md`](testing.md) | Test layers, fixtures, sanitizers, adding tests. | living |
+| [`testing.md`](testing.md) | Test layers, sanitizers and adding tests. | living |
+| [`fixtures.md`](fixtures.md) | Host fixture plan, generation methods and hash/evidence policy. | living |
 | [`validation.md`](validation.md) | Release-level evidence matrix and scorecard. | living |
 | [`goals.md`](goals.md) | All 25 README goals with priority and acceptance. | living |
 | [`roadmap.md`](roadmap.md) | Phases 0–12, dependencies, exit criteria. | living |

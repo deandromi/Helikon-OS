@@ -401,7 +401,8 @@ gate. See C-08.
   private key, token, recovery phrase or signing secret. A lost key must not
   brick devices; DFU/Apple recovery remains the fallback.
 - **Follow-up:** define roles, storage, ceremony, rotation, revocation and
-  emergency recovery; link to D-01 and `release.md`.
+  emergency recovery; link to D-01 and `release.md`. A proposed option set is in
+  [`adr/0002-signing-key-ownership.md`](adr/0002-signing-key-ownership.md).
 
 ## D-21 — First diagnostic bootloader scope
 

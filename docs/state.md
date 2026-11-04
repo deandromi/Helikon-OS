@@ -77,9 +77,11 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Data-fork append/truncate (eight inline + multiple overflow records) | `implemented` | `hfs_catalog_append_file` appends to empty or non-empty files, stages data before metadata, allocates individual free blocks, merges inline extents and writes multiple extents-overflow records; truncate frees all records; the transaction block budget caps very large fragmented writes |
 | Fork block staging | `implemented` | `firmware/hfs/hfs_fork_io.c`; full/partial block write staging into `hfs_txn`; inline extents only; 4 host tests |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
-| Default UI typography | `planned` | D-23 and `docs/ui.md` record IBM Plex Sans 14/17/12/11 px and Manrope Bold logo; D-24 requires grayscale anti-aliased glyph masks/atlases with a 1-bit fallback. Font licences/subset and the 320×240 mockup are not done; no UI code exists |
+| Default UI typography | `in progress` | D-23/D-24 and `docs/ui.md` record the 14/17/12/11 px scale and grayscale anti-aliasing. Licensed IBM Plex Sans and Manrope subsets, OFL texts, hashes and two 320×240 host mockups are in `assets/fonts/` and `assets/ui/`; `tools/render-ui-mockup.py` reproduces them with clipping checks. Firmware renderer and 6G panel run remain T-042 |
 | Bootloader splash redesign | `planned` | Current splash is the owner-supplied 320×240 1-bit image; owner will design a new splash (T-045). Rendering path and licence/source are open |
-| Host test harness | `in progress` | 113 portable tests (101 HFS+, 12 bootloader), sanitizer clean, plus the macOS disposable-image, crash-injection, inner-image and outer-volume tests; first diagnostic boot is owner-reported |
+| Host test harness | `in progress` | 113 portable tests (101 HFS+, 12 bootloader), sanitizer clean, plus the macOS disposable-image, Unicode, crash-injection, inner-image and outer-volume tests; fixture plan in `fixtures.md`; first diagnostic boot is owner-reported |
+| Backup/recovery protocol | `implemented` | Full-volume backup, read-back, disposable restore rehearsal and Apple-restore/DFU path owner-confirmed 2026-11-04; protocol and stop conditions in `outer-volume-test.md` |
+| Fixture plan | `implemented` | `docs/fixtures.md` lists synthetic reader/journal/B-tree/catalog/extents/bitmap/Unicode fixtures, disposable-image writer fixtures and write/flush/partial crash fixtures; no disk images committed |
 
 ## What does not exist
 
@@ -157,24 +159,27 @@ writes, the transaction engine, the bootloader, or any goal in
 ## Current blockers
 
 1. **No firmware implementation.** There is a host HFS+ read/write core, a
-   read-only diagnostic image and a separate inner-image write diagnostic. The
-   firmware-loading bootloader, kernel, VFS, player, UI, database, installer and
-   host app do not exist. The write diagnostic's library, power-cut, adapter and
-   release paths are not tested.
-2. **Journal decisions are settled; the writer is not implemented.** D-03
+   read-only diagnostic image, an inner-image write diagnostic and an
+   outer-volume write diagnostic. The firmware-loading bootloader, kernel, VFS,
+   player, UI, database, installer and host app do not exist. The outer-volume
+   writer has one successful 6G run; library-wide, power-cut and adapter paths
+   are not tested.
+2. **Journaled writer exists; device power-cut evidence is incomplete.** D-03
    requires journaled writes and D-04 makes Helikon-OS own replay. The
-   transaction engine, journal record format, replay and crash tests do not
-   exist yet.
-3. **Writer internals are not all frozen.** The interface and journal design are
-   frozen; the bitmap, B-tree insert/delete/growth, catalog/extents mutation,
-   fork staging, Apple `FastUnicodeCompare`, HFS+ decomposition and canonical
-   ordering, folder create/delete and rename are implemented, and a disposable
-   macOS HFS+ image passes `fsck_hfs -fn`. Cache limits (D-05), metadata
-   parity, the broader macOS name corpus and any device write remain. Do not
-   substitute byte order.
-4. **No signed-update or signing policy.** D-01, D-16 and D-20 are open.
-5. **No device-test programme.** No backup/recovery rehearsal, adapter matrix or
-   full `fsck_hfs` oracle run is recorded for Helikon-OS.
+   transaction engine, Apple journal format, replay and 280 host crash cuts are
+   implemented. The real device power-cut matrix and replay of a real dirty
+   volume remain.
+3. **Writer internals are mostly frozen.** The interface/journal design,
+   bitmap, B-tree insert/delete/growth/deep delete, catalog/extents mutation,
+   fork staging, FastUnicodeCompare, HFS+ decomposition, metadata policy and
+   rename are implemented; the disposable image and one outer-volume run pass
+   `fsck_hfs`. Cache limits (D-05), broader fuzzing and the device power-cut/
+   adapter matrix remain.
+4. **No signed-update or signing policy.** D-01, D-16 and D-20 are open; D-20 is
+   the only remaining P0 task.
+5. **Device-test programme is partial.** Backup, read-back, disposable restore
+   rehearsal and the Apple-restore/DFU path are owner-confirmed. The adapter
+   matrix, full device power-cut matrix and library-wide differential remain.
 6. **No release infrastructure.** No reproducible build, manifest, signing key,
    staging flow, rollback test or support window. Signing policy is D-20.
 
@@ -186,42 +191,20 @@ The writer interface and failure model are frozen in
 probe is intentionally skipped; `-8` is correct because `/rockbox.ipod` is not a
 disk file on this iPod.
 
-The next writer tasks are:
+The only active P0 task is **T-006** (D-20 signing-key ownership); it needs
+owner/legal input. T-011/T-027 remain P0 but are blocked by D-01/D-02. A proposed scheme is in
+[`adr/0002-signing-key-ownership.md`](adr/0002-signing-key-ownership.md). The P1
+line is:
 
-- **T-034** — the generic B-tree mutation engine (insert/delete, split/merge,
-  free-node map, leaf links, fork growth, FastUnicodeCompare, leaf and
-  index-node below-minimum insert) is implemented; the 60-record depth-3 model
-  passes insert, update and delete.
-- **D-06** — accepted: Apple `FastUnicodeCompare` plus HFS+ normalization from
-  generated Unicode 2.1.9 tables. Disposable-image `fsck_hfs` passes; the
-  scripted macOS corpus now covers NFC/NFD, CJK, emoji, `:`/`/` and the
-  255-unit boundary.
-- **T-007** — catalog B-tree mutation design is in `hfsplus-write-engine.md` §3.
-- **T-008** — extents/overflow mutation design is in §4–§5.
-- **T-004** — the disposable-image `fsck_hfs` path is implemented; the wider
-  committed fixture corpus and power-loss matrix remain.
-- **T-038** — the broader macOS name corpus and the `:`/`/` mapping.
-- **T-039** — macOS NUL-prefixed private names are now escaped as U+2400 and
-  marked unsupported; path lookup continues past them instead of aborting.
-- **D-05** — cache/dirty-set limits.
-- **T-010** — the create/append/truncate/delete/rename write-failure matrices
-  pass (280 write/flush/partial cuts, fsck clean). Power-loss
-  timing and the evidence format remain.
-- **D-22** — the separate write diagnostic is built and host-tested. Next: a
-  recorded 6G run with `helikon-test.img`, then extract the inner image and run
-  `fsck_hfs -fn` before any support claim.
+- **T-041** — UI font licences and the 320×240 typography mockup.
+- **T-012** — full 6G model/adapter/battery inventory; backup/restore is done.
+- **T-029** — finish the read-only diagnostic evidence.
+- **T-027/T-011** — bootloader manifest/boot-state, blocked by D-01/D-02.
+- **T-045** — new splash design and rendering path.
 
-The bootloader path resumes afterwards; D-01/D-02/D-20 remain open.
-
-For the writer path, see [`tasks.md`](tasks.md):
-
-- **T-001** — record D-03 and D-04 (journal strategy and ownership).
-- **T-002** — freeze the HFS+ writer interface and failure model.
-- **T-003** — build the model-based B-tree and allocation test plan.
-- **T-004** — define the backup, recovery and disposable-volume protocol.
-
-Do not start phase 2 code or any device write test before T-001 and T-004 are
-complete.
+T-042/T-013/T-024 are P2. The fixture plan is in
+[`fixtures.md`](fixtures.md); the writer crash matrix and evidence format are in
+[`validation.md`](validation.md) §2.
 
 ## Unproven claims and open questions
 

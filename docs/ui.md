@@ -1,9 +1,9 @@
 # UI design — default theme and typography
 
 > Purpose: the first-party Helikon-OS UI look and the default typography scale.
-> Status: living document; typography owner-settled, UI not implemented.
+> Status: living document; typography owner-settled, font subsets and host mockup implemented, renderer not started.
 > Owner: project owner; UI lead
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: owner-supplied typography table, 2026-11-03; design paper §14,
 > §28.3.4; D-10, D-15, D-23
 
@@ -63,11 +63,14 @@ both. The logo is a wordmark, not a UI text style.
 ## 3. Font assets and licensing
 
 - IBM Plex Sans and Manrope are published under the SIL Open Font License.
-  Verify the exact upstream release, keep the OFL licence text and record the
-  source/hash before committing font binaries.
-- Subset or rasterize only the glyphs the UI needs; record the subset and the
-  resulting size. Do not bundle the full upstream families without a measured
-  reason.
+  The licensed subsets, OFL texts, upstream sources and hashes are recorded in
+  [`../assets/fonts/README.md`](../assets/fonts/README.md).
+- `HelikonUI-Sans.ttf` is a renamed Latin-1 subset with the variable weight axis
+  (Regular 400, Medium 500, Semibold 600). `HelikonWordmark.ttf` is a Manrope
+  subset for `HELIKON-OS` at weight 700. Do not bundle the full upstream
+  families; regenerate a subset only with a measured glyph list.
+- The subsets are renamed because IBM Plex has a Reserved Font Name. Keep the
+  OFL texts and copyright notices with the files.
 - The owner-supplied mountain logo reference has an open licence/source; see
   `assets/logo/README.md`. The Manrope wordmark font is separate from that image.
 - Do not copy proprietary themes, artwork, fonts or metadata.
@@ -96,15 +99,26 @@ settled:
 - subpixel rendering, gamma correction, hinting and bitmap fallback metrics;
 - whether the bootloader splash uses 1-bit mono or a grayscale/colour path.
 
+The host mockup uses provisional values (24 px menu row pitch, 10–12 px margins,
+black/white neutral palette, 20 px wordmark). They illustrate the type scale and
+are not settled layout or colour decisions.
+
 ## 6. Verification
 
 Before firmware UI code depends on this table:
 
-1. Render a 320×240 host mockup with the exact weights and sizes.
-2. Check every row for clipping, overlap and readable contrast.
-3. Check the selected row at 14 px Medium against the 14 px Regular menu.
-4. Record font source, licence and subset hash.
-5. Only then implement the renderer and theme.
+1. Render a 320×240 host mockup with the exact weights and sizes. Done:
+   [`../assets/ui/helikon-os-ui-320x240.png`](../assets/ui/helikon-os-ui-320x240.png)
+   and
+   [`../assets/ui/helikon-os-typography-320x240.png`](../assets/ui/helikon-os-typography-320x240.png).
+2. Check every row for clipping, overlap and readable contrast. Done by
+   `tools/render-ui-mockup.py`; the menu rows, title, selected row, footer and
+   wordmark fit the 320×240 canvas.
+3. Check the selected row at 14 px Medium against the 14 px Regular menu. Done
+   in the menu mockup.
+4. Record font source, licence and subset hash. Done in
+   [`../assets/fonts/README.md`](../assets/fonts/README.md).
+5. Only then implement the renderer and theme (T-042).
 6. Compare anti-aliased and 1-bit fallback glyphs on the 6G panel.
 
 The mockup is a host artifact, not a device run. A device run must still record

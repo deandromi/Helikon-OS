@@ -25,7 +25,7 @@ hide an unexecuted safety gate.
 | G-06 | Bootloader read-only | No write symbols linked; volume hash unchanged after boot | Image/map + whole-volume hash | `not run` |
 | G-07 | Apple/DFU recovery intact | Apple path bootable; DFU install/uninstall works; `--single` rejected | Device run | `not run` |
 | G-08 | Signed update/rollback | Bad board/version/hash/size rejected; staging cut leaves old image bootable | Fault injection + device run | `not run` |
-| G-09 | Backup/recovery rehearsal | Backup verified by read-back; restore path tested | Checklist + hash | `not run` |
+| G-09 | Backup/recovery rehearsal | Backup verified by read-back; restore path tested | Checklist + hash | `partial` — owner confirmed full backup/diff, disposable restore rehearsal and Apple-restore path on 2026-11-04; attach logs/hashes |
 | G-10 | No low-battery corruption | Write refused below threshold; no transaction starts | Battery injection + log | `not run` |
 | G-11 | Memory budget | Peak within §28.3.2 budget on 10k tracks; no OOM in soak | Watermark + soak | `not run` |
 | G-12 | Device support claim | Exact model/revision/adapter/firmware recorded | `device-matrix.md` row | `not run` |

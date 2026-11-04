@@ -37,6 +37,7 @@ Do **not** use an ADR for a small style choice, a task status, or a decision tha
 
 | ADR | Title | Status |
 |---|---|---|
+| [`0002-signing-key-ownership.md`](0002-signing-key-ownership.md) | Signing-key ownership and release signing | proposed |
 | [`0001-template.md`](0001-template.md) | Template (not a decision) | template |
 
 Add real ADRs above this line when created. Do not create both an ADR and a

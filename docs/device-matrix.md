@@ -190,6 +190,11 @@ Mac. No timing was recorded; the owner described the run as slow.
 This is one successful outer-volume run on one 6G. It is not a power-cut,
 adapter, other-volume or support claim.
 
+**Recovery rehearsal:** the owner confirmed the full backup read-back, a
+disposable restore rehearsal and the Apple-restore/DFU fallback path on
+2026-11-04. The protocol is in `outer-volume-test.md`; the inventory/adapter
+matrix remains T-012.
+
 ## 3. Storage and adapter matrix
 
 The paper requires at least one SD, one CF, one SSD and one HDD configuration

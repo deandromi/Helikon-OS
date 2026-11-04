@@ -39,14 +39,23 @@ file grows. Do not rely on chat history for current state.
 - T-034 is implemented: index-node insert/split recursion, below-minimum
   insert, deep delete/merge and recursive parent-key propagation are fixed. The
   model now inserts, updates and deletes 60 records at depth 3.
+- T-003 is closed: owner confirmed the full backup/diff, disposable restore
+  rehearsal and Apple-restore/DFU path.
+- T-004 is closed: `docs/fixtures.md` records the fixture matrix, generators and
+  hash/evidence policy.
+- T-010 is closed as a definition task: the matrix and evidence format are in
+  `validation.md`, with 280 host write/flush/partial cuts. Device power-loss
+  execution remains a validation gate.
+- T-041 is implemented: licensed IBM Plex Sans and Manrope subsets, OFL texts,
+  hashes and two 320×240 host mockups. The renderer is T-042.
 
 ## Task list review
 
 `docs/tasks.md` was regrouped on 2026-11-04. T-048 is closed and T-044 is now
 implemented (Finder type/creator policy plus preservation and macOS
 `GetFileInfo` checks; wider Unicode names are T-038). The active P0 line is
-T-010 power loss, then T-003/T-006 release gates. T-034 is implemented, and
-T-038 has a scripted Unicode corpus. UI work is P1/P2. T-017 is rejected and
+T-006 signing. T-034 is implemented, and T-038 has a scripted Unicode corpus.
+UI work is P1/P2. T-017 is rejected and
 T-030 is complete through T-032/T-040/T-047.
 
 ## What is next
@@ -55,13 +64,16 @@ T-030 is complete through T-032/T-040/T-047.
    is still at the iPod root. Remove the opt-in file now, or keep it only if
    another controlled run is planned. To return to the normal boot path, put
    the iPod in DFU and run `tools/uninstall-bootloader.sh` (never `--single`).
-2. Extend T-010 with partial-sector/fsync injection and the evidence format;
-   rename, flush and partial-sector failures are covered; the matrix is 280
-   cuts. Power-loss timing and the remaining operations are open.
-3. Close T-003 with a restore rehearsal and T-006 with the signing policy.
+2. The only active P0 is T-006 (D-20 signing-key ownership); T-011/T-027 remain
+   P0 but are blocked by D-01/D-02. ADR-0002 is proposed: offline Ed25519 root
+   plus delegated release key, with rotation, revocation and DFU recovery. The
+   owner must accept or choose another option.
+3. P1: T-012 device inventory, T-029 read-only diagnostic finish,
+   T-027/T-011 bootloader manifest (blocked by D-01/D-02); T-042/T-013/T-024 are
+   P2 and T-045 splash depends on owner design.
 4. Rebuild the inner-image write diagnostic (`81350f…` predates the journal
    `max_blocks` fix) before another inner power-cut run.
-5. T-041/T-042 UI fonts/mockup and renderer; T-045 splash; T-013/T-024 later.
+5. T-006/ADR-0002 remains the only P0 decision.
 
 ## What must not be touched
 
