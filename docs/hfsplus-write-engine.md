@@ -76,8 +76,8 @@ code in the product.
 - A failed mutation leaves the old tree intact; partial node writes are not
   visible.
 - The free-node map and allocation bitmap agree with the nodes actually in use.
-- Inserting a key below a leaf's first key updates the parent index chain; the
-  index-node below-minimum case at depth >2 still fails closed.
+- Inserting a key below a leaf's or index node's first key updates the parent
+  index chain; the depth-3 model covers leaf and index below-minimum insertion.
 - A record update preserves BSD info, Finder info, flags and timestamps unless
   the operation explicitly changes them.
 

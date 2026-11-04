@@ -9,10 +9,10 @@
 
 #define TEST_BLOCK_SIZE 512u
 #define TEST_NODE_SIZE 512u
-#define TEST_NODES 16u
+#define TEST_NODES 32u
 #define TEST_CATALOG_BLOCK 20u
 #define TEST_KEY_BYTES 64u
-#define TEST_RECORDS 20u
+#define TEST_RECORDS 60u
 #define TEST_RECORD_BYTES (2u + TEST_KEY_BYTES + 8u)
 
 static void put_be16(uint8_t *p, uint16_t v)

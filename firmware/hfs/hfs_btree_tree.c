@@ -1286,8 +1286,16 @@ static int update_parent_key(struct hfs_btree *btree,
                        &parent_key_length);
         if (rc != HFS_OK)
             return rc;
+        /*
+         * The recursive call reuses the static parent buffer, which would
+         * invalidate a pointer into it. Copy the key first.
+         */
+        static uint8_t key_copy[HFS_MAX_NODE_SIZE];
+        if (parent_key_length > sizeof(key_copy))
+            return HFS_ERR_FORMAT;
+        memcpy(key_copy, parent_key, parent_key_length);
         return update_parent_key(btree, header, tx, path, level - 1u,
-                                 parent_key, parent_key_length);
+                                 key_copy, parent_key_length);
     }
     return HFS_OK;
 }

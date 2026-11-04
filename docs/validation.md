@@ -3,7 +3,7 @@
 > Purpose: define the evidence required before a release or a goal claim.
 > Status: living document
 > Owner: release lead; test lead
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: design paper §24, §26.12, §28.6; `docs/verification.md`
 
 **No Helikon-OS release exists and no validation gate has been run.** Every
@@ -51,6 +51,42 @@ missing gate, not a pass.
 After every cut: boot, mount, capture journal state, run `fsck_hfs -n`, compare
 the recovered tree with the committed state, and repeat at least 100 times per
 operation. A single required repair blocks release.
+
+### 2.1 Host crash-injection coverage
+
+`tests/image/run-crash-macos.sh` injects a failed device write at every cut
+point, reopens the image, replays the journal and runs `fsck_hfs -fn`. Current
+coverage is **148 cuts**:
+
+| Operation | Cuts | Status |
+|---|---:|---|
+| Create | 25 | `implemented`, fsck clean |
+| Append | 43 | `implemented`, fsck clean |
+| Truncate | 34 | `implemented`, fsck clean |
+| Delete | 25 | `implemented`, fsck clean |
+| Rename | 21 | `implemented`, fsck clean |
+
+This is host evidence, not the device power-cut matrix above. Partial-sector
+writes, fsync failure and power-loss timing are still open; the device cells
+remain `not run`.
+
+### 2.2 Evidence record format
+
+Each power-cut result must record:
+
+```text
+operation: create | append | truncate | delete | rename | mkdir | ...
+image: SHA-256 before the test
+cut: write number and journal phase (before commit / commit / apply / clean)
+journal: start, end, dirty/clean before replay
+replay: result and number of applied blocks
+fsck_hfs: full output, exit code and zero-repair confirmation
+tree: recovered names, sizes, CNIDs and metadata compared with the expected state
+device: 6G model/revision, adapter/card, firmware/bootloader image hash
+result: pass | fail, plus the preserved image path
+```
+
+A missing field is not a pass.
 
 ## 3. Battery baseline
 

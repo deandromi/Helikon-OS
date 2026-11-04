@@ -57,8 +57,8 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Bounded transaction engine | `implemented` | `firmware/hfs/hfs_txn.c`; staged-block commit through the journal; 7 host tests |
 | Allocation bitmap | `implemented` | `firmware/hfs/hfs_bitmap.c`; first-fit alloc/free, free-block counts, header/alternate staging, `NO_SPACE`; 6 host tests; allocation-file overflow extents unsupported |
 | B-tree node mutation helpers | `implemented` | `firmware/hfs/hfs_btree_write.c`; node offset table insert/delete, free-space checks and node split; 7 host tests |
-| B-tree tree insertion | `implemented` | `firmware/hfs/hfs_btree_tree.c`; root-to-leaf traversal, free-node map, leaf/index split, recursive parent split, root creation, leaf below-minimum insert, parent-key propagation and index-node below-minimum insert at depth >2; 1 model test with 20 records plus a below-minimum case; a 60-record temporary model reached depth 3 and all inserted keys were found |
-| B-tree delete | `in progress` | `hfs_btree_delete` removes records including first records, propagates changed parent keys, unlinks/frees empty leaves, merges/redistributes with both siblings, collapses a one-child root to its nonempty leaf and collapses an empty parent into its grandparent. A 60-record depth-3 model exposed a key loss after a merge/underflow (key 27 not found after deleting 28); deep index deletion remains T-034 |
+| B-tree tree insertion | `implemented` | `firmware/hfs/hfs_btree_tree.c`; root-to-leaf traversal, free-node map, leaf/index split, recursive parent split, root creation, leaf below-minimum insert, parent-key propagation and index-node below-minimum insert at depth >2; the model test now inserts and deletes 60 records at depth 3 |
+| B-tree delete | `implemented` | `hfs_btree_delete` removes records including first records, propagates changed parent keys, unlinks/frees empty leaves, merges/redistributes with both siblings, collapses a one-child root to its nonempty leaf and collapses an empty parent into its grandparent. The 60-record depth-3 model now passes insert, update and delete; the key-loss alias in recursive parent-key propagation is fixed |
 | Volume header staging | `implemented` | `hfs_volume_write.c`; primary/alternate header file/folder counts, next CNID, modify date and write count; stages a journal-sector-sized block so 512-byte and 4 KiB journal headers work; 4 KiB unit test |
 | Private NUL names | `implemented` | Directory iteration escapes NUL as U+2400 and marks the entry `name_escaped`/`unsupported`; path lookup skips the escaped entry and continues instead of aborting the directory; 1 catalog test |
 | Extents-overflow record | `implemented` | `hfs_extents_write.c`; data-fork records keyed by fork/file/startBlock, up to eight extents each; insert/get/delete; multiple records supported |
@@ -189,22 +189,23 @@ disk file on this iPod.
 The next writer tasks are:
 
 - **T-034** — the generic B-tree mutation engine (insert/delete, split/merge,
-  free-node map, leaf links, fork growth, FastUnicodeCompare and leaf
-  below-minimum insert) is implemented; index-node below-minimum insert at
-  depth >2 remains.
+  free-node map, leaf links, fork growth, FastUnicodeCompare, leaf and
+  index-node below-minimum insert) is implemented; the 60-record depth-3 model
+  passes insert, update and delete.
 - **D-06** — accepted: Apple `FastUnicodeCompare` plus HFS+ normalization from
-  generated Unicode 2.1.9 tables. Disposable-image `fsck_hfs` passes. Next is
-  the broader macOS-created name corpus and the `:`/`/` mapping.
-- **T-007** — catalog B-tree mutation design on top of T-034.
-- **T-008** — extents/overflow mutation design on top of T-034.
+  generated Unicode 2.1.9 tables. Disposable-image `fsck_hfs` passes; the
+  scripted macOS corpus now covers NFC/NFD, CJK, emoji, `:`/`/` and the
+  255-unit boundary.
+- **T-007** — catalog B-tree mutation design is in `hfsplus-write-engine.md` §3.
+- **T-008** — extents/overflow mutation design is in §4–§5.
 - **T-004** — the disposable-image `fsck_hfs` path is implemented; the wider
   committed fixture corpus and power-loss matrix remain.
 - **T-038** — the broader macOS name corpus and the `:`/`/` mapping.
 - **T-039** — macOS NUL-prefixed private names are now escaped as U+2400 and
   marked unsupported; path lookup continues past them instead of aborting.
 - **D-05** — cache/dirty-set limits.
-- **T-010** — the create/append/truncate/delete write-failure matrices pass
-  (148 cuts, fsck clean). Partial-sector/fsync failures, power-loss
+- **T-010** — the create/append/truncate/delete/rename write-failure matrices
+  pass (148 cuts, fsck clean). Partial-sector/fsync failures, power-loss
   timing and the evidence format remain.
 - **D-22** — the separate write diagnostic is built and host-tested. Next: a
   recorded 6G run with `helikon-test.img`, then extract the inner image and run

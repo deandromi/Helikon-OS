@@ -35,18 +35,18 @@ file grows. Do not rely on chat history for current state.
 - T-038 is implemented: scripted macOS Unicode corpus (NFC/NFD, CJK, emoji,
   Hangul, combining, U+2126/U+F900, `:`/`/`, 255-unit and rejected 256-unit).
 - T-010 now has a rename matrix; 148 injected-write cuts are fsck-clean.
-- T-034: index-node insert/split recursion and below-minimum insert at depth >2
-  are fixed; a 60-record depth-3 model still loses a key after a delete/merge,
-  so deep delete remains open.
+- T-034 is implemented: index-node insert/split recursion, below-minimum
+  insert, deep delete/merge and recursive parent-key propagation are fixed. The
+  model now inserts, updates and deletes 60 records at depth 3.
 
 ## Task list review
 
 `docs/tasks.md` was regrouped on 2026-11-04. T-048 is closed and T-044 is now
 implemented (Finder type/creator policy plus preservation and macOS
 `GetFileInfo` checks; wider Unicode names are T-038). The active P0 line is
-T-034 writer hardening, T-010 power loss, then T-003/T-006 release gates. T-038
-is now implemented with a scripted Unicode corpus. UI work is P1/P2. T-017 is
-rejected and T-030 is complete through T-032/T-040/T-047.
+T-010 power loss, then T-003/T-006 release gates. T-034 is implemented, and
+T-038 has a scripted Unicode corpus. UI work is P1/P2. T-017 is rejected and
+T-030 is complete through T-032/T-040/T-047.
 
 ## What is next
 
@@ -54,14 +54,12 @@ rejected and T-030 is complete through T-032/T-040/T-047.
    is still at the iPod root. Remove the opt-in file now, or keep it only if
    another controlled run is planned. To return to the normal boot path, put
    the iPod in DFU and run `tools/uninstall-bootloader.sh` (never `--single`).
-2. Fix T-034's depth-3 delete/merge key loss; insert/split at depth >2 is
-   fixed, but a 60-record model leaves a key unreachable after a delete.
-3. Extend T-010 with partial-sector/fsync injection and the evidence format;
+2. Extend T-010 with partial-sector/fsync injection and the evidence format;
    rename is now covered and the matrix is 148 cuts.
-4. Close T-003 with a restore rehearsal and T-006 with the signing policy.
-5. Rebuild the inner-image write diagnostic (`81350f…` predates the journal
+3. Close T-003 with a restore rehearsal and T-006 with the signing policy.
+4. Rebuild the inner-image write diagnostic (`81350f…` predates the journal
    `max_blocks` fix) before another inner power-cut run.
-6. T-041/T-042 UI fonts/mockup and renderer; T-045 splash; T-013/T-024 later.
+5. T-041/T-042 UI fonts/mockup and renderer; T-045 splash; T-013/T-024 later.
 
 ## What must not be touched
 
