@@ -108,6 +108,7 @@ Helikon-OS/
       test_pool.c           alloc/free/exhaustion/double free
       test_screen.c         text pixels, clipping and present
       test_trace.c          bounded trace ring
+      test_hfs_file.c       one-path HFS+ read, bounds and missing file
     hfsplus/
       Makefile              host test build/sanitizer targets
       test_image.c/.h       shared in-memory image fixture

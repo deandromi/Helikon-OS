@@ -9,7 +9,7 @@
 **Helikon-OS has a host test tree.** It covers the HFS+ read/write core, the
 read-only diagnostic bootloader core, the host firmware loader and the F1
 firmware modules. The portable HFS+/bootloader suites are 135 tests (104 HFS+,
-31 bootloader), sanitizer-clean. The F1 firmware adds eight host test groups
+31 bootloader), sanitizer-clean. The F1 firmware adds nine host test groups
 (`tests/firmware/`: boot-info, block/partition, stages, lib, ring, pool, screen
 and trace), also sanitizer-clean. The writer foundation covers the Apple HFS+
 journal append/replay path, a bounded transaction engine, the allocation
@@ -228,10 +228,11 @@ The groups are:
 - `test_block` — block bounds, read-only write/flush, unaligned bounce reads,
   APM/raw partition scan, malformed signature and I/O error;
 - `test_stages` — boot-stage order, completion, failure and timeout;
+- `test_hfs_file` — one-path HFS+ read, offset, missing file, bounds and
+  directory rejection;
 - `test_ring`, `test_pool` — bounded ring wrap/overwrite and fixed pool
   exhaustion/double free;
 - `test_screen`, `test_trace` — text pixels/clipping and trace wrap.
-
 The target build is separate:
 
 ```sh
@@ -247,7 +248,7 @@ not a device run.
 The device bring-up ladder is recorded rung by rung: banner, ATA identify,
 partition scan, HFS+ probe, read one known file, input, bootstate promotion,
 browser, first UI, first audio. A rung is not skipped because a host test
-passes. The F1 image `10bf7684…` is built and host-verified; it has no device
+passes. The F1 image `d7916411…` is built and host-verified; it has no device
 run.
 
 ## 6. Device tests

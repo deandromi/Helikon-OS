@@ -22,11 +22,11 @@ file grows. Do not rely on chat history for current state.
   read, buttons, CPU), `firmware/block` (read-only block device, bounce reads,
   APM/MBR/raw partition scan), `firmware/diag` (stage machine, trace ring,
   crash record, RGB565 screen) and the HFS+ read adapter/file helper.
-- `make -C firmware BOARD=6g image` builds a 38,744-byte signed development
-  image, SHA-256 `10bf7684…`; `__image_end` `0x08009758`, `__bss_end`
-  `0x08837f80`, image headroom 8,345,768 bytes. The manifest and bootstate verify
+- `make -C firmware BOARD=6g image` builds a 39,108-byte signed development
+  image, SHA-256 `d7916411…`; `__image_end` `0x080098c4`, `__bss_end`
+  `0x08837f80`, image headroom 8,345,404 bytes. The manifest and bootstate verify
   through the host loader core: `loader: OK`, `bootstate: GOOD`.
-- Added eight host test groups under `tests/firmware/` and the
+- Added nine host test groups under `tests/firmware/` and the
   `make -C firmware BOARD=6g {,size,test,image}` targets. The F1 host groups
   pass with ASan/UBSan. The existing HFS+ (104) and bootloader (31) suites still
   pass with sanitizers; the disposable-image and loader fixtures still pass.

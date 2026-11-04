@@ -69,6 +69,7 @@ struct boot_context {
     int boot_info_status;
     int have_extents;
     int screen_ready;
+    uint32_t read_size;
     uint8_t catalog_scratch[BOOT_CATALOG_SCRATCH] __attribute__((aligned(32)));
     uint8_t extents_scratch[BOOT_EXTENTS_SCRATCH] __attribute__((aligned(32)));
     uint8_t block_scratch[BOOT_BLOCK_SCRATCH] __attribute__((aligned(32)));
@@ -195,6 +196,15 @@ static int paint_stages(struct boot_context *ctx)
     helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_NEUTRAL);
     helikon_screen_text(&ctx->screen, 20, 208, 2, line);
 
+    if (ctx->read_size != 0u) {
+        char read_line[64] = "READ ";
+        append_u32(read_line, sizeof(read_line), ctx->read_size);
+        text_append(read_line, sizeof(read_line),
+                    " B  firmware.manifest");
+        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+        helikon_screen_text(&ctx->screen, 20, 192, 2, read_line);
+    }
+
     char sizes[64] = "IMAGE ";
     append_u32(sizes, sizeof(sizes),
                (uint32_t)(__image_end - __image_start));
@@ -270,6 +280,14 @@ static int paint_pass(struct boot_context *ctx)
     text_append(line, sizeof(line), "  NO WRITE");
     helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_NEUTRAL);
     helikon_screen_text(&ctx->screen, 16, 174, 2, line);
+
+    if (ctx->read_size != 0u) {
+        helikon_strlcpy(line, "READ ", sizeof(line));
+        append_u32(line, sizeof(line), ctx->read_size);
+        text_append(line, sizeof(line), " B  firmware.manifest");
+        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+        helikon_screen_text(&ctx->screen, 16, 190, 2, line);
+    }
 
     return present_or_trace(ctx, HELIKON_TRACE_ERROR, HELIKON_STAGE_PASS);
 }
@@ -583,6 +601,7 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
                            ((uint32_t)ctx->manifest[3] << 24);
     helikon_trace_add(&ctx->trace, HELIKON_TRACE_INFO, HELIKON_TRACE_HFS,
                       0x7000u, (uint32_t)done, first_bytes);
+    ctx->read_size = (uint32_t)done;
     stage_pass(ctx, HELIKON_STAGE_READ);
     paint_stages_checked(ctx, HELIKON_STAGE_READ);
 

@@ -64,7 +64,7 @@ images, backups or serial numbers to the repository.
 diagnostic rows name the bootloader image hash. Do not write a donor version into
 this column.
 
-The F1 firmware image `10bf7684…` (38,744 bytes) is built and host-verified but
+The F1 firmware image `d7916411…` (39,108 bytes) is built and host-verified but
 has no device run. Do not add a support row until the owner records the run; the
 current loader test image does not fill the boot-info page (T-059), so F1 uses
 the missing/invalid fallback.

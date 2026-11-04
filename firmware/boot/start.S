@@ -34,6 +34,10 @@ _start_setup:
     msr cpsr_c, #0xd3
     ldr sp, =__svc_stack_top
 
+    /*
+     * .data is linked at its load address (LMA == VMA) and is part of the raw
+     * image, so no copy is required. Only .bss lives outside the image.
+     */
     /* Zero .bss from __bss_start to __bss_end. */
     ldr r0, =__bss_start
     ldr r1, =__bss_end

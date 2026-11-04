@@ -38,3 +38,4 @@ tests/firmware/test_pool
 tests/firmware/test_screen
 tests/firmware/test_trace
 tests/firmware/*.dSYM/
+tests/firmware/test_hfs_file

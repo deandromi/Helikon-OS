@@ -17,7 +17,7 @@ outer-volume diagnostic has one successful owner-reported 6G run. None loads
 firmware. The firmware-internal design is written down in
 [`firmware-architecture.md`](firmware-architecture.md) and phases F1–F5
 (T-054–T-058). The F1/T-054 source tree now exists under `firmware/` and builds
-a signed development image (38,744 bytes, SHA-256 `10bf7684…`); eight host test
+a signed development image (39,108 bytes, SHA-256 `d7916411…`); nine host test
 groups and the loader host core pass. There is no firmware device run and no
 F2–F5 implementation.
 
@@ -31,7 +31,7 @@ Date of this snapshot: **2026-11-04**.
 | Design paper, revision 2, 2026-11-03 | source | [`design-paper.md`](design-paper.md), source commit `3f220a73d0cceb083b3c057c6fe914d88468800a` |
 | Firmware architecture research paper | living | [`firmware-architecture.md`](firmware-architecture.md); functional, aesthetic and developer-ergonomics design; no firmware device run |
 | Firmware memory map / entry ABI ADRs | living | [`adr/0003-firmware-memory-map.md`](adr/0003-firmware-memory-map.md), [`adr/0004-firmware-entry-abi.md`](adr/0004-firmware-entry-abi.md); D-27/D-28 accepted 2026-11-04 |
-| Firmware F1/T-054 skeleton | `in progress` | `firmware/boot`, `firmware/lib`, `firmware/board/6g`, `firmware/hal/6g`, `firmware/block`, `firmware/diag` and the HFS+ read adapter; signed development image 38,744 bytes, SHA-256 `10bf7684…`; 8 host test groups sanitizer-clean; loader host core reports `loader: OK` / `bootstate: GOOD`; no device run |
+| Firmware F1/T-054 skeleton | `in progress` | `firmware/boot`, `firmware/lib`, `firmware/board/6g`, `firmware/hal/6g`, `firmware/block`, `firmware/diag` and the HFS+ read adapter; signed development image 39,108 bytes, SHA-256 `d7916411…`; 9 host test groups sanitizer-clean; loader host core reports `loader: OK` / `bootstate: GOOD`; no device run |
 | Firmware build prompt | living | [`prompts/build-firmware.md`](prompts/build-firmware.md); full-procedure F1–F5 execution prompt |
 | Session-start prompt | living | [`prompts/session-start.md`](prompts/session-start.md); repo-read bootstrap and Session Brief for every session |
 | Agent contract and documentation set | living | `main`, merged 2026-11-03 |
@@ -91,7 +91,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
 | Default UI typography | `in progress` | D-23/D-24 and `docs/ui.md` record the 14/17/12/11 px scale and grayscale anti-aliasing. Licensed IBM Plex Sans and Manrope subsets, OFL texts, hashes and two 320×240 host mockups are in `assets/fonts/` and `assets/ui/`; `tools/render-ui-mockup.py` reproduces them with clipping checks. Firmware renderer and 6G panel run remain T-042 |
 | Bootloader splash redesign | `implemented` | Final owner green/red PNGs are in `assets/bootloader/` with `VERSION ALPHA` and a green/red `HFS+ DETAILS` mask. The refreshed loader image uses a 16-colour 4bpp RGB565 base (38,400 bytes) plus a 324-byte label mask; the temporary bottom stage line is removed. The final-splash `6bc6927c…` image is device-tested: 6.5 s startup and `fsck_hfs -fn` clean |
-| Host test harness | `in progress` | 135 portable HFS+/bootloader tests (104 HFS+, 31 bootloader), sanitizer-clean, plus eight F1 firmware host test groups in `tests/firmware/` (boot-info, block/partition, stages, lib, ring, pool, screen, trace) and the macOS disposable-image, Unicode, crash-injection, inner-image, outer-volume and loader tests; fixture plan in `fixtures.md`; first diagnostic boot is owner-reported |
+| Host test harness | `in progress` | 135 portable HFS+/bootloader tests (104 HFS+, 31 bootloader), sanitizer-clean, plus nine F1 firmware host test groups in `tests/firmware/` (boot-info, block/partition, stages, lib, ring, pool, screen, trace, hfs-file) and the macOS disposable-image, Unicode, crash-injection, inner-image, outer-volume and loader tests; fixture plan in `fixtures.md`; first diagnostic boot is owner-reported |
 | Backup/recovery protocol | `implemented` | Full-volume backup, read-back, disposable restore rehearsal and Apple-restore/DFU path owner-confirmed 2026-11-04; protocol and stop conditions in `outer-volume-test.md` |
 | Fixture plan | `implemented` | `docs/fixtures.md` lists synthetic reader/journal/B-tree/catalog/extents/bitmap/Unicode fixtures, disposable-image writer fixtures and write/flush/partial crash fixtures; no disk images committed |
 
@@ -110,7 +110,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Journal replay on a real dirty volume | `unproven` | Replay is host-tested on synthetic journals; no macOS-created dirty volume or device run |
 | Installer or desktop app | `planned` | No host application |
 | Build system, CI, release artifacts | `in progress` | `firmware/Makefile` and `tools/make-firmware-image.py` build the F1 ELF, raw image, manifest and signed development image; host test Makefiles and bootloader build scripts exist; bootloader-only Alpha release `alpha-1.0.1` published; no CI, reproducible release build or firmware release |
-| Helikon-OS device run | `unproven` | Three earlier owner-reported diagnostic runs, the 2026-11-04 outer-volume run with every stage PASS, and the loader-test passes on `3979de6f…` and `6bc6927c…`. The final-splash `6bc6927c…` run passed (6.5 s, `fsck_hfs -fn` clean). The F1 image `10bf7684…` is built and host-verified but has no device run. No firmware run or support claim; one device/iFlash SD only |
+| Helikon-OS device run | `unproven` | Three earlier owner-reported diagnostic runs, the 2026-11-04 outer-volume run with every stage PASS, and the loader-test passes on `3979de6f…` and `6bc6927c…`. The final-splash `6bc6927c…` run passed (6.5 s, `fsck_hfs -fn` clean). The F1 image `d7916411…` is built and host-verified but has no device run. No firmware run or support claim; one device/iFlash SD only |
 | Supported device list | `unproven` | 6G is the reference; 7G physical audit is deferred from the active queue by owner direction (2026-11-04) |
 | Code of conduct | `rejected` | Owner deleted Contributor Covenant 2.1 on 2026-11-03; no replacement |
 | Signing policy and key ownership | `accepted` | D-20/ADR-0002 option A: offline Ed25519 root on two hardware tokens, certified release key, rotation/revocation/recovery; certificate verifier and a real signed release image are T-053/T-051 |

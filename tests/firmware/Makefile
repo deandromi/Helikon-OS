@@ -28,7 +28,7 @@ FW_OBJS := $(BUILD)/lib/mem.o $(BUILD)/lib/string.o $(BUILD)/lib/crc32.o \
            $(BUILD)/diag/screen.o $(BUILD)/hfs/hfs_block_adapter.o
 
 TESTS := test_lib test_boot_info test_block test_stages test_ring \
-         test_pool test_screen test_trace
+         test_pool test_screen test_trace test_hfs_file
 
 .PHONY: all test sanitize clean
 
@@ -75,6 +75,21 @@ test_trace: test_trace.c test_check.h $(BUILD)/diag/trace.o \
 	$(HOSTCC) $(TEST_CFLAGS) test_trace.c $(BUILD)/diag/trace.o \
 	  $(BUILD)/lib/ring.o $(BUILD)/lib/mem.o $(LDFLAGS) -o $@
 
+HFS_TEST_CFLAGS := $(CFLAGS) -I../../firmware/hfs \
+                   -idirafter ../../firmware/lib -I../hfsplus
+HFS_TEST_SRC := ../../firmware/hfs/hfs_file.c \
+                ../../firmware/hfs/hfs_catalog.c \
+                ../../firmware/hfs/hfs_unicode.c \
+                ../../firmware/hfs/hfs_unicode_data.c \
+                ../../firmware/hfs/hfs_extents.c \
+                ../../firmware/hfs/hfs_btree.c \
+                ../../firmware/hfs/hfs_volume.c \
+                ../hfsplus/test_image.c ../hfsplus/test_fs_image.c
+
+test_hfs_file: test_hfs_file.c test_check.h $(HFS_TEST_SRC)
+	$(HOSTCC) $(HFS_TEST_CFLAGS) test_hfs_file.c $(HFS_TEST_SRC) \
+	  $(LDFLAGS) -o $@
+
 test: $(TESTS)
 	./test_lib
 	./test_boot_info
@@ -84,6 +99,7 @@ test: $(TESTS)
 	./test_pool
 	./test_screen
 	./test_trace
+	./test_hfs_file
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
