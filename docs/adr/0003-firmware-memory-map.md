@@ -2,12 +2,12 @@
 
 > Purpose: freeze where the verified firmware image, boot information, stacks,
 > framebuffer, audio buffers and database cache live in the 6G's 64 MiB DRAM.
-> Status: proposed — awaiting owner acceptance
+> Status: accepted — owner decision recorded 2026-11-04
 > Owner: project owner; architecture lead
 > Last updated: 2026-11-04
 > Date: 2026-11-04
 > Paper section: §19.2, §27; `docs/firmware-architecture.md` §3–§4
-> Related decisions: D-01, D-02, D-05, D-12, T-051, T-054
+> Related decisions: D-01, D-02, D-05, D-12, D-28, T-051, T-054, T-059
 
 ## Context
 
@@ -60,11 +60,10 @@ alone exceeds the window. Option C is rejected for F1: it adds a relocator and a
 general allocator before there is a single working driver. Option D is rejected
 because it blocks the first firmware milestone.
 
-## Proposed decision
+## Decision
 
 **Option B — a fixed map, with the boot-info page reserved at the top of the
-signed window.** This is a proposal for owner acceptance, not an accepted
-decision.
+signed window.** Accepted 2026-11-04.
 
 The map is a set of constants in the 6G BSP, mirrored in a linker script and a
 `static_assert` header:
@@ -72,12 +71,19 @@ The map is a set of constants in the 6G BSP, mirrored in a linker script and a
 | Range | Size | Use | Notes |
 |---|---:|---|---|
 | `0x08000000`–`0x087fefff` | 8 MiB − 4 KiB | Verified firmware image | `.text`, `.rodata`, `.data`; linker fails above the cap |
-| `0x087ff000`–`0x087fffff` | 4 KiB | Boot-info page | Written by the loader before the jump; read-only to the firmware after entry; proposed in ADR-0004 |
+| `0x087ff000`–`0x087fffff` | 4 KiB | Boot-info page | Written by the loader before the jump; read-only to the firmware after entry; accepted in ADR-0004 |
 | `0x08800000`–`0x08ffffff` | 8 MiB | BSS, exception stacks, fixed pools, log ring | Starts immediately above the signed window; zeroed/initialized at boot |
 | `0x09000000`–`0x097fffff` | 8 MiB | UI: framebuffer(s), font atlas, artwork cache | Framebuffer address and alignment are BSP-provided, not yet fixed |
-| `0x09800000`–`0x0a7fffff` | 16 MiB | Audio buffers, codec work area, DMA descriptors | Lower end of the 16–24 MiB design target; measured in F5 |
-| `0x0a800000`–`0x0b7fffff` | 16 MiB | Database mapped pages and index cache | Read-only mapping, not a full library copy; D-07 still open |
+| `0x09800000`–`0x0affffff` | 24 MiB | Audio buffers, codec work area, DMA descriptors | Upper end of the 16–24 MiB design target; measured in F5 |
+| `0x0b000000`–`0x0b7fffff` | 8 MiB | Database mapped pages and index cache | Top of the 4–8 MiB design target; read-only mapping, not a full library copy; D-07 still open |
 | `0x0b800000`–`0x0bffffff` | 8 MiB | Reserve: diagnostics, crash record, future growth | Not assigned to a feature without a new budget entry |
+
+Audio gets the **24 MiB** upper end of its 16–24 MiB design target and the
+database gets **8 MiB**, the top of its 4–8 MiB target. Audio is the real-time
+budget that is hardest to recover at runtime; the database is a read-only cache
+with a catalog fallback. The two regions plus the reserve fill the 64 MiB
+exactly. The reserve is for diagnostics and temporary overrun, not a second
+database.
 
 The image cap is `0x087ff000 − 0x08000000 = 8,384,512` bytes
 (8 MiB − 4 KiB). The current manifest validator still accepts up to 8 MiB, so
@@ -113,17 +119,17 @@ approach.
 
 ## Follow-up
 
-- Owner acceptance or rejection of option B, and of the 4 KiB image cap.
-- Record the accepted map in `docs/decisions.md` as D-27.
+- Accepted 2026-11-04; D-27 records the decision.
 - T-054 implements the linker script, `static_assert`s and the boot-info page
   reader. F1 must print the map constants and the image end address on the
   bring-up screen.
 - Before F5, measure the audio buffer need on the device; do not publish the
-  16 MiB split as a measurement.
+  24 MiB split as a measurement.
 - Before any max-size image is signed, update the loader to reject
   `load address + image size > 0x087ff000`.
-- If the owner rejects the reserved page, fall back to the no-args entry ABI in
-  ADR-0004 option A and keep the full 8 MiB window.
+- If a later measurement rejects the reserved page, fall back to the no-args
+  entry ABI in ADR-0004 option A and keep the full 8 MiB window; that is a new
+  decision, not a silent map change.
 
 ## References
 
@@ -132,4 +138,5 @@ approach.
 - [`docs/firmware-architecture.md`](../firmware-architecture.md) §3–§4.
 - [`bootloader/LOADER.md`](../../bootloader/LOADER.md) §2.
 - [`docs/invariants.md`](../invariants.md) I-14, I-15.
-- [`docs/tasks.md`](../tasks.md) T-054.
+- [`docs/decisions.md`](../decisions.md) D-27, D-28.
+- [`docs/tasks.md`](../tasks.md) T-054, T-059.

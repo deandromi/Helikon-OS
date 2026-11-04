@@ -11,6 +11,45 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-04 (ADR-0003/0004 accepted)
+
+## What happened
+
+- Decided and accepted **ADR-0003 / D-27**: fixed 64 MiB map. Image
+  `0x08000000`–`0x087fefff` (8 MiB − 4 KiB), boot-info `0x087ff000` (4 KiB),
+  BSS/stacks/pools `0x08800000` (8 MiB), UI `0x09000000` (8 MiB), audio
+  `0x09800000` (24 MiB), database `0x0b000000` (8 MiB), reserve `0x0b800000`
+  (8 MiB). Audio gets the upper end of its target; the database gets the top of
+  its target.
+- Decided and accepted **ADR-0004 / D-28**: `r0` passes a versioned, CRC-32
+  protected boot-info page at `0x087ff000`; `r1 = 0`; IRQ/FIQ off, SVC mode; no
+  return; boot-info is a cache of verified facts, not a trust anchor. The
+  firmware re-reads bootstate before any write.
+- Added **T-059**: loader fills the boot-info page before the jump; T-051 now
+  depends on it. T-054 can start with the zero-`r0` fallback, so the ABI does not
+  block F1.
+- Updated `decisions.md`, `tasks.md`, `state.md`, `architecture.md`, the paper,
+  ADR indexes, `agents.md`, ADR-0003/0004 and the handoff. No firmware code was
+  written.
+
+## What is next
+
+1. T-054/F1: read-only firmware skeleton with a signed image, banner, ATA read,
+   HFS+ probe, one file read, PASS and power-off. No filesystem writes.
+2. T-059: fill the boot-info page in the loader; keep the no-args test payload
+   path; host-test the page.
+3. T-055/F2: promote `/.helikon/bootstate` to `GOOD` through `hfs_txn`.
+4. Measure the audio buffer need before F5; do not treat the 24 MiB split as a
+   measurement.
+
+## Do not claim
+
+- No firmware kernel, HAL, VFS, player or UI exists.
+- The map and ABI are design decisions, not device measurements.
+- No firmware boot, audio, UI, writable library or support claim.
+
+---
+
 # Handoff — 2026-11-04 (firmware architecture and ADRs)
 
 ## What happened
@@ -24,7 +63,8 @@ file grows. Do not rely on chat history for current state.
   (fixed 64 MiB map, 8 MiB − 4 KiB image cap, 4 KiB boot-info page at
   `0x087ff000`) and [`adr/0004-firmware-entry-abi.md`](adr/0004-firmware-entry-abi.md)
   (`r0` boot-info, no-return entry, CPU-state contract, validation and
-  fallback). They are indexed as D-27/D-28 and await owner acceptance.
+  fallback). They are indexed as D-27/D-28 and were accepted in the newer
+  handoff entry above.
 - Added firmware tasks T-054–T-058 (F1 skeleton, F2 bootstate word, F3 VFS and
   browser, F4 UI, F5 audio) and made T-054/T-055 P0 because they produce the
   first real signed firmware image and unblock T-051.
@@ -36,7 +76,8 @@ file grows. Do not rely on chat history for current state.
 
 ## What is next
 
-1. Owner accepts or rejects ADR-0003 and ADR-0004; record the result in D-27/D-28.
+1. (Done — see newer entry) ADR-0003 and ADR-0004 were accepted; D-27/D-28
+   record the decisions.
 2. T-054/F1: read-only firmware skeleton with a signed image, banner, ATA read,
    HFS+ probe, one file read, PASS and power-off. No filesystem writes.
 3. T-055/F2: promote `/.helikon/bootstate` to `GOOD` through `hfs_txn`, then

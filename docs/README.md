@@ -90,8 +90,8 @@ status.
 | [`architecture.md`](architecture.md) | Boot chain, layers, boundaries, memory, security. | living |
 | [`firmware-architecture.md`](firmware-architecture.md) | Firmware-internal architecture: entry, memory, runtime, modules, flows, aesthetics, ergonomics, testing, phases F1–F5. | living |
 | [`adr/0002-signing-key-ownership.md`](adr/0002-signing-key-ownership.md) | Offline Ed25519 root and certified release key (accepted, D-20). | living |
-| [`adr/0003-firmware-memory-map.md`](adr/0003-firmware-memory-map.md) | Proposed firmware memory map and image layout (D-27). | living |
-| [`adr/0004-firmware-entry-abi.md`](adr/0004-firmware-entry-abi.md) | Proposed firmware entry ABI and boot-info page (D-28). | living |
+| [`adr/0003-firmware-memory-map.md`](adr/0003-firmware-memory-map.md) | Accepted firmware memory map and image layout (D-27). | living |
+| [`adr/0004-firmware-entry-abi.md`](adr/0004-firmware-entry-abi.md) | Accepted firmware entry ABI and boot-info page (D-28). | living |
 | [`ui.md`](ui.md) | Default first-party UI typography, anti-aliasing, font rules and open theme questions. | living |
 | [`outer-volume-test.md`](outer-volume-test.md) | Real outer-volume write test protocol and backup gate. | living |
 | [`failures.md`](failures.md) | Error taxonomy, decision trees, destructive-action warnings. | living |
@@ -115,7 +115,7 @@ status.
 | [`../bootloader/DFU.md`](../bootloader/DFU.md) | Backup and DFU install runbook for the diagnostic image. | living |
 | [`../bootloader/WRITE_DIAG.md`](../bootloader/WRITE_DIAG.md) | Separate inner-image write diagnostic and PMU-cut runbook. | living |
 | [`../bootloader/OUTER_DIAG.md`](../bootloader/OUTER_DIAG.md) | Separate outer-volume write diagnostic runbook and backup gate. | living |
-| [`../bootloader/LOADER.md`](../bootloader/LOADER.md) | Firmware manifest, boot-state format and read-only loader flow. | living |
+| [`../bootloader/LOADER.md`](../bootloader/LOADER.md) | Firmware manifest, boot-state format, accepted entry ABI and read-only loader flow. | living |
 | [`../bootloader/LOADER_TEST.md`](../bootloader/LOADER_TEST.md) | DFU-only loader test-image runbook, pass criteria and recovery. | living |
 | [`../bootloader/hardware/README.md`](../bootloader/hardware/README.md) | S5L8702/ATA/LCD glue and donor integration patch. | living |
 | [`../bootloader/artifacts/README.md`](../bootloader/artifacts/README.md) | Diagnostic image hash, provenance and evidence status. | living |

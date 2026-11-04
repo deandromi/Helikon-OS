@@ -1,10 +1,10 @@
 # Firmware-loading bootloader — manifest and boot state
 
 > Purpose: fixed on-disk formats and the read-only boot/fallback flow.
-> Status: format frozen; host loader implemented and tested; loader test image builds and passes host gates, no device run.
+> Status: format frozen; host loader implemented and tested; entry ABI accepted (D-28), loader fill T-059 planned; loader test image builds and passes host gates, no device run.
 > Owner: boot lead
 > Last updated: 2026-11-04
-> Source: D-01, D-02; design paper §5.3, §16, §25.1–§25.2
+> Source: D-01, D-02, D-28; design paper §5.3, §16, §25.1–§25.2
 
 The production bootloader is **read-only**. It reads native HFS+, verifies a
 signed firmware manifest, selects a boot-state slot and loads the image to DRAM.
@@ -98,7 +98,60 @@ closed: no jump and a recovery screen, with DFU/Apple restore as the recovery
 path. There is **no A/B rollback** and no two-path implementation (T-050 is
 closed as an explicit no-A/B decision).
 
-## 4. Boot flow
+## 4. Firmware entry ABI
+
+Accepted 2026-11-04 (D-28; [`ADR-0004`](../docs/adr/0004-firmware-entry-abi.md)).
+The loader passes a versioned boot-info page to the verified image:
+
+| Item | Contract |
+|---|---|
+| `r0` | Physical pointer to the boot-info page at `0x087ff000` |
+| `r1` | `0`; reserved |
+| Mode | SVC, IRQ and FIQ disabled |
+| Caches | Cleaned/invalidated by the loader |
+| Stack | Undefined; firmware sets its own |
+| `lr` | Return address into the loader; production firmware must not use it |
+| Return | Forbidden; a return is a firmware panic |
+
+The page is 4 KiB. The first 512 bytes are defined and little-endian; the rest
+is reserved zero.
+
+| Offset | Size | Field |
+|---:|---:|---|
+| 0 | 4 | magic `HBI1` |
+| 4 | 2 | version `1` |
+| 6 | 2 | size `512` |
+| 8 | 4 | loader version |
+| 12 | 4 | board ID |
+| 16 | 4 | image version |
+| 20 | 4 | load address |
+| 24 | 4 | image size |
+| 28 | 32 | image SHA-256 |
+| 60 | 4 | bootstate sequence |
+| 64 | 1 | bootstate state (`0` empty, `1` trying, `2` good, `3` failed) |
+| 65 | 1 | journal state (`0` unknown, `1` clean, `2` dirty, `3` absent) |
+| 66 | 2 | flags (bit 0 development, bit 1 bootstate present, bit 2 manifest verified) |
+| 68 | 4 | loader stage time in ms |
+| 72 | 4 | CRC-32 over bytes 0–71 |
+| 76 | 180 | reserved zero |
+| 256 | 256 | verified manifest copy |
+| 512 | 3584 | reserved zero |
+
+Rules:
+
+- The loader fills the page after manifest/image verification and before the
+  jump. It does not write the filesystem.
+- Boot-info is a cache of verified facts, **not a trust anchor**. The firmware
+  must re-read and validate the bootstate file through HFS+ before writing it.
+- The firmware accepts a known version/size range and ignores a newer trailing
+  extension. Fields are never reordered.
+- A missing or invalid page sends the firmware to `BOOT_INFO_INVALID`
+  diagnostic mode; it must not lead to a bootstate write.
+- The loader fill is **T-059** and is not implemented yet. Until it lands, the
+  test payload path calls `entry(void)` and the firmware must handle `r0 = 0`.
+  This section is the accepted contract, not a device result.
+
+## 5. Boot flow
 
 ```text
 power-on
@@ -110,8 +163,9 @@ power-on
   -> read firmware image directly to its signed load address
   -> verify SHA-256 and size
   -> read bootstate, select a valid GOOD slot (optional; default otherwise)
+  -> fill boot-info page at 0x087ff000 and pass it in r0
   -> flush/invalidate caches
-  -> jump to the verified load address
+  -> jump to the verified load address; production entry does not return
   -> on any failure: recovery screen, no jump, power off
 ```
 
@@ -123,7 +177,7 @@ The bootloader does not:
 - use `--single`;
 - auto-format, erase or repair.
 
-## 5. Failure behaviour
+## 6. Failure behaviour
 
 | Failure | Result |
 |---|---|
@@ -140,7 +194,7 @@ The bootloader does not:
 Recovery must be visible and power off safely. Do not silently fall back to an
 unsigned image.
 
-## 6. Host tests
+## 7. Host tests
 
 The host loader (`bootloader/firmware_loader.c`) reads the manifest/image/boot
 state through the HFS+ read core and calls an explicit signature hook. The HFS+
@@ -163,7 +217,7 @@ No production private key is stored in this repository. The loader-test build
 uses a generated key under `build/loader-bootloader/`; only its public half is
 linked into that image.
 
-## 7. Loader test image
+## 8. Loader test image
 
 `tools/build-loader-bootloader.sh` builds a separate DFU-only
 `bootloader-ipod6g-loader-test.ipod`. It accepts a development-only manifest,

@@ -2,12 +2,12 @@
 
 > Purpose: freeze what the bootloader passes to the firmware, what CPU state the
 > firmware may assume, and how the firmware handles a missing or invalid handoff.
-> Status: proposed — awaiting owner acceptance
+> Status: accepted — owner decision recorded 2026-11-04
 > Owner: project owner; boot lead; firmware lead
 > Last updated: 2026-11-04
 > Date: 2026-11-04
 > Paper section: §5.3, §16; `docs/firmware-architecture.md` §3
-> Related decisions: D-01, D-02, D-26, T-051, T-054, T-055
+> Related decisions: D-01, D-02, D-26, D-27, T-051, T-054, T-055, T-059
 
 ## Context
 
@@ -62,14 +62,14 @@ Option A is viable but leaves the firmware blind to the loader's decisions and
 duplicates the most timing-sensitive I/O. Option C is unnecessarily rigid.
 Option D is a subset of B and does not carry the bootstate/journal facts.
 
-## Proposed decision
+## Decision
 
-**Option B — a versioned boot-info page at `0x087ff000`, passed in `r0`.** This
-is a proposal for owner acceptance, not an accepted decision.
+**Option B — a versioned boot-info page at `0x087ff000`, passed in `r0`.**
+Accepted 2026-11-04.
 
 ### Register and CPU contract
 
-| Item | Proposed contract |
+| Item | Contract |
 |---|---|
 | `r0` | Physical pointer to `struct helikon_boot_info` at `0x087ff000` |
 | `r1` | `0`; reserved for a future secondary pointer |
@@ -84,8 +84,8 @@ is a proposal for owner acceptance, not an accepted decision.
 | Storage | The loader may have initialized ATA; firmware must not assume it and must re-init through the HAL |
 | Return | Forbidden. A return is a firmware panic, not a loader recovery path |
 
-The entry sequence must run with a valid stack, zero `.bss`, copy `.data`, set
-up the exception vectors and only then call C. No C code may run before that.
+The entry sequence must set up a valid stack, zero `.bss`, copy `.data`, install
+the exception vectors and only then call C. No C code may run before that.
 
 ### Boot-info layout
 
@@ -142,6 +142,24 @@ If `r0` is zero (an older loader or a host test), the firmware takes the same
 diagnostic path. This keeps the firmware runnable from a host harness and from
 the existing loader test image.
 
+### Implementation order
+
+The ABI is accepted, but the loader change is not a prerequisite for the first
+firmware host tests. The order is:
+
+1. Firmware parser and host test against a synthetic boot-info page (T-054). This
+   can land before the loader writes the page.
+2. Loader fill: after manifest/image verification and before the jump, write the
+   page and pass it in `r0`; keep the no-args path for the existing test payload
+   (T-059). No filesystem write.
+3. Device run with a valid page and with a deliberately invalid page; the first
+   must show the loader facts, the second must enter diagnostic mode and must not
+   write bootstate.
+4. F1 may use the zero-`r0` fallback for its first device run if the loader fill
+   is not ready. A production handoff uses the full ABI.
+
+This order keeps the decision from blocking F1 while still making the ABI real.
+
 ### Why not pass more
 
 - No filesystem handles, no open file descriptors, no block-device state: those
@@ -170,15 +188,16 @@ the existing loader test image.
 
 ## Follow-up
 
-- Owner acceptance or rejection of option B and of the boot-info page.
-- Record the accepted ABI in `docs/decisions.md` as D-28.
-- Loader change: fill the page after verification and before the jump; keep the
-  no-args path for the test payload.
+- Accepted 2026-11-04; D-28 records the decision.
+- Loader change (T-059): fill the page after verification and before the jump;
+  keep the no-args path for the test payload.
 - T-054 implements the firmware parser and the host test.
-- Update `bootloader/LOADER.md` with the entry ABI once accepted; the format
-  document is the canonical on-disk/loader record.
+- Update `bootloader/LOADER.md` with the entry ABI; the format document is the
+  canonical loader record.
 - Add a bad-boot-info case to the firmware host tests and to the device
   bring-up ladder.
+- A future field addition bumps `version` and `size`; it does not reorder the
+  existing fields.
 
 ## References
 
@@ -188,4 +207,5 @@ the existing loader test image.
 - [`docs/adr/0003-firmware-memory-map.md`](0003-firmware-memory-map.md).
 - [`docs/firmware-architecture.md`](../firmware-architecture.md) §3.
 - [`docs/invariants.md`](../invariants.md) I-14, I-15.
-- [`docs/tasks.md`](../tasks.md) T-054, T-055.
+- [`docs/decisions.md`](../decisions.md) D-27, D-28.
+- [`docs/tasks.md`](../tasks.md) T-054, T-055, T-059.

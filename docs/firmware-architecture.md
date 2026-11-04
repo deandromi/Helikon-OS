@@ -21,7 +21,7 @@ and memory. Sections 5–7 define the runtime and the modules. Section 8 is abou
 what it feels like to program the firmware. Section 9 is about what it feels
 like to use it. Sections 10–14 cover trust, performance, testing, phases and
 risks. Section 15 lists the questions that must be answered before the design is
-frozen. The appendices are checklists and proposed constants, not code.
+frozen. The appendices are checklists and constants, not code.
 
 ## Contents
 
@@ -43,8 +43,8 @@ frozen. The appendices are checklists and proposed constants, not code.
 15. Open questions
 16. Recommendations
 17. References
-A. Proposed boot-info layout
-B. Proposed memory-map constants
+A. Boot-info layout
+B. Memory-map constants
 C. Module ownership matrix
 D. Firmware coding rules
 E. Screen inventory
@@ -170,8 +170,8 @@ successful link.
 | [`hfsplus-write-engine.md`](hfsplus-write-engine.md) | Writer, journal and crash consistency | Canonical for the write engine; this paper only integrates it |
 | [`ui.md`](ui.md) | Default typography and rendering rules | Canonical for type; this paper adds interaction and layout |
 | [`../bootloader/LOADER.md`](../bootloader/LOADER.md) | Manifest, bootstate and loader flow | Canonical for the loader; ADR-0004 extends the entry contract |
-| [`adr/0003-firmware-memory-map.md`](adr/0003-firmware-memory-map.md) | Memory map decision | Proposed; this paper uses it as the working assumption |
-| [`adr/0004-firmware-entry-abi.md`](adr/0004-firmware-entry-abi.md) | Entry ABI decision | Proposed; this paper uses it as the working assumption |
+| [`adr/0003-firmware-memory-map.md`](adr/0003-firmware-memory-map.md) | Memory map decision | Accepted (D-27); this paper implements the accepted map |
+| [`adr/0004-firmware-entry-abi.md`](adr/0004-firmware-entry-abi.md) | Entry ABI decision | Accepted (D-28); this paper implements the accepted contract |
 | [`state.md`](state.md) | What is true today | Evidence status; this paper does not override it |
 | [`tasks.md`](tasks.md) | Current queue | F1–F5 map to T-054–T-058 |
 
@@ -319,7 +319,7 @@ This is the list that makes the entry ABI necessary.
 
 | Not guaranteed | Why it matters | Firmware action |
 |---|---|---|
-| A boot-info argument | The loader currently calls `entry(void)` | Proposed ADR-0004; defensive fallback until accepted |
+| A boot-info argument | The loader currently calls `entry(void)` | ADR-0004; defensive fallback until the loader fill (T-059) lands |
 | A valid stack | The loader's stack is its own | Set SVC/IRQ/FIQ stacks before C |
 | Zeroed `.bss` | The loader does not know the firmware's sections | Startup code zeroes `.bss` |
 | MMU state | Not documented | Confirm on device; establish identity map |
@@ -339,7 +339,7 @@ stack frame, with caches in an unknown state. The entry sequence must end in
 
 ### 3.3 The entry ABI, in one page
 
-ADR-0004 proposes the full layout; the firmware-facing summary is:
+ADR-0004 defines the full layout; the firmware-facing summary is:
 
 ```text
 r0 = pointer to struct helikon_boot_info at 0x087ff000
@@ -367,8 +367,7 @@ Two design rules keep the ABI honest:
 
 ### 3.4 Image layout and linker contract
 
-The image is linked at its load address and is not relocatable. Proposed
-layout:
+The image is linked at its load address and is not relocatable. Layout:
 
 ```text
 0x08000000  .text.start      first instruction: branch to _start
@@ -428,12 +427,12 @@ The most common firmware mistake is to confuse three numbers:
 - **Runtime DRAM** — 64 MiB. The firmware may use it after entry, but only
   through a fixed map that the linker and the modules agree on.
 
-The current loader accepts images up to 8 MiB. The proposed map reserves the
+The current loader accepts images up to 8 MiB. The accepted map reserves the
 top 4 KiB of that window for boot-info, so the image cap becomes 8 MiB − 4 KiB.
 That is a deliberate trade: 4 KiB for a stable handoff, instead of a second
 out-of-band structure.
 
-### 4.2 The proposed map
+### 4.2 The accepted map
 
 The full table and options are in
 [`adr/0003-firmware-memory-map.md`](adr/0003-firmware-memory-map.md). The working
@@ -445,14 +444,16 @@ assumption for this paper:
 | `0x087ff000`–`0x087fffff` | 4 KiB | Boot-info page (loader writes, firmware reads) |
 | `0x08800000`–`0x08ffffff` | 8 MiB | BSS, exception stacks, fixed pools, log ring |
 | `0x09000000`–`0x097fffff` | 8 MiB | UI: framebuffer(s), font atlas, artwork cache |
-| `0x09800000`–`0x0a7fffff` | 16 MiB | Audio buffers, codec work area, DMA descriptors |
-| `0x0a800000`–`0x0b7fffff` | 16 MiB | Database mapped pages and index cache |
+| `0x09800000`–`0x0affffff` | 24 MiB | Audio buffers, codec work area, DMA descriptors |
+| `0x0b000000`–`0x0b7fffff` | 8 MiB | Database mapped pages and index cache |
 | `0x0b800000`–`0x0bffffff` | 8 MiB | Reserve: diagnostics, crash record, future growth |
 
 These are **design targets** derived from the 64 MiB budget in
-`docs/architecture.md` §6, not measurements. The split is deliberately
-conservative: audio gets the lower end of its 16–24 MiB target, database gets
-16 MiB for mapped pages (not a full library copy), and 8 MiB stays unassigned.
+`docs/architecture.md` §6, not measurements. Audio takes the 24 MiB upper end of
+its 16–24 MiB target because it is the real-time budget that is hardest to
+recover at runtime; the database takes 8 MiB, the top of its 4–8 MiB target,
+because it is a read-only cache with a catalog fallback. The 8 MiB reserve is
+for diagnostics and temporary overrun, not a second database.
 
 ### 4.3 Why a fixed map
 
@@ -548,7 +549,7 @@ A module that cannot state its maximum is not ready to merge.
 - Which region is safe for DMA on the 6G?
 - What are the real stack high-water marks?
 - Does the loader's window validation cover the boot-info page if it is placed
-  above `0x08800000`? (The proposed map avoids this by keeping it inside.)
+  above `0x08800000`? (The accepted map avoids this by keeping it inside.)
 - Is there a usable watchdog, and who owns it across the jump?
 
 ---
@@ -2083,8 +2084,8 @@ The audio path is the hardest real-time budget:
 - an underrun is a counter and a pause, not a crash.
 
 The buffer size is a trade between RAM and skip resistance. The architecture
-budget is 16–24 MiB; F5 starts at the low end and measures. No gapless or
-"audiophile" claim before the measurement.
+budget is 16–24 MiB; the map reserves 24 MiB, and F5 measures how much is
+actually needed. No gapless or "audiophile" claim before the measurement.
 
 ### 11.5 Storage
 
@@ -2263,7 +2264,7 @@ unexecuted stress gate, no hidden limitation. This paper does not lower them.
 
 | Phase | Task | Deliverable | Exit criteria | Depends on |
 |---|---|---|---|---|
-| F1 | T-054 | Boot skeleton + signed image | Banner, ATA read, HFS+ probe, read one file, PASS, power-off; no writes; `fsck_hfs` clean | ADR-0003/0004 accepted (or fallback), loader test image |
+| F1 | T-054 | Boot skeleton + signed image | Banner, ATA read, HFS+ probe, read one file, PASS, power-off; no writes; `fsck_hfs` clean | D-27/D-28, loader test image; T-059 optional for the first run |
 | F2 | T-055 | First firmware write | Bootstate `TRYING`→`GOOD` through `hfs_txn`, flush, readback, loader sees `GOOD`; `fsck_hfs` clean | F1, clean journal, D-02 |
 | F3 | T-056 | Read-only VFS + browser | Browse a real library, open a track, list unsupported files with reasons, no writes except bootstate | F1, F2 optional |
 | F4 | T-057 | UI renderer + screens | Typography, layout, now playing, settings, error screens; panel check | F3, T-042, `ui.md` |
@@ -2494,8 +2495,8 @@ These are not rhetorical. Each needs an owner, a method and a recorded answer.
 3. Where does the LCD controller expect its framebuffer, and what alignment?
 4. Which DRAM region is safe for DMA?
 5. What are the real stack high-water marks for boot, HFS+, UI and audio?
-6. Should the boot-info page stay at `0x087ff000`, or move above the signed
-   window after the loader mapping is confirmed?
+6. Should a later loader revision move boot-info above the signed window after
+   the mapping is confirmed, or keep the 4 KiB image cap?
 7. Is a 4 KiB image cap acceptable, or should the loader validate a larger
    window?
 
@@ -2547,9 +2548,10 @@ These are not rhetorical. Each needs an owner, a method and a recorded answer.
 
 In order:
 
-1. **Accept or reject ADR-0003 and ADR-0004.** The memory map and entry ABI are
-   the two decisions that block a clean F1. If the owner rejects the boot-info
-   page, use the no-args fallback and keep the full 8 MiB window.
+1. **Implement ADR-0003 and ADR-0004.** The memory map and entry ABI are
+   accepted (D-27/D-28, 2026-11-04). F1 can start with the zero-`r0` fallback;
+   T-059 adds the loader fill. If a later measurement rejects the boot-info
+   page, that is a new decision, not a silent change.
 2. **Build F1 before anything else.** A read-only skeleton with a signed image,
    banner, ATA read and HFS+ read is worth more than a player that cannot boot
    reliably.
@@ -2600,7 +2602,7 @@ In order:
 
 ---
 
-## Appendix A — Proposed boot-info layout
+## Appendix A — Boot-info layout
 
 See ADR-0004 for the full table. The firmware-facing fields:
 
@@ -2615,7 +2617,7 @@ Rules: little-endian, fixed size, CRC over bytes 0–71, additive versioning,
 boot-info is a cache not an authority, invalid page → diagnostic mode, no
 bootstate write.
 
-## Appendix B — Proposed memory-map constants
+## Appendix B — Memory-map constants
 
 ```c
 #define HELIKON_IMAGE_BASE      0x08000000u
@@ -2627,15 +2629,15 @@ bootstate write.
 #define HELIKON_UI_BASE         0x09000000u
 #define HELIKON_UI_SIZE         0x00800000u
 #define HELIKON_AUDIO_BASE      0x09800000u
-#define HELIKON_AUDIO_SIZE      0x01000000u
-#define HELIKON_DB_BASE         0x0a800000u
-#define HELIKON_DB_SIZE         0x01000000u
+#define HELIKON_AUDIO_SIZE      0x01800000u  /* 24 MiB */
+#define HELIKON_DB_BASE         0x0b000000u
+#define HELIKON_DB_SIZE         0x00800000u  /* 8 MiB */
 #define HELIKON_RESERVE_BASE    0x0b800000u
 #define HELIKON_RESERVE_SIZE    0x00800000u
 ```
 
-These are proposals for the 6G BSP, not measured facts. A different board changes
-the header, not the core.
+These are the accepted 6G BSP constants (D-27), not measured facts. A different
+board changes the header, not the core.
 
 ## Appendix C — Module ownership matrix
 

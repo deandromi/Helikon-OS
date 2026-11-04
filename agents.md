@@ -358,8 +358,10 @@ normalization with generated Unicode 2.1.9 tables, D-17 product name
 bootloader scope, D-22 separate inner-image write diagnostic scope, D-23 default
 UI typography (IBM Plex Sans UI, Manrope Bold logo), D-24 grayscale
 anti-aliased UI text/icons with a 1-bit fallback, D-25 separate outer-volume
-write diagnostic scope. The real outer-volume write test requires a full
-verified backup and the separate diagnostic in `docs/outer-volume-test.md`.
+write diagnostic scope, D-26 no in-bootloader OF/recovery menu, D-27 firmware
+memory map and image layout, D-28 firmware entry ABI and boot-info page. The
+real outer-volume write test requires a full verified backup and the separate
+diagnostic in `docs/outer-volume-test.md`.
 **Rejected:** D-19 Contributor Covenant (owner deleted the file; no replacement).
 
 **Open:** D-05 B-tree cache and transaction limits ·
@@ -367,7 +369,7 @@ D-07 database location · D-08 app/game runtime · D-09 desktop app transport ·
 D-10 skin compatibility scope · D-11 anti-corruption scope · D-12 battery
 target · D-13 7G and port scope ·
 D-14 car protocol · D-15 theme format · D-16 update transport · D-17 name
-clearance · D-27 firmware memory map · D-28 firmware entry ABI.
+clearance.
 
 ## 11. Handoff protocol
 1. Read `docs/state.md` and `docs/tasks.md` before starting.

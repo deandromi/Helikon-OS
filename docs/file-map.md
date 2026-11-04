@@ -31,7 +31,7 @@ Helikon-OS/
   bootloader/
     README.md               diagnostic bootloader scope, build and limits
     DFU.md                  backup, manual SHA-256, DFU install and recovery
-    LOADER.md               manifest/boot-state format, loader flow and limits
+    LOADER.md               manifest/boot-state/entry-ABI format, loader flow and limits
     LOADER_TEST.md          DFU-only loader test-image runbook
     diagnostics.c/.h        read-only volume/catalog/file diagnostic
     report.c/.h             on-screen report formatter

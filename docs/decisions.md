@@ -57,8 +57,8 @@ re-litigate them.
 | D-24 | UI text/icon rendering | accepted | owner | §14, §28.3.3; D-23 |
 | D-25 | Outer-volume write diagnostic scope | accepted | owner | §5, §24, §27; D-03, D-04, D-22 |
 | D-26 | Bootloader recovery/OF selection | accepted | owner | §5, §16, §21 |
-| D-27 | Firmware memory map and image layout | proposed | owner | §19.2, §27; ADR-0003 |
-| D-28 | Firmware entry ABI and boot information | proposed | owner | §5.3, §16; ADR-0004 |
+| D-27 | Firmware memory map and image layout | accepted | owner | §19.2, §27; ADR-0003 |
+| D-28 | Firmware entry ABI and boot information | accepted | owner | §5.3, §16; ADR-0004 |
 
 The paper's §25 lists 17 decisions. D-18, D-19, D-20 and D-26 are added from §18,
 §28.4.4 and the bootloader recovery policy. D-18 and D-20 are accepted; D-19 was
@@ -66,7 +66,8 @@ adopted and then rejected when the owner deleted `CODE_OF_CONDUCT.md` on
 2026-11-03. D-21 records the first diagnostic bootloader scope. D-01/D-02 are
 accepted for the firmware-loading bootloader. D-22 records the separate
 inner-image write diagnostic; D-25 records the separate outer-volume diagnostic
-and its backup gate. See C-08.
+and its backup gate. D-27/D-28 record the firmware memory map and entry ABI.
+See C-08.
 
 ## D-01 — Boot image verification
 
@@ -580,28 +581,30 @@ and its backup gate. See C-08.
 
 ## D-27 — Firmware memory map and image layout
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-04. **Paper:** §19.2, §27; ADR-0003.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-04. **Paper:** §19.2, §27; ADR-0003.
 - **Context:** the loader validates an 8 MiB image window, but the 6G has 64 MiB
-  of DRAM and no firmware memory map is recorded. F1 needs a linker script,
+  of DRAM and no firmware memory map was recorded. F1 needs a linker script,
   stacks, framebuffer, ATA buffers and a boot-info page; F5 needs audio memory.
 - **Options:** keep everything inside 8 MiB; a fixed 64 MiB map with a reserved
   boot-info page; a runtime-discovered relocatable heap; defer the map.
-- **Decision:** unresolved. The recommended option is a fixed 64 MiB map with
-  the image in `0x08000000`–`0x087fefff`, a 4 KiB boot-info page at
-  `0x087ff000`, kernel data at `0x08800000`, UI at `0x09000000`, audio at
-  `0x09800000`, database at `0x0a800000` and an 8 MiB reserve. This is a
-  proposal for owner acceptance, not an accepted map.
-- **Consequences:** the image cap becomes 8 MiB − 4 KiB; the loader must later
-  reject an image that overlaps the boot-info page. Audio and database budgets
-  are reserved before those features exist. A measurement may change the split
-  before F5.
-- **Follow-up:** accept/reject ADR-0003; T-054 implements the linker script and
-  assertions; record the accepted map here.
-- **Evidence:** design-paper memory budget only; no device measurement yet.
+- **Decision:** **a fixed 64 MiB map.** Image in `0x08000000`–`0x087fefff`
+  (8 MiB − 4 KiB), boot-info page at `0x087ff000` (4 KiB), BSS/stacks/pools at
+  `0x08800000` (8 MiB), UI at `0x09000000` (8 MiB), audio at `0x09800000`
+  (24 MiB), database at `0x0b000000` (8 MiB) and reserve at `0x0b800000`
+  (8 MiB). The image cap is 8 MiB − 4 KiB. Audio takes the upper end of its
+  16–24 MiB target; the database takes the top of its 4–8 MiB target.
+- **Consequences:** the loader must later reject an image that overlaps the
+  boot-info page. Audio and database budgets are reserved before those features
+  exist. A measurement may change the split before F5, but only through a new
+  decision.
+- **Follow-up:** T-054 implements the linker script and assertions; T-059 fills
+  the boot-info page in the loader; measure the audio buffer need before F5.
+- **Evidence:** design-paper memory budget and accepted ADR-0003; no device
+  measurement yet.
 
 ## D-28 — Firmware entry ABI and boot information
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-04. **Paper:** §5.3, §16; ADR-0004.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-04. **Paper:** §5.3, §16; ADR-0004.
 - **Context:** the loader calls `entry(void)` with IRQ disabled and caches
   cleaned, expects a test payload to return, and passes no boot information. A
   production firmware must never return and needs the verified image facts and
@@ -609,17 +612,18 @@ and its backup gate. See C-08.
 - **Options:** no arguments and re-read everything; a versioned boot-info page
   in `r0`; a fixed struct at an absolute address; pass only the manifest
   pointer.
-- **Decision:** unresolved. The recommended option is a versioned, CRC-32
-  protected boot-info page at `0x087ff000`, passed in `r0`, with `r1 = 0` and a
-  no-return contract. Boot-info is a cache of verified facts, not a trust
-  anchor; the firmware must re-read bootstate before writing it.
+- **Decision:** **a versioned, CRC-32 protected boot-info page at
+  `0x087ff000`, passed in `r0`**, with `r1 = 0` and a no-return contract.
+  Boot-info is a cache of verified facts, not a trust anchor; the firmware must
+  re-read bootstate before writing it. The firmware parser and host test can
+  land before the loader fill (T-054), so F1 is not blocked.
 - **Consequences:** the loader gains a small DRAM write before the jump. The
   firmware gains a parser, a host test and a defensive `BOOT_INFO_INVALID` path.
   A bad or missing page must not lead to a bootstate write.
-- **Follow-up:** accept/reject ADR-0004; T-054 implements the parser; update
-  `bootloader/LOADER.md` after acceptance.
-- **Evidence:** current loader source and test payload behaviour; no device run
-  of a boot-info page yet.
+- **Follow-up:** T-054 implements the parser; T-059 fills the page in the
+  loader; the accepted ABI is recorded in `bootloader/LOADER.md` §4.
+- **Evidence:** accepted ADR-0004; current loader source and test payload
+  behaviour; no device run of a boot-info page yet.
 
 ## Conflicts and source separation
 
@@ -694,13 +698,14 @@ not authorize a product change.
 - **Affected docs:** `release.md`, `security.md`, `CONTRIBUTING.md`,
   `SECURITY.md`.
 
-### C-08 — Paper §25 has 17 decisions; this file has 26
+### C-08 — Paper §25 has 17 decisions; this file has 28
 
 - **What:** the paper's §25 lists 17 open decisions. The documentation task
   requires licensing, code of conduct and signing-key ownership as well.
 - **Resolution:** D-01–D-17 mirror §25; D-18–D-20 are added from §18 and
   §28.4.4; D-21–D-26 record the diagnostic, splash, outer-volume and bootloader
-  recovery decisions. D-18 and D-20 are accepted; D-19 was rejected after the
+  recovery decisions; D-27–D-28 record the firmware memory map and entry ABI.
+  D-18 and D-20 are accepted; D-19 was rejected after the
   owner deleted the code of conduct. This is a documentation reconciliation,
   not a new product decision.
 - **Affected docs:** this file, `agents.md`, `goals.md`.
