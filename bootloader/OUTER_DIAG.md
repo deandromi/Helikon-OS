@@ -161,9 +161,11 @@ stops; it does not retry or repair.
 1. Connect the iPod in Disk Mode.
 2. Run `fsck_hfs -fn` on the outer volume; it must report the volume OK and no
    repairs.
-3. Mount the volume in macOS. `/helikon-outer-test` must be absent. Run
-   `diff -qr` against the backup; the library tree must match. Run
-   `diskutil verifyVolume`.
+3. Mount the volume in macOS. `/helikon-outer-test` must be absent. Compare the
+   library tree with the backup, excluding macOS metadata (`.DS_Store`,
+   `.Spotlight-V100`, `.fseventsd`, `.Trashes`, `.TemporaryItems`,
+   `.DocumentRevisions-V100`) and `helikon-outer-ok.txt`; mounting itself can
+   touch those. Run `diskutil verifyVolume`.
 4. Record the image hash, report text, `fsck_hfs` output, `diff -qr` result and
    `diskutil` result in `docs/device-matrix.md`.
 5. Remove `helikon-outer-ok.txt` after the evidence is recorded.

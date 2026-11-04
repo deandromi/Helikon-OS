@@ -95,7 +95,20 @@ for the runbook. T-047 tracks the build; T-048 tracks the device run.
    delete `helikon-outer-test`.
 4. `fsck_hfs -fn` on the outer volume: zero repairs.
 5. Mount in macOS: no `helikon-outer-test` remains; the library tree matches the
-   backup (`diff -qr`), and `diskutil verifyVolume` passes.
+   backup, and `diskutil verifyVolume` passes. Compare the library paths and
+   exclude macOS metadata and the opt-in file, because mounting can touch
+   `.DS_Store`, Spotlight and `.fseventsd`:
+
+   ```sh
+   diff -qr \
+     --exclude=.DS_Store --exclude=.Spotlight-V100 --exclude=.fseventsd \
+     --exclude=.Trashes --exclude=.TemporaryItems \
+     --exclude=.DocumentRevisions-V100 --exclude=helikon-outer-ok.txt \
+     "$DEST" "$VOL"
+   ```
+
+   Record every remaining difference. A difference under `Music`,
+   `iPod_Control`, `.rockbox` or `.rockpod-rw` is a stop condition.
 6. Record the image hash, report text, `fsck_hfs` output and backup comparison in
    `docs/device-matrix.md`.
 7. Remove `helikon-outer-ok.txt` after recording the evidence.
