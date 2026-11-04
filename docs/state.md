@@ -12,8 +12,8 @@
 roadmap in [`roadmap.md`](roadmap.md) starts at phase 0 (rescue bootloader and
 read-only firmware skeleton). The read-only diagnostic image exists and has
 owner-reported 6G runs; the inner-image write diagnostic has one owner-reported
-run, and the outer-volume diagnostic is built but has no device run. None loads
-firmware.
+run, and the outer-volume diagnostic has one successful owner-reported 6G run.
+None loads firmware.
 
 Date of this snapshot: **2026-11-04**.
 
@@ -64,9 +64,9 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Extents-overflow record | `implemented` | `hfs_extents_write.c`; data-fork records keyed by fork/file/startBlock, up to eight extents each; insert/get/delete; multiple records supported |
 | Inner-image mapping | `implemented` | `bootloader/inner_image.c` maps a root-level outer file's data-fork extents into a block device, rejects out-of-range writes, and guards against overlap with outer metadata, journal, volume headers and forks; 4 host tests |
 | Separate write diagnostic | `implemented` | `bootloader-ipod6g-write-diag.ipod` (110,920 bytes, `81350f…`, 18,112 bytes headroom) keeps the outer HFS+ volume read-only and runs the writer inside `helikon-test.img`; host outer/inner test passes twice, and one owner-reported 6G run reported every stage PASS; inner `fsck_hfs` and outer `diskutil verifyVolume` both exited 0. This artifact predates the journal `max_blocks` fix; rebuild before another inner power-cut run |
-| Outer-volume write diagnostic | `implemented` | Current image `bootloader-ipod6g-outer-diag.ipod` (110,408 bytes, `32eeb541…`) writes only `/helikon-outer-test` after an opt-in file and a clean-journal check. It adds in-place B-tree record updates for append/truncate and stage progress on screen. Host test covers the full sequence, dirty-journal refusal, macOS replay, 512/4 KiB journal sectors, non-destructive cleanup and a second run. A previous image (`9eacde18…`) reached rename on the 6G, then stopped before truncate and left `marker`+`renamed`; the volume was fsck-clean. This image has no device run |
+| Outer-volume write diagnostic | `pass` | Current image `bootloader-ipod6g-outer-diag.ipod` (110,408 bytes, `32eeb541…`) writes only `/helikon-outer-test` after an opt-in file and a clean-journal check. It adds in-place B-tree record updates for append/truncate and stage progress on screen. Owner report 2026-11-04: every stage PASS; `/helikon-outer-test` absent; post-run `fsck_hfs` and `diskutil verifyVolume` pass. Host test covers the full sequence, dirty-journal refusal, macOS replay, 512/4 KiB journal sectors, non-destructive cleanup and a second run. One 6G run only |
 | Catalog metadata | `implemented` | Timestamps: create/access/content/attribute on create; content/attribute on data changes; attribute-only on rename; parent dates and volume modify date on mutation; backupDate 0. BSD owner/group 0, flags 0, file/folder mode, Finder info/textEncoding zero, special 0; preserved on append/truncate/rename. Host metadata tests; macOS outer-image test verifies modes, current-year timestamps, rename/truncate paths. Wider differential and Finder creator/type policy remain |
-| Outer-volume device write | `blocked` | Previous image reached rename then stopped before truncate; the leftover was `marker` + 4096-byte `renamed`, and `fsck_hfs` reported the volume OK. New image `32eeb541…` adds in-place record updates and stage progress; T-048 still needs the owner's backup confirmation, a rehearsed restore and a clean retry. Do not run on the library |
+| Outer-volume device write | `in progress` | One successful 6G run: every stage PASS, test folder removed, `fsck_hfs` zero repairs, `diskutil verifyVolume` pass; `.rockpod-rw` unchanged and `.rockbox` only `.DS_Store` differences. Full-library backup diff, power-cut matrix and timing remain. Do not treat this as a support claim |
 | Controlled PMU cut | `pass` | Current image `81350f…`: targets 7/56 were pre-commit clean controls; target 96 cut after commit, recovered on the next boot, all stages PASS, and the extracted inner image passed `fsck_hfs` with `The volume HelikonInner appears to be OK`. Further replay targets are optional coverage |
 | Write diagnostic 6G run | `pass` | One owner-reported run, 2026-11-03: all stages PASS, extracted inner image SHA-256 `156060…`, `fsck_hfs -fn` exit 0, no `diag` folder, outer `diskutil verifyVolume` exit 0; not a library-write or support claim |
 | Journal crash injection | `implemented` | `tests/image/run-crash-macos.sh` injects a failed write at every cut point of create (25), append (43), truncate (34) and delete (25) transactions, reopens the image, replays the journal and runs `fsck_hfs -fn`; all 127 cuts recover to a consistent state and an fsck-clean volume; rename, partial-sector writes, fsync failures and power-loss timing remain |
@@ -87,14 +87,14 @@ Helikon-OS poster above the goals on 2026-11-03.
 |---|---|---|
 | Helikon-OS firmware source tree | `in progress` | Host HFS+ read core and a diagnostic bootloader exist; no kernel, VFS or player |
 | Helikon-OS firmware-loading bootloader | `planned` | The diagnostic image does not load firmware; D-01/D-02 still open |
-| Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; separate inner-image and outer-volume write diagnostics built; none loads firmware. The inner image has one owner-reported run; the outer image has none |
+| Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; separate inner-image and outer-volume write diagnostics built; none loads firmware. The inner image has one owner-reported run; the outer image has one successful 6G run |
 | Bootloader manifest/boot state | `planned` | D-01/D-02 still open |
 | VFS, player, UI, database | `planned` | No implementation |
-| HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete/growth/below-minimum, fork staging, file/folder create/delete/rename, multi-extent/overflow data append/truncate, FastUnicodeCompare, HFS+ normalization and disposable-image `fsck_hfs` validation exist; metadata parity, the broader macOS name corpus and any device write do not |
+| HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete/growth/below-minimum/in-place update, fork staging, file/folder create/delete/rename, multi-extent/overflow data append/truncate, FastUnicodeCompare, HFS+ normalization and disposable-image `fsck_hfs` validation exist. One outer-volume 6G run passed; metadata parity, the broader macOS name corpus, timing and the power-cut matrix remain |
 | Journal replay on a real dirty volume | `unproven` | Replay is host-tested on synthetic journals; no macOS-created dirty volume or device run |
 | Installer or desktop app | `planned` | No host application |
 | Build system, CI, release artifacts | `in progress` | Host test Makefiles and the diagnostic bootloader script; no CI or firmware release |
-| Helikon-OS device run | `unproven` | Three owner-reported diagnostic runs: two read-only-image boots and one write-diagnostic run with every stage PASS; no firmware or library-write run |
+| Helikon-OS device run | `unproven` | Three earlier owner-reported runs plus the 2026-11-04 outer-volume run with every stage PASS; no firmware run or support claim. The outer run is one device, one volume |
 | Supported device list | `unproven` | 6G is the reference; 7G physical audit is deferred from the active queue by owner direction (2026-11-04) |
 | Code of conduct | `rejected` | Owner deleted Contributor Covenant 2.1 on 2026-11-03; no replacement |
 | Signing policy and key ownership | `planned` | D-20 is still open |
@@ -106,12 +106,11 @@ Helikon-OS poster above the goals on 2026-11-03.
   (`Updated README.MD`, 2026-11-03)
 - **Documentation branch:** `docs/agent-handbook`, fast-forwarded to `main` on
   2026-11-03.
-- **Last known-good code commit:** `4898a6f` (`Code: add separate inner-image
-  write diagnostic`, 2026-11-03); the write diagnostic from this commit passed
-  one owner-reported 6G run on 2026-11-03. Later commits add the journal
-  `max_blocks` fix and the outer-volume diagnostic; those are host-tested only.
-  Check `git log -- firmware/hfs bootloader tests tools`. No firmware run
-  exists.
+- **Last known-good code commits:** `4898a6f` (`Code: add separate inner-image
+  write diagnostic`, 2026-11-03) passed one inner-image 6G run; `8b528d1`
+  (`Code: fix outer diagnostic truncate hang`, 2026-11-04) produced image
+  `32eeb541…`, which passed one outer-volume 6G run on 2026-11-04. Check
+  `git log -- firmware/hfs bootloader tests tools`. No firmware run exists.
 - **Last known-good documentation commit:** `59db37e` (`Docs: record first
   write-diagnostic hardware pass`, 2026-11-03). Any later docs housekeeping
   commit is on `main`; check `git log -1`.
@@ -121,7 +120,8 @@ overlay-based product.
 
 ## Last recorded device run
 
-**Three owner-reported diagnostic runs, 2026-11-03.**
+**Three earlier owner-reported diagnostic runs, 2026-11-03, plus the
+outer-volume run on 2026-11-04.**
 
 The first image (`bd0ebc92…`, 66,920 bytes) booted on the owner's 6G and showed
 the splash. `HFS+ volume: PASS` and `HFS+ catalog: PASS`. The read probe failed
@@ -142,8 +142,12 @@ PASS. The extracted inner image (16,777,216 bytes, SHA-256
 `diskutil verifyVolume` exited 0 on the outer volume.
 
 The read-only runs are a partial bring-up; the write run covers only the
-inner-image sequence. No library write, power-cut, adapter or release claim.
-See [`device-matrix.md`](device-matrix.md) §2.1 and §2.2.
+inner-image sequence. On 2026-11-04 the separate outer-volume diagnostic
+(`32eeb541…`) ran on the same 6G: every screen stage PASS, `/helikon-outer-test`
+absent afterwards, `fsck_hfs -fn` zero repairs and `diskutil verifyVolume`
+pass. `.rockpod-rw` was unchanged; `.rockbox` differed only in `.DS_Store`. This
+is one outer-volume run, not a power-cut, adapter or support claim. See
+[`device-matrix.md`](device-matrix.md) §2.1, §2.2 and §2.5.
 
 The donor project has owner-reported hardware use for its V3.2 release. That is
 donor evidence, not Helikon-OS evidence, and it does not validate native HFS+

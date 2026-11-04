@@ -1,6 +1,6 @@
-# Outer-volume write diagnostic — separate, DFU-only, unproven
+# Outer-volume write diagnostic — separate, DFU-only, one 6G pass
 
-> Status: **host-tested; no device run.** Not a release and not a support claim.
+> Status: **host-tested and one successful 6G run (2026-11-04).** Not a release and not a support claim.
 > Owner: boot/release lead
 > Last updated: 2026-11-04
 > Source: D-03, D-04, D-22, D-25; `docs/outer-volume-test.md`; `docs/state.md`
@@ -61,7 +61,7 @@ A previous image (`9eacde18…`) reached rename on the 6G and stopped before
 truncate; it left `/helikon-outer-test/marker` and a 4096-byte `renamed` file.
 The volume passed `fsck_hfs` and the next boot stopped at `Cleanup: FAIL -14`.
 This image adds in-place B-tree record updates for append/truncate and a
-stage-progress screen. It has no device run yet.
+stage-progress screen. It then passed one full 6G run on 2026-11-04.
 
 ## Hard preconditions
 
@@ -215,6 +215,20 @@ Stop and restore from the backup if any of these happen:
 If the journal is dirty after an interrupted run, boot macOS and let it replay
 the journal, or use the recorded recovery path. Do not delete the journal and do
 not run the diagnostic again until the volume is verified.
+
+## First successful 6G run — 2026-11-04
+
+The owner installed `32eeb541…` by DFU and reports every screen stage PASS. The
+run was described as slow; no timing was captured. Afterwards:
+
+- `/helikon-outer-test` was absent;
+- `fsck_hfs -fn` reported `The volume IPOD appears to be OK`;
+- `diskutil verifyVolume` passed;
+- `.rockpod-rw` was byte-identical to the 2026-11-03 backup and `.rockbox`
+  differed only in `.DS_Store` metadata.
+
+A full-library backup diff and the power-cut matrix remain. This is one run on
+one 6G, not a support claim.
 
 ## Power-cut behaviour
 

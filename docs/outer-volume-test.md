@@ -1,7 +1,7 @@
 # Outer-volume write test — real HFS+ volume
 
 > Purpose: the first write test on the iPod's **real** outer HFS+ volume.
-> Status: `in progress`; image built and host-tested, no device run. Host disposable-image validation is done.
+> Status: `pass` on one 6G run, 2026-11-04; full-library backup diff and power-cut matrix pending. Host disposable-image validation is done.
 > Owner: project owner; HFS+/boot leads
 > Last updated: 2026-11-04
 > Source: D-03, D-04, D-22, D-25; `docs/device-matrix.md`; `docs/validation.md`
@@ -82,13 +82,13 @@ The outer-write diagnostic:
 - never touches another root entry;
 - is a separate DFU-only image, not the read-only or inner-image diagnostic.
 
-The image is built (`32eeb541…`, `bootloader-ipod6g-outer-diag.ipod`) and the
-host test passes. A previous image (`9eacde18…`) reached rename on the 6G and
-stopped before truncate; its volume was fsck-clean and the next boot stopped at
-`Cleanup: FAIL -14`. The current image adds in-place record updates and a
-stage-progress screen but has no device run. See
-[`../bootloader/OUTER_DIAG.md`](../bootloader/OUTER_DIAG.md) for the runbook.
-T-047 tracks the build; T-048 tracks the device run.
+The current image is `32eeb541…` (`bootloader-ipod6g-outer-diag.ipod`). On
+2026-11-04 the owner ran it on the 6G: every stage PASS, `/helikon-outer-test`
+absent afterwards, `fsck_hfs -fn` reported `The volume IPOD appears to be OK`,
+and `diskutil verifyVolume` passed. `.rockpod-rw` was unchanged and `.rockbox`
+differed only in `.DS_Store`. A full-library backup diff and the power-cut
+matrix remain. See [`../bootloader/OUTER_DIAG.md`](../bootloader/OUTER_DIAG.md)
+for the runbook. T-047 tracks the build; T-048 tracks the remaining validation.
 
 ## 4. Run and pass criteria
 

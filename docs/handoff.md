@@ -11,6 +11,47 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-04 (outer-volume test passed on the 6G)
+
+## What happened
+
+- The owner installed `32eeb541…` by DFU and reports **every screen stage
+  PASS**. The run was slower than expected but completed.
+- Post-run on the mounted iPod: `/helikon-outer-test` absent, `fsck_hfs -fn`
+  reported `The volume IPOD appears to be OK`, `diskutil verifyVolume` passed.
+- `.rockpod-rw` was byte-identical to the 2026-11-03 backup
+  (SHA-256 `2ac065…`); `.rockbox` differed only in `.DS_Store` metadata.
+- This is the first successful outer-volume writer run on the real 6G volume.
+  It is one run on one device; no power-cut or support claim.
+
+## What is next
+
+1. Run the full-library `diff -qr` when the full backup is mounted. Only the
+   partial `.rockbox`/`.rockpod-rw` backup is visible on this Mac now.
+2. Record the final report text/write count and any timing if available in
+   `device-matrix.md`.
+3. Close T-048; then pick the next writer or UI task.
+4. Rebuild the inner-image write diagnostic (`81350f…` predates the journal
+   `max_blocks` fix) before another inner power-cut run.
+5. T-044 Finder creator/type policy and wider macOS differential; T-041/T-042
+   fonts and anti-aliased mockup; T-045 splash.
+
+## What must not be touched
+
+- Do not treat one outer run as a power-cut, adapter or support claim.
+- No `--single`; no journal deletion, format or destructive cleanup.
+- Do not run the test on the library without the verified backup path.
+
+## Device/test evidence
+
+- 6G outer run `32eeb541…`: all stages PASS, test folder absent, fsck and
+  `diskutil verifyVolume` pass.
+- Partial backup comparison: `.rockpod-rw` identical; `.rockbox` only
+  `.DS_Store`.
+- Full-library backup diff and power-cut matrix pending.
+
+---
+
 # Handoff — 2026-11-04 (outer run partial; truncate hang fixed)
 
 ## What happened

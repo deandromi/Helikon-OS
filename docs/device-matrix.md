@@ -10,9 +10,10 @@
 **Helikon-OS has three completed owner-reported diagnostic runs on one 6G:**
 two read-only-image runs (one partial/failed, one corrected report) and one
 write-diagnostic run that reported every stage PASS and whose inner image passed
-`fsck_hfs`. An outer-volume diagnostic also booted twice on 2026-11-04; it
-reached rename on the first boot and stopped at `Cleanup: FAIL` (`-14`) on the
-second. This is recorded evidence for those tests, not a support claim.
+`fsck_hfs`. An outer-volume diagnostic also booted three times on 2026-11-04:
+the first reached rename, the second stopped at `Cleanup: FAIL` (`-14`), and the
+third reported every stage PASS. This is recorded evidence for those tests, not a
+support claim.
 Every unrun row below is `planned`, `unproven` or `fail`. Do not add a device to
 a supported list because it has the same SoC, because the donor ran on it, or
 because a build links.
@@ -42,7 +43,7 @@ images, backups or serial numbers to the repository.
 | iPod Classic 6G (reference) | `open question` | `open question` | write diagnostic `9e3881…` | native HFS+ write inside `helikon-test.img` | `pass` | Owner report 2026-11-03: every stage PASS; extracted inner image SHA-256 `156060…`, `fsck_hfs -fn` exit 0, no `diag`; outer `diskutil verifyVolume` exit 0 | boot/HFS+ |
 | iPod Classic 6G (reference) | `open question` | `open question` | write diagnostic `81350f…` | controlled PMU cut, targets 7, 56, 96 | `pass` | Owner report 2026-11-04: 7/56 pre-commit cuts gave `Recovery: CLEAN`; target 96 post-commit cut recovered; all stages PASS; extracted inner image `fsck_hfs` reported `The volume HelikonInner appears to be OK` | boot/HFS+ |
 | iPod Classic 6G (reference) | `open question` | `open question` | outer diagnostic `9eacde18…` | outer-volume `/helikon-outer-test` sequence | `partial` | Owner report 2026-11-04: reached rename, left `marker` + 4096-byte `renamed` (all `0xa5`); report not shown, splash remained; next boot `Cleanup: FAIL`, error `-14`; `fsck_hfs` reported the volume OK | owner/boot |
-| iPod Classic 6G (reference) | `open question` | `open question` | outer diagnostic `32eeb541…` | outer-volume `/helikon-outer-test` create/append/rename/truncate/delete | `not run` | Image adds in-place B-tree updates and stage progress; host-tested; T-048 requires the full verified backup, restore rehearsal and owner window | owner/boot |
+| iPod Classic 6G (reference) | `open question` | `open question` | outer diagnostic `32eeb541…` | outer-volume `/helikon-outer-test` create/append/rename/truncate/delete | `pass` | Owner report 2026-11-04: every screen stage PASS; `/helikon-outer-test` absent after the run; post-run `fsck_hfs -fn` reported `The volume IPOD appears to be OK`; `.rockpod-rw` SHA-256 `2ac065…` identical to the 2026-11-03 backup; `.rockbox` differs only in `.DS_Store`; full-library backup diff and timing not captured | owner/boot |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | journal replay | `not run` | none | journal lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | sleep/wake 100 cycles | `not run` | none | test lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | USB read-only | `not run` | none | USB lead |
@@ -169,6 +170,26 @@ boot is available.
 The next image (`32eeb541…`) replaces the append/truncate
 delete-then-insert record update with an in-place B-tree record update, and
 shows the current stage on screen. It is host-tested; no device run yet.
+
+### 2.5 Outer-volume diagnostic — first full pass, owner-reported, 2026-11-04
+
+The owner ran `32eeb541…` (the in-place-update/progress image) and reports every
+screen stage PASS. Post-run checks on the mounted volume:
+
+```text
+/helikon-outer-test: absent
+fsck_hfs -fn: The volume IPOD appears to be OK
+.diskutil verifyVolume: exit 0
+```
+
+The partial `.rockpod-rw` was byte-identical to the 2026-11-03 backup (SHA-256
+`2ac065…`); `.rockbox` differed only in `.DS_Store` metadata. A full-library
+backup diff was not run because the only backup visible on this Mac is the
+partial `.rockbox`/`.rockpod-rw` backup. No timing was recorded; the owner
+described the run as slow.
+
+This is one successful outer-volume run on one 6G. It is not a power-cut,
+adapter, other-volume or support claim.
 
 ## 3. Storage and adapter matrix
 
