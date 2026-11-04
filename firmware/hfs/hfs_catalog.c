@@ -270,7 +270,6 @@ static int catalog_seek_parent(struct hfs_btree *btree, uint32_t target,
         int rc = hfs_btree_read_node(btree, node, &data);
         if (rc != HFS_OK)
             return rc;
-
         if (data[8] == 0xff) {
             memset(leaf, 0, sizeof(*leaf));
             leaf->node = node;
@@ -285,8 +284,7 @@ static int catalog_seek_parent(struct hfs_btree *btree, uint32_t target,
             return HFS_ERR_FORMAT;
 
         uint32_t first_child = 0;
-        uint32_t last_child = 0;
-        uint32_t chosen = 0;
+        uint32_t lower_child = 0;
         for (uint16_t i = 0; i < count; ++i) {
             const uint8_t *record;
             size_t length;
@@ -302,13 +300,18 @@ static int catalog_seek_parent(struct hfs_btree *btree, uint32_t target,
                 return rc;
             if (i == 0)
                 first_child = child;
-            last_child = child;
-            if (chosen == 0 && parent >= target)
-                chosen = child;
+            if (parent >= target)
+                break;
+            lower_child = child;
         }
 
-        if (chosen == 0)
-            chosen = last_child != 0 ? last_child : first_child;
+        /*
+         * The target parent's range can start in the leaf whose separator is
+         * the previous parent, so descend to the last separator below the
+         * target and scan forward. If the target is the first parent, use the
+         * first child.
+         */
+        uint32_t chosen = lower_child != 0 ? lower_child : first_child;
         if (chosen == 0 || chosen >= btree->total_nodes)
             return HFS_ERR_FORMAT;
         node = chosen;

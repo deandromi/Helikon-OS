@@ -24,7 +24,7 @@ file grows. Do not rely on chat history for current state.
   size are checked after the read.
 - Added a separate DFU-only loader test image:
   `build/loader-bootloader/out/bootloader-ipod6g-loader-test.ipod`
-  (107,112 bytes, SHA-256 `9600332f…`, `MOVE_AREA` headroom 21,920 bytes). It
+  (107,112 bytes, SHA-256 `3979de6f…`, `MOVE_AREA` headroom 21,920 bytes). It
   reads `/.helikon/firmware.manifest|img` and `bootstate`, verifies the signed
   manifest, reads the image directly to its signed DRAM address, executes a
   signed 12-byte ARM payload returning `HELO`, and disables production handoff.
@@ -53,16 +53,19 @@ file grows. Do not rely on chat history for current state.
   `fsck_hfs` is still to record.
 - A second owner-reported startup on `ca26b5a6…` completed in 1 minute
   20 seconds, with the longest stalls at `firmware manifest` and
-  `verify firmware`. The `9600332f…` build replaces the full catalog leaf scan
-  with an indexed parent lookup; it is not installed. The test image remains
+  `verify firmware`.
+- The first indexed build `9600332f…` booted fast but failed
+  `Cannot read firmware manifest` / `not found (-4)`: the descent picked a
+  separator at/after the parent and skipped a shared leaf. `3979de6f…` uses the
+  last separator below the parent and is not installed. The test image remains
   `unproven`.
 
 ## What is next
 
-1. Install `9600332f…` through DFU using `LOADER_TEST.md`; the indexed lookup
-   removes the full catalog scan, `lcd_update` pushes the green HFS+ label and
-   the bottom stage line still shows the remaining stages. Record the screens
-   and post-run `fsck_hfs -fn`.
+1. Install `3979de6f…` through DFU using `LOADER_TEST.md`; the lower-bound
+   indexed descent should find the shared `.helikon` leaf, `lcd_update` pushes
+   the green HFS+ label and the bottom stage line shows the remaining stages.
+   Record the screens and post-run `fsck_hfs -fn`.
 2. T-050: resolve the D-02 A/B gap (single image path cannot boot a previous
    GOOD slot). See C-10.
 3. T-006/D-20: signing-key ownership remains the P0 owner/legal decision. The

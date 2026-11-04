@@ -51,10 +51,10 @@ static size_t put_file(uint8_t *record, uint32_t parent, const char *name,
     return key + 2u + 248u;
 }
 
-static size_t put_index(uint8_t *record, uint32_t parent)
+static size_t put_index(uint8_t *record, uint32_t parent, uint32_t child)
 {
     size_t key = put_key(record, parent, "");
-    test_image_put_be32(record + key + 2, parent);
+    test_image_put_be32(record + key + 2, child);
     return key + 2u + 4u;
 }
 
@@ -79,7 +79,7 @@ static void make_catalog(void)
     uint8_t *header = header_node + 14;
     test_image_put_be16(header, 2);          /* depth */
     test_image_put_be32(header + 2, 1);      /* root index node */
-    test_image_put_be32(header + 6, 2);      /* leaf records */
+    test_image_put_be32(header + 6, 3);      /* leaf records */
     test_image_put_be32(header + 10, 2);     /* first leaf */
     test_image_put_be32(header + 14, 3);     /* last leaf */
     test_image_put_be16(header + 18, NODE_SIZE);
@@ -100,8 +100,8 @@ static void make_catalog(void)
     index[8] = 0;
     index[9] = 1;
     test_image_put_be16(index + 10, 2);
-    size_t index0 = put_index(index + 14, 2);
-    size_t index1 = put_index(index + 14 + index0, 3);
+    size_t index0 = put_index(index + 14, 2, 2);
+    size_t index1 = put_index(index + 14 + index0, 4, 3);
     test_image_put_be16(index + 510, 14);
     test_image_put_be16(index + 508, (uint16_t)(14 + index0));
     test_image_put_be16(index + 506, (uint16_t)(14 + index0 + index1));
@@ -110,12 +110,14 @@ static void make_catalog(void)
     memset(leaf2, 0, NODE_SIZE);
     leaf2[8] = 0xff;
     leaf2[9] = 1;
-    test_image_put_be16(leaf2 + 10, 1);
+    test_image_put_be16(leaf2 + 10, 2);
     test_image_put_be32(leaf2, 3);           /* next leaf */
     test_image_put_be32(leaf2 + 4, 0);       /* previous leaf */
     size_t folder = put_folder(leaf2 + 14, 2, ".firmware", 3);
+    size_t file = put_file(leaf2 + 14 + folder, 3, "current.img", 4);
     test_image_put_be16(leaf2 + 510, 14);
     test_image_put_be16(leaf2 + 508, (uint16_t)(14 + folder));
+    test_image_put_be16(leaf2 + 506, (uint16_t)(14 + folder + file));
 
     uint8_t *leaf3 = test_image + (CATALOG_BLOCK + 3) * NODE_SIZE;
     memset(leaf3, 0, NODE_SIZE);
@@ -124,9 +126,9 @@ static void make_catalog(void)
     test_image_put_be16(leaf3 + 10, 1);
     test_image_put_be32(leaf3, 0);
     test_image_put_be32(leaf3 + 4, 2);
-    size_t file = put_file(leaf3 + 14, 3, "current.img", 4);
+    size_t dummy = put_folder(leaf3 + 14, 4, "dummy", 5);
     test_image_put_be16(leaf3 + 510, 14);
-    test_image_put_be16(leaf3 + 508, (uint16_t)(14 + file));
+    test_image_put_be16(leaf3 + 508, (uint16_t)(14 + dummy));
 
     memcpy(test_image + FILE_DATA_BLOCK * NODE_SIZE, "HELO", 4);
 }
@@ -158,7 +160,9 @@ static int test_indexed_nested_lookup(void)
     CHECK(hfs_catalog_lookup_ascii(&catalog, 3, "current.img", &entry) ==
           HFS_OK);
     CHECK(entry.id == 4);
-    CHECK(hfs_catalog_lookup_ascii(&catalog, 4, "current.img", &entry) ==
+    CHECK(hfs_catalog_lookup_ascii(&catalog, 4, "dummy", &entry) == HFS_OK);
+    CHECK(entry.id == 5);
+    CHECK(hfs_catalog_lookup_ascii(&catalog, 5, "current.img", &entry) ==
           HFS_ERR_NOT_FOUND);
     CHECK(hfs_catalog_lookup(&catalog, "/.firmware/missing", &entry) ==
           HFS_ERR_NOT_FOUND);
