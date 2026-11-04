@@ -26,7 +26,11 @@ file grows. Do not rely on chat history for current state.
 
 ## What is next
 
-1. Run the full-library `diff -qr` when the full backup is mounted. Only the
+1. The outer diagnostic bootloader is still installed and `helikon-outer-ok.txt`
+   is still at the iPod root. Remove the opt-in file now, or keep it only if
+   another controlled run is planned. To return to the normal boot path, put
+   the iPod in DFU and run `tools/uninstall-bootloader.sh` (never `--single`).
+2. Run the full-library `diff -qr` when the full backup is mounted. Only the
    partial `.rockbox`/`.rockpod-rw` backup is visible on this Mac now.
 2. Record the final report text/write count and any timing if available in
    `device-matrix.md`.
