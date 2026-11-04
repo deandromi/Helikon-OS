@@ -113,6 +113,13 @@ The splash starts with a neutral `HFS+ DETAILS`, then turns green when the HFS+
 volume and catalog open. A red label or a failure screen shows the HFS+ or
 loader error name and code. Record the full screen before pressing a button.
 
+The current bring-up build also prints a temporary bottom line:
+`storage ready`, `partition scan`, `HFS+ volume`, `HFS+ catalog`,
+`firmware manifest`, `verify firmware`, `jump`. It locates a slow stage and is
+removed from the final splash after the timing is understood. A startup that
+takes minutes is not acceptable release behaviour; record the last visible
+stage and the measured duration.
+
 The splash is a 16-colour RGB565 representation of the owner artwork; the
 illustration is not redrawn. `VERSION Alpha` is baked into the current build.
 The exact image version/size values in the text screen come from the generated

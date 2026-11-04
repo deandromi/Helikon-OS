@@ -286,6 +286,7 @@ static void splash_draw(int status)
 
     lcd_bitmap(helikon_splash_fb, 0, 0, HELIKON_SPLASH_WIDTH,
                HELIKON_SPLASH_HEIGHT);
+    lcd_update();
 }}
 
 void helikon_splash_show(void)

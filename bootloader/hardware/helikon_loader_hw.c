@@ -49,6 +49,12 @@
 #define LOADER_BOOTSTATE_PATH "/.helikon/bootstate"
 #define LOADER_TEST_RETURN 0x4F4C4548u /* "HELO" little-endian */
 
+/*
+ * Temporary device bring-up aid: one short line at the bottom of the splash.
+ * The final splash build should set this to 0 after the HFS+ path is proven.
+ */
+#define HELIKON_LOADER_PROGRESS 1
+
 static uint8_t catalog_scratch[LOADER_SCRATCH_SIZE]
     __attribute__((aligned(4)));
 static uint8_t extents_scratch[LOADER_SCRATCH_SIZE]
@@ -102,6 +108,26 @@ static void show_message(const char *line0, const char *line1)
     const char *lines[2] = { line0, line1 };
     show_lines(lines, 2);
 }
+
+#if HELIKON_LOADER_PROGRESS
+static void progress(const char *text)
+{
+    char line[31];
+    size_t length = strlen(text);
+    if (length > 30u)
+        length = 30u;
+    memcpy(line, text, length);
+    memset(line + length, ' ', 30u - length);
+    line[30] = '\0';
+    lcd_set_foreground(LCD_BLACK);
+    lcd_set_background(0xf77cu); /* palette[0], exact splash off-white */
+    lcd_set_drawmode(DRMODE_SOLID);
+    lcd_puts(0, 28, line);
+    lcd_update();
+}
+#else
+#define progress(text) ((void)0)
+#endif
 
 static void power_off_after_button(void) __attribute__((noreturn));
 
@@ -164,6 +190,7 @@ void helikon_loader_main(void)
     int count;
 
     /* The donor main already painted the splash before storage init. */
+    progress("storage ready");
     sleep(HZ / 2);
 
     if (button_hold()) {
@@ -174,6 +201,7 @@ void helikon_loader_main(void)
             sleep(HZ);
     }
 
+    progress("partition scan");
     storage_get_info(0, &info);
     disk_size = (uint64_t)info.num_sectors * info.sector_size;
 
@@ -191,6 +219,7 @@ void helikon_loader_main(void)
     if (best == NULL)
         fail("No HFS+ partition found.", HELIKON_LOADER_OK);
 
+    progress("HFS+ volume");
     struct hfs_volume volume;
     int rc = hfs_volume_probe(&volume, loader_read, NULL, best->offset,
                               best->length);
@@ -200,6 +229,7 @@ void helikon_loader_main(void)
         fail_hfs("HFS+ probe failed.", rc);
     }
 
+    progress("HFS+ catalog");
     struct hfs_catalog catalog;
     rc = hfs_catalog_open(&catalog, &volume, catalog_scratch,
                           sizeof(catalog_scratch));
@@ -221,6 +251,7 @@ void helikon_loader_main(void)
      * verifies the signature again before reading any image byte, then reads
      * the image directly to that address.
      */
+    progress("firmware manifest");
     uint8_t manifest_data[HELIKON_MANIFEST_SIZE];
     size_t done = 0;
     rc = helikon_hfs_read_file(&hfs_loader, LOADER_MANIFEST_PATH, 0,
@@ -236,6 +267,7 @@ void helikon_loader_main(void)
     if (parsed.image_size > HELIKON_DRAM_SIZE)
         fail("Firmware image too large.", HELIKON_LOADER_ERR_SIZE);
 
+    progress("verify firmware");
     uint8_t *image = (uint8_t *)(uintptr_t)parsed.load_address;
     struct helikon_key_table keys = helikon_build_key_table;
     struct helikon_loader_result result;
@@ -288,6 +320,7 @@ void helikon_loader_main(void)
      * the caches before executing it. The test payload returns "HELO"; a real
      * firmware entry point would not return.
      */
+    progress("jump");
     uint32_t (*entry)(void) =
         (uint32_t (*)(void))(uintptr_t)result.manifest.load_address;
     disable_irq();
