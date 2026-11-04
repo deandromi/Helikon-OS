@@ -288,20 +288,19 @@ replace it.
 ```text
 # Session Brief — 2026-11-04
 
-Phase: pre-phase 0 — design, host HFS+ core, diagnostics, loader test image
+Phase: pre-phase 0 — F1 read-only firmware done (owner-reported 6G run); F2 next
 Repo: main, clean, up to date
-Active task: T-054 / F1 — first read-only firmware skeleton
-Why this task: P0; produces the first real signed firmware image and unblocks T-051
-Dependencies: D-27/D-28 accepted; T-049 done; ADR toolchain known
-Blocked by: none for F1; T-059 (loader boot-info fill) is optional for the first run
-Last evidence: loader 6bc6927c, one 6G/iFlash SD, 6.5 s, fsck clean
-In scope: boot skeleton, linker/map, boot-info parser, HAL clock/PMU/LCD/ATA,
-          HFS+ read adapter, stage codes, PASS + power-off
-Out of scope: writes, VFS, browser, UI, audio, USB, database, update
-Hard stops: no filesystem write, no journal replay, no unsigned image, no --single
-Next smallest step: create firmware/boot/firmware.ld and a linking empty image;
-                    then boot-info parser + host test
-Docs to update: state, tasks, handoff, log, file-map, device-matrix after the run
+Active task: T-055 / F2 — bootstate promotion
+Why this task: P0; first firmware write; follows the completed F1 gate
+Dependencies: T-054 done; D-02; hfs_txn/hfs_journal host-tested
+Blocked by: owner authorization for the first firmware write
+Last evidence: F1 d7916411…, 39,108 bytes, owner-reported 6G run 2026-11-04
+In scope: re-read bootstate, validate both slots, stage a higher-sequence GOOD,
+          commit through hfs_txn, flush, read back, fsck_hfs
+Out of scope: VFS, browser, UI, audio, USB, database, update
+Hard stops: no write outside bootstate, no journal bypass, no unsigned image, no --single
+Next smallest step: read /.helikon/bootstate through HFS+ and validate both slots
+Docs to update: state, tasks, handoff, log, device-matrix after the run
 ```
 
 If the repo no longer matches this example, the example is wrong and the repo is

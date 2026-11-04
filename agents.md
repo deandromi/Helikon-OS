@@ -16,18 +16,19 @@ Helikon-OS is a planned native-HFS+ bootloader and firmware for the iPod Classic
 6th generation, with the 7th generation as the next named port. It is a
 greenfield design, not a working firmware release.
 
-- **Design stage:** a host HFS+ read/write core, a read-only diagnostic
-  bootloader image, an inner-image write diagnostic and an outer-volume write
-  diagnostic exist. There is no kernel/firmware, production firmware-loading
-  bootloader, installer or release artifact. A separate DFU-only loader test
-  image verifies a signed test payload; it does not boot firmware. The read-only image has two owner-reported 6G
-  runs; the inner-image write image has one owner-reported 6G run with every
-  stage PASS and a clean inner `fsck_hfs`. The outer-volume image is built and
-  host-tested but has no device run. These are diagnostic runs, not firmware
-  support claims.
+- **Design stage:** a host HFS+ read/write core, an F1 read-only firmware tree,
+  a read-only diagnostic bootloader image, an inner-image write diagnostic and
+  an outer-volume write diagnostic exist. F1 has one owner-reported 6G run.
+  There is no production firmware-loading bootloader, installer or release
+  artifact. A separate DFU-only loader test image verifies a signed test payload
+  and loads the F1 development image. The read-only diagnostic image has two
+  owner-reported 6G runs; the inner-image write image has one owner-reported 6G
+  run with every stage PASS and a clean inner `fsck_hfs`; the outer-volume image
+  has one successful owner-reported 6G run. These are development runs, not
+  firmware support claims.
 - **Current repository content:** the owner-authored root `README.md`, this
-  documentation set, `firmware/hfs/`, `bootloader/` (diagnostic core, hardware
-  glue and built image) and `tests/`.
+  documentation set, `firmware/` (F1 tree and HFS+ core), `bootloader/`
+  (diagnostic core, hardware glue and built image) and `tests/`.
 - **Donor release:** the V3.2 release of `hfsplus-rockboxed-ipod` is an
   overlay-based Rockpod/Rockbox fork. It is separate from Helikon-OS and is not
   evidence for Helikon-OS.
@@ -137,8 +138,9 @@ docs/prompts/             reusable task prompts
 `docs/file-map.md` is the authoritative map, including donor files referenced by
 the paper. A directory shown as planned does not exist yet.
 ## 6. Build and test commands
-**The F1 read-only firmware skeleton can be built and host-tested. F2–F5, the
-production firmware handoff and a release firmware image cannot.** The
+**The F1 read-only firmware skeleton can be built and host-tested, and has one
+owner-reported 6G run. F2–F5, the production firmware handoff and a release
+firmware image cannot.** The
 read-only diagnostic bootloader and the separate DFU-only loader test image can
 also be built and host-tested:
 

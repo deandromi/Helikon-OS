@@ -2,7 +2,8 @@
 
 > Purpose: a self-contained execution prompt for an agent that will create the
 > first Helikon-OS firmware for the iPod Classic 6G.
-> Status: living — full-procedure prompt
+> Status: living — full-procedure prompt; F1/T-054 complete with an owner-reported
+> 6G run (2026-11-04); F2/T-055 is next.
 > Owner: firmware lead; docs lead
 > Last updated: 2026-11-04
 > Source: `agents.md`, `docs/firmware-architecture.md`, ADR-0003, ADR-0004,
@@ -37,10 +38,10 @@ do not start with the player. You do not start with the UI. You do not start
 with the writer. You start with the boot chain, because every later layer
 depends on it and because a player that cannot boot reliably is not a product.
 
-The project is design-stage. There is no firmware code today. The HFS+ core is
-host-tested and real; the bootloader is device-tested; the firmware is a blank
-tree with a very detailed contract. Your job is to make the smallest true thing
-that runs on the device, then grow it without breaking the safety rules.
+The project is design-stage. F1 now exists and has one owner-reported 6G run;
+F2–F5 do not. The HFS+ core is host-tested and real; the bootloader is
+device-tested. Your job is to grow the firmware one phase at a time without
+breaking the safety rules.
 
 ---
 
@@ -62,6 +63,10 @@ It must:
 8. power off cleanly;
 9. write **nothing** to the filesystem;
 10. record a device run with a screen photo and `fsck_hfs -fn` clean.
+
+**Status 2026-11-04: F1/T-054 is complete.** The owner reports the 6G device run
+accepted; the image is `d7916411…` (39,108 bytes). F2/T-055 is the next phase
+and needs explicit owner authorization.
 
 Do not start F2 until F1 has a recorded device run and the owner (or the next
 explicit session instruction) says continue.

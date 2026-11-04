@@ -14,9 +14,10 @@ firmware modules. The portable HFS+/bootloader suites are 135 tests (104 HFS+,
 and trace), also sanitizer-clean. The writer foundation covers the Apple HFS+
 journal append/replay path, a bounded transaction engine, the allocation
 bitmap, node-level B-tree insert/delete and fork block staging; the disposable
-image and crash matrices add the macOS-visible behaviour. There are no firmware
-device or power-loss tests yet. Donor tests are reference material only. Do not
-describe a donor test pass as Helikon-OS validation.
+image and crash matrices add the macOS-visible behaviour. The F1 read-only image
+has one owner-reported 6G device run; there are no firmware power-loss tests yet.
+Donor tests are reference material only. Do not describe a donor test pass as
+Helikon-OS validation.
 
 ## 1. Test layers
 
@@ -248,8 +249,8 @@ not a device run.
 The device bring-up ladder is recorded rung by rung: banner, ATA identify,
 partition scan, HFS+ probe, read one known file, input, bootstate promotion,
 browser, first UI, first audio. A rung is not skipped because a host test
-passes. The F1 image `d7916411…` is built and host-verified; it has no device
-run.
+passes. The F1 image `d7916411…` is built and host-verified and has one
+owner-reported 6G device run (2026-11-04), accepted as the T-054 gate.
 
 ## 6. Device tests
 

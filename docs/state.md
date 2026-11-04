@@ -9,17 +9,18 @@
 ## Current phase
 
 **Pre-phase 0 — design, host read/write core, diagnostics, host firmware loader
-and the first firmware source skeleton.** The roadmap in
-[`roadmap.md`](roadmap.md) starts at phase 0 (rescue bootloader and read-only
-firmware skeleton). The read-only diagnostic image exists and has owner-reported
-6G runs; the inner-image write diagnostic has one owner-reported run, and the
-outer-volume diagnostic has one successful owner-reported 6G run. None loads
-firmware. The firmware-internal design is written down in
+and the first read-only firmware skeleton with an owner-reported 6G run.** The
+roadmap in [`roadmap.md`](roadmap.md) starts at phase 0 (rescue bootloader and
+read-only firmware skeleton). The read-only diagnostic image exists and has
+owner-reported 6G runs; the inner-image write diagnostic has one owner-reported
+run, and the outer-volume diagnostic has one successful owner-reported 6G run.
+The diagnostic images do not load firmware; the separate loader test image loads
+the F1 development image. The firmware-internal design is written down in
 [`firmware-architecture.md`](firmware-architecture.md) and phases F1–F5
-(T-054–T-058). The F1/T-054 source tree now exists under `firmware/` and builds
-a signed development image (39,108 bytes, SHA-256 `d7916411…`); nine host test
-groups and the loader host core pass. There is no firmware device run and no
-F2–F5 implementation.
+(T-054–T-058). The F1/T-054 source tree exists under `firmware/` and builds a
+signed development image (39,108 bytes, SHA-256 `d7916411…`); nine host test
+groups and the loader host core pass, and the owner reports the F1 6G device run
+complete on 2026-11-04. F2–F5 are not implemented.
 
 Date of this snapshot: **2026-11-04**.
 
@@ -29,9 +30,9 @@ Date of this snapshot: **2026-11-04**.
 |---|---|---|
 | Root `README.md` with 25 owner-authored goals and poster | living | Current `README.md`; goals unchanged, poster added 2026-11-03 |
 | Design paper, revision 2, 2026-11-03 | source | [`design-paper.md`](design-paper.md), source commit `3f220a73d0cceb083b3c057c6fe914d88468800a` |
-| Firmware architecture research paper | living | [`firmware-architecture.md`](firmware-architecture.md); functional, aesthetic and developer-ergonomics design; no firmware device run |
+| Firmware architecture research paper | living | [`firmware-architecture.md`](firmware-architecture.md); functional, aesthetic and developer-ergonomics design; F1 device run owner-reported 2026-11-04 |
 | Firmware memory map / entry ABI ADRs | living | [`adr/0003-firmware-memory-map.md`](adr/0003-firmware-memory-map.md), [`adr/0004-firmware-entry-abi.md`](adr/0004-firmware-entry-abi.md); D-27/D-28 accepted 2026-11-04 |
-| Firmware F1/T-054 skeleton | `in progress` | `firmware/boot`, `firmware/lib`, `firmware/board/6g`, `firmware/hal/6g`, `firmware/block`, `firmware/diag` and the HFS+ read adapter; signed development image 39,108 bytes, SHA-256 `d7916411…`; 9 host test groups sanitizer-clean; loader host core reports `loader: OK` / `bootstate: GOOD`; no device run |
+| Firmware F1/T-054 skeleton | `pass` | `firmware/boot`, `firmware/lib`, `firmware/board/6g`, `firmware/hal/6g`, `firmware/block`, `firmware/diag` and the HFS+ read adapter; signed development image 39,108 bytes, SHA-256 `d7916411…`; 9 host test groups sanitizer-clean; loader host core reports `loader: OK` / `bootstate: GOOD`; owner-reported 6G device run accepted 2026-11-04 (PASS, power-off, no write; photo/timings/`fsck_hfs` not attached) |
 | Firmware build prompt | living | [`prompts/build-firmware.md`](prompts/build-firmware.md); full-procedure F1–F5 execution prompt |
 | Session-start prompt | living | [`prompts/session-start.md`](prompts/session-start.md); repo-read bootstrap and Session Brief for every session |
 | Agent contract and documentation set | living | `main`, merged 2026-11-03 |
@@ -99,10 +100,10 @@ Helikon-OS poster above the goals on 2026-11-03.
 
 | Item | Status | Note |
 |---|---|---|
-| Helikon-OS firmware source tree | `in progress` | F1 source exists: boot entry/vectors/linker/boot-info/panic, freestanding lib, 6G BSP, clock/PMU/backlight/LCD/ATA/buttons HAL, read-only block/partition scan, HFS+ read adapter and diag stages/trace. VFS, player, UI, F2–F5 and a device run do not exist |
+| Helikon-OS firmware source tree | `in progress` | F1 source exists: boot entry/vectors/linker/boot-info/panic, freestanding lib, 6G BSP, clock/PMU/backlight/LCD/ATA/buttons HAL, read-only block/partition scan, HFS+ read adapter and diag stages/trace. VFS, player, UI and F2–F5 do not exist; F1 has one owner-reported 6G run |
 | Host firmware loader | `implemented` | `bootloader/manifest.c`, `bootstate.c`, `sha256.c`, `ed25519.c`, `keys.c`, `firmware_loader.c` and `hfs_loader.c`; formats frozen in `bootloader/LOADER.md`. Signature is verified before any image byte; then SHA-256 and bootstate. 13 manifest/loader tests, 2 HFS adapter tests, 4 Ed25519/key-table tests and a macOS HFS+ fixture with a real generated key pass. No jump and no writes |
-| Helikon-OS firmware-loading bootloader | `in progress` | The final-splash loader image `6bc6927c…` (106,536 bytes, 22,496 bytes headroom) is a visual-only refresh of the tested `3979de6f…` loader path. The earlier image was owner-reported working at 6.5 s on one 6G/iFlash SD; the final-splash device check passed with a clean `fsck_hfs -fn`. It verifies Ed25519 before any image byte, reads directly to the signed DRAM address, executes only a signed development payload and disables production handoff. Production handoff is T-051 and needs a real signed firmware image. |
-| Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; separate inner-image and outer-volume write diagnostics built; none loads firmware. The inner image has one owner-reported run; the outer image has one successful 6G run |
+| Helikon-OS firmware-loading bootloader | `in progress` | The final-splash loader image `6bc6927c…` (106,536 bytes, 22,496 bytes headroom) is a visual-only refresh of the tested `3979de6f…` loader path. The earlier image was owner-reported working at 6.5 s on one 6G/iFlash SD; the final-splash device check passed with a clean `fsck_hfs -fn`. It verifies Ed25519 before any image byte, reads directly to the signed DRAM address, executes only a signed development payload (the F1 development image is one) and disables production handoff. Production handoff is T-051 and needs a real signed firmware image. |
+| Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; separate inner-image and outer-volume write diagnostics built; the diagnostic images do not load firmware. The separate loader test image loads the signed F1 development image. The inner image has one owner-reported run; the outer image has one successful 6G run |
 | Loader test image | `implemented` | `build/loader-bootloader/out/bootloader-ipod6g-loader-test.ipod` (106,536 bytes, 22,496 bytes headroom) now carries the final Alpha splash; the loader path is the owner-reported `3979de6f…` design at 6.5 s. The final-splash `6bc6927c…` image is device-tested (6.5 s, `fsck_hfs -fn` clean). Production handoff is disabled |
 | Bootloader manifest/boot state | `implemented` | Formats frozen in `bootloader/LOADER.md`; host parser/verifier/selector, real Ed25519 and HFS loader tested; loader test image owner-reported working. D-02 is single-image fail-closed by owner decision: no A/B fallback; recovery is DFU/Apple restore. D-28 entry ABI is accepted; the loader fill is T-059 |
 | VFS, player, UI, database | `planned` | No implementation |
@@ -110,7 +111,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Journal replay on a real dirty volume | `unproven` | Replay is host-tested on synthetic journals; no macOS-created dirty volume or device run |
 | Installer or desktop app | `planned` | No host application |
 | Build system, CI, release artifacts | `in progress` | `firmware/Makefile` and `tools/make-firmware-image.py` build the F1 ELF, raw image, manifest and signed development image; host test Makefiles and bootloader build scripts exist; bootloader-only Alpha release `alpha-1.0.1` published; no CI, reproducible release build or firmware release |
-| Helikon-OS device run | `unproven` | Three earlier owner-reported diagnostic runs, the 2026-11-04 outer-volume run with every stage PASS, and the loader-test passes on `3979de6f…` and `6bc6927c…`. The final-splash `6bc6927c…` run passed (6.5 s, `fsck_hfs -fn` clean). The F1 image `d7916411…` is built and host-verified but has no device run. No firmware run or support claim; one device/iFlash SD only |
+| Helikon-OS device run | `partial` | Three earlier owner-reported diagnostic runs, the 2026-11-04 outer-volume run with every stage PASS, the loader-test passes on `3979de6f…` and `6bc6927c…`, and the F1 firmware run on `d7916411…` (owner-reported 2026-11-04, accepted as the T-054 gate). The final-splash `6bc6927c…` run passed (6.5 s, `fsck_hfs -fn` clean). No support claim; one device/iFlash SD only |
 | Supported device list | `unproven` | 6G is the reference; 7G physical audit is deferred from the active queue by owner direction (2026-11-04) |
 | Code of conduct | `rejected` | Owner deleted Contributor Covenant 2.1 on 2026-11-03; no replacement |
 | Signing policy and key ownership | `accepted` | D-20/ADR-0002 option A: offline Ed25519 root on two hardware tokens, certified release key, rotation/revocation/recovery; certificate verifier and a real signed release image are T-053/T-051 |
@@ -119,14 +120,16 @@ Helikon-OS poster above the goals on 2026-11-03.
 
 - **Base branch:** `main`
 - **Base commit:** `c0ef679` (`Docs: add session-start prompt`, 2026-11-04)
-- **F1 work:** the firmware source, host tests and docs updates are in the
-  working tree or on a feature branch; check `git log -- firmware tests/firmware`.
-  Do not claim a firmware device run.
-- **Last known-good code commits:** `4898a6f` (`Code: add separate inner-image
-  write diagnostic`, 2026-11-03) passed one inner-image 6G run; `8b528d1`
-  (`Code: fix outer diagnostic truncate hang`, 2026-11-04) produced image
-  `32eeb541…`, which passed one outer-volume 6G run on 2026-11-04. Check
-  `git log -- firmware/hfs bootloader tests tools`. No firmware run exists.
+- **F1 work:** merged to `main` from `firmware/f1-skeleton`; the source, host
+  tests and docs carry the owner-reported 6G run. Check
+  `git log -- firmware tests/firmware`.
+- **Last known-good code commits:** `a86ed57` (`Firmware: harden F1
+  display/panic paths and add HFS file test`, 2026-11-04) built the F1 image
+  `d7916411…` (39,108 bytes) with one owner-reported 6G run; `4898a6f` (`Code:
+  add separate inner-image write diagnostic`, 2026-11-03) passed one inner-image
+  6G run; `8b528d1` (`Code: fix outer diagnostic truncate hang`, 2026-11-04)
+  produced image `32eeb541…`, which passed one outer-volume 6G run on
+  2026-11-04. Check `git log -- firmware/hfs bootloader tests tools`.
 - **Last known-good documentation commit:** `59db37e` (`Docs: record first
   write-diagnostic hardware pass`, 2026-11-03). Any later docs housekeeping
   commit is on `main`; check `git log -1`.
@@ -136,8 +139,13 @@ overlay-based product.
 
 ## Last recorded device run
 
-**Three earlier owner-reported diagnostic runs, 2026-11-03, plus the
-outer-volume run on 2026-11-04.**
+**F1 read-only firmware, 2026-11-04 (owner-reported), plus three earlier
+diagnostic runs on 2026-11-03 and the outer-volume run on 2026-11-04.**
+
+The owner reports the F1/T-054 device run complete and accepts it as the F1
+gate. The current development image is 39,108 bytes, SHA-256 `d7916411…`; it
+writes nothing and does not replay the journal. The screen photo, stage timings
+and post-run `fsck_hfs -fn` output were not attached to this repository.
 
 The first image (`bd0ebc92…`, 66,920 bytes) booted on the owner's 6G and showed
 the splash. `HFS+ volume: PASS` and `HFS+ catalog: PASS`. The read probe failed
@@ -172,12 +180,12 @@ writes, the transaction engine, the bootloader, or any goal in
 
 ## Current blockers
 
-1. **No firmware device run.** The F1/T-054 source tree, host tests and signed
-   development image exist; the loader host core verifies the manifest and
-   bootstate. The firmware-loading bootloader image, F1 device run, kernel,
-   VFS, player, UI, database, installer and host app do not exist. The
-   outer-volume writer has one successful 6G run; library-wide, power-cut and
-   adapter paths are not tested.
+1. **F2–F5 and production handoff are not implemented.** F1/T-054 is done with
+   one owner-reported 6G run; the loader host core verifies the manifest and
+   bootstate. The kernel beyond F1, VFS, player, UI, database, installer, host
+   app, production handoff and release key do not exist. The outer-volume
+   writer has one successful 6G run; library-wide, power-cut and adapter paths
+   are not tested.
 2. **Journaled writer exists; device power-cut evidence is incomplete.** D-03
    requires journaled writes and D-04 makes Helikon-OS own replay. The
    transaction engine, Apple journal format, replay and 280 host crash cuts are

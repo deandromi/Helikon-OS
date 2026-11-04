@@ -54,6 +54,7 @@ images, backups or serial numbers to the repository.
 | iPod Classic 6G (reference) | `open question` | iFlash SD | loader test `9600332f…` | Alpha splash + indexed catalog lookup | `fail` | Owner report 2026-11-04: boot was fast but `Cannot read firmware manifest` / `not found (-4)`. The first indexed descent picked a separator at/after the parent and skipped a shared leaf. Superseded by `3979de6f…` | owner/boot |
 | iPod Classic 6G (reference) | `open question` | iFlash SD | loader test `3979de6f…` | Alpha splash + lower-bound catalog descent | `pass` | Owner report 2026-11-04: everything works, very fast and consistent; splash and loader path complete. Startup 6.5 s; post-run `fsck_hfs` still to record. One device/iFlash SD only | owner/boot |
 | iPod Classic 6G (reference) | `open question` | iFlash SD | loader test `6bc6927c…` | Final Alpha splash + no stage line | `pass` | Owner report 2026-11-04: device check passed; 6.5 s startup; post-run `fsck_hfs -fn` clean. One device/iFlash SD only | owner/boot |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | F1 firmware `d7916411…` (39,108 bytes) | read-only firmware boot: banner, ATA, HFS+ probe, manifest read, PASS, power-off | `pass` | Owner report 2026-11-04: F1 device run completed and accepted as the T-054 gate; no filesystem write; photo/timings/`fsck` not attached. One device/iFlash SD only | owner/firmware |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | journal replay | `not run` | none | journal lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | sleep/wake 100 cycles | `not run` | none | test lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | USB read-only | `not run` | none | USB lead |
@@ -64,10 +65,10 @@ images, backups or serial numbers to the repository.
 diagnostic rows name the bootloader image hash. Do not write a donor version into
 this column.
 
-The F1 firmware image `d7916411…` (39,108 bytes) is built and host-verified but
-has no device run. Do not add a support row until the owner records the run; the
-current loader test image does not fill the boot-info page (T-059), so F1 uses
-the missing/invalid fallback.
+The F1 firmware image `d7916411…` (39,108 bytes) is built and host-verified and
+has one owner-reported 6G device run (2026-11-04), accepted as the T-054 gate.
+This is not a support claim. The current loader test image does not fill the
+boot-info page (T-059), so F1 uses the missing/invalid fallback.
 
 ### 2.1 Diagnostic runs — owner-reported, 2026-11-03
 
@@ -184,7 +185,8 @@ boot is available.
 
 The next image (`32eeb541…`) replaces the append/truncate
 delete-then-insert record update with an in-place B-tree record update, and
-shows the current stage on screen. It is host-tested; no device run yet.
+shows the current stage on screen. It was host-tested at this point; §2.5
+records the later device run.
 
 ### 2.5 Outer-volume diagnostic — first full pass, owner-reported, 2026-11-04
 
@@ -210,6 +212,16 @@ adapter, other-volume or support claim.
 disposable restore rehearsal and the Apple-restore/DFU fallback path on
 2026-11-04. The protocol is in `outer-volume-test.md`; the inventory/adapter
 matrix remains T-012.
+
+### 2.6 F1 read-only firmware — owner-reported, 2026-11-04
+
+The owner reports the F1 development image (`d7916411…`, 39,108 bytes) completed
+the read-only boot ladder on the reference 6G/iFlash SD and accepts it as the
+T-054 gate. F1 writes nothing and does not replay the journal. The current
+loader test image does not fill the boot-info page, so F1 shows
+`BOOT-INFO MISSING` or `BOOT-INFO INVALID` and continues. The screen photo,
+stage timings and post-run `fsck_hfs -fn` output were not attached to this
+repository. This is one development run, not a support claim.
 
 ## 3. Storage and adapter matrix
 

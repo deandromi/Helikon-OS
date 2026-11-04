@@ -2,7 +2,8 @@
 
 > Purpose: specify how the Helikon-OS firmware should be structured
 > functionally, visually and for developer ergonomics before code exists.
-> Status: living document — design paper; no firmware implementation exists.
+> Status: living document — design paper; the F1 read-only implementation exists
+> and has one owner-reported 6G run; F2–F5 are design only.
 > Owner: architecture lead; firmware lead
 > Last updated: 2026-11-04
 > Source: design paper §5–§19, §27; `docs/architecture.md`; `docs/ui.md`;
@@ -279,8 +280,9 @@ From [`roadmap.md`](roadmap.md):
 - **Phase 1:** plays music, browses the library, survives reboot, volume hash
   unchanged; unsupported files report a reason.
 
-F1 completes the firmware half of phase 0. F2–F5 complete phase 1. The loader
-half of phase 0 is already owner-reported on one 6G, but no firmware exists.
+F1 completes the firmware half of phase 0 and has one owner-reported 6G run.
+F2–F5 complete phase 1. The loader half of phase 0 is already owner-reported on
+one 6G.
 
 ### 2.5 Non-goals for the first firmware
 

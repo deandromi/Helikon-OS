@@ -11,10 +11,12 @@
 `Alpha 1.0.1 Bootloader Only - A Quick Start`
 ([GitHub](https://github.com/deandromi/Helikon-OS/releases/tag/alpha-1.0.1)).
 It contains the functional loader test image, a signed 12-byte test payload, a
-DFU installer and an uninstaller. It does **not** boot firmware, does not use a
-release key and is not a support claim. The owner made it a normal GitHub
-release; the Alpha/bootloader-only label and limits still apply. Do not publish a firmware release or a
-production version claim from this repository yet.
+DFU installer and an uninstaller. It does **not** include a firmware image, does
+not use a release key and is not a support claim. The F1 read-only firmware is a
+separate development image, not a release asset; its owner-reported 6G run does
+not change the bootloader-only release status. The owner made it a normal GitHub
+release; the Alpha/bootloader-only label and limits still apply. Do not publish a
+firmware release or a production version claim from this repository yet.
 
 ## 0. Bootloader-only Alpha release
 

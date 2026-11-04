@@ -15,11 +15,11 @@ P0. Status uses `planned`, `in progress`, `unproven`, `implemented` or
 T-010 are closed, D-01/D-02 are accepted, and T-011/T-027 are implemented.
 T-049's test image is owner-reported working on `3979de6f…` and `6bc6927c…`
 (6.5 s startup, clean `fsck_hfs -fn`) and is implemented. T-006/D-20 and T-050 are closed by owner decision; T-050 is
-rejected as an explicit no-A/B decision. The active P0 line is **T-054/F1**
-(read-only firmware skeleton): the source and signed development image now build,
-the host tests pass and the loader host core verifies the manifest/bootstate; the
-remaining acceptance evidence is one recorded 6G run. T-051 (production firmware
-handoff) follows F1 and needs a real signed firmware image. The P1 line is T-029
+rejected as an explicit no-A/B decision. **T-054/F1 is done**: the source and
+signed development image build, the host tests pass, the loader host core
+verifies the manifest/bootstate, and the owner reports the F1 6G device run
+complete on 2026-11-04. The active P0 line is **T-055/F2** (first firmware
+write), followed by T-051 (production firmware handoff). The P1 line is T-029
 (read-only diagnostic finish), T-045 (final splash, now device-checked) and T-053
 (release-key certificate). D-27/D-28 (firmware memory map and entry ABI) are
 accepted; T-059 fills the boot-info page in the loader. T-056 and T-058 are P1;
@@ -32,15 +32,13 @@ T-030 is complete through T-032/T-040/T-047.
 
 ## Now
 
-Production firmware handoff and the first firmware bring-up. T-051 needs a real
-signed firmware image; T-054 produces it and T-055 proves the bootstate loop.
-T-054 source/host evidence exists; the 6G run is the remaining gate. T-006 and
-T-049 are done.
+The first firmware write and production handoff. F1/T-054 produced the real
+signed development image and its owner-reported 6G run is accepted; T-055/F2
+proves the bootstate loop next, then T-051. T-006 and T-049 are done.
 
 | ID | Task | Priority | Dependencies | Acceptance criteria | Status | Owner | Links |
 |---|---|---|---|---|---|---|---|
 | T-051 | Build the production firmware handoff. | P0 | T-049, D-01, D-02, D-20, T-054, T-055, T-059, a real signed firmware image | Production bootloader verifies a real signed firmware image and jumps without returning; no test payload, no unsigned image and no in-bootloader OF/recovery menu (D-26; native Menu+Play and DFU cover recovery). End-to-end device validation requires a real signed firmware build; host tests can cover the handoff/failure paths earlier. | `planned` | boot lead | [architecture.md](architecture.md), [release.md](release.md), [LOADER.md](../bootloader/LOADER.md) |
-| T-054 | Build the first read-only firmware skeleton (F1). | P0 | D-27, D-28, T-049 | A signed firmware image boots from the loader, shows a banner, initializes ATA, probes HFS+, reads one known file, reports PASS and powers off. No filesystem write, no journal replay, no unsigned image. One recorded 6G run with a screen photo, boot-stage timings and `fsck_hfs -fn` clean. **Current evidence:** F1 source tree and signed development image `d7916411…` (39,108 bytes) exist; 9 host test groups are sanitizer-clean; the loader host core reports `loader: OK` / `bootstate: GOOD`; no device run yet. **Remaining:** one 6G run with photo, stage timings, `fsck_hfs -fn` clean, then stop before F2. | `in progress` | firmware/boot | [firmware-architecture.md](firmware-architecture.md), [build-firmware prompt](prompts/build-firmware.md), [ADR-0003](adr/0003-firmware-memory-map.md), [ADR-0004](adr/0004-firmware-entry-abi.md) |
 | T-055 | Promote `/.helikon/bootstate` to `GOOD` from the firmware through the transaction engine (F2). | P0 | T-054, D-02 | Firmware re-reads bootstate through the VFS, validates both slots, stages `GOOD` with a higher sequence, commits through `hfs_txn`, flushes and reads back; the loader sees `GOOD`; `fsck_hfs -fn` clean; a power cut during promotion recovers to a consistent state. No other file is written. | `planned` | firmware/HFS+ | [firmware-architecture.md](firmware-architecture.md), [build-firmware prompt](prompts/build-firmware.md), [LOADER.md](../bootloader/LOADER.md), [hfsplus-write-engine.md](hfsplus-write-engine.md) |
 
 ## Next
@@ -64,6 +62,7 @@ Acceptance evidence is recorded in the linked files or `device-matrix.md`.
 
 | ID | Task | Priority | Dependencies | Acceptance criteria | Status | Owner | Links |
 |---|---|---|---|---|---|---|---|
+| T-054 | Build the first read-only firmware skeleton (F1). | P0 | D-27, D-28, T-049 | A signed firmware image boots from the loader, shows a banner, initializes ATA, probes HFS+, reads one known file, reports PASS and powers off. No filesystem write, no journal replay, no unsigned image. One recorded 6G run with a screen photo, boot-stage timings and `fsck_hfs -fn` clean. **Evidence:** F1 source tree and signed development image `d7916411…` (39,108 bytes); 9 host test groups sanitizer-clean; loader host core reports `loader: OK` / `bootstate: GOOD`; owner-reported 6G device run accepted 2026-11-04 (PASS, power-off, no write; photo/timings/`fsck_hfs` not attached). | `implemented` | firmware/boot | [firmware-architecture.md](firmware-architecture.md), [build-firmware prompt](prompts/build-firmware.md), [ADR-0003](adr/0003-firmware-memory-map.md), [ADR-0004](adr/0004-firmware-entry-abi.md) |
 | T-001 | Record journal strategy and ownership decisions (D-03, D-04). | P0 | Owner review | Both entries in `decisions.md` are `accepted` with owner, date, consequences and phase-2 gate. D-03: journaled writes required, non-journaled prototype disposable-only. D-04: Helikon-OS owns replay. | `implemented` | owner | [D-03](decisions.md#d-03--journal-strategy), [D-04](decisions.md#d-04--journal-ownership) |
 | T-002 | Freeze the HFS+ writer interface and failure model. | P0 | T-001 | A reviewed design section lists begin/commit/abort, catalog/bitmap/extents operations, error codes, transaction boundaries and invariants I-03/I-05/I-15. §10 in `hfsplus-write-engine.md` freezes the interface and failure model; implementation is covered by T-031/T-034/T-037/T-044. | `implemented` | architecture | [hfsplus-write-engine.md](hfsplus-write-engine.md#10-frozen-writer-interface-and-failure-model), [invariants.md](invariants.md) |
 | T-003 | Define the backup, recovery and disposable-volume protocol. | P0 | Owner approval | Checklist covers full backup, SHA-256, read-back, `fsck_hfs -n`, Disk Mode, DFU, Apple restore, disposable-volume format and stop conditions. `outer-volume-test.md` defines the full-volume backup, verification, test target and stop conditions. Owner confirmed the full backup/diff and a disposable restore rehearsal on 2026-11-04, and the Apple-restore/DFU fallback path is available. | `implemented` | owner/test lead | [outer-volume-test.md](outer-volume-test.md), [verification.md](verification.md), [device-matrix.md](device-matrix.md) |

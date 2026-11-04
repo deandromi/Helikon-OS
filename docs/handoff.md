@@ -11,7 +11,42 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-04 (F1 device run accepted)
+
+## What happened
+
+- F1/T-054 is done. The owner reports the F1 development image (`d7916411…`,
+  39,108 bytes) completed the read-only 6G device run and accepts it as the
+  T-054 gate. F1 writes nothing and does not replay the journal.
+- `firmware/f1-skeleton` is merged to `main` and pushed with this handoff.
+- Docs updated: `state.md`, `tasks.md`, `device-matrix.md`, `testing.md`,
+  `handoff.md`, `log/2026-11-04.md`, `firmware-architecture.md`, `verification.md`,
+  `agents.md`, `file-map.md`, `roadmap.md`, `release.md`,
+  `prompts/build-firmware.md` and `prompts/session-start.md`.
+
+## What is next
+
+1. T-055/F2: re-read `/.helikon/bootstate` through the VFS and promote it to
+   `GOOD` through `hfs_txn`; flush, read back, confirm the loader sees `GOOD`,
+   and run `fsck_hfs -fn`. This is the first firmware write.
+2. T-059 remains optional for the read path: the current loader test image does
+   not fill the boot-info page, so F1 shows `BOOT-INFO MISSING`/`INVALID` and
+   continues. It is needed for the full ADR-0004 handoff path.
+3. T-051 and T-053 follow F2: production handoff and the release-key verifier.
+
+## Do not claim
+
+- The F1 device run is owner-reported. The screen photo, stage timings and
+  post-run `fsck_hfs -fn` output were not attached to this repository.
+- The image is signed with the development loader test key, not a release key;
+  it is not a product or a release.
+- F2–F5 are not implemented; there is no firmware support claim.
+
+---
+
 # Handoff — 2026-11-04 (F1 firmware skeleton)
+
+> Superseded by the F1 device run acceptance above.
 
 ## What happened
 
@@ -38,10 +73,8 @@ file grows. Do not rely on chat history for current state.
 
 ## What is next
 
-1. Run F1 on the 6G using the existing loader test image and the generated
-   `build/firmware/6g/out/` files. Record the image hash, stage timings, screen
-   photo and `fsck_hfs -fn`; update `device-matrix.md`, `state.md` and
-   `tasks.md`. Stop before F2.
+1. Done — the owner reported the F1 device run complete; see the newer handoff
+   above. Stop before F2 until the owner authorizes the first write.
 2. T-059 is still optional for the first run: the current loader test image does
    not fill the boot-info page, so F1 shows `BOOT-INFO MISSING`/`INVALID` and
    continues on the read-only diagnostic path.
@@ -49,8 +82,8 @@ file grows. Do not rely on chat history for current state.
 
 ## Do not claim
 
-- No firmware device run exists. The F1 image is host-built and host-verified,
-  not device-proven.
+- Superseded: the F1 device run is owner-reported in the newer handoff. The
+  photo, timings and post-run `fsck_hfs` were not attached.
 - The image is signed with the development loader test key, not a release key;
   it is not a product or a release.
 - The host tests are not a device run, and the boot-info page is not filled by
