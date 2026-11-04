@@ -2,7 +2,7 @@
 
 > Purpose: install and run the read-only firmware-loader test image on an iPod
 > Classic 6G, record the result, and recover.
-> Status: `3979de6f…` owner-reported pass (one 6G/iFlash SD, 6.5 s startup); final-splash `6bc6927c…` refresh pending a device check. Post-run `fsck_hfs` still to record.
+> Status: final-splash `6bc6927c…` owner-reported pass (one 6G/iFlash SD, 6.5 s startup, `fsck_hfs -fn` clean).
 > Owner: boot lead
 > Last updated: 2026-11-04
 > Source: D-01, D-02, T-049; [`LOADER.md`](LOADER.md), [`DFU.md`](DFU.md)
@@ -114,8 +114,8 @@ volume and catalog open. A red label or a failure screen shows the HFS+ or
 loader error name and code. Record the full screen before pressing a button.
 
 The final-splash build does not print the temporary bottom stage line. The
-earlier `3979de6f…` build used that line during bring-up; the release image
-`6bc6927c…` is a visual-only refresh and still needs its own device check.
+earlier `3979de6f…` build used that line during bring-up. The final-splash
+`6bc6927c…` image is device-checked.
 
 The splash is a 16-colour RGB565 representation of the owner artwork; the
 illustration is not redrawn. `VERSION ALPHA` is baked into the current build.

@@ -2,31 +2,32 @@
 
 > Purpose: channels, signing, staging, rollback, bootloader DFU and support
 > policy. This is a stub: several owner decisions are pending.
-> Status: bootloader-only Alpha prerelease published; no firmware release.
+> Status: bootloader-only Alpha release published; no firmware release.
 > Owner: release lead; project owner for signing/support decisions
 > Last updated: 2026-11-04
 > Source: design paper §16, §18, §28.2.5, §28.4.3; `docs/validation.md`
 
-**No firmware release exists.** A **bootloader-only Alpha prerelease** exists:
+**No firmware release exists.** A **bootloader-only Alpha release** exists:
 `Alpha 1.0 Bootloader Only - A Quick Start`
 ([GitHub](https://github.com/deandromi/Helikon-OS/releases/tag/alpha-1.0)).
 It contains the functional loader test image, a signed 12-byte test payload, a
 DFU installer and an uninstaller. It does **not** boot firmware, does not use a
-release key and is not a support claim. Do not publish a firmware release or a
+release key and is not a support claim. The owner made it a normal GitHub
+release; the Alpha/bootloader-only label and limits still apply. Do not publish a firmware release or a
 production version claim from this repository yet.
 
-## 0. Bootloader-only prerelease
+## 0. Bootloader-only Alpha release
 
 | Field | Value |
 |---|---|
 | Release | `Alpha 1.0 Bootloader Only - A Quick Start` |
 | Tag | `alpha-1.0` |
-| Type | GitHub prerelease; bootloader test image only |
+| Type | Normal GitHub release; bootloader test image only |
 | Image | `bootloader-ipod6g-loader-test.ipod` |
 | Image SHA-256 | `6bc6927cb282f7c01b34b07020419171adb9fa61e6ffe1180156b7579b0b2388` |
-| Tested | `3979de6f…` was one 6G/iFlash SD, owner-reported pass, 6.5 s; final-splash `6bc6927c…` device run pending |
+| Tested | `6bc6927c…`: one 6G/iFlash SD, owner-reported pass, 6.5 s startup, `fsck_hfs -fn` clean |
 | Not included | Firmware image, kernel, release key, A/B rollback, recovery menu |
-| Open evidence | `fsck_hfs -fn` after the run; repeat/power-cut matrix; other devices |
+| Open evidence | Repeat/power-cut matrix; other adapters/devices; production firmware handoff and release key |
 
 The release assets are the tested set: bootloader, `firmware.manifest`,
 12-byte `firmware.img`, `bootstate`, public test key, DFU installer, uninstaller

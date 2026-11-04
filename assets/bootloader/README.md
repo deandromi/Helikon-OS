@@ -1,8 +1,8 @@
 # Bootloader splash assets
 
 > Purpose: source, variants and regeneration of the Helikon-OS bootloader splash.
-> Status: final Alpha green/red artwork built into the loader image; refreshed
-> image not device-tested yet.
+> Status: final Alpha green/red artwork built into the loader image and
+> device-checked; 6.5 s startup and clean `fsck_hfs -fn`.
 > Owner: project owner / boot lead
 > Last updated: 2026-11-04
 > Source: owner final `Bootloader design Version Alpha Green/Red.png`; T-045
@@ -68,6 +68,6 @@ and font mockups; it is not used for the final artwork.
 - The bootloader splash does not write the filesystem.
 - The loader image shows the neutral label during probe, then green when the
   HFS+ volume/catalog open, or red on an HFS+ error.
-- The refreshed `6bc6927c…` image is a visual-only rebuild of the tested
-  `3979de6f…` loader path. A device run of the refreshed image is pending.
+- The final-splash `6bc6927c…` image passed its device check with 6.5 s startup
+  and a clean `fsck_hfs -fn`. One 6G/iFlash SD only.
 - No firmware boot or support claim follows from the splash.
