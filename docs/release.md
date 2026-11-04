@@ -8,8 +8,8 @@
 > Source: design paper §16, §18, §28.2.5, §28.4.3; `docs/validation.md`
 
 **No firmware release exists.** A **bootloader-only Alpha release** exists:
-`Alpha 1.0 Bootloader Only - A Quick Start`
-([GitHub](https://github.com/deandromi/Helikon-OS/releases/tag/alpha-1.0)).
+`Alpha 1.0.1 Bootloader Only - A Quick Start`
+([GitHub](https://github.com/deandromi/Helikon-OS/releases/tag/alpha-1.0.1)).
 It contains the functional loader test image, a signed 12-byte test payload, a
 DFU installer and an uninstaller. It does **not** boot firmware, does not use a
 release key and is not a support claim. The owner made it a normal GitHub
@@ -20,8 +20,8 @@ production version claim from this repository yet.
 
 | Field | Value |
 |---|---|
-| Release | `Alpha 1.0 Bootloader Only - A Quick Start` |
-| Tag | `alpha-1.0` |
+| Release | `Alpha 1.0.1 Bootloader Only - A Quick Start` |
+| Tag | `alpha-1.0.1` |
 | Type | Normal GitHub release; bootloader test image only |
 | Image | `bootloader-ipod6g-loader-test.ipod` |
 | Image SHA-256 | `6bc6927cb282f7c01b34b07020419171adb9fa61e6ffe1180156b7579b0b2388` |

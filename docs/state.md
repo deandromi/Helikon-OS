@@ -97,7 +97,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete/growth/deep delete/in-place update, fork staging, file/folder create/delete/rename, multi-extent/overflow data append/truncate, FastUnicodeCompare, HFS+ normalization, metadata policy and disposable-image `fsck_hfs` validation exist. One outer-volume 6G run passed; D-05 cache limits, broader fuzzing, timing and the device power-cut/adapter matrix remain |
 | Journal replay on a real dirty volume | `unproven` | Replay is host-tested on synthetic journals; no macOS-created dirty volume or device run |
 | Installer or desktop app | `planned` | No host application |
-| Build system, CI, release artifacts | `in progress` | Host test Makefiles and bootloader build scripts; bootloader-only Alpha release `alpha-1.0` published; no CI, reproducible firmware build or firmware release |
+| Build system, CI, release artifacts | `in progress` | Host test Makefiles and bootloader build scripts; bootloader-only Alpha release `alpha-1.0.1` published; no CI, reproducible firmware build or firmware release |
 | Helikon-OS device run | `unproven` | Three earlier owner-reported diagnostic runs, the 2026-11-04 outer-volume run with every stage PASS, and the loader-test pass on `3979de6f…`. The final-splash `6bc6927c…` run passed (6.5 s, `fsck_hfs -fn` clean). No firmware run or support claim; one device/iFlash SD only |
 | Supported device list | `unproven` | 6G is the reference; 7G physical audit is deferred from the active queue by owner direction (2026-11-04) |
 | Code of conduct | `rejected` | Owner deleted Contributor Covenant 2.1 on 2026-11-03; no replacement |
@@ -185,7 +185,7 @@ writes, the transaction engine, the bootloader, or any goal in
    6G/iFlash SD loader run are recorded. Other adapters, the full device
    power-cut matrix and library-wide differential remain future coverage.
 6. **No firmware release infrastructure.** A bootloader-only Alpha release
-   (`alpha-1.0`) exists, but there is no reproducible firmware build, release
+   (`alpha-1.0.1`) exists, but there is no reproducible firmware build, release
    manifest, signing-key ceremony record, staging flow, rollback test or support
    window. The D-20 policy is accepted; no release key has been generated and no
    release signing is claimed.

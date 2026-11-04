@@ -69,8 +69,8 @@ file grows. Do not rely on chat history for current state.
   D-26 removes the in-bootloader OF/recovery menu; native Menu+Play and DFU are
   the recovery paths.
 - Published the bootloader-only Alpha release
-  [`alpha-1.0`](https://github.com/deandromi/Helikon-OS/releases/tag/alpha-1.0):
-  `Alpha 1.0 Bootloader Only - A Quick Start`. Assets include the loader image,
+  [`alpha-1.0.1`](https://github.com/deandromi/Helikon-OS/releases/tag/alpha-1.0.1):
+  `Alpha 1.0.1 Bootloader Only - A Quick Start`. Assets include the loader image,
   DFU installer, test manifest/payload/bootstate, uninstaller, quick start and
   the final green/red splash PNGs. It is not a firmware release and uses a test
   key. The owner then made it a normal GitHub release.
