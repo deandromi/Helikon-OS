@@ -169,6 +169,185 @@ static int test_indexed_nested_lookup(void)
     return 0;
 }
 
+
+
+static void make_deep_catalog(void)
+{
+    const uint32_t nodes = 8;
+    test_image_clear();
+    test_image_make_header(test_image + 1024, 0x482bu, 4,
+                           TEST_ATTR_UNMOUNTED, 512, 128, 64);
+
+    uint8_t *fork = test_image + 1024 + 272;
+    test_image_put_be64(fork, (uint64_t)nodes * NODE_SIZE);
+    test_image_put_be32(fork + 12, nodes);
+    test_image_put_be32(fork + 16, CATALOG_BLOCK);
+    test_image_put_be32(fork + 20, nodes);
+
+    uint8_t *header_node = test_image + CATALOG_BLOCK * NODE_SIZE;
+    memset(header_node, 0, NODE_SIZE);
+    header_node[8] = 1;
+    header_node[9] = 0;
+    test_image_put_be16(header_node + 10, 3);
+    uint8_t *header = header_node + 14;
+    test_image_put_be16(header, 3);          /* depth */
+    test_image_put_be32(header + 2, 1);      /* root index */
+    test_image_put_be32(header + 6, 5);      /* leaf records */
+    test_image_put_be32(header + 10, 4);     /* first leaf */
+    test_image_put_be32(header + 14, 7);     /* last leaf */
+    test_image_put_be16(header + 18, NODE_SIZE);
+    test_image_put_be16(header + 20, 516);
+    test_image_put_be32(header + 22, nodes);
+    test_image_put_be32(header + 26, 0);
+    test_image_put_be32(header + 38, 6);
+    header[36] = 0;
+    header[37] = 0xcf;
+    test_image_put_be16(header_node + 504, 504);
+    test_image_put_be16(header_node + 506, 248);
+    test_image_put_be16(header_node + 508, 120);
+    test_image_put_be16(header_node + 510, 14);
+
+    /* Root index: two level-1 index nodes. */
+    uint8_t *root = test_image + (CATALOG_BLOCK + 1) * NODE_SIZE;
+    memset(root, 0, NODE_SIZE);
+    root[8] = 0;
+    root[9] = 2;
+    test_image_put_be16(root + 10, 2);
+    size_t r0 = put_index(root + 14, 2, 2);
+    size_t r1 = put_index(root + 14 + r0, 100, 3);
+    test_image_put_be16(root + 510, 14);
+    test_image_put_be16(root + 508, (uint16_t)(14 + r0));
+    test_image_put_be16(root + 506, (uint16_t)(14 + r0 + r1));
+
+    /* Level-1 index node 2: leaves 4 and 5. */
+    uint8_t *idx2 = test_image + (CATALOG_BLOCK + 2) * NODE_SIZE;
+    memset(idx2, 0, NODE_SIZE);
+    idx2[8] = 0;
+    idx2[9] = 1;
+    test_image_put_be16(idx2 + 10, 2);
+    size_t i20 = put_index(idx2 + 14, 2, 4);
+    size_t i21 = put_index(idx2 + 14 + i20, 20, 5);
+    test_image_put_be16(idx2 + 510, 14);
+    test_image_put_be16(idx2 + 508, (uint16_t)(14 + i20));
+    test_image_put_be16(idx2 + 506, (uint16_t)(14 + i20 + i21));
+
+    /* Level-1 index node 3: leaves 6 and 7. */
+    uint8_t *idx3 = test_image + (CATALOG_BLOCK + 3) * NODE_SIZE;
+    memset(idx3, 0, NODE_SIZE);
+    idx3[8] = 0;
+    idx3[9] = 1;
+    test_image_put_be16(idx3 + 10, 2);
+    size_t i30 = put_index(idx3 + 14, 100, 6);
+    size_t i31 = put_index(idx3 + 14 + i30, 200, 7);
+    test_image_put_be16(idx3 + 510, 14);
+    test_image_put_be16(idx3 + 508, (uint16_t)(14 + i30));
+    test_image_put_be16(idx3 + 506, (uint16_t)(14 + i30 + i31));
+
+    /* Leaves 4..7, globally linked. */
+    const uint32_t parents[4] = { 2, 20, 100, 200 };
+    const char *names[4] = { ".firmware", "twenty", "hundred",
+                             "twohundred" };
+    const uint32_t ids[4] = { 3, 20, 100, 200 };
+    for (unsigned int i = 0; i < 4; ++i) {
+        uint8_t *leaf = test_image + (CATALOG_BLOCK + 4 + i) * NODE_SIZE;
+        memset(leaf, 0, NODE_SIZE);
+        leaf[8] = 0xff;
+        leaf[9] = 1;
+        test_image_put_be16(leaf + 10, i == 0 ? 2 : 1);
+        test_image_put_be32(leaf, i < 3 ? 5 + i : 0);
+        test_image_put_be32(leaf + 4, i == 0 ? 0 : 3 + i);
+        size_t used = put_folder(leaf + 14, parents[i], names[i], ids[i]);
+        if (i == 0) {
+            size_t child = put_file(leaf + 14 + used, 3, "current.img", 4);
+            test_image_put_be16(leaf + 508, (uint16_t)(14 + used));
+            test_image_put_be16(leaf + 506, (uint16_t)(14 + used + child));
+            test_image_put_be16(leaf + 510, 14);
+        } else {
+            test_image_put_be16(leaf + 508, (uint16_t)(14 + used));
+            test_image_put_be16(leaf + 510, 14);
+        }
+    }
+    memcpy(test_image + FILE_DATA_BLOCK * NODE_SIZE, "HELO", 4);
+}
+
+static int test_deep_index_lookup(void)
+{
+    struct hfs_volume volume;
+    struct hfs_catalog catalog;
+    struct hfs_entry entry;
+    uint8_t scratch[NODE_SIZE];
+
+    make_deep_catalog();
+    CHECK(hfs_volume_probe(&volume, test_image_read, NULL, 0,
+                           TEST_IMAGE_SIZE) == HFS_OK);
+    CHECK(hfs_catalog_open(&catalog, &volume, scratch,
+                           sizeof(scratch)) == HFS_OK);
+
+    CHECK(hfs_catalog_lookup_ascii(&catalog, 2, ".firmware", &entry) ==
+          HFS_OK);
+    CHECK(entry.id == 3);
+    CHECK(hfs_catalog_lookup_ascii(&catalog, 3, "current.img", &entry) == HFS_OK);
+    CHECK(entry.id == 4);
+    CHECK(hfs_catalog_lookup_ascii(&catalog, 20, "twenty", &entry) == HFS_OK);
+    CHECK(entry.id == 20);
+    CHECK(hfs_catalog_lookup_ascii(&catalog, 100, "hundred", &entry) == HFS_OK);
+    CHECK(entry.id == 100);
+    CHECK(hfs_catalog_lookup_ascii(&catalog, 200, "twohundred", &entry) == HFS_OK);
+    CHECK(entry.id == 200);
+    CHECK(hfs_catalog_lookup_ascii(&catalog, 50, "twenty", &entry) ==
+          HFS_ERR_NOT_FOUND);
+    CHECK(hfs_catalog_lookup_ascii(&catalog, 201, "twohundred", &entry) ==
+          HFS_ERR_NOT_FOUND);
+    return 0;
+}
+
+static uint32_t fuzz_state = 0x12345678u;
+
+static uint32_t fuzz_next(void)
+{
+    fuzz_state = fuzz_state * 1664525u + 1013904223u;
+    return fuzz_state;
+}
+
+static int test_malformed_index_fuzz(void)
+{
+    struct hfs_volume volume;
+    struct hfs_catalog catalog;
+    struct hfs_entry entry;
+    uint8_t scratch[NODE_SIZE];
+    const size_t catalog_start = CATALOG_BLOCK * NODE_SIZE;
+    const size_t catalog_size = TOTAL_NODES * NODE_SIZE;
+
+    for (unsigned int iteration = 0; iteration < 1000; ++iteration) {
+        make_catalog();
+
+        /* Mutate catalog bytes or the catalog fork, not the volume header. */
+        unsigned int mutations = 1u + fuzz_next() % 3u;
+        for (unsigned int m = 0; m < mutations; ++m) {
+            size_t offset;
+            if (fuzz_next() & 1u)
+                offset = 1024u + 272u + fuzz_next() % 80u;
+            else
+                offset = catalog_start + fuzz_next() % catalog_size;
+            test_image[offset] ^= (uint8_t)(1u << (fuzz_next() & 7u));
+        }
+
+        if (hfs_volume_probe(&volume, test_image_read, NULL, 0,
+                             TEST_IMAGE_SIZE) != HFS_OK)
+            continue;
+        if (hfs_catalog_open(&catalog, &volume, scratch,
+                             sizeof(scratch)) != HFS_OK)
+            continue;
+
+        (void)hfs_catalog_lookup_ascii(&catalog, 2, ".firmware", &entry);
+        (void)hfs_catalog_lookup_ascii(&catalog, 3, "current.img", &entry);
+        (void)hfs_catalog_lookup_ascii(&catalog, 4, "dummy", &entry);
+        (void)hfs_catalog_lookup_ascii(&catalog, 5, "missing", &entry);
+        (void)hfs_catalog_lookup(&catalog, "/.firmware/current.img", &entry);
+    }
+    return 0;
+}
+
 struct test_case {
     const char *name;
     int (*run)(void);
@@ -177,7 +356,9 @@ struct test_case {
 int main(void)
 {
     static const struct test_case tests[] = {
-        { "indexed nested lookup", test_indexed_nested_lookup }
+        { "indexed nested lookup", test_indexed_nested_lookup },
+        { "deep index lookup", test_deep_index_lookup },
+        { "malformed index fuzz", test_malformed_index_fuzz }
     };
     int failures = 0;
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); ++i) {

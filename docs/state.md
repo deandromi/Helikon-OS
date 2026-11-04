@@ -79,7 +79,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
 | Default UI typography | `in progress` | D-23/D-24 and `docs/ui.md` record the 14/17/12/11 px scale and grayscale anti-aliasing. Licensed IBM Plex Sans and Manrope subsets, OFL texts, hashes and two 320×240 host mockups are in `assets/fonts/` and `assets/ui/`; `tools/render-ui-mockup.py` reproduces them with clipping checks. Firmware renderer and 6G panel run remain T-042 |
 | Bootloader splash redesign | `implemented` | Final owner green/red PNGs are in `assets/bootloader/` with `VERSION ALPHA` and a green/red `HFS+ DETAILS` mask. The refreshed loader image uses a 16-colour 4bpp RGB565 base (38,400 bytes) plus a 324-byte label mask; the temporary bottom stage line is removed. The final-splash `6bc6927c…` image is device-tested: 6.5 s startup and `fsck_hfs -fn` clean |
-| Host test harness | `in progress` | 133 portable tests (102 HFS+, 31 bootloader), sanitizer clean, plus the macOS disposable-image, Unicode, crash-injection, inner-image, outer-volume and loader tests; fixture plan in `fixtures.md`; first diagnostic boot is owner-reported |
+| Host test harness | `in progress` | 135 portable tests (104 HFS+, 31 bootloader), sanitizer clean, plus the macOS disposable-image, Unicode, crash-injection, inner-image, outer-volume and loader tests; fixture plan in `fixtures.md`; first diagnostic boot is owner-reported |
 | Backup/recovery protocol | `implemented` | Full-volume backup, read-back, disposable restore rehearsal and Apple-restore/DFU path owner-confirmed 2026-11-04; protocol and stop conditions in `outer-volume-test.md` |
 | Fixture plan | `implemented` | `docs/fixtures.md` lists synthetic reader/journal/B-tree/catalog/extents/bitmap/Unicode fixtures, disposable-image writer fixtures and write/flush/partial crash fixtures; no disk images committed |
 
@@ -180,9 +180,10 @@ writes, the transaction engine, the bootloader, or any goal in
 4. **No signed-update release path yet.** D-01/D-02 and D-20 are accepted, but
    D-16 (update transport), the release-key certificate verifier (T-053) and a
    real signed firmware image (T-051) remain.
-5. **Device-test programme is partial.** Backup, read-back, disposable restore
-   rehearsal and the Apple-restore/DFU path are owner-confirmed. The adapter
-   matrix, full device power-cut matrix and library-wide differential remain.
+5. **Device-test programme is owner-closed for the current phase.** Backup,
+   read-back, disposable restore rehearsal, the Apple-restore/DFU path and the
+   6G/iFlash SD loader run are recorded. Other adapters, the full device
+   power-cut matrix and library-wide differential remain future coverage.
 6. **No firmware release infrastructure.** A bootloader-only Alpha release
    (`alpha-1.0`) exists, but there is no reproducible firmware build, release
    manifest, signing-key ceremony record, staging flow, rollback test or support

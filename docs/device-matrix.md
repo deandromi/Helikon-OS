@@ -2,10 +2,14 @@
 
 > Purpose: record what actually ran on which hardware. No claim without a
 > recorded run.
-> Status: living document
+> Status: owner-closed for the current single-device phase (2026-11-04); unrun rows are future coverage
 > Owner: test lead; device owners
 > Last updated: 2026-11-04
 > Source: design paper §1, §24, §28.2.4, §28.4.5; `docs/verification.md`
+
+**Owner status 2026-11-04:** the current device-matrix task is closed with the
+6G/iFlash SD evidence below. Unrun adapter, power-cut and other-device rows are
+future coverage, not blockers for the bootloader-only Alpha release.
 
 **Helikon-OS has four completed owner-reported diagnostic runs on one 6G:**
 two read-only-image runs (one partial/failed, one corrected report), one
