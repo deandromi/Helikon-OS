@@ -60,6 +60,21 @@ fsck_image() {
     DEV=""
 }
 
+check_finder_zero() {
+    python3 - "$1" <<'PY'
+import subprocess
+import sys
+
+path = sys.argv[1]
+for flag, name in (("-t", "type"), ("-c", "creator")):
+    value = subprocess.check_output(["GetFileInfo", flag, path],
+                                    text=True).strip()
+    if value != '"\\0\\0\\0\\0"':
+        raise SystemExit(f"Finder {name} is {value!r}, expected zero")
+print("macOS Finder type/creator zero")
+PY
+}
+
 make -C "$HERE" hfs_image_test >/dev/null
 
 if ! hdiutil create -size 16m -fs HFS+J -volname HelikonTest -layout NONE \
@@ -96,6 +111,7 @@ if len(data) != 4096 or any(byte != 0x5A for byte in data):
     raise SystemExit("content mismatch after macOS mount")
 print("macOS mount verified: 4096 bytes of 0x5a")
 PY
+check_finder_zero "$MOUNT/Helikon Folder/Helikon Test"
 hdiutil detach "$MOUNT" >/dev/null 2>&1
 MOUNTED=""
 
@@ -118,6 +134,7 @@ FOLDER_MODE=$(stat -f '%Sp' "$MOUNT/Helikon Folder Renamed")
 FILE_YEAR=$(stat -f '%Sm' -t '%Y' \
     "$MOUNT/Helikon Folder Renamed/Helikon Test Renamed")
 [ "$FILE_YEAR" = "$(date +%Y)" ] || fail "renamed timestamp year is $FILE_YEAR"
+check_finder_zero "$MOUNT/Helikon Folder Renamed/Helikon Test Renamed"
 echo "macOS rename verified"
 hdiutil detach "$MOUNT" >/dev/null 2>&1
 MOUNTED=""
@@ -151,4 +168,41 @@ echo "macOS delete verified"
 hdiutil detach "$MOUNT" >/dev/null 2>&1
 MOUNTED=""
 
-echo "PASS: disposable image create/append/rename/truncate/delete, fsck_hfs clean"
+"$HERE/hfs_image_test" "$IMAGE" unicode
+fsck_image "$IMAGE"
+
+hdiutil attach -nobrowse -mountpoint "$MOUNT" "$IMAGE" \
+    >"$TMP/mount.log" 2>&1 || fail "could not remount after Unicode corpus"
+MOUNTED=1
+python3 - "$MOUNT" <<'PY'
+import os
+import sys
+import unicodedata
+
+expected = {
+    "Café",
+    "中文",
+    "😀",
+    "한글",
+    "Á",
+    "Ω",
+    "豈",
+    "slash:name",
+    "colon:name",
+    "a" * 255,
+}
+actual = {
+    unicodedata.normalize("NFC", name)
+    for name in os.listdir(sys.argv[1])
+    if not name.startswith(".")
+}
+if actual != expected:
+    missing = expected - actual
+    extra = actual - expected
+    raise SystemExit(f"Unicode corpus mismatch missing={missing!r} extra={extra!r}")
+print("macOS Unicode corpus verified")
+PY
+hdiutil detach "$MOUNT" >/dev/null 2>&1
+MOUNTED=""
+
+echo "PASS: disposable image create/append/rename/truncate/delete/Unicode, fsck_hfs clean"

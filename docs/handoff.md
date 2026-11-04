@@ -17,6 +17,9 @@ file grows. Do not rely on chat history for current state.
 
 - The owner installed `32eeb541…` by DFU and reports **every screen stage
   PASS**. The run was slower than expected but completed.
+- T-048 is closed by owner confirmation of the full backup/diff on 2026-11-04.
+  The agent did not rerun the full diff; only the partial `.rockbox`/
+  `.rockpod-rw` backup was visible here.
 - Post-run on the mounted iPod: `/helikon-outer-test` absent, `fsck_hfs -fn`
   reported `The volume IPOD appears to be OK`, `diskutil verifyVolume` passed.
 - `.rockpod-rw` was byte-identical to the 2026-11-03 backup
@@ -24,12 +27,26 @@ file grows. Do not rely on chat history for current state.
 - This is the first successful outer-volume writer run on the real 6G volume.
   It is one run on one device; no power-cut or support claim.
 
+## P0 progress
+
+- T-048 is closed by owner confirmation of the full backup/diff.
+- T-044 is implemented: Finder type/creator zero policy, preservation test and
+  macOS `GetFileInfo` checks.
+- T-038 is implemented: scripted macOS Unicode corpus (NFC/NFD, CJK, emoji,
+  Hangul, combining, U+2126/U+F900, `:`/`/`, 255-unit and rejected 256-unit).
+- T-010 now has a rename matrix; 148 injected-write cuts are fsck-clean.
+- T-034: index-node insert/split recursion and below-minimum insert at depth >2
+  are fixed; a 60-record depth-3 model still loses a key after a delete/merge,
+  so deep delete remains open.
+
 ## Task list review
 
-`docs/tasks.md` was regrouped on 2026-11-04. The active P0 line is T-048
-evidence, T-044/T-034/T-038 writer hardening, T-010 power loss, then T-003/T-006
-release gates. UI work is P1/P2. T-017 is rejected and T-030 is complete through
-T-032/T-040/T-047.
+`docs/tasks.md` was regrouped on 2026-11-04. T-048 is closed and T-044 is now
+implemented (Finder type/creator policy plus preservation and macOS
+`GetFileInfo` checks; wider Unicode names are T-038). The active P0 line is
+T-034 writer hardening, T-010 power loss, then T-003/T-006 release gates. T-038
+is now implemented with a scripted Unicode corpus. UI work is P1/P2. T-017 is
+rejected and T-030 is complete through T-032/T-040/T-047.
 
 ## What is next
 
@@ -37,15 +54,14 @@ T-032/T-040/T-047.
    is still at the iPod root. Remove the opt-in file now, or keep it only if
    another controlled run is planned. To return to the normal boot path, put
    the iPod in DFU and run `tools/uninstall-bootloader.sh` (never `--single`).
-2. Run the full-library `diff -qr` when the full backup is mounted. Only the
-   partial `.rockbox`/`.rockpod-rw` backup is visible on this Mac now.
-2. Record the final report text/write count and any timing if available in
-   `device-matrix.md`.
-3. Close T-048; then pick the next writer or UI task.
-4. Rebuild the inner-image write diagnostic (`81350f…` predates the journal
+2. Fix T-034's depth-3 delete/merge key loss; insert/split at depth >2 is
+   fixed, but a 60-record model leaves a key unreachable after a delete.
+3. Extend T-010 with partial-sector/fsync injection and the evidence format;
+   rename is now covered and the matrix is 148 cuts.
+4. Close T-003 with a restore rehearsal and T-006 with the signing policy.
+5. Rebuild the inner-image write diagnostic (`81350f…` predates the journal
    `max_blocks` fix) before another inner power-cut run.
-5. T-044 Finder creator/type policy and wider macOS differential; T-041/T-042
-   fonts and anti-aliased mockup; T-045 splash.
+6. T-041/T-042 UI fonts/mockup and renderer; T-045 splash; T-013/T-024 later.
 
 ## What must not be touched
 
@@ -59,7 +75,7 @@ T-032/T-040/T-047.
   `diskutil verifyVolume` pass.
 - Partial backup comparison: `.rockpod-rw` identical; `.rockbox` only
   `.DS_Store`.
-- Full-library backup diff and power-cut matrix pending.
+- Owner confirmed the full-library backup/diff; the power-cut matrix remains.
 
 ---
 
@@ -167,6 +183,8 @@ T-032/T-040/T-047.
   a full backup, but the backup has not been independently verified and no
   restore has been rehearsed in this session. No opt-in file was written.
 - Outer image `32eeb541…`; DFU `6e2e7d40…`; 18,624 bytes `MOVE_AREA` headroom.
+  This tested artifact predates the T-034 insert/leaf fixes; rebuild before the
+  next device run.
 
 ---
 

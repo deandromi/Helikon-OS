@@ -419,10 +419,84 @@ static int delete_files(struct image *image)
     return HFS_OK;
 }
 
+static int create_unicode_files(struct image *image)
+{
+    static const uint8_t cafe[] = { 0, 'C', 0, 'a', 0, 'f', 0, 0xe9 };
+    static const uint8_t cjk[] = { 0x4e, 0x2d, 0x65, 0x87 };
+    static const uint8_t emoji[] = { 0xd8, 0x3d, 0xde, 0x00 };
+    static const uint8_t hangul[] = { 0xd5, 0x5c, 0xae, 0x00 };
+    static const uint8_t combining[] = { 0, 'A', 0x03, 0x01 };
+    static const uint8_t ohm[] = { 0x21, 0x26 };
+    static const uint8_t compatibility[] = { 0xf9, 0x00 };
+    static const uint8_t slash[] = {
+        0, 's', 0, 'l', 0, 'a', 0, 's', 0, 'h', 0, '/', 0, 'n', 0, 'a',
+        0, 'm', 0, 'e'
+    };
+    static const uint8_t colon[] = {
+        0, 'c', 0, 'o', 0, 'l', 0, 'o', 0, 'n', 0, ':', 0, 'n', 0, 'a',
+        0, 'm', 0, 'e'
+    };
+    static const struct {
+        const uint8_t *name;
+        size_t units;
+    } names[] = {
+        { cafe, 4 }, { cjk, 2 }, { emoji, 2 }, { hangul, 2 },
+        { combining, 2 }, { ohm, 1 }, { compatibility, 1 },
+        { slash, 10 }, { colon, 10 }
+    };
+
+    struct hfs_txn tx;
+    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i) {
+        uint32_t cnid = 0;
+        int rc = hfs_txn_begin(&tx, &image->journal);
+        if (rc != HFS_OK)
+            return rc;
+        rc = hfs_catalog_create_file(&image->catalog, &tx, 2, names[i].name,
+                                     names[i].units, 0644,
+                                     hfs_catalog_key_compare, NULL, &cnid);
+        rc = commit(&tx, rc);
+        if (rc != HFS_OK)
+            return rc;
+    }
+
+    static uint8_t long_name[255u * 2u];
+    for (size_t i = 0; i < 255u; ++i) {
+        long_name[i * 2u] = 0;
+        long_name[i * 2u + 1u] = 'a';
+    }
+    uint32_t cnid = 0;
+    int rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    rc = hfs_catalog_create_file(&image->catalog, &tx, 2, long_name, 255,
+                                 0644, hfs_catalog_key_compare, NULL, &cnid);
+    rc = commit(&tx, rc);
+    if (rc != HFS_OK)
+        return rc;
+
+    static uint8_t too_long[256u * 2u];
+    memset(too_long, 'a', sizeof(too_long));
+    for (size_t i = 0; i < 256u; ++i)
+        too_long[i * 2u] = 0;
+    rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    rc = hfs_catalog_create_file(&image->catalog, &tx, 2, too_long, 256,
+                                 0644, hfs_catalog_key_compare, NULL, &cnid);
+    if (rc == HFS_OK) {
+        hfs_txn_abort(&tx);
+        return HFS_ERR_FORMAT;
+    }
+    hfs_txn_abort(&tx);
+
+    printf("created Unicode corpus and rejected a 256-unit name\n");
+    return HFS_OK;
+}
+
 int main(int argc, char **argv)
 {
     if (argc != 3) {
-        fprintf(stderr, "usage: %s IMAGE create|rename|truncate|delete\n",
+        fprintf(stderr, "usage: %s IMAGE create|rename|truncate|delete|unicode\n",
                 argv[0]);
         return 2;
     }
@@ -440,6 +514,8 @@ int main(int argc, char **argv)
         rc = truncate_file(&image);
     } else if (strcmp(argv[2], "delete") == 0) {
         rc = delete_files(&image);
+    } else if (strcmp(argv[2], "unicode") == 0) {
+        rc = create_unicode_files(&image);
     } else {
         fprintf(stderr, "unknown mode: %s\n", argv[2]);
         rc = HFS_ERR_ARGUMENT;

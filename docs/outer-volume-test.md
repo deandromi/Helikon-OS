@@ -86,8 +86,8 @@ The current image is `32eeb541…` (`bootloader-ipod6g-outer-diag.ipod`). On
 2026-11-04 the owner ran it on the 6G: every stage PASS, `/helikon-outer-test`
 absent afterwards, `fsck_hfs -fn` reported `The volume IPOD appears to be OK`,
 and `diskutil verifyVolume` passed. `.rockpod-rw` was unchanged and `.rockbox`
-differed only in `.DS_Store`. A full-library backup diff and the power-cut
-matrix remain. See [`../bootloader/OUTER_DIAG.md`](../bootloader/OUTER_DIAG.md)
+differed only in `.DS_Store`. The owner confirmed the full backup/diff on
+2026-11-04; the power-cut matrix remains. See [`../bootloader/OUTER_DIAG.md`](../bootloader/OUTER_DIAG.md)
 for the runbook. T-047 tracks the build; T-048 tracks the remaining validation.
 
 ## 4. Run and pass criteria

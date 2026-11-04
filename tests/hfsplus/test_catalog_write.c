@@ -1104,6 +1104,80 @@ static int test_metadata_folder(void)
     return 0;
 }
 
+static int test_finder_info_preserved(void)
+{
+    struct test_env env;
+    CHECK(setup_env(&env) == 0);
+    env.catalog.now = 0x55667788u;
+
+    static const uint8_t name[8] = { 0, 'F', 0, 'I', 0, 'N', 0, 'D' };
+    static const uint8_t renamed[10] = {
+        0, 'F', 0, 'I', 0, 'N', 0, 'D', 0, '2'
+    };
+    uint32_t cnid = 0;
+    struct hfs_txn tx;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_file(&env.catalog, &tx, 2, name, 4, 0644,
+                                  hfs_catalog_key_compare, NULL, &cnid) ==
+          HFS_OK);
+    apply_txn(&tx);
+
+    uint8_t key[256];
+    uint8_t record[1024];
+    size_t record_length = 0;
+    size_t key_length = build_key(key, 2, name, 4);
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    size_t data_offset = 2u + key_length;
+    uint8_t finder[32];
+    for (size_t i = 0; i < sizeof(finder); ++i)
+        finder[i] = (uint8_t)(0x40u + i);
+    memcpy(record + data_offset + 48, finder, sizeof(finder));
+    CHECK(hfs_btree_update(&env.btree, &tx, record, record_length,
+                           hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    static uint8_t data[512];
+    memset(data, 0x3c, sizeof(data));
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_append_file(&env.catalog, &tx, 2, name, 4, 0, data,
+                                  sizeof(data), hfs_catalog_key_compare,
+                                  NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    CHECK(memcmp(record + data_offset + 48, finder, sizeof(finder)) == 0);
+
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_truncate_file(&env.catalog, &tx, 2, name, 4,
+                                    hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    CHECK(memcmp(record + data_offset + 48, finder, sizeof(finder)) == 0);
+
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_rename(&env.catalog, &tx, 2, name, 4, cnid, 2,
+                             renamed, 5, hfs_catalog_key_compare, NULL) ==
+          HFS_OK);
+    apply_txn(&tx);
+    key_length = build_key(key, 2, renamed, 5);
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    data_offset = 2u + key_length;
+    CHECK(memcmp(record + data_offset + 48, finder, sizeof(finder)) == 0);
+    return 0;
+}
+
 struct test_case {
     const char *name;
     int (*run)(void);
@@ -1119,7 +1193,8 @@ int main(void)
         { "rename folder cycle", test_rename_folder_cycle },
         { "timestamps", test_timestamps },
         { "metadata file", test_metadata_file },
-        { "metadata folder", test_metadata_folder }
+        { "metadata folder", test_metadata_folder },
+        { "finder info preserved", test_finder_info_preserved }
     };
     int failures = 0;
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); ++i) {

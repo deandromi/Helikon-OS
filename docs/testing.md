@@ -95,7 +95,10 @@ existing image or device path. The test:
 - renames the folder and file, remounts and verifies the new path, old-path
   absence, modes and timestamp;
 - truncates, remounts and verifies size 0; deletes and verifies the folder is
-  gone; runs `fsck_hfs -fn` after each stage.
+  gone; runs `fsck_hfs -fn` after each stage;
+- creates a scripted Unicode corpus (NFC/NFD, CJK, emoji, Hangul, combining
+  marks, U+2126, U+F900, `:`/`/`, 255-unit and rejected 256-unit names) and
+  verifies the macOS NFC tree and `fsck_hfs` clean.
 
 `fsck_hfs` zero repairs and macOS content parity are the pass criteria. This is
 host evidence; it is not a device run and does not authorize a library write.
@@ -108,8 +111,9 @@ copy, replays the journal and runs `fsck_hfs -fn`. The loop stops when the cut
 is beyond the transaction's write count. It expects the file to be absent when
 the cut precedes the journal commit header and present after replay when the
 commit header was written; every case must be fsck-clean. The create/append/truncate/delete
-matrices currently cover 127 cuts. Rename, partial-sector writes, fsync
-failures and power-loss timing remain T-010.
+matrices currently cover 148 cuts (create 25, append 43, truncate 34, delete 25,
+rename 21). Partial-sector writes, fsync failures and power-loss timing remain
+T-010.
 
 ### 5.3 Write-diagnostic outer/inner image test
 

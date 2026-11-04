@@ -21,6 +21,7 @@
 #include <unistd.h>
 
 #define CRASH_NAME "Crash Test"
+#define RENAMED_NAME "Crash Renamed"
 #define DATA_SIZE 4096u
 #define DATA_PATTERN 0x5au
 
@@ -28,7 +29,8 @@ enum scenario {
     SCENARIO_CREATE,
     SCENARIO_APPEND,
     SCENARIO_TRUNCATE,
-    SCENARIO_DELETE
+    SCENARIO_DELETE,
+    SCENARIO_RENAME
 };
 
 struct io {
@@ -135,15 +137,33 @@ static int parse_scenario(const char *name, enum scenario *scenario)
         *scenario = SCENARIO_TRUNCATE;
     } else if (strcmp(name, "delete") == 0) {
         *scenario = SCENARIO_DELETE;
+    } else if (strcmp(name, "rename") == 0) {
+        *scenario = SCENARIO_RENAME;
     } else {
         return HFS_ERR_ARGUMENT;
     }
     return HFS_OK;
 }
 
+static int lookup_name(struct image *image, const char *name,
+                       struct hfs_entry *entry)
+{
+    return hfs_catalog_lookup_ascii(&image->catalog, 2, name, entry);
+}
+
 static int lookup(struct image *image, struct hfs_entry *entry)
 {
-    return hfs_catalog_lookup_ascii(&image->catalog, 2, CRASH_NAME, entry);
+    return lookup_name(image, CRASH_NAME, entry);
+}
+
+static const uint8_t *renamed_name(size_t *units)
+{
+    static const uint8_t name[] = {
+        0, 'C', 0, 'r', 0, 'a', 0, 's', 0, 'h', 0, ' ', 0, 'R', 0, 'e',
+        0, 'n', 0, 'a', 0, 'm', 0, 'e', 0, 'd'
+    };
+    *units = sizeof(name) / 2u;
+    return name;
 }
 
 static int read_data(struct image *image, const struct hfs_entry *entry)
@@ -172,7 +192,8 @@ static int prepare(struct image *image, enum scenario scenario)
     if (rc != HFS_OK)
         return rc;
 
-    if (scenario == SCENARIO_CREATE || scenario == SCENARIO_DELETE) {
+    if (scenario == SCENARIO_CREATE || scenario == SCENARIO_DELETE ||
+        scenario == SCENARIO_RENAME) {
         uint32_t cnid = 0;
         rc = hfs_catalog_create_file(&image->catalog, &tx, 2, name, units,
                                      0644, hfs_catalog_key_compare, NULL,
@@ -221,6 +242,16 @@ static int inject(struct image *image, enum scenario scenario,
     } else if (scenario == SCENARIO_TRUNCATE) {
         rc = hfs_catalog_truncate_file(&image->catalog, &tx, 2, name, units,
                                        hfs_catalog_key_compare, NULL);
+    } else if (scenario == SCENARIO_RENAME) {
+        struct hfs_entry entry;
+        rc = lookup(image, &entry);
+        if (rc == HFS_OK) {
+            size_t new_units = 0;
+            const uint8_t *new_name = renamed_name(&new_units);
+            rc = hfs_catalog_rename(&image->catalog, &tx, 2, name, units,
+                                    entry.id, 2, new_name, new_units,
+                                    hfs_catalog_key_compare, NULL);
+        }
     } else {
         struct hfs_entry entry;
         rc = lookup(image, &entry);
@@ -251,6 +282,26 @@ static int inject(struct image *image, enum scenario scenario,
 
 static int recover(struct image *image, enum scenario scenario)
 {
+    if (scenario == SCENARIO_RENAME) {
+        struct hfs_entry old_entry;
+        struct hfs_entry new_entry;
+        int old_rc = lookup_name(image, CRASH_NAME, &old_entry);
+        int new_rc = lookup_name(image, RENAMED_NAME, &new_entry);
+        if (old_rc == HFS_OK && new_rc == HFS_ERR_NOT_FOUND) {
+            if (old_entry.kind != 2)
+                return HFS_ERR_FORMAT;
+            printf("recovered old=1 new=0\n");
+            return HFS_OK;
+        }
+        if (old_rc == HFS_ERR_NOT_FOUND && new_rc == HFS_OK) {
+            if (new_entry.kind != 2)
+                return HFS_ERR_FORMAT;
+            printf("recovered old=0 new=1\n");
+            return HFS_OK;
+        }
+        return HFS_ERR_FORMAT;
+    }
+
     struct hfs_entry entry;
     int rc = lookup(image, &entry);
     if (rc == HFS_ERR_NOT_FOUND) {
@@ -262,7 +313,8 @@ static int recover(struct image *image, enum scenario scenario)
     if (rc != HFS_OK)
         return rc;
 
-    if (scenario == SCENARIO_CREATE || scenario == SCENARIO_DELETE) {
+    if (scenario == SCENARIO_CREATE || scenario == SCENARIO_DELETE ||
+        scenario == SCENARIO_RENAME) {
         if (entry.kind != 2 || entry.data.size != 0)
             return HFS_ERR_FORMAT;
         printf("recovered present=1 size=0\n");

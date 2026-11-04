@@ -87,6 +87,9 @@ prepare_scenario() {
         delete)
             "$HERE/hfs_crash_test" "$PREP" setup create >/dev/null
             ;;
+        rename)
+            "$HERE/hfs_crash_test" "$PREP" setup create >/dev/null
+            ;;
         *)
             fail "unknown scenario $SCENARIO"
             ;;
@@ -108,9 +111,18 @@ run_scenario() {
         RECOVER=$("$HERE/hfs_crash_test" "$WORK" recover "$SCENARIO") ||
             fail "recovery at $SCENARIO cut $CUT failed"
         echo "$SCENARIO cut $CUT: $RECOVER"
-        echo "$RECOVER" |
-            grep -qE '^recovered present=[01]( size=(0|4096))?$' ||
-            fail "unexpected recovery state at $SCENARIO cut $CUT"
+        if [ "$SCENARIO" = rename ]; then
+            echo "$RECOVER" |
+                grep -qE '^recovered old=[01] new=[01]$' ||
+                fail "unexpected rename recovery state at cut $CUT"
+            echo "$RECOVER" |
+                grep -qE 'old=1 new=0|old=0 new=1' ||
+                fail "rename recovery is not exactly one name at cut $CUT"
+        else
+            echo "$RECOVER" |
+                grep -qE '^recovered present=[01]( size=(0|4096))?$' ||
+                fail "unexpected recovery state at $SCENARIO cut $CUT"
+        fi
         fsck_image "$WORK"
 
         if echo "$CRASH" | grep -q '^commit-ok'; then
@@ -129,5 +141,6 @@ run_scenario create
 run_scenario append
 run_scenario truncate
 run_scenario delete
+run_scenario rename
 
-echo "PASS: create/append/truncate/delete crash matrices are fsck-clean"
+echo "PASS: create/append/truncate/delete/rename crash matrices are fsck-clean"

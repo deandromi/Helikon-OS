@@ -368,20 +368,22 @@ static int insert_parent_impl(struct hfs_btree *btree,
                               hfs_btree_key_compare_fn compare,
                               void *context);
 
+static int update_ancestor_keys(struct hfs_btree *btree, struct hfs_txn *tx,
+                                const struct insert_path *path,
+                                unsigned int level, const uint8_t *key,
+                                size_t key_length);
+
 static int insert_parent(struct hfs_btree *btree, struct tree_header *header,
                          struct hfs_txn *tx, const struct insert_path *path,
                          unsigned int level, uint32_t right_node,
                          const uint8_t *key, size_t key_length,
                          hfs_btree_key_compare_fn compare, void *context)
 {
-    static int active;
-    if (active)
-        return HFS_ERR_UNSUPPORTED;
-    active = 1;
-    int rc = insert_parent_impl(btree, header, tx, path, level, right_node,
-                                key, key_length, compare, context);
-    active = 0;
-    return rc;
+    /* Recursion reduces `level` each step and stops at the root; no active
+     * guard is needed. The previous guard rejected a legitimate split at
+     * depth >2. */
+    return insert_parent_impl(btree, header, tx, path, level, right_node,
+                              key, key_length, compare, context);
 }
 
 static int insert_parent_impl(struct hfs_btree *btree,
@@ -460,8 +462,12 @@ static int insert_parent_impl(struct hfs_btree *btree,
         if (cmp > 0)
             break;
     }
-    if (target == parent && position == 0 && level > 1)
-        return HFS_ERR_UNSUPPORTED;
+    if (target == parent && position == 0 && level > 1) {
+        rc = update_ancestor_keys(btree, tx, path, level - 1u, key,
+                                  key_length);
+        if (rc != HFS_OK)
+            return rc;
+    }
     rc = hfs_btree_node_insert(target, btree->node_size, position,
                                index_record, record_length);
     if (rc != HFS_OK)
@@ -1110,6 +1116,18 @@ static int merge_leaf_next(struct hfs_btree *btree,
                        &next_key_length);
         if (rc != HFS_OK)
             return rc;
+        if (first_changed) {
+            const uint8_t *node_key;
+            size_t node_key_length;
+            rc = first_key(node, btree->node_size, &node_key,
+                           &node_key_length);
+            if (rc != HFS_OK)
+                return rc;
+            rc = set_parent_key(parent, btree->node_size, child, node_key,
+                                node_key_length);
+            if (rc != HFS_OK)
+                return rc;
+        }
         rc = set_parent_key(parent, btree->node_size,
                             (uint16_t)(child + 1u), next_key,
                             next_key_length);
@@ -1124,6 +1142,18 @@ static int merge_leaf_next(struct hfs_btree *btree,
         rc = stage_node(btree, tx, next, next_node);
         if (rc != HFS_OK)
             return rc;
+        if (child == 0 && level > 1 && first_changed) {
+            const uint8_t *parent_key;
+            size_t parent_key_length;
+            rc = first_key(parent, btree->node_size, &parent_key,
+                           &parent_key_length);
+            if (rc != HFS_OK)
+                return rc;
+            rc = update_parent_key(btree, header, tx, path, level - 1u,
+                                   parent_key, parent_key_length);
+            if (rc != HFS_OK)
+                return rc;
+        }
         return 2;
     }
 
