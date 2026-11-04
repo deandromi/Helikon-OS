@@ -11,6 +11,40 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-04 (firmware build prompt)
+
+## What happened
+
+- Added [`prompts/build-firmware.md`](prompts/build-firmware.md), a ~9.6k-word
+  full-procedure prompt for an agent that builds the firmware F1–F5. It covers
+  the hard stops, current state, required reading, phase gates, a ten-session
+  execution plan, repository layout, the accepted memory/entry/runtime
+  contracts, build/toolchain, coding standards, testing, device protocol,
+  failure handling, reporting, anti-patterns, open questions, per-phase handoff
+  and a literal F1 checklist.
+- The prompt authorizes **F1/T-054 only** for the first run. F2–F5 are included
+  as the destination, not as permission to build them in one pass.
+- Updated `docs/prompts/README.md` with a `full-procedure` prompt exception,
+  the docs index, `agents.md`, `state.md` and the T-054/T-055 links.
+- No firmware code, image, manifest or device run was added.
+
+## What is next
+
+1. Give the prompt to a fresh firmware agent; it must start with F1/T-054.
+2. The agent reads the required docs, creates the skeleton, runs the host tests
+   and stops after the F1 device evidence (or reports a blocker).
+3. T-059 remains the loader-side boot-info fill; F1 can use the zero-`r0`
+   fallback.
+4. T-055/F2 follows only after F1 is recorded.
+
+## Do not claim
+
+- No firmware code or device result exists.
+- The prompt is an execution contract, not evidence.
+- The map and ABI are accepted decisions, not measurements.
+
+---
+
 # Handoff — 2026-11-04 (ADR-0003/0004 accepted)
 
 ## What happened

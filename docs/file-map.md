@@ -156,7 +156,7 @@ Helikon-OS/
     design-paper.md         full source copy with provenance
     adr/                    long-form decision records
     log/                    dated work logs
-    prompts/                reusable task prompts
+    prompts/                reusable task prompts; build-firmware full procedure
 ```
 
 ## Planned tree

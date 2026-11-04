@@ -126,6 +126,7 @@ status.
 | [`adr/README.md`](adr/README.md) | When to create a long-form ADR. | living |
 | [`adr/0001-template.md`](adr/0001-template.md) | ADR template. | template |
 | [`prompts/README.md`](prompts/README.md) | Scope and rules for reusable prompts. | living |
+| [`prompts/build-firmware.md`](prompts/build-firmware.md) | Full-procedure prompt for the F1–F5 firmware build. | living |
 | [`prompts/review-hfsplus-writer.md`](prompts/review-hfsplus-writer.md) | Review the native writer design. | stub |
 | [`prompts/run-device-matrix.md`](prompts/run-device-matrix.md) | Run and record a device matrix. | stub |
 | [`prompts/audit-docs-for-contradictions.md`](prompts/audit-docs-for-contradictions.md) | Audit docs for contradictions and stale claims. | stub |

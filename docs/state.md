@@ -27,6 +27,7 @@ Date of this snapshot: **2026-11-04**.
 | Design paper, revision 2, 2026-11-03 | source | [`design-paper.md`](design-paper.md), source commit `3f220a73d0cceb083b3c057c6fe914d88468800a` |
 | Firmware architecture research paper | living | [`firmware-architecture.md`](firmware-architecture.md); functional, aesthetic and developer-ergonomics design; no firmware code |
 | Firmware memory map / entry ABI ADRs | living | [`adr/0003-firmware-memory-map.md`](adr/0003-firmware-memory-map.md), [`adr/0004-firmware-entry-abi.md`](adr/0004-firmware-entry-abi.md); D-27/D-28 accepted 2026-11-04 |
+| Firmware build prompt | living | [`prompts/build-firmware.md`](prompts/build-firmware.md); full-procedure F1–F5 execution prompt; no firmware code yet |
 | Agent contract and documentation set | living | `main`, merged 2026-11-03 |
 | Product intent, safety rules, roadmap, goals, open decisions | living | `docs/` |
 | Donor file references and provenance | living | [`file-map.md`](file-map.md) |
