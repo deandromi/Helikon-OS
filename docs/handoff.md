@@ -11,13 +11,61 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-04 (outer run partial; truncate hang fixed)
+
+## What happened
+
+- The first outer image (`9eacde18…`) ran on the 6G. It reached rename and
+  stopped before truncate without showing the report. The next boot showed
+  `Cleanup: FAIL`, error `-14` (`HFS_ERR_BUSY`) because `/helikon-outer-test`
+  already existed.
+- Inspection found only `marker` (`HELIKON-OUTER-TEST`) and `renamed` (4096
+  bytes, all `0xa5`). That places the stop after rename, before truncate.
+  `diskutil verifyVolume` / `fsck_hfs -fn` reported the volume OK; no library
+  file was touched.
+- Root cause hypothesis: append/truncate updated a file record by deleting and
+  reinserting it, which can trigger an unnecessary B-tree underflow/merge on
+  the real catalog. Added `hfs_btree_update()` for same-key, same-length
+  in-place leaf-record replacement; append and truncate now use it.
+- Added a progress callback so the outer diagnostic shows the current stage on
+  screen. If it stops, the last line identifies the stage.
+- New image: 110,408 bytes, SHA-256
+  `32eeb541bcd64b45e4319a6ed16fbe4e22cf3123d2d82738b517877e53a3265e`;
+  DFU `6e2e7d40…`, 118,544 bytes. Host tests pass, including a multi-level B-tree
+  update test and the 4 KiB journal path. No device run of this image.
+
+## What is next
+
+1. Remove the leftover `/helikon-outer-test` after inspecting it with
+   `tools/cleanup-outer-test.sh /Volumes/IPOD`; the dry run identifies only
+   `marker`/`renamed`.
+2. `diskutil verifyVolume` and eject; reinstall the new DFU.
+3. Run T-048 again. Record the visible progress stage or the final report,
+   `fsck_hfs -fn`, backup diff and `diskutil verifyVolume`.
+4. If it stops again, report the last visible stage; do not delete the folder
+   or journal.
+
+## What must not be touched
+
+- No opt-in or write without the owner's backup/restore confirmation.
+- No `--single`; no journal deletion, format or `rm -rf`.
+- Do not treat the partial run as a pass or a library-write claim.
+
+## Device/test evidence
+
+- Partial outer run: `marker` + `renamed` 4096 `0xa5`, volume fsck OK, second
+  boot `Cleanup: FAIL -14`.
+- New image `32eeb541…`; DFU `6e2e7d40…`; 18,624 bytes `MOVE_AREA` headroom.
+
+---
+
 # Handoff — 2026-11-04 (outer-volume diagnostic built, journal compatibility)
 
 ## What changed
 
 - Built the separate outer-volume write diagnostic:
-  `bootloader-ipod6g-outer-diag.ipod` (109,288 bytes, `9eacde18…`), DFU
-  `dd027696…` (117,424 bytes). It requires `helikon-outer-ok.txt`, refuses a
+  `bootloader-ipod6g-outer-diag.ipod` (110,408 bytes, `32eeb541…`), DFU
+  `6e2e7d40…` (118,544 bytes). It requires `helikon-outer-ok.txt`, refuses a
   dirty journal and an existing `/helikon-outer-test`, and writes only that
   folder's marker/test files.
 - Added `bootloader/OUTER_DIAG.md`, `tools/build-outer-diagnostic-bootloader.sh`,
@@ -66,7 +114,7 @@ file grows. Do not rely on chat history for current state.
 - `diskutil verifyVolume /Volumes/IPOD` passed on 2026-11-04; the owner reports
   a full backup, but the backup has not been independently verified and no
   restore has been rehearsed in this session. No opt-in file was written.
-- Outer image `9eacde18…`; DFU `dd027696…`; 19,744 bytes `MOVE_AREA` headroom.
+- Outer image `32eeb541…`; DFU `6e2e7d40…`; 18,624 bytes `MOVE_AREA` headroom.
 
 ---
 

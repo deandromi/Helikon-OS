@@ -133,7 +133,7 @@ int main(int argc, char **argv)
     int rc = boot_outer_diag_run(read_at, write_at, flush_at, &io, 0,
                                  (uint64_t)end, catalog_scratch,
                                  sizeof(catalog_scratch), hfs_now, NULL,
-                                 &result);
+                                 NULL, NULL, &result);
     close(io.fd);
     if (rc != HFS_OK) {
         fprintf(stderr, "outer diagnostic: %s\n", hfs_strerror(rc));

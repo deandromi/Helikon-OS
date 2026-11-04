@@ -32,6 +32,16 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
                      const uint8_t *key, size_t key_length,
                      hfs_btree_key_compare_fn compare, void *compare_context);
 
+/*
+ * Replace one leaf record with another of the same key and the same on-disk
+ * length. The key order, record count and tree shape do not change. This is
+ * the safe path for in-place file-record updates; a delete/insert can trigger
+ * an unnecessary underflow/merge.
+ */
+int hfs_btree_update(struct hfs_btree *btree, struct hfs_txn *tx,
+                     const void *record, size_t length,
+                     hfs_btree_key_compare_fn compare, void *compare_context);
+
 /* Find one record by key. Copies the full record [key_length][key][data]. */
 int hfs_btree_find(struct hfs_btree *btree, struct hfs_txn *tx,
                    const uint8_t *key, size_t key_length,

@@ -133,6 +133,17 @@ static uint32_t diag_now(void)
     return (uint32_t)(seconds + 2082844800LL);
 }
 
+static void diag_progress(void *context, const char *stage)
+{
+    (void)context;
+    lcd_set_foreground(LCD_WHITE);
+    lcd_set_background(LCD_BLACK);
+    lcd_clear_display();
+    lcd_puts(0, 0, "HELIKON-OS OUTER DIAG");
+    lcd_puts(0, 2, stage);
+    lcd_update();
+}
+
 static void show_report(const struct boot_outer_diag_result *result,
                         const struct hfs_partition *partition)
 {
@@ -221,7 +232,7 @@ void helikon_outer_diagnostic(void)
             diag_read, diag_write, diag_flush, NULL, best->offset,
             best->length, outer_catalog_scratch,
             sizeof(outer_catalog_scratch), diag_now(), &diag_write_count,
-            &result);
+            diag_progress, NULL, &result);
         if (rc != HFS_OK) {
             result.outer_volume = BOOT_OUTER_FAIL;
             result.error = rc;

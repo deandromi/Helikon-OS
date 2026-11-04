@@ -13,6 +13,7 @@
 #define TEST_CATALOG_BLOCK 20u
 #define TEST_KEY_BYTES 64u
 #define TEST_RECORDS 20u
+#define TEST_RECORD_BYTES (2u + TEST_KEY_BYTES + 8u)
 
 static void put_be16(uint8_t *p, uint16_t v)
 {
@@ -109,7 +110,7 @@ static int compare_keys(void *context, const uint8_t *a, size_t a_length,
 
 static void make_record(uint8_t *record, uint32_t index)
 {
-    memset(record, 0, 2u + TEST_KEY_BYTES);
+    memset(record, 0, TEST_RECORD_BYTES);
     put_be16(record, TEST_KEY_BYTES);
     put_be32(record + 2, index);
 }
@@ -150,7 +151,7 @@ static int test_insert_many(void)
         tx.journal = &journal;
         tx.active = 1;
 
-        uint8_t record[2u + TEST_KEY_BYTES];
+        uint8_t record[TEST_RECORD_BYTES];
         make_record(record, i + 10u);
         int rc = hfs_btree_insert(&btree, &tx, record, sizeof(record),
                                   compare_keys, NULL);
@@ -190,7 +191,7 @@ static int test_insert_many(void)
     memset(&tx, 0, sizeof(tx));
     tx.journal = &journal;
     tx.active = 1;
-    uint8_t low_record[2u + TEST_KEY_BYTES];
+    uint8_t low_record[TEST_RECORD_BYTES];
     make_record(low_record, 5);
     CHECK(hfs_btree_insert(&btree, &tx, low_record, sizeof(low_record),
                            compare_keys, NULL) == HFS_OK);
@@ -201,6 +202,33 @@ static int test_insert_many(void)
                                                   TEST_NODE_SIZE - 2u);
     CHECK(get_be32(first_record + 2) == 5);
 
+    /* In-place update must work on a multi-level tree without changing the
+     * leaf record count or tree shape. */
+    memset(&journal, 0, sizeof(journal));
+    journal.sector_size = TEST_BLOCK_SIZE;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    uint8_t updated[TEST_RECORD_BYTES];
+    make_record(updated, 15);
+    updated[2u + TEST_KEY_BYTES] = 0x5a;
+    CHECK(hfs_btree_update(&btree, &tx, updated, sizeof(updated),
+                           compare_keys, NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    memset(&journal, 0, sizeof(journal));
+    journal.sector_size = TEST_BLOCK_SIZE;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    uint8_t found[TEST_RECORD_BYTES];
+    size_t found_length = 0;
+    CHECK(hfs_btree_find(&btree, &tx, updated + 2, TEST_KEY_BYTES,
+                         compare_keys, NULL, found, sizeof(found),
+                         &found_length) == HFS_OK);
+    CHECK(found_length == sizeof(updated));
+    CHECK(found[2u + TEST_KEY_BYTES] == 0x5a);
+
     static const uint32_t delete_keys[] = { 29, 28, 27, 26, 14, 13, 10, 5 };
     for (size_t d = 0; d < sizeof(delete_keys) / sizeof(delete_keys[0]); ++d) {
         memset(&journal, 0, sizeof(journal));
@@ -208,7 +236,7 @@ static int test_insert_many(void)
         memset(&tx, 0, sizeof(tx));
         tx.journal = &journal;
         tx.active = 1;
-        uint8_t record[2u + TEST_KEY_BYTES];
+        uint8_t record[TEST_RECORD_BYTES];
         make_record(record, delete_keys[d]);
         int rc = hfs_btree_delete(&btree, &tx, record + 2, TEST_KEY_BYTES,
                                   compare_keys, NULL);
@@ -226,7 +254,7 @@ static int test_insert_many(void)
     memset(&tx, 0, sizeof(tx));
     tx.journal = &journal;
     tx.active = 1;
-    uint8_t missing_record[2u + TEST_KEY_BYTES];
+    uint8_t missing_record[TEST_RECORD_BYTES];
     make_record(missing_record, 100);
     CHECK(hfs_btree_delete(&btree, &tx, missing_record + 2, TEST_KEY_BYTES,
                            compare_keys, NULL) == HFS_ERR_NOT_FOUND);
@@ -245,7 +273,7 @@ static int test_insert_many(void)
         if (count != 0) {
             /* Keys were inserted in ascending order; each leaf must be sorted
              * and the chain must continue ascending. */
-            uint8_t first[2u + TEST_KEY_BYTES];
+            uint8_t first[TEST_RECORD_BYTES];
             memcpy(first, leaf + 14, sizeof(first));
             CHECK(get_be32(first + 2) >= previous_key);
         }

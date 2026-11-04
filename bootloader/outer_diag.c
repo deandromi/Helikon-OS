@@ -27,6 +27,13 @@
 static uint8_t test_data[TEST_DATA_SIZE];
 static uint8_t readback[TEST_DATA_SIZE];
 
+static void progress(boot_outer_progress_fn callback, void *context,
+                     const char *stage)
+{
+    if (callback != NULL)
+        callback(context, stage);
+}
+
 static void reset_result(struct boot_outer_diag_result *result)
 {
     memset(result, 0, sizeof(*result));
@@ -178,6 +185,8 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
                         uint64_t base, uint64_t length,
                         void *catalog_scratch, size_t catalog_scratch_size,
                         uint32_t now, uint64_t *writes,
+                        boot_outer_progress_fn progress_callback,
+                        void *progress_context,
                         struct boot_outer_diag_result *result)
 {
     if (read == NULL || write == NULL || flush == NULL ||
@@ -188,6 +197,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
     if (writes != NULL)
         result->writes = *writes;
 
+    progress(progress_callback, progress_context, "Outer HFS+");
     struct hfs_volume outer;
     int rc = hfs_volume_probe(&outer, read, context, base, length);
     if (rc != HFS_OK) {
@@ -226,6 +236,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
         return HFS_OK;
     }
 
+    progress(progress_callback, progress_context, "Catalog");
     struct hfs_catalog catalog;
     rc = hfs_catalog_open(&catalog, &outer, catalog_scratch,
                           catalog_scratch_size);
@@ -236,6 +247,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
     }
     result->catalog = BOOT_OUTER_PASS;
 
+    progress(progress_callback, progress_context, "Opt-in");
     rc = check_opt_in(&catalog);
     if (rc != HFS_OK) {
         result->opt_in = BOOT_OUTER_FAIL;
@@ -244,6 +256,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
     }
     result->opt_in = BOOT_OUTER_PASS;
 
+    progress(progress_callback, progress_context, "Journal");
     struct hfs_journal journal;
     rc = hfs_journal_open(&journal, &outer, write, flush);
     if (rc != HFS_OK) {
@@ -277,6 +290,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
 
     /* The transaction object alone is ~256 KiB; keep it out of the 8 KiB
      * bootloader stack. The writer is single-threaded. */
+    progress(progress_callback, progress_context, "Cleanup");
     static struct hfs_txn tx;
     rc = cleanup_test_folder(&catalog);
     if (rc != HFS_OK) {
@@ -322,6 +336,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
         return HFS_OK;
     }
 
+    progress(progress_callback, progress_context, "Create folder");
     uint32_t folder_cnid = 0;
     rc = start_tx(&tx, &journal);
     if (rc == HFS_OK)
@@ -339,6 +354,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
     }
     result->create_folder = BOOT_OUTER_PASS;
 
+    progress(progress_callback, progress_context, "Create marker");
     uint32_t marker_cnid = 0;
     rc = start_tx(&tx, &journal);
     if (rc == HFS_OK)
@@ -355,6 +371,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
         return HFS_OK;
     }
 
+    progress(progress_callback, progress_context, "Append marker");
     rc = start_tx(&tx, &journal);
     if (rc == HFS_OK)
         rc = hfs_catalog_append_file(&catalog, &tx, folder_cnid, marker_key,
@@ -370,6 +387,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
         return HFS_OK;
     }
 
+    progress(progress_callback, progress_context, "Create test file");
     uint32_t file_cnid = 0;
     rc = start_tx(&tx, &journal);
     if (rc == HFS_OK)
@@ -387,6 +405,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
     }
     result->create_file = BOOT_OUTER_PASS;
 
+    progress(progress_callback, progress_context, "Append 4096 bytes");
     memset(test_data, TEST_PATTERN, sizeof(test_data));
     rc = start_tx(&tx, &journal);
     if (rc == HFS_OK)
@@ -404,6 +423,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
     }
     result->append = BOOT_OUTER_PASS;
 
+    progress(progress_callback, progress_context, "Readback");
     struct hfs_entry entry;
     rc = hfs_catalog_lookup_ascii(&catalog, folder_cnid, TEST_FILE, &entry);
     if (rc == HFS_OK && entry.kind == 2 &&
@@ -426,6 +446,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
     }
     result->readback = BOOT_OUTER_PASS;
 
+    progress(progress_callback, progress_context, "Rename");
     rc = start_tx(&tx, &journal);
     if (rc == HFS_OK)
         rc = hfs_catalog_rename(&catalog, &tx, folder_cnid, file_key,
@@ -452,6 +473,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
         return HFS_OK;
     }
 
+    progress(progress_callback, progress_context, "Truncate");
     rc = start_tx(&tx, &journal);
     if (rc == HFS_OK)
         rc = hfs_catalog_truncate_file(&catalog, &tx, folder_cnid,
@@ -476,6 +498,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
         return HFS_OK;
     }
 
+    progress(progress_callback, progress_context, "Delete file");
     rc = start_tx(&tx, &journal);
     if (rc == HFS_OK)
         rc = hfs_catalog_delete_file(&catalog, &tx, folder_cnid,
@@ -491,6 +514,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
     }
     result->delete_file = BOOT_OUTER_PASS;
 
+    progress(progress_callback, progress_context, "Delete marker");
     rc = start_tx(&tx, &journal);
     if (rc == HFS_OK)
         rc = hfs_catalog_truncate_file(&catalog, &tx, folder_cnid,
@@ -519,6 +543,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
         return HFS_OK;
     }
 
+    progress(progress_callback, progress_context, "Delete folder");
     rc = start_tx(&tx, &journal);
     if (rc == HFS_OK)
         rc = hfs_catalog_delete_folder(&catalog, &tx, 2, folder_key,
@@ -534,6 +559,7 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
     }
     result->delete_folder = BOOT_OUTER_PASS;
 
+    progress(progress_callback, progress_context, "Verify");
     if (hfs_catalog_lookup_ascii(&catalog, 2, TEST_FOLDER, &entry) !=
         HFS_ERR_NOT_FOUND) {
         result->delete_folder = BOOT_OUTER_FAIL;

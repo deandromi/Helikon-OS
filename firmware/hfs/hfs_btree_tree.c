@@ -1606,6 +1606,100 @@ int hfs_btree_find(struct hfs_btree *btree, struct hfs_txn *tx,
 }
 
 
+int hfs_btree_update(struct hfs_btree *btree, struct hfs_txn *tx,
+                     const void *record, size_t length,
+                     hfs_btree_key_compare_fn compare, void *compare_context)
+{
+    if (btree == NULL || tx == NULL || record == NULL || compare == NULL ||
+        length < HFS_BTREE_KEY_LENGTH)
+        return HFS_ERR_ARGUMENT;
+
+    const uint8_t *new_record = record;
+    uint16_t new_key_length = be16(new_record);
+    if ((size_t)new_key_length + HFS_BTREE_KEY_LENGTH > length)
+        return HFS_ERR_ARGUMENT;
+    const uint8_t *new_key = new_record + HFS_BTREE_KEY_LENGTH;
+
+    static struct tree_header header;
+    int rc = load_header(btree, tx, &header);
+    if (rc != HFS_OK)
+        return rc;
+
+    uint32_t node_number = header.root_node;
+    static uint8_t node[HFS_MAX_NODE_SIZE];
+    unsigned int level = 0;
+    while (1) {
+        rc = read_node(btree, tx, node_number, node);
+        if (rc != HFS_OK)
+            return rc;
+        if (node[8] == 0xff)
+            break;
+        if (node[8] != 0 || level >= HFS_BTREE_MAX_DEPTH)
+            return HFS_ERR_FORMAT;
+        uint16_t count = be16(node + 10);
+        if (count == 0)
+            return HFS_ERR_FORMAT;
+        uint16_t child = 0;
+        for (uint16_t i = 0; i < count; ++i) {
+            const uint8_t *existing;
+            size_t existing_length;
+            rc = hfs_btree_node_record(node, btree->node_size, i, &existing,
+                                       &existing_length);
+            if (rc != HFS_OK)
+                return rc;
+            int cmp;
+            uint16_t stored;
+            rc = compare_record(existing, existing_length, new_key,
+                                new_key_length, compare, compare_context,
+                                &cmp, &stored);
+            if (rc != HFS_OK)
+                return rc;
+            if (cmp <= 0)
+                child = i;
+            else
+                break;
+        }
+        const uint8_t *child_record;
+        size_t child_length;
+        rc = hfs_btree_node_record(node, btree->node_size, child,
+                                   &child_record, &child_length);
+        if (rc != HFS_OK)
+            return rc;
+        uint16_t stored = be16(child_record);
+        if ((size_t)stored + HFS_BTREE_KEY_LENGTH + HFS_BTREE_CHILD_SIZE >
+            child_length)
+            return HFS_ERR_FORMAT;
+        node_number = be32(child_record + HFS_BTREE_KEY_LENGTH + stored);
+        ++level;
+    }
+
+    uint16_t count = be16(node + 10);
+    for (uint16_t i = 0; i < count; ++i) {
+        const uint8_t *existing;
+        size_t existing_length;
+        rc = hfs_btree_node_record(node, btree->node_size, i, &existing,
+                                   &existing_length);
+        if (rc != HFS_OK)
+            return rc;
+        int cmp;
+        uint16_t stored;
+        rc = compare_record(existing, existing_length, new_key, new_key_length,
+                            compare, compare_context, &cmp, &stored);
+        (void)stored;
+        if (rc != HFS_OK)
+            return rc;
+        if (cmp == 0) {
+            if (existing_length != length)
+                return HFS_ERR_FORMAT;
+            memcpy((uint8_t *)existing, record, length);
+            return stage_node(btree, tx, node_number, node);
+        }
+        if (cmp > 0)
+            break;
+    }
+    return HFS_ERR_NOT_FOUND;
+}
+
 int hfs_btree_grow(struct hfs_btree *btree, struct hfs_txn *tx)
 {
     if (btree == NULL || tx == NULL)

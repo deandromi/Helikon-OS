@@ -41,21 +41,27 @@ journal or a failed probe is reported as `FAIL`/`UNSUPPORTED` with zero writes.
 | Field | Value |
 |---|---|
 | Image | `bootloader/artifacts/bootloader-ipod6g-outer-diag.ipod` |
-| Image size | 109,288 bytes |
-| Image SHA-256 | `9eacde18ee0b6b8d2c583ea1786f1b079c8f76b78c0dddbcad80e201a23692b2` |
+| Image size | 110,408 bytes |
+| Image SHA-256 | `32eeb541bcd64b45e4319a6ed16fbe4e22cf3123d2d82738b517877e53a3265e` |
 | DFU installer | `bootloader/artifacts/bootloader-ipod6g-outer-diag.dfu` |
-| DFU size | 117,424 bytes |
-| DFU SHA-256 | `dd027696b1710985fd9979904d2be8b29dcee48727819b95f26a5929b75ece0a` |
+| DFU size | 118,544 bytes |
+| DFU SHA-256 | `6e2e7d40377534b58eca4b6d34ef3525b8ae4f60221ce56103097ee3c8993dc7` |
 | Uninstaller DFU | `bootloader/artifacts/bootloader-ipod6g-uninstall.dfu` |
 | Uninstaller SHA-256 | `203e836412b71d3a16b3b57a5bf7ef034a0f5dcae1ca193685b8bfee33868a3a` |
 | Marker | `HELIKON-OS OUTER DIAG` |
-| `_moveend` | `0x2203b2e0` |
-| `MOVE_AREA` | `0x22020800`–`0x22040000`; 19,744 bytes headroom |
+| `_moveend` | `0x2203b740` |
+| `MOVE_AREA` | `0x22020800`–`0x22040000`; 18,624 bytes headroom |
 | Donor base | `hfsplus-rockboxed-ipod` `55603bd4bc2524ded900fa17feae99a223b04349` |
 | Build | `tools/build-outer-diagnostic-bootloader.sh` |
 
 The hash belongs to this artifact only. Do not compare it with the read-only or
 inner-image diagnostic hashes.
+
+A previous image (`9eacde18…`) reached rename on the 6G and stopped before
+truncate; it left `/helikon-outer-test/marker` and a 4096-byte `renamed` file.
+The volume passed `fsck_hfs` and the next boot stopped at `Cleanup: FAIL -14`.
+This image adds in-place B-tree record updates for append/truncate and a
+stage-progress screen. It has no device run yet.
 
 ## Hard preconditions
 
@@ -125,6 +131,10 @@ you do not want to allow another run.
    button and powers off.
 
 ## Expected report
+
+While the sequence runs, the screen shows the current stage (for example
+`HELIKON-OS OUTER DIAG` / `Truncate`). If the device stops without a report,
+record the last visible stage; that is the stage to diagnose.
 
 A healthy run shows:
 

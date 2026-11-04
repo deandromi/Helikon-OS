@@ -26,7 +26,7 @@ Do not install or run the outer-write image until every item is true:
 - [ ] `diskutil verifyVolume /Volumes/IPOD` passes.
 - [ ] The outer journal is clean and the volume was ejected cleanly.
 - [ ] The outer-write diagnostic image is built and its SHA-256 recorded
-      (`9eacde18…`, see [`../bootloader/OUTER_DIAG.md`](../bootloader/OUTER_DIAG.md)).
+      (`32eeb541…`, see [`../bootloader/OUTER_DIAG.md`](../bootloader/OUTER_DIAG.md)).
 - [ ] `helikon-outer-ok.txt` with the magic `HELIKON-OUTER-WRITE-OK` is at the
       iPod root and `/helikon-outer-test` does not exist.
 - [ ] The owner explicitly confirms the backup and the test window.
@@ -82,9 +82,13 @@ The outer-write diagnostic:
 - never touches another root entry;
 - is a separate DFU-only image, not the read-only or inner-image diagnostic.
 
-The image is built (`9eacde18…`, `bootloader-ipod6g-outer-diag.ipod`) and the
-host test passes. See [`../bootloader/OUTER_DIAG.md`](../bootloader/OUTER_DIAG.md)
-for the runbook. T-047 tracks the build; T-048 tracks the device run.
+The image is built (`32eeb541…`, `bootloader-ipod6g-outer-diag.ipod`) and the
+host test passes. A previous image (`9eacde18…`) reached rename on the 6G and
+stopped before truncate; its volume was fsck-clean and the next boot stopped at
+`Cleanup: FAIL -14`. The current image adds in-place record updates and a
+stage-progress screen but has no device run. See
+[`../bootloader/OUTER_DIAG.md`](../bootloader/OUTER_DIAG.md) for the runbook.
+T-047 tracks the build; T-048 tracks the device run.
 
 ## 4. Run and pass criteria
 

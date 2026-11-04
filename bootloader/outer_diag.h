@@ -8,6 +8,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+typedef void (*boot_outer_progress_fn)(void *context, const char *stage);
+
 enum boot_outer_status {
     BOOT_OUTER_NOT_TESTED = 0,
     BOOT_OUTER_PASS,
@@ -53,6 +55,8 @@ int boot_outer_diag_run(hfs_read_fn read, hfs_write_fn write,
                         uint64_t base, uint64_t length,
                         void *catalog_scratch, size_t catalog_scratch_size,
                         uint32_t now, uint64_t *writes,
+                        boot_outer_progress_fn progress,
+                        void *progress_context,
                         struct boot_outer_diag_result *result);
 
 #endif

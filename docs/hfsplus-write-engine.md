@@ -332,9 +332,12 @@ the parent folder dates; the volume header modify date is staged on
 create/delete, bitmap alloc/free and rename. `backupDate` stays 0. BSD
 owner/group are 0, admin/owner flags 0, file/folder mode is set, Finder info and
 textEncoding are zero, and special is 0. Metadata is preserved on
-append/truncate/rename. The macOS outer-image test checks modes, current-year
-timestamps and renamed/truncated paths. Finder creator/type policy and a wider
-macOS differential remain (T-044).
+append/truncate/rename. Append and truncate update the existing file record in
+place with `hfs_btree_update()`; they do not delete and reinsert it, so a
+same-key update cannot force an unnecessary B-tree underflow or merge. The macOS
+outer-image test checks modes, current-year timestamps and renamed/truncated
+paths. Finder creator/type policy and a wider macOS differential remain
+(T-044).
 
 ## 8. `fsck_hfs` compatibility
 

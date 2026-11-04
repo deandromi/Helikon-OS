@@ -7,10 +7,12 @@
 > Last updated: 2026-11-04
 > Source: design paper §1, §24, §28.2.4, §28.4.5; `docs/verification.md`
 
-**Helikon-OS has three owner-reported diagnostic runs on one 6G:** two
-read-only-image runs (one partial/failed, one corrected report) and one
+**Helikon-OS has three completed owner-reported diagnostic runs on one 6G:**
+two read-only-image runs (one partial/failed, one corrected report) and one
 write-diagnostic run that reported every stage PASS and whose inner image passed
-`fsck_hfs`. This is recorded evidence for those tests, not a support claim.
+`fsck_hfs`. An outer-volume diagnostic also booted twice on 2026-11-04; it
+reached rename on the first boot and stopped at `Cleanup: FAIL` (`-14`) on the
+second. This is recorded evidence for those tests, not a support claim.
 Every unrun row below is `planned`, `unproven` or `fail`. Do not add a device to
 a supported list because it has the same SoC, because the donor ran on it, or
 because a build links.
@@ -39,7 +41,8 @@ images, backups or serial numbers to the repository.
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | playback | `not run` | none | test lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | write diagnostic `9e3881…` | native HFS+ write inside `helikon-test.img` | `pass` | Owner report 2026-11-03: every stage PASS; extracted inner image SHA-256 `156060…`, `fsck_hfs -fn` exit 0, no `diag`; outer `diskutil verifyVolume` exit 0 | boot/HFS+ |
 | iPod Classic 6G (reference) | `open question` | `open question` | write diagnostic `81350f…` | controlled PMU cut, targets 7, 56, 96 | `pass` | Owner report 2026-11-04: 7/56 pre-commit cuts gave `Recovery: CLEAN`; target 96 post-commit cut recovered; all stages PASS; extracted inner image `fsck_hfs` reported `The volume HelikonInner appears to be OK` | boot/HFS+ |
-| iPod Classic 6G (reference) | `open question` | `open question` | outer diagnostic `9eacde18…` | outer-volume `/helikon-outer-test` create/append/rename/truncate/delete | `not run` | Image built and host-tested; T-048 requires the full verified backup, restore rehearsal and owner window | owner/boot |
+| iPod Classic 6G (reference) | `open question` | `open question` | outer diagnostic `9eacde18…` | outer-volume `/helikon-outer-test` sequence | `partial` | Owner report 2026-11-04: reached rename, left `marker` + 4096-byte `renamed` (all `0xa5`); report not shown, splash remained; next boot `Cleanup: FAIL`, error `-14`; `fsck_hfs` reported the volume OK | owner/boot |
+| iPod Classic 6G (reference) | `open question` | `open question` | outer diagnostic `32eeb541…` | outer-volume `/helikon-outer-test` create/append/rename/truncate/delete | `not run` | Image adds in-place B-tree updates and stage progress; host-tested; T-048 requires the full verified backup, restore rehearsal and owner window | owner/boot |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | journal replay | `not run` | none | journal lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | sleep/wake 100 cycles | `not run` | none | test lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | USB read-only | `not run` | none | USB lead |
@@ -132,8 +135,40 @@ passed, and the extracted inner image passed `fsck_hfs` with
 `The volume HelikonInner appears to be OK`. Targets 7 and 56 remain the
 pre-commit clean controls; further replay targets are optional coverage.
 
-The inner-image `fsck_hfs` for this target is still pending; record it before
-treating the cut as fully passed.
+Inner-image `fsck_hfs` for target 96 reported the volume OK. Further replay
+targets remain optional coverage.
+
+### 2.4 Outer-volume diagnostic — partial, owner-reported, 2026-11-04
+
+The first outer-volume image (`9eacde18…`) booted and reached the rename stage.
+The owner saw the splash remain instead of the report. The next boot showed:
+
+```text
+Opt-in: PASS
+Outer HFS+: PASS
+Journal: PASS
+Catalog: PASS
+Cleanup: FAIL
+... NOT TESTED
+error: -14
+```
+
+`-14` is `HFS_ERR_BUSY`: `/helikon-outer-test` existed, so the second boot
+stopped before any write. Inspecting the folder on macOS found only:
+
+```text
+marker   18 bytes, HELIKON-OUTER-TEST
+renamed  4096 bytes, all 0xa5
+```
+
+That places the first-run stop after rename and before truncate. `diskutil
+verifyVolume` / `fsck_hfs -fn` reported `The volume IPOD appears to be OK`; the
+journal was clean. No library file was touched, and no report from the first
+boot is available.
+
+The next image (`32eeb541…`) replaces the append/truncate
+delete-then-insert record update with an in-place B-tree record update, and
+shows the current stage on screen. It is host-tested; no device run yet.
 
 ## 3. Storage and adapter matrix
 

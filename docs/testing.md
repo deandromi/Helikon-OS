@@ -145,7 +145,9 @@ a library write.
 
 ### 5.5 Journal format compatibility
 
-The journal unit test checks the Apple `block_list_header` layout: `max_blocks`
+The multi-level B-tree model test and the catalog append/truncate tests exercise
+same-key in-place record updates, so a record update does not force a delete and
+reinsert. The journal unit test checks the Apple `block_list_header` layout: `max_blocks`
 is `blhdr_size / 16 - 1`, the first header sets `BLHDR_FIRST_HEADER`, the
 checksum covers the first 32 bytes, and the first `block_info` is a zero
 continuation marker. A separate host integration check leaves a committed but

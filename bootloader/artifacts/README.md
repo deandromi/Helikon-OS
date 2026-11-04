@@ -79,14 +79,14 @@ extracted inner image (SHA-256
 | Field | Value |
 |---|---|
 | Image | `bootloader-ipod6g-outer-diag.ipod` |
-| Image size | 109,288 bytes |
-| Image SHA-256 | `9eacde18ee0b6b8d2c583ea1786f1b079c8f76b78c0dddbcad80e201a23692b2` |
+| Image size | 110,408 bytes |
+| Image SHA-256 | `32eeb541bcd64b45e4319a6ed16fbe4e22cf3123d2d82738b517877e53a3265e` |
 | DFU installer | `bootloader-ipod6g-outer-diag.dfu` |
-| DFU size | 117,424 bytes |
-| DFU SHA-256 | `dd027696b1710985fd9979904d2be8b29dcee48727819b95f26a5929b75ece0a` |
+| DFU size | 118,544 bytes |
+| DFU SHA-256 | `6e2e7d40377534b58eca4b6d34ef3525b8ae4f60221ce56103097ee3c8993dc7` |
 | Marker | `HELIKON-OS OUTER DIAG` |
-| `_moveend` | `0x2203b2e0` |
-| `MOVE_AREA` | `0x22020800`–`0x22040000`; 19,744 bytes headroom |
+| `_moveend` | `0x2203b740` |
+| `MOVE_AREA` | `0x22020800`–`0x22040000`; 18,624 bytes headroom |
 | Build | `tools/build-outer-diagnostic-bootloader.sh` |
 
 This image writes the real outer HFS+ journal, catalog, bitmap and volume

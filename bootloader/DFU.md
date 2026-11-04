@@ -123,13 +123,13 @@ root-level opt-in file `helikon-outer-ok.txt` with magic
 | Field | Value |
 |---|---|
 | Image | `artifacts/bootloader-ipod6g-outer-diag.ipod` |
-| Image size | 109,288 bytes |
-| Image SHA-256 | `9eacde18ee0b6b8d2c583ea1786f1b079c8f76b78c0dddbcad80e201a23692b2` |
+| Image size | 110,408 bytes |
+| Image SHA-256 | `32eeb541bcd64b45e4319a6ed16fbe4e22cf3123d2d82738b517877e53a3265e` |
 | DFU installer | `artifacts/bootloader-ipod6g-outer-diag.dfu` |
-| DFU size | 117,424 bytes |
-| DFU SHA-256 | `dd027696b1710985fd9979904d2be8b29dcee48727819b95f26a5929b75ece0a` |
+| DFU size | 118,544 bytes |
+| DFU SHA-256 | `6e2e7d40377534b58eca4b6d34ef3525b8ae4f60221ce56103097ee3c8993dc7` |
 | Marker | `HELIKON-OS OUTER DIAG` |
-| `MOVE_AREA` | `0x22020800`–`0x22040000`; `_moveend` `0x2203b2e0`; 19,744 bytes headroom |
+| `MOVE_AREA` | `0x22020800`–`0x22040000`; `_moveend` `0x2203b740`; 18,624 bytes headroom |
 
 The one-command sender is `tools/install-outer-diagnostic.sh`. It verifies the
 DFU hash and never uses `--single`. No device run of this image is recorded.

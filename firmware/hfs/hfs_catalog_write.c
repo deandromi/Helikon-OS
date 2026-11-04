@@ -717,13 +717,7 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
         }
     }
 
-    static uint8_t key[CATALOG_MAX_RECORD];
-    size_t delete_key = build_key(key, parent, name, units);
-    rc = hfs_btree_delete(&catalog->btree, tx, key + 2, delete_key,
-                          compare, compare_context);
-    if (rc != HFS_OK)
-        return rc;
-    return hfs_btree_insert(&catalog->btree, tx, record, record_length,
+    return hfs_btree_update(&catalog->btree, tx, record, record_length,
                             compare, compare_context);
 }
 
@@ -835,12 +829,6 @@ int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
 
     memset(fork, 0, 80);
 
-    static uint8_t key[CATALOG_MAX_RECORD];
-    size_t delete_key = build_key(key, parent, name, units);
-    rc = hfs_btree_delete(&catalog->btree, tx, key + 2, delete_key,
-                          compare, compare_context);
-    if (rc != HFS_OK)
-        return rc;
-    return hfs_btree_insert(&catalog->btree, tx, record, record_length,
+    return hfs_btree_update(&catalog->btree, tx, record, record_length,
                             compare, compare_context);
 }
