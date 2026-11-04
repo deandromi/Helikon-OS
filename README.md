@@ -32,4 +32,6 @@ A new bootloader and firmware for the iPod Classic 6th and 7th Generation create
 - A modern feasible alternative to Rockbox/Rockpod or others.
 
 ## Sneakpeeks:
-<img width="320" height="240" alt="helikon-os-splash-alpha-hfs-fail" src="https://github.com/user-attachments/assets/ec1995ec-ad6b-4e9a-8bee-8f26d95c5fb1" />
+<img width="320" height="240" alt="Bootloader design Version Alpha Red" src="https://github.com/user-attachments/assets/6085a0c4-f2a5-4223-8a41-f8799f466d8e" />
+<img width="320" height="240" alt="Bootloader design Version Alpha Green" src="https://github.com/user-attachments/assets/bb2e64f5-87f0-47c8-b167-176b50fd92b2" />
+
