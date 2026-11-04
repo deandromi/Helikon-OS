@@ -36,9 +36,9 @@ The bootloader verifies before jumping. A bad magic, board, version, load
 address, size, hash or signature is rejected; the previous verified image stays
 bootable.
 
-**Open:** signature scheme, key storage, rotation, revocation, recovery and
-ownership are D-01/D-20. No key is chosen. Never commit a private key, token,
-recovery phrase or signing secret.
+**Status:** D-01 accepts Ed25519 signed manifests. Key storage, rotation,
+revocation, recovery and ownership remain D-20. No production key is chosen.
+Never commit a private key, token, recovery phrase or signing secret.
 
 ## 3. Staging and verification
 
@@ -70,7 +70,8 @@ Rollback rules:
 - The Apple NOR path and DFU recovery are preserved. `--single` is never used.
 - No auto-format, no journal deletion, no metadata "repair".
 
-**Open:** D-02 (boot state/fallback), D-16 (update transport).
+**Status:** D-02 accepts the two-slot read-only boot state. D-16 (update
+transport) remains open.
 
 ## 5. Bootloader updates
 
@@ -128,7 +129,8 @@ No marketing claims. No battery/RAM/frame-time number without method and runs. N
 
 ## 9. Open items and completed follow-ups
 
-- **TODO (owner):** choose signing scheme and key ownership (D-01/D-20).
+- **TODO (owner):** choose key ownership/custody (D-20); D-01 already accepts
+  Ed25519 signed manifests.
 - **TODO (owner):** choose update transport (D-16) and support window.
 - **DONE:** license (GPL-2.0-or-later) is adopted; keep `LICENSE` and `NOTICE`
   current. No code of conduct is currently adopted (D-19 rejected).

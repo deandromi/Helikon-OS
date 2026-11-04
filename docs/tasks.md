@@ -12,12 +12,11 @@ P0. Status uses `planned`, `in progress`, `unproven`, `implemented` or
 `rejected`.
 
 **Priority review, 2026-11-04.** T-048, T-044, T-038, T-034, T-003, T-004 and
-T-010 are closed. The only active P0 task is **T-006**, the signing-key
-ownership decision; it needs owner/legal input and cannot be closed by an
-agent. T-011/T-027 remain P0 but are blocked by D-01/D-02.
-The P1 line is T-012 (device inventory), T-029 (read-only diagnostic finish),
-T-027/T-011 (bootloader manifest, blocked by D-01/D-02) and T-045 (splash);
-T-041 is implemented. T-042/T-013/T-024 are P2.
+T-010 are closed, D-01/D-02 are accepted, and T-011/T-027 are implemented.
+The active P0 line is **T-049** (bootloader integration) and **T-006** (D-20
+signing-key ownership, owner/legal). The P1 line is T-012 (device inventory),
+T-029 (read-only diagnostic finish) and T-045 (splash); T-041 is implemented.
+T-042/T-013/T-024 are P2.
 
 UI fonts/mockup and the splash must not take device testing time from the
 writer. T-017 is rejected; the journaled writer was implemented directly.
@@ -25,11 +24,12 @@ T-030 is complete through T-032/T-040/T-047.
 
 ## Now
 
-The only active P0 task is owner/legal.
+Bootloader integration and the signing-key decision.
 
 | ID | Task | Priority | Dependencies | Acceptance criteria | Status | Owner | Links |
 |---|---|---|---|---|---|---|---|
 | T-006 | Record signing-key ownership and release-signing policy (D-20). | P0 | Owner/legal | D-20 is `accepted` with owner, key custody, rotation, revocation, recovery and a date; no release signing before then. ADR-0002 proposes an offline root plus delegated release key; owner decision pending. | `in progress` | owner/legal | [decisions.md](decisions.md#d-20--signing-key-ownership), [release.md](release.md), [security.md](security.md) |
+| T-049 | Integrate the verified loader into a read-only firmware-loading bootloader image. | P0 | T-027, D-01, D-02, T-029 | Bootloader reads `/.helikon/firmware.manifest`, `/.helikon/firmware.img` and `/.helikon/bootstate`; verifies signature/hash/board before copying to DRAM; jumps only to a verified image; falls back visibly on failure; no filesystem writes; host tests and a recorded device run. | `in progress` | boot lead | [LOADER.md](../bootloader/LOADER.md), [architecture.md](architecture.md), [validation.md](validation.md) |
 
 ## Next
 
@@ -38,10 +38,8 @@ authorize a library write.
 
 | ID | Task | Priority | Dependencies | Acceptance criteria | Status | Owner | Links |
 |---|---|---|---|---|---|---|---|
-| T-011 | Design the bootloader manifest, boot-state and rollback flow. | P0 | D-01, D-02, D-16 | Design covers manifest fields, signature check, two-slot boot state, read-only bootloader and fallback; bad-image tests are listed. | `planned` | boot lead | [architecture.md](architecture.md), [release.md](release.md) |
 | T-012 | Bootstrap the 6G device inventory and recovery rehearsal. | P1 | T-003 | Inventory records model, revision, capacity, adapter/card, battery, macOS, firmware/bootloader, journal state; Disk Mode, DFU and the restore rehearsal are confirmed; the full inventory and adapter/battery matrix remain; no serial numbers. | `in progress` | test lead | [device-matrix.md](device-matrix.md) |
 | T-013 | Define the first-party UI task tests and the 20-skin corpus licence review. | P2 | D-10, D-15 | Five tasks (play, browse, settings, podcast, install) have success criteria; corpus list records licence/source; unsupported-tag report format defined. | `planned` | UI/test lead | [goals.md](goals.md), [validation.md](validation.md) |
-| T-027 | Define the bootloader manifest/boot-state flow and host image-loading core. | P0 | D-01, D-02, T-003, T-026 | A read-only host loader resolves the firmware path through the HFS+ read core, validates size/board/hash and calls an explicit signature-verification hook; no writes, no jump, tests recorded. | `planned` | boot lead | [architecture.md](architecture.md), [release.md](release.md), [decisions.md](decisions.md) |
 | T-029 | Build and run a hardware-testable diagnostic bootloader image. | P1 | T-028, T-003 | Image built: 67,144 bytes, SHA-256 `280ed7aee5dcf38d1a30470704f91740b299004692c2aebbb21d41744c05f43c`, `_moveend` `0x22030e40`, 61,888 bytes `MOVE_AREA` headroom. First run (`bd0ebc92…`) booted and splashed; volume/catalog PASS, read FAIL `-11`, report formatting corrupt. Fixed image (`280ed7ae…`) rerun: formatting correct, volume/catalog/write/journal/splash/partition correct, read `-8` because `/rockbox.ipod` is not a disk file; no write. Remaining: optional real-file probe, button/power-off record. | `in progress` | boot/release | [DFU.md](../bootloader/DFU.md), [artifact README](../bootloader/artifacts/README.md), [device-matrix.md](device-matrix.md) |
 | T-045 | Design and integrate a new bootloader splash. | P2 | owner design; bootloader display path | Owner-supplied 320×240 splash asset with recorded source/licence; rendering path chosen (1-bit mono or grayscale/colour); bootloader shows it during startup, writes nothing, and still reaches the diagnostic; device evidence recorded. | `planned` | owner/boot | [ui.md](ui.md), [splash.c](../bootloader/splash.c), [branding README](../assets/branding/README.md) |
 
@@ -59,6 +57,8 @@ Acceptance evidence is recorded in the linked files or `device-matrix.md`.
 | T-008 | Write the allocation bitmap and extents/overflow design. | P0 | T-002, T-004 | Design covers alloc/free, free-block counts, inline/overflow extents, truncate and `NO_SPACE`; design is in `hfsplus-write-engine.md` §4–§5; implementation is in T-033/T-037. | `implemented` | HFS+ lead | [hfsplus-write-engine.md](hfsplus-write-engine.md) |
 | T-009 | Write the journal record, commit, barrier and replay design. | P0 | T-001, T-002 | Design covers sequence/checksum, commit header, apply, idempotent replay, clean marker and read-only failure; cut points enumerated. §6.5–§6.7 freeze the Apple HFS+ journal format, commit/replay algorithm and validation; implementation and macOS replay are covered by T-031. | `implemented` | journal lead | [hfsplus-write-engine.md](hfsplus-write-engine.md#65-on-disk-format-apple-hfs-journal) |
 | T-010 | Define the power-loss matrix and evidence format. | P0 | T-003, T-009 | Matrix covers create, append, close, rename, delete, truncate, mkdir, settings, database and artwork; each row names cut points, oracle and evidence. The matrix and evidence format are defined in `validation.md` §2 and §2.2. Host coverage is 280 write/flush/partial cuts (create 25/4/25, append 34/4/34, truncate 25/4/25, delete 25/4/25, rename 21/4/21), fsck-clean. Device power-loss execution and the not-yet-implemented close/mkdir/settings/database/artwork rows remain release/validation gates. | `implemented` | test lead | [validation.md](validation.md), [crash test](../tests/image/run-crash-macos.sh) |
+| T-011 | Design the bootloader manifest, boot-state and rollback flow. | P0 | D-01, D-02, D-16 | Manifest/bootstate formats, signature check, read-only flow and fallback are frozen in `bootloader/LOADER.md`; bad-image and fallback tests are listed. | `implemented` | boot lead | [architecture.md](architecture.md), [release.md](release.md) |
+| T-027 | Define the bootloader manifest/boot-state flow and host image-loading core. | P0 | D-01, D-02, T-003, T-026 | `bootloader/firmware_loader.c` and `hfs_loader.c` read manifest/image/bootstate through the HFS+ core, validate magic/version/board/address/size/SHA-256 and call a signature hook; no writes, no jump. `test_loader` (11), `test_loader_hfs` (2) and the macOS loader fixture pass. | `implemented` | boot lead | [architecture.md](architecture.md), [release.md](release.md), [decisions.md](decisions.md) |
 | T-014 | Publish and review the agent documentation set. | P0 | None | `agents.md` and all P0/P1/P2 docs exist; links and tables pass inspection; root README unchanged (requested block already present); PR #1 merged to `main`. | `implemented` | documentation agent | [README.md](README.md), [verification.md](verification.md) |
 | T-023 | Implement the host HFS+ volume header/journal probe and tests. | P0 | None | `firmware/hfs/hfs_volume.c` validates primary/alternate headers, block size, attributes and journal flags; 12 host tests pass; sanitizer clean; no device writes. | `implemented` | firmware/test | [hfs_volume.c](../firmware/hfs/hfs_volume.c), [test_volume.c](../tests/hfsplus/test_volume.c) |
 | T-025 | Implement generic HFS+ B-tree header/node validation and tests. | P0 | None | `firmware/hfs/hfs_btree.c` validates header node kind/height/counts, reverse offset table, depth/root/leaf bounds, node size and fork-size parity; 9 host tests pass; sanitizer clean; no device writes. | `implemented` | firmware/test | [hfs_btree.c](../firmware/hfs/hfs_btree.c), [test_btree.c](../tests/hfsplus/test_btree.c) |

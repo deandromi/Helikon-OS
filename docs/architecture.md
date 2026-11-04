@@ -7,9 +7,10 @@
 > Last updated: 2026-11-03
 > Source: design paper §5–§19, §21, §24; `docs/hfsplus-write-engine.md`
 
-**A host HFS+ read core and a read-only diagnostic bootloader core exist.**
-The flashable bootloader, kernel, block layer, VFS, player, UI and writer below
-are planned. Nothing in this file is evidence
+**A host HFS+ read core, a read-only diagnostic bootloader core and a host
+firmware manifest/boot-state loader exist.** The firmware-loading bootloader
+image, kernel, block layer, VFS, player and UI are planned; the HFS+ writer is
+host- and real-volume-tested but not a release. Nothing in this file is evidence
 that Helikon-OS boots, mounts, plays, writes or updates.
 
 ## 1. Boot chain

@@ -121,6 +121,7 @@ bootloader/               read-only diagnostic and separate write diagnostics
   artifacts/              built images, hashes and provenance
   WRITE_DIAG.md            separate inner-image write diagnostic runbook
   OUTER_DIAG.md            separate outer-volume write diagnostic runbook
+  LOADER.md                firmware manifest/boot-state format and loader flow
 firmware/                 host HFS+ read core exists; HAL/VFS/player/UI planned
   hfs/                    HFS+ read core; volume header/journal probe implemented
 tools/                    diagnostic build script; host tools/inspectors planned
@@ -145,6 +146,7 @@ make -C tests/image test
 make -C tests/image crash-test
 make -C tests/image write-diag-test
 make -C tests/image outer-diag-test
+make -C tests/image loader-test
 
 DONOR_DIR=/path/to/hfsplus-rockboxed-ipod \
   ./tools/build-diagnostic-bootloader.sh
@@ -303,8 +305,8 @@ do not format, erase or delete the journal.
 
 ## 8. Release policy
 - Channels: **stable**, **beta**, **development**.
-- Firmware images and manifests are signed. Signing scheme and key ownership are
-  not chosen; see `docs/decisions.md` D-01 and D-20.
+- Firmware images and manifests are signed. D-01 accepts Ed25519; key ownership
+  and custody remain open in D-20.
 - Firmware is staged under `/.helikon/update/` through the HFS+ transaction
   engine, flushed, read back and verified.
 - The bootloader verifies before jumping and keeps the previous verified image
@@ -335,8 +337,10 @@ Record the exact error, stage, device state and what was not attempted.
 ## 10. Decisions
 Full entries and status are in `docs/decisions.md`.
 
-**Settled:** D-03 journaled writes (non-journaled prototype disposable-only),
-D-04 Helikon-OS-owned replay, D-06 Apple FastUnicodeCompare and HFS+
+**Settled:** D-01 Ed25519-signed firmware manifest, D-02 two-slot boot state
+with read-only bootloader fallback, D-03 journaled writes (non-journaled
+prototype disposable-only), D-04 Helikon-OS-owned replay, D-06 Apple
+FastUnicodeCompare and HFS+
 normalization with generated Unicode 2.1.9 tables, D-17 product name
 (clearance open), D-18 GPL-2.0-or-later, D-21 read-only diagnostic-first
 bootloader scope, D-22 separate inner-image write diagnostic scope, D-23 default
@@ -346,8 +350,7 @@ write diagnostic scope. The real outer-volume write test requires a full
 verified backup and the separate diagnostic in `docs/outer-volume-test.md`.
 **Rejected:** D-19 Contributor Covenant (owner deleted the file; no replacement).
 
-**Open:** D-01 boot image verification and key storage · D-02 boot state and
-fallback · D-05 B-tree cache and transaction limits ·
+**Open:** D-05 B-tree cache and transaction limits ·
 D-07 database location · D-08 app/game runtime · D-09 desktop app transport ·
 D-10 skin compatibility scope · D-11 anti-corruption scope · D-12 battery
 target · D-13 7G and port scope ·

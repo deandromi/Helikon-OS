@@ -107,6 +107,7 @@ status.
 | [`../bootloader/DFU.md`](../bootloader/DFU.md) | Backup and DFU install runbook for the diagnostic image. | living |
 | [`../bootloader/WRITE_DIAG.md`](../bootloader/WRITE_DIAG.md) | Separate inner-image write diagnostic and PMU-cut runbook. | living |
 | [`../bootloader/OUTER_DIAG.md`](../bootloader/OUTER_DIAG.md) | Separate outer-volume write diagnostic runbook and backup gate. | living |
+| [`../bootloader/LOADER.md`](../bootloader/LOADER.md) | Firmware manifest, boot-state format and read-only loader flow. | living |
 | [`../bootloader/hardware/README.md`](../bootloader/hardware/README.md) | S5L8702/ATA/LCD glue and donor integration patch. | living |
 | [`../bootloader/artifacts/README.md`](../bootloader/artifacts/README.md) | Diagnostic image hash, provenance and evidence status. | living |
 | [`log/README.md`](log/README.md) | What the dated work log is for. | living |

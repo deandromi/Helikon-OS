@@ -67,6 +67,7 @@ make -C tests/image test
 make -C tests/image crash-test
 make -C tests/image write-diag-test
 make -C tests/image outer-diag-test
+make -C tests/image loader-test
 ```
 
 Record the exact command, toolchain version and commit. Do not copy donor

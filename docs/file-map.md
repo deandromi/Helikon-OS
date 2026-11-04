@@ -102,10 +102,14 @@ Helikon-OS/
       run-write-diag-macos.sh  outer/inner image fsck integration test
       outer_diag_host.c     host outer-volume diagnostic runner and dirty-journal fixture
       run-outer-diag-macos.sh  outer-volume sequence, dirty replay and safety test
+      loader_host.c          host HFS+ firmware loader runner
+      run-loader-macos.sh    HFS+ manifest/image/bootstate loader fixture
     bootloader/
       Makefile              bootloader host test target
       test_diag.c           diagnostic core/splash tests
       test_inner_image.c    inner-image extent mapping/metadata guard tests
+      test_loader.c         manifest, SHA-256, bootstate and loader tests
+      test_loader_hfs.c     HFS+ file-read adapter tests
   docs/
     README.md               documentation index and reading order
     state.md                current phase and blockers

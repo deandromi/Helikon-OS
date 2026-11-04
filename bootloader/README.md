@@ -8,6 +8,21 @@
 > Last updated: 2026-11-03
 > Source: design paper §5, §24, §27; `docs/state.md`; D-21
 
+## Firmware-loading loader (host core)
+
+The production firmware-loading bootloader is separate from this read-only
+diagnostic image. The host core now implements:
+
+- `sha256.c` — image hashing;
+- `manifest.c` — Ed25519-signed manifest parsing/verification (signature hook);
+- `bootstate.c` — two-slot boot-state selection;
+- `firmware_loader.c` — read-only manifest/image/bootstate loader;
+- `hfs_loader.c` — HFS+ file-read adapter.
+
+Formats and paths are fixed in [`LOADER.md`](LOADER.md). The host tests and the
+macOS HFS+ loader fixture pass. The bootloader **image** integration and jump are
+T-049; no firmware image exists, so no device boot is claimed.
+
 ## What this is
 
 - `diagnostics.c` probes the HFS+ volume, opens the catalog, looks up a probe

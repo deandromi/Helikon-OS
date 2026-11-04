@@ -25,7 +25,7 @@ HEADERS = $(HFS)/hfs_catalog.h $(HFS)/hfs_catalog_compare.h \
 
 .PHONY: all test crash-test write-diag-test outer-diag-test clean
 
-all: hfs_image_test hfs_crash_test write_diag_host outer_diag_host
+all: hfs_image_test hfs_crash_test write_diag_host outer_diag_host loader_host
 
 hfs_image_test: hfs_image_test.c $(COMMON) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) hfs_image_test.c $(COMMON) $(LDFLAGS) -o $@
@@ -45,6 +45,19 @@ outer_diag_host: outer_diag_host.c ../../bootloader/outer_diag.c \
 	$(CC) $(CPPFLAGS) $(CFLAGS) outer_diag_host.c \
 	  ../../bootloader/outer_diag.c $(COMMON) $(LDFLAGS) -o $@
 
+loader_host: loader_host.c ../../bootloader/firmware_loader.c \
+             ../../bootloader/firmware_loader.h ../../bootloader/hfs_loader.c \
+             ../../bootloader/hfs_loader.h ../../bootloader/manifest.c \
+             ../../bootloader/manifest.h ../../bootloader/bootstate.c \
+             ../../bootloader/bootstate.h ../../bootloader/sha256.c \
+             ../../bootloader/sha256.h ../../bootloader/loader_error.c \
+             ../../bootloader/loader_error.h $(COMMON) $(HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) loader_host.c \
+	  ../../bootloader/firmware_loader.c ../../bootloader/hfs_loader.c \
+	  ../../bootloader/manifest.c ../../bootloader/bootstate.c \
+	  ../../bootloader/sha256.c ../../bootloader/loader_error.c \
+	  $(COMMON) $(LDFLAGS) -o $@
+
 # The shell drivers create their own disposable images. Never point them at a
 # library or a mounted device.
 test: hfs_image_test
@@ -59,5 +72,8 @@ write-diag-test: write_diag_host
 outer-diag-test: outer_diag_host
 	./run-outer-diag-macos.sh
 
+loader-test: loader_host
+	./run-loader-macos.sh
+
 clean:
-	rm -rf hfs_image_test hfs_crash_test write_diag_host outer_diag_host *.dSYM
+	rm -rf hfs_image_test hfs_crash_test write_diag_host outer_diag_host loader_host *.dSYM

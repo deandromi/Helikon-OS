@@ -126,7 +126,17 @@ runs `fsck_hfs -fn` on both images. It runs the sequence twice to check that the
 inner image is reusable and leaves no `diag` folder. This is host evidence for
 the separate write diagnostic; it is not a device run.
 
-### 5.4 Outer-volume write-diagnostic test
+### 5.4 Firmware-loader host test
+
+`tests/bootloader/test_loader.c` checks SHA-256 vectors, manifest magic/board/
+address/size/hash/signature, the signature hook, missing/corrupt boot state and
+newest-failed fallback. `tests/bootloader/test_loader_hfs.c` checks the HFS+
+file-read adapter. `make -C tests/image loader-test` creates a disposable HFS+
+image with `/.helikon/firmware.manifest`, `firmware.img` and `bootstate`, then
+runs `loader_host` through the HFS+ core and requires `loader: OK` and
+`bootstate: GOOD`. No jump or write is performed.
+
+### 5.5 Outer-volume write-diagnostic test
 
 `make -C tests/image outer-diag-test` (driver
 `tests/image/run-outer-diag-macos.sh`) creates a disposable 32 MiB journaled
@@ -147,7 +157,7 @@ HFS+ image and runs the same core as the outer diagnostic. It checks:
 This is host evidence for T-047. It is not a device run and does not authorize
 a library write.
 
-### 5.5 Journal format compatibility
+### 5.6 Journal format compatibility
 
 The multi-level B-tree model test and the catalog append/truncate tests exercise
 same-key in-place record updates, so a record update does not force a delete and

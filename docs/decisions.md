@@ -32,7 +32,7 @@ re-litigate them.
 | ID | Title | Status | Owner | Paper |
 |---|---|---|---|---|
 | D-01 | Boot image verification | proposed | owner | §25.1, §5.3 |
-| D-02 | Boot state and fallback | proposed | owner | §25.2, §5.3 |
+| D-02 | Boot state and fallback | accepted | owner | §25.2, §5.3 |
 | D-03 | Journal strategy | accepted | owner | §25.3, §9.3 |
 | D-04 | Journal ownership | accepted | owner | §25.4, §9.3 |
 | D-05 | B-tree cache and transaction limits | proposed | owner | §25.5, §19.2 |
@@ -60,41 +60,50 @@ re-litigate them.
 The paper's §25 lists 17 decisions. D-18, D-19 and D-20 are added from §18 and
 §28.4.4. D-18 is accepted; D-19 was adopted and then rejected when the owner
 deleted `CODE_OF_CONDUCT.md` on 2026-11-03; D-20 remains open. D-21 records the
-first diagnostic bootloader scope. D-22 records the separate inner-image write
+first diagnostic bootloader scope. D-01/D-02 are accepted for the
+firmware-loading bootloader. D-22 records the separate inner-image write
 diagnostic; D-25 records the separate outer-volume diagnostic and its backup
 gate. See C-08.
 
 ## D-01 — Boot image verification
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.1, §5.3.
-- **Context:** the donor bootloader trusts a fixed-path image. Helikon-OS wants a
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-04. **Paper:** §25.1, §5.3; D-20.
+- **Context:** the donor bootloader trusts a fixed-path image. Helikon-OS needs a
   manifest with magic, board ID, version, load address, size, SHA-256 and a
   signature before jumping.
-- **Options:** (a) Ed25519/ECDSA-style signed manifest with a project key;
-  (b) hash-only integrity for development; (c) hardware-backed key; (d) no
-  signature, relying on the update channel.
-- **Decision:** unresolved. The paper requires signature verification for the
-  new bootloader; the algorithm, key storage, rotation and lost-key recovery are
-  not chosen.
-- **Consequences:** no release firmware until this is settled. A lost key must
-  not brick a device; the Apple/DFU recovery path must remain available.
-- **Follow-up:** owner chooses scheme and recovery model; link to D-20.
+- **Decision:** use an **Ed25519-signed manifest**. The bootloader verifies the
+  magic, manifest version, board ID, image version, load address, size and
+  SHA-256, then calls an explicit Ed25519 signature hook with a key ID before
+  loading. The manifest and boot-state formats are fixed in
+  [`../bootloader/LOADER.md`](../bootloader/LOADER.md). A hash-only manifest is
+  development-only and is not release-eligible. Key custody, rotation,
+  revocation and lost-key recovery remain D-20/ADR-0002.
+- **Consequences:** no unsigned firmware is loaded. The bootloader carries only
+  public-key material; no private key is on the device or in Git. A lost key
+  must not brick the device; Apple/DFU recovery remains available. Release
+  signing stays blocked until D-20 is accepted.
+- **Follow-up:** implement the host manifest/signature/boot-state core (T-027),
+  then the bootloader integration; record bad magic/board/version/size/hash/
+  signature tests. Link D-20.
 
 ## D-02 — Boot state and fallback
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.2, §5.3.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-04. **Paper:** §25.2, §5.3.
 - **Context:** the bootloader needs to know whether the last firmware boot
   passed, and which image to load after a failure.
-- **Options:** (a) two-slot checksummed `/.helikon/bootstate` native file, read
-  only by the bootloader; (b) button-only recovery with no state file;
-  (c) a NOR variable or hidden container.
-- **Decision:** unresolved. The paper prefers a two-slot native file read
-  read-only by the bootloader and written only through the HFS+ transaction
-  engine. It is not accepted.
-- **Consequences:** the state file must never be a bootloader write path. If it
-  is missing/corrupt, the bootloader falls back to the default image and
-  button-selected recovery.
-- **Follow-up:** define who may clear the state and how recovery is displayed.
+- **Decision:** use a two-slot checksummed native file `/.helikon/bootstate`,
+  read-only from the bootloader and written only through the HFS+ transaction
+  engine. Each slot records magic/version/sequence/board/image version/load
+  address/size/image SHA-256/state and a slot SHA-256. The bootloader selects the
+  highest valid `GOOD` slot; a newest `FAILED` slot falls back to the previous
+  `GOOD` slot. Missing or corrupt state falls back to the default image and
+  button-selected recovery. The bootloader never writes the state file.
+- **Consequences:** the state file cannot be a bootloader write path. A failed
+  boot must leave the previous verified image bootable. Recovery is explicit and
+  visible; no silent repair or fallback to an unsigned image.
+- **Follow-up:** implement the parser/selector in T-027; define who may clear a
+  `FAILED` slot and how recovery is displayed; test missing/corrupt/board-mismatch
+  and failed-newest cases.
 
 ## D-03 — Journal strategy
 
