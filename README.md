@@ -23,7 +23,7 @@ A new bootloader and firmware for the iPod Classic 6th and 7th Generation create
 - Improved read/write speeds (if possible)
 - (Custom) Application support
 - Improved podcast support
-- A desktop app for: file tagging, album descriptions/ratings, last.fm scrobbling, easy install, improved read/write capabilities, app/game/skins installations etc.
+- A companion desktop app for: file tagging, album descriptions/ratings, last.fm scrobbling, easy install, improved read/write capabilities, app/game/skins installations etc.
 - Improved album view (taking inspiration from Roonserver)
 - Improved artist view (taking inspiration from Roonserver)
 - Improved car/receiver playback
