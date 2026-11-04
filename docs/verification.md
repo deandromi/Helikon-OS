@@ -147,8 +147,9 @@ intact; no writable USB LUN.
 **Evidence:** manifest, image hash, device run, update/rollback log, `fsck_hfs`
 output, screenshots.
 
-**Rollback:** bootloader keeps the previous verified image; bootloader changes
-recover through DFU. Do not use `--single`.
+**Rollback:** the bootloader fails closed to recovery; bootloader changes
+recover through DFU. There is no A/B previous-image rollback (T-050). Do not use
+`--single`.
 
 ## 7. Evidence template
 

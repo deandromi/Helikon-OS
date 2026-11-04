@@ -18,8 +18,11 @@ T-049's test image is owner-reported working on `3979de6f…` and `6bc6927c…`
 rejected as an explicit no-A/B decision. The active P0 line is **T-051**
 (production firmware handoff, blocked on a real signed firmware image). The P1
 line is T-029 (read-only diagnostic finish), T-045 (final splash, now
-device-checked) and T-053 (release-key certificate). T-041 is implemented. T-042/T-013/T-052 are P2; T-024 is rejected
-as superseded by T-045.
+device-checked) and T-053 (release-key certificate). Firmware bring-up starts
+with T-054/T-055 (F1/F2), which are P0 because they produce the first real
+signed firmware image and unblock T-051. T-056/T-058 are P1; T-057 is P2.
+T-041 is implemented. T-042/T-013/T-052 are P2; T-024 is rejected as superseded
+by T-045.
 
 UI fonts/mockup and the splash must not take device testing time from the
 writer. T-017 is rejected; the journaled writer was implemented directly.
@@ -27,12 +30,15 @@ T-030 is complete through T-032/T-040/T-047.
 
 ## Now
 
-Production firmware handoff. T-051 needs a real signed firmware image for the
-end-to-end device test; T-006 and T-049 are done.
+Production firmware handoff and the first firmware bring-up. T-051 needs a real
+signed firmware image; T-054 and T-055 produce it and prove the bootstate loop.
+T-006 and T-049 are done.
 
 | ID | Task | Priority | Dependencies | Acceptance criteria | Status | Owner | Links |
 |---|---|---|---|---|---|---|---|
-| T-051 | Build the production firmware handoff. | P0 | T-049, D-01, D-02, D-20, a real signed firmware image | Production bootloader verifies a real signed firmware image and jumps without returning; no test payload, no unsigned image and no in-bootloader OF/recovery menu (D-26; native Menu+Play and DFU cover recovery). End-to-end device validation requires a real signed firmware build; host tests can cover the handoff/failure paths earlier. | `planned` | boot lead | [architecture.md](architecture.md), [release.md](release.md), [LOADER.md](../bootloader/LOADER.md) |
+| T-051 | Build the production firmware handoff. | P0 | T-049, D-01, D-02, D-20, T-054, T-055, a real signed firmware image | Production bootloader verifies a real signed firmware image and jumps without returning; no test payload, no unsigned image and no in-bootloader OF/recovery menu (D-26; native Menu+Play and DFU cover recovery). End-to-end device validation requires a real signed firmware build; host tests can cover the handoff/failure paths earlier. | `planned` | boot lead | [architecture.md](architecture.md), [release.md](release.md), [LOADER.md](../bootloader/LOADER.md) |
+| T-054 | Build the first read-only firmware skeleton (F1). | P0 | ADR-0003, ADR-0004, T-049 | A signed firmware image boots from the loader, shows a banner, initializes ATA, probes HFS+, reads one known file, reports PASS and powers off. No filesystem write, no journal replay, no unsigned image. One recorded 6G run with a screen photo, boot-stage timings and `fsck_hfs -fn` clean. | `planned` | firmware/boot | [firmware-architecture.md](firmware-architecture.md), [ADR-0003](adr/0003-firmware-memory-map.md), [ADR-0004](adr/0004-firmware-entry-abi.md) |
+| T-055 | Promote `/.helikon/bootstate` to `GOOD` from the firmware through the transaction engine (F2). | P0 | T-054, D-02 | Firmware re-reads bootstate through the VFS, validates both slots, stages `GOOD` with a higher sequence, commits through `hfs_txn`, flushes and reads back; the loader sees `GOOD`; `fsck_hfs -fn` clean; a power cut during promotion recovers to a consistent state. No other file is written. | `planned` | firmware/HFS+ | [firmware-architecture.md](firmware-architecture.md), [LOADER.md](../bootloader/LOADER.md), [hfsplus-write-engine.md](hfsplus-write-engine.md) |
 
 ## Next
 
@@ -45,6 +51,8 @@ authorize a library write.
 | T-029 | Build and run a hardware-testable diagnostic bootloader image. | P1 | T-028, T-003 | Image built: 67,144 bytes, SHA-256 `280ed7aee5dcf38d1a30470704f91740b299004692c2aebbb21d41744c05f43c`, `_moveend` `0x22030e40`, 61,888 bytes `MOVE_AREA` headroom. First run (`bd0ebc92…`) booted and splashed; volume/catalog PASS, read FAIL `-11`, report formatting corrupt. Fixed image (`280ed7ae…`) rerun: formatting correct, volume/catalog/write/journal/splash/partition correct, read `-8` because `/rockbox.ipod` is not a disk file; no write. Remaining: optional real-file probe, button/power-off record. | `in progress` | boot/release | [DFU.md](../bootloader/DFU.md), [artifact README](../bootloader/artifacts/README.md), [device-matrix.md](device-matrix.md) |
 | T-045 | Design and integrate a new bootloader splash. | P2 | owner design; bootloader display path | Final owner green/red PNGs are in `assets/bootloader/` with `VERSION ALPHA`; only the HFS+ label is composited at runtime. The refreshed image uses a 16-colour 4bpp RGB565 base, a 324-byte label mask and no temporary stage line. Owner-reported device check passed on `6bc6927c…`: 6.5 s startup and `fsck_hfs -fn` clean. | `implemented` | owner/boot | [bootloader assets README](../assets/bootloader/README.md), [splash_color.c](../bootloader/splash_color.c), [LOADER_TEST.md](../bootloader/LOADER_TEST.md) |
 | T-053 | Implement release-key certificate, rotation and revocation checking. | P1 | D-20, T-051 | Bootloader carries the root public key and certified release-key IDs; expired/revoked/unknown keys fail closed; rotation overlap and bad-certificate tests pass. The build-local test key is not release-eligible. | `planned` | boot/release | [ADR-0002](adr/0002-signing-key-ownership.md), [LOADER.md](../bootloader/LOADER.md), [release.md](release.md) |
+| T-056 | Implement the read-only VFS and a minimal library browser (F3). | P1 | T-054 | VFS lookup/iterate/open/read/seek/close with generation-checked handles; a real library browses on the 6G; unsupported objects are listed with reasons; no writes except bootstate; the UI stays responsive on a large directory. | `planned` | firmware/VFS | [firmware-architecture.md](firmware-architecture.md) |
+| T-058 | Implement audio playback from the native library (F5). | P1 | T-056, audio HAL | One codec plays from the VFS with buffer/read-ahead, I2S/DMA output, pause, seek, next/previous and volume; underruns and decode errors are handled; line-out and headphone are checked; no metadata writes during playback. | `planned` | firmware/audio | [firmware-architecture.md](firmware-architecture.md) |
 
 ## Done
 
@@ -105,6 +113,7 @@ commitments.
 | T-024 | Display the owner-supplied 320×240 startup image during boot. | P2 | T-015 (phase 0 bootloader), display HAL bring-up | Superseded by T-045: the owner supplied a new bootloader design on 2026-11-04, so the old startup crop is provenance only. | `rejected` | boot/UI | [bootloader assets README](../assets/bootloader/README.md), [branding README](../assets/branding/README.md) |
 | T-050 | Resolve the D-02 A/B image-path gap before claiming rollback. | P1 | D-02, C-10, T-049 | Owner decision 2026-11-04: single-image fail-closed is accepted; no A/B rollback, no two image paths. A failed or mismatched slot shows recovery and does not jump; recovery is DFU/Apple restore. Owner tested the fail-closed behaviour. | `rejected` | owner/boot | [decisions.md](decisions.md#c-10--d-02-previous-good-wording-vs-one-image-path), [LOADER.md](../bootloader/LOADER.md) |
 | T-052 | Reduce loader startup from 6.5 s toward 2–3 s. | P2 | T-049, timing instrumentation | Measure each stage on the 6G/iFlash SD, identify the remaining ATA/index overhead, and record before/after startup times with the same image and device. Not a blocker for T-051. | `planned` | boot lead | [device-matrix.md](device-matrix.md), [LOADER_TEST.md](../bootloader/LOADER_TEST.md) |
+| T-057 | Implement the first-party UI renderer and screens (F4). | P2 | T-056, T-042 | RGB565 renderer with IBM Plex Sans atlas, grayscale anti-aliasing and a 1-bit fallback; typography from `ui.md`; home, music, now playing, settings, system info and error screens; panel photos and measured frame time. | `planned` | firmware/UI | [firmware-architecture.md](firmware-architecture.md), [ui.md](ui.md) |
 | T-042 | Implement the default UI typography in the firmware renderer. | P2 | T-041, firmware UI | The renderer uses IBM Plex Sans 400/500/600, grayscale anti-aliased glyph masks/atlases, the specified sizes, a 1-bit fallback on missing font/glyph, and records a 6G panel run; skins cannot make the first-party UI unusable. | `planned` | UI lead | [ui.md](ui.md), [architecture.md](architecture.md) |
 
 **7G physical board audit:** removed from the active queue by owner direction

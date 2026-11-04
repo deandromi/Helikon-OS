@@ -3,7 +3,7 @@
 > Purpose: preserve every owner-authored README goal and tie it to evidence.
 > Status: living document
 > Owner: project owner; docs lead maintains the mapping
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: root `README.md`; design paper §28.1 and §28.6
 
 The root `README.md` is the source of the goals and is not modified. The paper
@@ -73,8 +73,9 @@ owner accepts it.
 - **Goal 24 (devices):** 6G reference, 7G next, other devices are ports; no v1
   claim for other players. See C-06.
 - **Goal 8 (community):** license (GPL-2.0-or-later) is adopted. No code of
-  conduct is currently adopted (D-19 rejected). CI, signed builds, governance
-  and signing-key ownership are still open (D-20).
+  conduct is currently adopted (D-19 rejected). CI, signed builds and governance
+  are still open; signing-key ownership is accepted (D-20/ADR-0002), but no
+  release key has been generated and certificate verification is T-053.
 
 ## Not promised
 

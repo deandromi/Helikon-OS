@@ -170,9 +170,12 @@ No firmware boot, release or support claim follows from this test.
 
 ## 8. Open items
 
-- D-20 signing-key ownership: the test key is generated locally and is not a
-  release key. Production signing remains blocked.
+- D-20 signing-key ownership is accepted (ADR-0002), but the test key is
+  generated locally and is not a release key. No release key has been generated
+  and certificate verification is T-053; production signing remains future
+  work.
 - Production firmware handoff is disabled in this image. The entry-mode
-  encoding (ARM/Thumb) and the A/B image paths for D-02 fallback remain open.
-- D-02 boot-state fallback currently validates metadata for one image; booting a
-  previous image needs either two fixed image paths or an update rollback writer.
+  encoding (ARM/Thumb) remains open for production handoff.
+- The A/B image-path question is closed: single-image fail-closed is accepted
+  (T-050). A failed or mismatched bootstate fails closed to recovery; there is
+  no previous-image boot and no update rollback writer.

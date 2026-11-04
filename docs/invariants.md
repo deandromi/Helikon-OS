@@ -3,7 +3,7 @@
 > Purpose: numbered safety invariants. Each one is testable or inspectable.
 > Status: living document
 > Owner: project owner; every contributor
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: design paper §1, §5, §8–§10, §16, §21, §24, §28
 
 These are not style preferences. A change that violates one is rejected, even if
@@ -254,7 +254,8 @@ metadata field, CNID reuse, or a different name comparison from macOS.
 
 **Statement.** The bootloader verifies magic, board ID, version, load address,
 size, SHA-256 and signature before jumping to a firmware image. Unsigned or
-mismatched images are rejected; the previous verified image remains bootable.
+mismatched images are rejected and the loader fails closed to recovery; there is
+no A/B previous-image fallback (T-050).
 
 **Why it matters.** An unsigned image is a trust and bricking risk. The update
 path must fail safe.

@@ -13,7 +13,9 @@ loader.** The roadmap in [`roadmap.md`](roadmap.md) starts at phase 0 (rescue
 bootloader and read-only firmware skeleton). The read-only diagnostic image exists and has
 owner-reported 6G runs; the inner-image write diagnostic has one owner-reported
 run, and the outer-volume diagnostic has one successful owner-reported 6G run.
-None loads firmware.
+None loads firmware. The firmware-internal design is now written down in
+[`firmware-architecture.md`](firmware-architecture.md) and phases F1–F5
+(T-054–T-058); no firmware code exists.
 
 Date of this snapshot: **2026-11-04**.
 
@@ -23,6 +25,8 @@ Date of this snapshot: **2026-11-04**.
 |---|---|---|
 | Root `README.md` with 25 owner-authored goals and poster | living | Current `README.md`; goals unchanged, poster added 2026-11-03 |
 | Design paper, revision 2, 2026-11-03 | source | [`design-paper.md`](design-paper.md), source commit `3f220a73d0cceb083b3c057c6fe914d88468800a` |
+| Firmware architecture research paper | living | [`firmware-architecture.md`](firmware-architecture.md); functional, aesthetic and developer-ergonomics design; no firmware code |
+| Firmware memory map / entry ABI ADRs | living | [`adr/0003-firmware-memory-map.md`](adr/0003-firmware-memory-map.md), [`adr/0004-firmware-entry-abi.md`](adr/0004-firmware-entry-abi.md); D-27/D-28 are `proposed` and await owner acceptance |
 | Agent contract and documentation set | living | `main`, merged 2026-11-03 |
 | Product intent, safety rules, roadmap, goals, open decisions | living | `docs/` |
 | Donor file references and provenance | living | [`file-map.md`](file-map.md) |
@@ -87,7 +91,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 
 | Item | Status | Note |
 |---|---|---|
-| Helikon-OS firmware source tree | `in progress` | Host HFS+ read core, diagnostic bootloader, host write diagnostics and host firmware loader exist; no kernel, VFS or player |
+| Helikon-OS firmware source tree | `in progress` | Host HFS+ read core, diagnostic bootloader, host write diagnostics and host firmware loader exist; the firmware-internal design is in `firmware-architecture.md` and T-054–T-058, but there is no kernel, HAL, VFS or player code |
 | Host firmware loader | `implemented` | `bootloader/manifest.c`, `bootstate.c`, `sha256.c`, `ed25519.c`, `keys.c`, `firmware_loader.c` and `hfs_loader.c`; formats frozen in `bootloader/LOADER.md`. Signature is verified before any image byte; then SHA-256 and bootstate. 13 manifest/loader tests, 2 HFS adapter tests, 4 Ed25519/key-table tests and a macOS HFS+ fixture with a real generated key pass. No jump and no writes |
 | Helikon-OS firmware-loading bootloader | `in progress` | The final-splash loader image `6bc6927c…` (106,536 bytes, 22,496 bytes headroom) is a visual-only refresh of the tested `3979de6f…` loader path. The earlier image was owner-reported working at 6.5 s on one 6G/iFlash SD; the final-splash device check passed with a clean `fsck_hfs -fn`. It verifies Ed25519 before any image byte, reads directly to the signed DRAM address, executes only a signed development payload and disables production handoff. Production handoff is T-051 and needs a real signed firmware image. |
 | Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; separate inner-image and outer-volume write diagnostics built; none loads firmware. The inner image has one owner-reported run; the outer image has one successful 6G run |

@@ -3,17 +3,20 @@
 > Purpose: stable definitions so docs and agents use the same words.
 > Status: living document
 > Owner: docs lead
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: design paper Appendix F, plus project-specific terms
 
 | Term | Plain-language meaning |
 |---|---|
 | **APM** | Apple Partition Map, an old partition-table format the scanner can read to find the HFS+ volume. |
 | **App runtime** | The sandboxed environment that runs Helikon-OS apps and games. |
+| **Arena** | A bump allocator over a reserved memory region; it is not freed during normal operation. |
 | **B-tree** | A balanced tree data structure. HFS+ uses one for the catalog and one for extents overflow. |
 | **Block device** | A device that reads/writes fixed-size sectors or blocks. |
 | **Bootloader** | The small program that runs first, finds/verifies the firmware and starts it. |
+| **BSP** | Board support package: the constants and init sequence for one target board. |
 | **Boot state** | A small native file that tells the bootloader which image last booted and whether it passed its check. |
+| **Boot-info** | A versioned DRAM page the loader passes to the firmware; a cache of verified facts, not a trust anchor. |
 | **BSS** | Zero-initialised global memory in a firmware image. |
 | **Car link / AAP** | The 30-pin accessory path; AAP is Apple's accessory protocol. Tier 2 is a subset, not a certification claim. |
 | **Case folding** | Apple's rule for treating names that differ only by case as the same catalog key. |
@@ -24,16 +27,22 @@
 | **CNID** | Catalog node ID. HFS+'s permanent number for a file or folder; the root is 2. |
 | **Commit** | The moment a transaction is durable and visible. |
 | **Container (donor)** | The preallocated HFS+ file that held the donor overlay (`/.rockpod-rw`). Helikon-OS does not use it as a write path. |
+| **Cooperative loop** | A main loop that runs tasks to completion; it does not preempt them. |
 | **Compaction (donor)** | Copying live donor overlay records into a fresh area. Donor migration concept only. |
 | **Cross-compiler** | A compiler that runs on the host (e.g. macOS) but produces ARM code. |
 | **DFU** | Device Firmware Upgrade. The USB recovery/install mode. Bootloader changes use DFU only. |
 | **Dircache** | A legacy Rockbox directory cache. Helikon-OS does not use it. |
 | **DRAM** | The iPod's main memory; 64 MiB on the 6G reference. |
+| **Entry ABI** | The register and CPU-state contract at the loader-to-firmware jump. |
 | **Extent** | A contiguous run of disk blocks belonging to a file. |
 | **Extents overflow** | Extra extent records for files with more than eight inline runs. |
 | **FAT** | A simpler filesystem used by some iPods. Helikon-OS does not mount it; a FAT volume returns `NOT_HFS`. |
 | **GPL-2.0-or-later** | The project license: GNU GPL version 2, or any later version. Matches Rockbox and the donor. |
 | **Firmware** | The operating system and drivers that run the player. |
+| **Firmware skeleton** | The read-only F1 image: boot, HAL, block read, HFS+ read, screen and power-off. |
+| **Fixed pool** | A statically sized object pool with a compile-time maximum; no general heap. |
+| **Framebuffer** | The RGB565 memory the LCD controller scans out. |
+| **Freestanding** | A build with no hosted C library or OS; only the firmware's own support code. |
 | **Fuzzing** | Feeding random/malformed input to find crashes and parser bugs. |
 | **HAL** | Hardware abstraction layer. A clean interface over registers and chips. |
 | **HFS+** | Apple's hierarchical file system used by the iPod. Helikon-OS targets HFS+ v4. |
@@ -48,6 +57,7 @@
 | **Native metadata** | Apple's catalog, bitmap, extents tree, volume header and journal. |
 | **Normalization** | Converting Unicode names to a canonical form. HFS+ stores decomposed names. |
 | **Overlay (donor)** | The old `/.rockpod-rw` container. Helikon-OS uses it only as migration material. |
+| **Panic** | A controlled fatal stop: record the fault, paint a screen, power off; it never writes the filesystem. |
 | **Podcast / RSS** | A feed of episodes fetched by the desktop app and synced to the device. The device has no network. |
 | **Porting layer** | The per-device code (BSP/HAL hooks) that adapts the shared firmware to one board. |
 | **Roonserver** | A rich music-browsing interface used as inspiration, not a dependency. |
@@ -58,6 +68,7 @@
 | **Superblock (donor)** | The header that described the donor overlay's layout. Migration material only. |
 | **Tagcache** | A legacy Rockbox metadata database. Helikon-OS replaces it with an immutable database. |
 | **Toolchain** | Compiler, linker, assembler and related build tools. |
+| **Watchdog** | A hardware timer that resets the device if the firmware stops feeding it; the policy is an open question. |
 | **Transaction** | A group of metadata changes that becomes visible together or not at all. |
 | **Unicode** | The character encoding behind HFS+ names; the writer needs Apple's case-folding and a normalization policy. |
 | **VFS** | Virtual filesystem. The common file interface used by applications. |

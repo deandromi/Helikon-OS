@@ -57,6 +57,8 @@ re-litigate them.
 | D-24 | UI text/icon rendering | accepted | owner | §14, §28.3.3; D-23 |
 | D-25 | Outer-volume write diagnostic scope | accepted | owner | §5, §24, §27; D-03, D-04, D-22 |
 | D-26 | Bootloader recovery/OF selection | accepted | owner | §5, §16, §21 |
+| D-27 | Firmware memory map and image layout | proposed | owner | §19.2, §27; ADR-0003 |
+| D-28 | Firmware entry ABI and boot information | proposed | owner | §5.3, §16; ADR-0004 |
 
 The paper's §25 lists 17 decisions. D-18, D-19, D-20 and D-26 are added from §18,
 §28.4.4 and the bootloader recovery policy. D-18 and D-20 are accepted; D-19 was
@@ -556,11 +558,6 @@ and its backup gate. See C-08.
   requires T-048 and a recorded `fsck_hfs` and backup diff.
 - **Evidence:** owner direction, 2026-11-04; host test passes, no device run.
 
-## Conflicts and source separation
-
-These are recorded so an agent does not silently pick a side. A conflict does
-not authorize a product change.
-
 ## D-26 — Bootloader recovery/OF selection
 
 - **Status:** accepted. **Owner:** owner. **Date:** 2026-11-04. **Paper:** §5, §16, §21.
@@ -580,6 +577,54 @@ not authorize a product change.
 - **Follow-up:** keep the native recovery instructions in `bootloader/DFU.md`
   and `docs/outer-volume-test.md`; do not add a bootloader menu without a new
   owner decision.
+
+## D-27 — Firmware memory map and image layout
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-04. **Paper:** §19.2, §27; ADR-0003.
+- **Context:** the loader validates an 8 MiB image window, but the 6G has 64 MiB
+  of DRAM and no firmware memory map is recorded. F1 needs a linker script,
+  stacks, framebuffer, ATA buffers and a boot-info page; F5 needs audio memory.
+- **Options:** keep everything inside 8 MiB; a fixed 64 MiB map with a reserved
+  boot-info page; a runtime-discovered relocatable heap; defer the map.
+- **Decision:** unresolved. The recommended option is a fixed 64 MiB map with
+  the image in `0x08000000`–`0x087fefff`, a 4 KiB boot-info page at
+  `0x087ff000`, kernel data at `0x08800000`, UI at `0x09000000`, audio at
+  `0x09800000`, database at `0x0a800000` and an 8 MiB reserve. This is a
+  proposal for owner acceptance, not an accepted map.
+- **Consequences:** the image cap becomes 8 MiB − 4 KiB; the loader must later
+  reject an image that overlaps the boot-info page. Audio and database budgets
+  are reserved before those features exist. A measurement may change the split
+  before F5.
+- **Follow-up:** accept/reject ADR-0003; T-054 implements the linker script and
+  assertions; record the accepted map here.
+- **Evidence:** design-paper memory budget only; no device measurement yet.
+
+## D-28 — Firmware entry ABI and boot information
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-04. **Paper:** §5.3, §16; ADR-0004.
+- **Context:** the loader calls `entry(void)` with IRQ disabled and caches
+  cleaned, expects a test payload to return, and passes no boot information. A
+  production firmware must never return and needs the verified image facts and
+  bootstate/journal observations without re-reading HFS+.
+- **Options:** no arguments and re-read everything; a versioned boot-info page
+  in `r0`; a fixed struct at an absolute address; pass only the manifest
+  pointer.
+- **Decision:** unresolved. The recommended option is a versioned, CRC-32
+  protected boot-info page at `0x087ff000`, passed in `r0`, with `r1 = 0` and a
+  no-return contract. Boot-info is a cache of verified facts, not a trust
+  anchor; the firmware must re-read bootstate before writing it.
+- **Consequences:** the loader gains a small DRAM write before the jump. The
+  firmware gains a parser, a host test and a defensive `BOOT_INFO_INVALID` path.
+  A bad or missing page must not lead to a bootstate write.
+- **Follow-up:** accept/reject ADR-0004; T-054 implements the parser; update
+  `bootloader/LOADER.md` after acceptance.
+- **Evidence:** current loader source and test payload behaviour; no device run
+  of a boot-info page yet.
+
+## Conflicts and source separation
+
+These are recorded so an agent does not silently pick a side. A conflict does
+not authorize a product change.
 
 ### C-01 — Donor V3.2 safety model vs Helikon-OS native writes
 

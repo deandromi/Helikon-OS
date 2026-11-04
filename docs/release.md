@@ -57,8 +57,8 @@ magic, board, version, load address, size, SHA-256, signature
 ```
 
 The bootloader verifies before jumping. A bad magic, board, version, load
-address, size, hash or signature is rejected; the previous verified image stays
-bootable.
+address, size, hash or signature is rejected and the loader fails closed to
+recovery; there is no A/B previous-image fallback (T-050).
 
 **Status:** D-01 accepts Ed25519 signed manifests and D-20/ADR-0002 accepts an
 offline Ed25519 root on two hardware tokens plus a certified release key, with

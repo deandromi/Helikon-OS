@@ -77,11 +77,18 @@ both. The logo is a wordmark, not a UI text style.
 
 ## 4. Bootloader splash
 
-The current bootloader splash is the owner-supplied 320×240 1-bit image packed
-by `bootloader/splash.c`; it is not the final design. The owner will design a
-new splash (T-045). The new asset must be 320×240, readable on the 6G, and its
-rendering path (1-bit Rockbox mono or a grayscale/colour path) must be decided
-before implementation. Do not replace the current splash or the reference image
+The bootloader splash is the owner's final **green/red Alpha artwork**, not the
+earlier 1-bit image. The source PNGs, the 16-colour 4bpp device representation,
+the HFS+ label mask and the `#00BF63`/`#FE3131`/`#6B665C` label colours are
+recorded in [`../assets/bootloader/README.md`](../assets/bootloader/README.md).
+The final-splash image `6bc6927c…` was device-checked on one 6G/iFlash SD at
+6.5 s startup with a clean `fsck_hfs -fn`.
+
+The firmware first frame should continue this identity: off-white `#EFEDE5`
+background, the same wordmark and type scale, and no contradictory HFS+ state.
+The intended handoff is described in
+[`firmware-architecture.md`](firmware-architecture.md) §9.10; it is a design
+intent, not a firmware result. Do not replace the splash or the reference image
 without owner approval.
 
 ## 5. Not specified yet
@@ -97,7 +104,8 @@ settled:
 - exact logo size, lockup and clear space;
 - Manrope variable-axis settings beyond Bold;
 - subpixel rendering, gamma correction, hinting and bitmap fallback metrics;
-- whether the bootloader splash uses 1-bit mono or a grayscale/colour path.
+- whether the firmware first frame continues the splash with a stage line or a
+  clean content change.
 
 The host mockup uses provisional values (24 px menu row pitch, 10–12 px margins,
 black/white neutral palette, 20 px wordmark). They illustrate the type scale and

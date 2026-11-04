@@ -200,6 +200,20 @@ unreplayed journal and requires macOS `fsck_hfs -fy` to replay it to a clean
 volume. This closes a compatibility gap where the writer's own replay worked
 but macOS rejected the journal.
 
+### 5.7 Firmware host harness and bring-up ladder
+
+Firmware tests are specified in
+[`firmware-architecture.md`](firmware-architecture.md) §12. The core modules are
+built for the host with a fake block device, deterministic clock, scripted input
+and frame capture; the same `firmware/lib/` code is linked where possible. The
+host harness is a fast loop, not a device result.
+
+The device bring-up ladder is recorded rung by rung: banner, ATA identify,
+partition scan, HFS+ probe, read one known file, input, bootstate promotion,
+browser, first UI, first audio. A rung is not skipped because a host test
+passes. The planned firmware commands (`make -C firmware BOARD=6g ...`) do not
+exist yet; the firmware tree is still `planned` (T-054–T-058).
+
 ## 6. Device tests
 
 Device tests require a recorded inventory and backup. Minimum matrix:

@@ -15,6 +15,13 @@ UI are planned. The HFS+ writer is host- and real-volume-tested but not a
 release. Nothing in this file is evidence that Helikon-OS boots firmware, mounts,
 plays, writes or updates.
 
+Firmware-internal structure — entry contract, memory map, runtime model, module
+boundaries, flows, UI identity and developer ergonomics — is specified in
+[`firmware-architecture.md`](firmware-architecture.md). The proposed memory map
+and entry ABI are [`ADR-0003`](adr/0003-firmware-memory-map.md) and
+[`ADR-0004`](adr/0004-firmware-entry-abi.md); they are `proposed` (D-27/D-28)
+and await owner acceptance.
+
 ## 1. Boot chain
 
 ```text
@@ -254,6 +261,12 @@ There is no auto-update, no silent install and no writable USB path.
 
 ## 11. Related
 
+- [`firmware-architecture.md`](firmware-architecture.md) — firmware-internal
+  architecture, aesthetics and ergonomics
+- [`adr/0003-firmware-memory-map.md`](adr/0003-firmware-memory-map.md) — proposed
+  firmware memory map
+- [`adr/0004-firmware-entry-abi.md`](adr/0004-firmware-entry-abi.md) — proposed
+  entry ABI
 - [`hfsplus-write-engine.md`](hfsplus-write-engine.md) — writer deep dive
 - [`file-map.md`](file-map.md) — owning files/areas
 - [`invariants.md`](invariants.md) — safety rules

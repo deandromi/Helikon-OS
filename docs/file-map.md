@@ -136,6 +136,7 @@ Helikon-OS/
     verification.md         proof checklist
     file-map.md             this file
     architecture.md         boot chain, layers, boundaries
+    firmware-architecture.md firmware-internal design paper (entry, memory, runtime, UI, ergonomics)
     ui.md                   default theme typography, anti-aliasing and font rules
     outer-volume-test.md    real outer-volume write protocol and backup gate
     failures.md             error taxonomy and decision trees
@@ -163,19 +164,22 @@ Helikon-OS/
 ```text
 bootloader/                 rescue bootloader; native HFS+ read-only
 firmware/
-  hal/                      S5L8702 board primitives; no filesystem policy
+  boot/                     _start, vectors, linker script, boot-info, panic
+  lib/                      freestanding mem/string/CRC/ring/pool helpers
+  hal/6g/                   S5L8702 board primitives; no filesystem policy
+  board/6g/                 BSP constants, init sequence, memory map
   block/                    block device, flush, power state
-  hfs/                      reader: volume, btree, catalog, extents, unicode
-  hfs/write/                catalog/bitmap/extents mutation
-  journal/                  journal records, commit, replay, barriers
-  vfs/                      fs_ops, lookup, handles, capabilities
+  hfs/                      read core + writer + journal + txn (current tree)
+  vfs/                      lookup, handles, capabilities
   db/                       immutable database reader; host-built first
   player/                   buffer/decode/output state machine
   ui/                       retained-mode screens and renderer
+  input/                    click wheel/button events, debounce, focus
   skin/                     documented Rockbox WPS subset
   sandbox/                  app/game runtime, quotas, host API
   usb/                      read-only LUN, optional service mode
-  diagnostics/              events, counters, recovery screens
+  diag/                     events, counters, recovery screens
+  update/                   staging and bootstate promotion (later)
 tools/
   build-diagnostic-bootloader.sh  pinned donor export, patch, Thumb build, checks
   build-loader-bootloader.sh      loader test image, test key/manifest/payload, checks
@@ -223,19 +227,24 @@ is created; do not let it drift.
 | `assets/ui/` | Host 320×240 typography mockups | UI lead | `assets/ui/README.md`, `docs/ui.md` | 320×240 grayscale, no clipping, reproducible script | Host artifacts only; not a device panel run |
 | `docs/` | Agent documentation | docs lead | `docs/conventions.md` | `git diff --check`, link check | One canonical file per topic; no duplicate `agent.md`/`decision-log.md` |
 | `bootloader/` | Diagnostic core and splash exist; hardware entry/manifest still planned | boot lead | `bootloader/README.md`, `docs/architecture.md`, paper §5, §16 | 7 host tests; device tests planned | No filesystem writes; no overlay; no `--single`; no write modules linked; not flashable yet |
-| `firmware/hal/` | S5L8702 clocks, GPIO, PMU, ATA, LCD, codec | hardware lead | paper §6–§7, `docs/architecture.md` | register-level bring-up, sleep/wake | No filesystem, UI or policy; no unmeasured overclock/undervolt |
+| `firmware/boot/` | Entry, vectors, linker script, boot-info parser, panic | boot lead | `docs/firmware-architecture.md` §3, ADR-0004 | boot-info and fault tests | No C before stacks/BSS; entry never returns; no filesystem |
+| `firmware/lib/` | Freestanding mem/string/CRC/ring/pool helpers | firmware lead | `docs/firmware-architecture.md` §8.9 | host unit tests; no hosted symbols | No `malloc`, `stdio` or locale |
+| `firmware/board/6g/` | BSP constants, init sequence, memory map | hardware lead | ADR-0003, paper §6 | map assertions, board audit | No target `#ifdef` in shared core |
+| `firmware/hal/6g/` | S5L8702 clocks, GPIO, PMU, ATA, LCD, codec | hardware lead | paper §6–§7, `docs/architecture.md` | register-level bring-up, sleep/wake | No filesystem, UI or policy; no unmeasured overclock/undervolt |
 | `firmware/block/` | Sector I/O, flush, power state | storage lead | paper §7, `docs/architecture.md` | read/write/flush, 512/4096, error injection | No paths/files/caches; a flush error must propagate |
-| `firmware/hfs/` | HFS+ read core: volume, B-tree, catalog, Unicode and extents implemented | HFS+ lead | paper §8, §10.4, `docs/hfsplus-write-engine.md` | 34 host tests now; unit/fuzz/malformed/macOS differential planned | Read-only; no write path; never hide unsupported entries |
-| `firmware/hfs/write/` | Catalog/bitmap/extents mutation | HFS+ lead | `docs/hfsplus-write-engine.md`, invariants I-03–I-15 | model/property/crash tests, `fsck_hfs` | No journal format, UI or boot policy; no direct writes outside a transaction |
-| `firmware/journal/` | Journal append, commit, replay, barriers | journal lead | paper §9.3–§9.4, `docs/hfsplus-write-engine.md` | crash injection, idempotent replay | No product policy/UI; never delete/disable/zero the journal |
+| `firmware/hfs/` | HFS+ read core and writer: volume, B-tree, catalog, Unicode, extents, journal, txn | HFS+ lead | paper §8, §10.4, `docs/hfsplus-write-engine.md` | 104 host tests; fuzz/malformed/macOS differential planned | Writes only through `hfs_txn`; never hide unsupported entries |
+| `firmware/hfs/hfs_catalog_write.c`, `hfs_btree_tree.c`, `hfs_bitmap.c`, `hfs_extents_write.c` | Catalog/bitmap/extents mutation | HFS+ lead | `docs/hfsplus-write-engine.md`, invariants I-03–I-15 | model/property/crash tests, `fsck_hfs` | No journal format, UI or boot policy; no direct writes outside a transaction |
+| `firmware/hfs/hfs_journal.c`, `hfs_txn.c` | Journal append/commit/replay, bounded transaction engine | journal lead | paper §9.3–§9.4, `docs/hfsplus-write-engine.md` | crash injection, idempotent replay | No product policy/UI; never delete/disable/zero the journal |
 | `firmware/vfs/` | Lookup, handles, capabilities, path rules | VFS lead | paper §10, `docs/architecture.md` | path/name tests, capability tests | No hardware registers; no overlay branch; no errno guessing |
 | `firmware/db/` | Immutable metadata/index reader | database lead | paper §12, D-07 | 10k-track browse, stale-entry fallback | No playback state; database is a cache, not truth |
 | `firmware/player/` | Buffer/decode/output state machine | audio lead | paper §13, §28.3.8 | audio matrix, gapless, seek | No filesystem internals; no unmeasured audiophile claims |
 | `firmware/ui/` | Screens, input, rendering | UI lead | paper §14, §28.3.3, `docs/ui.md` | task tests, frame trace, typography mockup | No storage policy; default UI must survive skin failure |
+| `firmware/input/` | Click wheel/button events, debounce, focus | UI lead | `docs/firmware-architecture.md` §9.7 | event/acceleration tests | No storage or playback policy |
 | `firmware/skin/` | Documented WPS subset | UI lead | paper §28.3.4, D-10/D-15 | 20-skin corpus, hostile skin tests | No raw storage/playback policy; no full WPS engine; no unlicensed assets |
 | `firmware/sandbox/` | App/game runtime, quotas, host API | runtime lead | paper §15, §28.3.9–10, D-08 | escape/quota/crash tests | No raw block/NOR/PMU/GPIO; no legacy plugin binary compatibility |
 | `firmware/usb/` | Read-only LUN, descriptors, optional service mode | USB lead | paper §16, D-09 | read-only mount, descriptor/error tests | No filesystem writes; no writable mass-storage LUN; RAM-only relabel |
-| `firmware/diagnostics/` | Events, counters, recovery | diagnostics lead | paper §11.2, `docs/failures.md` | log/export tests | Do not write logs on a failing filesystem; bounded RAM ring |
+| `firmware/diag/` | Events, counters, recovery | diagnostics lead | paper §11.2, `docs/failures.md` | log/export tests | Do not write logs on a failing filesystem; bounded RAM ring |
+| `firmware/update/` | Staged update and bootstate promotion | release lead | paper §16, `docs/release.md` | signed manifest, staging, bootstate tests | No silent install; no unsigned image; loader verifies |
 | `tools/build-diagnostic-bootloader.sh` | Render the diagnostic image from a pinned donor checkout | boot/release lead | D-21, `bootloader/README.md` | Thumb build, `MOVE_AREA`, hash, `mks5lboot` dry-run | Uses a clean `git archive`; never modifies the donor checkout; image is unproven |
 | `tools/build-loader-bootloader.sh` | Render the DFU-only loader test image and signed test files | boot lead | D-01, D-02, T-049, `bootloader/LOADER_TEST.md` | test key reuse, manifest signature, image/marker/`MOVE_AREA`, HFS+ artifact check, `mks5lboot` dry-run | Test key stays under `build/`; only the public half is linked; no device run; production handoff disabled |
 | `tools/check-loader-artifact.sh` | Verify the exact loader test artifact through the host HFS+ core | boot lead | T-049 | disposable HFS+ image, `fsck_hfs`, `loader: OK`, `bootstate: GOOD` | Host-only; never touches a device |

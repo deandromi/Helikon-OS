@@ -11,6 +11,49 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-04 (firmware architecture and ADRs)
+
+## What happened
+
+- Added [`firmware-architecture.md`](firmware-architecture.md), a ~19k-word
+  firmware-internal research and design paper: boot boundary, memory map,
+  runtime model, module architecture, boot/mount/read/first-write flows,
+  developer ergonomics, aesthetic and interaction design, security, performance,
+  testing, phases F1–F5, risks, open questions and appendices.
+- Added two **proposed** ADRs: [`adr/0003-firmware-memory-map.md`](adr/0003-firmware-memory-map.md)
+  (fixed 64 MiB map, 8 MiB − 4 KiB image cap, 4 KiB boot-info page at
+  `0x087ff000`) and [`adr/0004-firmware-entry-abi.md`](adr/0004-firmware-entry-abi.md)
+  (`r0` boot-info, no-return entry, CPU-state contract, validation and
+  fallback). They are indexed as D-27/D-28 and await owner acceptance.
+- Added firmware tasks T-054–T-058 (F1 skeleton, F2 bootstate word, F3 VFS and
+  browser, F4 UI, F5 audio) and made T-054/T-055 P0 because they produce the
+  first real signed firmware image and unblock T-051.
+- Updated the documentation index, `state.md`, `architecture.md`, `file-map.md`,
+  `ui.md` (final splash status), `failures.md` (single-image fail-closed
+  wording), `glossary.md` and `testing.md`.
+- No firmware code, image, manifest or device run was added. No release key was
+  generated and no signing claim is made.
+
+## What is next
+
+1. Owner accepts or rejects ADR-0003 and ADR-0004; record the result in D-27/D-28.
+2. T-054/F1: read-only firmware skeleton with a signed image, banner, ATA read,
+   HFS+ probe, one file read, PASS and power-off. No filesystem writes.
+3. T-055/F2: promote `/.helikon/bootstate` to `GOOD` through `hfs_txn`, then
+   close the loader loop; no other file written.
+4. T-053: release-key certificate, rotation and revocation verifier.
+5. Keep the host harness and the boot-stage/error vocabulary in sync with the
+   paper as F1 starts.
+
+## Do not claim
+
+- No firmware kernel, HAL, VFS, player or UI exists.
+- The memory map and entry ABI are proposals, not accepted decisions.
+- No firmware boot, audio, UI, writable library or support claim.
+- No release key, release signature or signed release image.
+
+---
+
 # Handoff — 2026-11-04 (loader test image passes)
 
 ## What happened

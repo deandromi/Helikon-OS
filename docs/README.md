@@ -8,11 +8,12 @@
 
 Helikon-OS is a **design-stage** project to build a native-HFS+ bootloader and
 firmware for the iPod Classic 6G (reference target) and 7G (next named port,
-after a board audit). It is not a working firmware release: this repository currently
-contains the owner-authored product README plus the documentation in this
-directory. The separate V3.2 donor release is overlay-based and is not
-Helikon-OS. The defining promise is a native, writable, journaled HFS+ volume
-with no overlay and no FAT mount.
+after a board audit). It is not a working firmware release: the repository
+contains the owner-authored product README, this documentation, the host HFS+
+read/write core, the read-only diagnostic and loader-test bootloaders, and the
+host tests. There is no firmware image. The separate V3.2 donor release is
+overlay-based and is not Helikon-OS. The defining promise is a native, writable,
+journaled HFS+ volume with no overlay and no FAT mount.
 
 ## Start here if you are an agent
 
@@ -33,15 +34,18 @@ scope, licensing, or app/plugin compatibility — stop and record it in
 2. [`state.md`](state.md)
 3. [`invariants.md`](invariants.md)
 4. [`architecture.md`](architecture.md) and [`file-map.md`](file-map.md)
-5. [`tasks.md`](tasks.md)
-6. [`verification.md`](verification.md)
-7. [`decisions.md`](decisions.md)
-8. [`goals.md`](goals.md) and [`roadmap.md`](roadmap.md)
-9. [`design-paper.md`](design-paper.md)
-10. [`failures.md`](failures.md), [`glossary.md`](glossary.md),
+5. [`firmware-architecture.md`](firmware-architecture.md) — firmware internals,
+   memory, runtime, UI identity and developer ergonomics
+6. [`tasks.md`](tasks.md)
+7. [`verification.md`](verification.md)
+8. [`decisions.md`](decisions.md)
+9. [`goals.md`](goals.md) and [`roadmap.md`](roadmap.md)
+10. [`design-paper.md`](design-paper.md)
+11. [`failures.md`](failures.md), [`glossary.md`](glossary.md),
     [`device-matrix.md`](device-matrix.md)
 
 Then read the specialist files you need:
+[`firmware-architecture.md`](firmware-architecture.md),
 [`hfsplus-write-engine.md`](hfsplus-write-engine.md),
 [`ui.md`](ui.md), [`outer-volume-test.md`](outer-volume-test.md),
 [`fixtures.md`](fixtures.md), [`testing.md`](testing.md),
@@ -79,11 +83,15 @@ status.
 | [`../.github/ISSUE_TEMPLATE/`](../.github/ISSUE_TEMPLATE/) | Bug, feature and device-test issue forms. | living |
 | [`state.md`](state.md) | Current phase, what exists, blockers, evidence status. | living |
 | [`invariants.md`](invariants.md) | Numbered, testable safety invariants. | living |
-| [`decisions.md`](decisions.md) | Decision log, conflict record and 23 decision entries. | living |
+| [`decisions.md`](decisions.md) | Decision log, conflict record and 28 decision entries. | living |
 | [`tasks.md`](tasks.md) | Now/Next/Later task queue with acceptance criteria. | living |
 | [`verification.md`](verification.md) | Per-change proof checklist and evidence template. | living |
 | [`file-map.md`](file-map.md) | “I need to change X” → owning file/module. | living |
 | [`architecture.md`](architecture.md) | Boot chain, layers, boundaries, memory, security. | living |
+| [`firmware-architecture.md`](firmware-architecture.md) | Firmware-internal architecture: entry, memory, runtime, modules, flows, aesthetics, ergonomics, testing, phases F1–F5. | living |
+| [`adr/0002-signing-key-ownership.md`](adr/0002-signing-key-ownership.md) | Offline Ed25519 root and certified release key (accepted, D-20). | living |
+| [`adr/0003-firmware-memory-map.md`](adr/0003-firmware-memory-map.md) | Proposed firmware memory map and image layout (D-27). | living |
+| [`adr/0004-firmware-entry-abi.md`](adr/0004-firmware-entry-abi.md) | Proposed firmware entry ABI and boot-info page (D-28). | living |
 | [`ui.md`](ui.md) | Default first-party UI typography, anti-aliasing, font rules and open theme questions. | living |
 | [`outer-volume-test.md`](outer-volume-test.md) | Real outer-volume write test protocol and backup gate. | living |
 | [`failures.md`](failures.md) | Error taxonomy, decision trees, destructive-action warnings. | living |
@@ -128,14 +136,17 @@ Key entry points: [`design-paper.md`](design-paper.md),
 
 ## What this documentation is not
 
-- It is not firmware code, a firmware-loading bootloader, an installer, CI, a
-  release, or a hardware validation report. A read-only diagnostic image and a
-  separate inner-image write diagnostic exist; both have recorded 6G runs, but
-  neither is a firmware loader or a support claim.
+- It is not firmware code, a production firmware-loading bootloader, an
+  installer, CI, a release, or a hardware validation report. A read-only
+  diagnostic image, a separate inner-image write diagnostic and a separate
+  outer-volume write diagnostic exist; the loader test image verifies a signed
+  test payload. All are diagnostic devices, not a firmware release or a support
+  claim.
 - It is not a signing policy or a release approval. The license is
   GPL-2.0-or-later (`LICENSE`); no code of conduct is currently adopted (D-19
-  rejected); signing-key ownership is still open in
-  [`decisions.md`](decisions.md) D-20.
+  rejected); signing-key ownership is accepted in
+  [`decisions.md`](decisions.md) D-20/ADR-0002, but no release key has been
+  generated and certificate verification is T-053.
 - It is not a copy of Rockbox, Rockpod, donor themes, artwork, fonts or metadata.
   The donor is referenced for provenance and file locations only.
 - It does not promise full Rockbox WPS compatibility, Rockbox plugin/game binary

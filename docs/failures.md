@@ -4,7 +4,7 @@
 > warnings.
 > Status: living document
 > Owner: diagnostics lead; every agent must follow the warnings
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: design paper §8.3, §9–§11, §16, §20, §24, §28
 
 Helikon-OS has no implemented error path yet. These are design meanings and the
@@ -107,12 +107,17 @@ result as evidence that the writer is correct. A repair means failure.
 | Bad hash/size/signature | Reject; keep the current image; log the manifest. |
 | Truncated image | Reject; keep the current image; offer re-download. |
 | Power cut during staging | Old image remains bootable; staging files are incomplete; verify before install. |
-| Power cut during boot-state commit | Bootloader falls back to the default/previous verified image. |
-| New image boots but fails self-test | Boot-state marks failure; rollback to previous image. |
+| Power cut during boot-state commit | The loader validates the single image and the boot-state; an inconsistent slot fails closed to recovery, not to a second image. |
+| New image boots but fails self-test | Boot-state is not promoted to `GOOD`; the loader shows recovery. Recovery is DFU/Apple restore; there is no A/B rollback. |
 | Bootloader update fails | Recover through DFU; never `--single`; Apple path preserved. |
 
 No update is "installed" until the bootloader verifies it and the firmware
 commits a boot-state record. No silent install. No writable USB mass storage.
+
+**Single-image fail-closed (owner decision 2026-11-04, T-050).** The frozen
+format has one image path. A failed, mismatched or unbootable image produces a
+recovery screen and no jump; recovery is DFU/Apple restore. Do not describe a
+"previous image" or an A/B rollback as implemented.
 
 ## 6. App/game sandbox failure
 

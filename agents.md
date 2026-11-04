@@ -110,6 +110,7 @@ README.md                 owner-authored product goals; do not edit
 agents.md                 this contract
 docs/                     agent documentation (current)
   design-paper.md         full design paper copy with provenance
+  firmware-architecture.md firmware-internal design paper
   state.md                current phase, blockers, evidence status
   invariants.md           numbered safety invariants
   decisions.md            decisions and open-decision index
@@ -265,12 +266,13 @@ the verified backup; do not reformat the device.
 
 **Read first:** `docs/release.md`, `docs/validation.md`, `docs/security.md`,
 paper §16 and §28.2.5. **Do:** signed manifest, staged image, explicit install,
-boot-state record, rollback, bootloader DFU only. No release without the
-validation scorecard. **Test:** bad board, bad version, truncated image, wrong
-hash, power cut during staging, rollback, version/hash display. **Evidence:**
-manifest, image hash, device run, update/rollback log, `fsck_hfs` output.
-**Rollback:** bootloader keeps the previous verified image; bootloader changes
-recover through DFU.
+boot-state record, fail-closed recovery, bootloader DFU only. No release without
+the validation scorecard. **Test:** bad board, bad version, truncated image,
+wrong hash, power cut during staging, failed/mismatched bootstate fail-closed
+path, version/hash display. **Evidence:** manifest, image hash, device run,
+update/fail-closed log, `fsck_hfs` output. **Rollback:** the bootloader fails
+closed to recovery; bootloader changes recover through DFU. There is no A/B
+previous-image rollback (T-050).
 
 ### 7.8 Diagnostic bootloader change
 
@@ -319,8 +321,8 @@ do not format, erase or delete the journal.
   is T-053.
 - Firmware is staged under `/.helikon/update/` through the HFS+ transaction
   engine, flushed, read back and verified.
-- The bootloader verifies before jumping and keeps the previous verified image
-  on failure.
+- The bootloader verifies before jumping and fails closed to recovery on
+  failure; there is no A/B previous-image rollback (T-050).
 - Bootloader changes are DFU-only and have their own verification.
 - Updates are explicit, never silent.
 - No stable release without the `docs/validation.md` scorecard, a recorded
@@ -365,7 +367,7 @@ D-07 database location · D-08 app/game runtime · D-09 desktop app transport ·
 D-10 skin compatibility scope · D-11 anti-corruption scope · D-12 battery
 target · D-13 7G and port scope ·
 D-14 car protocol · D-15 theme format · D-16 update transport · D-17 name
-clearance.
+clearance · D-27 firmware memory map · D-28 firmware entry ABI.
 
 ## 11. Handoff protocol
 1. Read `docs/state.md` and `docs/tasks.md` before starting.
@@ -396,7 +398,7 @@ The handoff template is in `docs/handoff.md`. A dated log entry belongs in
 - Update `docs/state.md`, `docs/tasks.md` and `docs/handoff.md` every session.
 
 ## 13. Full documentation index
-[Index](docs/README.md) · [UI design](docs/ui.md) · [outer-volume test](docs/outer-volume-test.md) · [state](docs/state.md) · [invariants](docs/invariants.md) · [decisions](docs/decisions.md) · [tasks](docs/tasks.md) · [verification](docs/verification.md) · [file map](docs/file-map.md) · [architecture](docs/architecture.md).
+[Index](docs/README.md) · [Firmware architecture](docs/firmware-architecture.md) · [UI design](docs/ui.md) · [outer-volume test](docs/outer-volume-test.md) · [state](docs/state.md) · [invariants](docs/invariants.md) · [decisions](docs/decisions.md) · [tasks](docs/tasks.md) · [verification](docs/verification.md) · [file map](docs/file-map.md) · [architecture](docs/architecture.md).
 [Failures](docs/failures.md) · [device matrix](docs/device-matrix.md) · [handoff](docs/handoff.md) · [conventions](docs/conventions.md) · [glossary](docs/glossary.md) · [testing](docs/testing.md) · [validation](docs/validation.md) · [goals](docs/goals.md).
 [Roadmap](docs/roadmap.md) · [write engine](docs/hfsplus-write-engine.md) · [release](docs/release.md) · [security](docs/security.md) · [FAQ](docs/faq.md) · [design paper](docs/design-paper.md) · [logo assets](assets/logo/README.md) · [branding assets](assets/branding/README.md) · [bootloader](bootloader/README.md) · [ADRs](docs/adr/README.md) · [ADR template](docs/adr/0001-template.md).
 [Log](docs/log/README.md) · [log template](docs/log/TEMPLATE.md) · [latest log](docs/log/2026-11-04.md) · [prompts](docs/prompts/README.md) · [writer review](docs/prompts/review-hfsplus-writer.md) · [device matrix prompt](docs/prompts/run-device-matrix.md) · [docs audit](docs/prompts/audit-docs-for-contradictions.md).

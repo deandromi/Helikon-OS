@@ -94,9 +94,8 @@ requirement.
   before jump.
 - Firmware staging through the transaction engine and install verification are
   not implemented.
-- A bad image does not jump. A previous verified image is bootable only when a
-  per-slot image path exists; the current single-path format fails closed
-  (C-10).
+- A bad image does not jump. The current single-path format fails closed to
+  recovery (C-10); there is no A/B previous-image fallback.
 - Bootloader updates are DFU-only and preserve the Apple NOR path.
 - No unsigned firmware or plugin execution.
 - No debug bypass in a release build.
