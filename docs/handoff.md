@@ -11,6 +11,38 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-04 (session-start prompt)
+
+## What happened
+
+- Added [`prompts/session-start.md`](prompts/session-start.md), a reusable
+  full-procedure prompt for the start of any session. It forces a repo read,
+  a git-state check, task selection by priority/dependency, a short **Session
+  Brief** before edits, domain routing, a work loop, the end-of-session doc
+  checklist and a hard-stop card.
+- The prompt deliberately does not hardcode the current task; it derives it
+  from `state.md`, `tasks.md` and the handoff, so it does not rot when the queue
+  changes. It includes a dated example brief, marked as an example only.
+- Updated the prompts README, docs index, `agents.md` (session-start instruction
+  and index), `state.md` and `file-map.md`.
+- No firmware code, image or device run was added.
+
+## What is next
+
+1. Paste `docs/prompts/session-start.md` at the start of the next session; it
+   should produce the Session Brief and then start T-054/F1 if authorized.
+2. Keep the example brief in the prompt marked as an example; the repo wins.
+3. Use `build-firmware.md` for the actual F1–F5 execution.
+
+## Do not claim
+
+- No firmware code or device result exists.
+- The prompts are execution contracts, not evidence.
+- The Session Brief is a snapshot derived from the repo, not a new source of
+  truth.
+
+---
+
 # Handoff — 2026-11-04 (firmware build prompt)
 
 ## What happened

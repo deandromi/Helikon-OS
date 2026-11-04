@@ -372,6 +372,10 @@ D-14 car protocol · D-15 theme format · D-16 update transport · D-17 name
 clearance.
 
 ## 11. Handoff protocol
+At the start of a session, use
+[`docs/prompts/session-start.md`](docs/prompts/session-start.md) to produce a
+short Session Brief before editing. Then follow this protocol:
+
 1. Read `docs/state.md` and `docs/tasks.md` before starting.
 2. Do not rely on chat history for current state.
 3. At the end of a session, update `docs/handoff.md` with the latest entry.
@@ -403,5 +407,5 @@ The handoff template is in `docs/handoff.md`. A dated log entry belongs in
 [Index](docs/README.md) · [Firmware architecture](docs/firmware-architecture.md) · [UI design](docs/ui.md) · [outer-volume test](docs/outer-volume-test.md) · [state](docs/state.md) · [invariants](docs/invariants.md) · [decisions](docs/decisions.md) · [tasks](docs/tasks.md) · [verification](docs/verification.md) · [file map](docs/file-map.md) · [architecture](docs/architecture.md).
 [Failures](docs/failures.md) · [device matrix](docs/device-matrix.md) · [handoff](docs/handoff.md) · [conventions](docs/conventions.md) · [glossary](docs/glossary.md) · [testing](docs/testing.md) · [validation](docs/validation.md) · [goals](docs/goals.md).
 [Roadmap](docs/roadmap.md) · [write engine](docs/hfsplus-write-engine.md) · [release](docs/release.md) · [security](docs/security.md) · [FAQ](docs/faq.md) · [design paper](docs/design-paper.md) · [logo assets](assets/logo/README.md) · [branding assets](assets/branding/README.md) · [bootloader](bootloader/README.md) · [ADRs](docs/adr/README.md) · [ADR template](docs/adr/0001-template.md).
-[Log](docs/log/README.md) · [log template](docs/log/TEMPLATE.md) · [latest log](docs/log/2026-11-04.md) · [prompts](docs/prompts/README.md) · [build firmware prompt](docs/prompts/build-firmware.md) · [writer review](docs/prompts/review-hfsplus-writer.md) · [device matrix prompt](docs/prompts/run-device-matrix.md) · [docs audit](docs/prompts/audit-docs-for-contradictions.md).
+[Log](docs/log/README.md) · [log template](docs/log/TEMPLATE.md) · [latest log](docs/log/2026-11-04.md) · [prompts](docs/prompts/README.md) · [session-start prompt](docs/prompts/session-start.md) · [build firmware prompt](docs/prompts/build-firmware.md) · [writer review](docs/prompts/review-hfsplus-writer.md) · [device matrix prompt](docs/prompts/run-device-matrix.md) · [docs audit](docs/prompts/audit-docs-for-contradictions.md).
 [Contributing](CONTRIBUTING.md) · [security policy](SECURITY.md) · [license](LICENSE) · [notice](NOTICE) · [issue templates](.github/ISSUE_TEMPLATE/) · [DFU runbook](bootloader/DFU.md) · [write diagnostic](bootloader/WRITE_DIAG.md).

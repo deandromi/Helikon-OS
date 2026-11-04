@@ -14,8 +14,8 @@ invariants. Do not paste the design paper into a prompt.
 - Keep a routine prompt under ~40 lines.
 - A **full-procedure prompt** is allowed when a fresh agent needs the complete
   execution contract in one file. Mark it `full-procedure` in the index and
-  keep the canonical docs as the source of truth. There is currently one:
-  [`build-firmware.md`](build-firmware.md).
+  keep the canonical docs as the source of truth. There are currently two:
+  [`session-start.md`](session-start.md) and [`build-firmware.md`](build-firmware.md).
 - Name the exact files to read and the output required.
 - Include the hard stops that apply.
 - Do not ask an agent to invent a device result, measurement or decision.
@@ -25,6 +25,8 @@ invariants. Do not paste the design paper into a prompt.
 
 ## Prompts
 
+- [`session-start.md`](session-start.md) — **full-procedure**: bootstrap any
+  session, produce a Session Brief, then work the active task.
 - [`build-firmware.md`](build-firmware.md) — **full-procedure**: build the
   Helikon-OS firmware F1–F5, starting with F1/T-054.
 - [`review-hfsplus-writer.md`](review-hfsplus-writer.md) — review a writer design
