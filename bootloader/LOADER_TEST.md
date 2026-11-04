@@ -95,7 +95,8 @@ with different flags.
 The screen should show, in order:
 
 ```text
-HELIKON-OS splash
+HELIKON-OS splash, VERSION Alpha
+HFS+ DETAILS turns green after the volume/catalog open
 HELIKON-OS LOADER TEST
 Firmware verified.
 Version: 1
@@ -108,9 +109,14 @@ Signed test payload executed.
 Press any button to power off.
 ```
 
-The exact version/size values come from the generated manifest. A failure screen
-shows the loader error name and code. Record the full screen before pressing a
-button.
+The splash starts with a neutral `HFS+ DETAILS`, then turns green when the HFS+
+volume and catalog open. A red label or a failure screen shows the HFS+ or
+loader error name and code. Record the full screen before pressing a button.
+
+The splash is a 16-colour RGB565 representation of the owner artwork; the
+illustration is not redrawn. `VERSION Alpha` is baked into the current build.
+The exact image version/size values in the text screen come from the generated
+manifest.
 
 Pass criteria:
 

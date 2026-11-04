@@ -29,7 +29,7 @@ Date of this snapshot: **2026-11-04**.
 | License: GPL-2.0-or-later | living | `LICENSE`, `NOTICE`, D-18 |
 | GitHub issue templates | living | `.github/ISSUE_TEMPLATE/` |
 | Helikon-OS poster | living | `assets/branding/helikon-os-poster.png`; embedded in README |
-| 320×240 startup crop | living (asset); `in progress` display | `assets/startup/helikon-os-320x240.png`; wired into the diagnostic image, unproven on hardware |
+| 320×240 startup crop | living (asset) | `assets/startup/helikon-os-320x240.png`; kept for provenance; superseded by the owner bootloader design in `assets/bootloader/` |
 | Mountain reference image | living | `assets/logo/mount-helikon-sunset.jpg`; source/licence open question |
 
 The "document status" column uses the document statuses from
@@ -78,7 +78,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Fork block staging | `implemented` | `firmware/hfs/hfs_fork_io.c`; full/partial block write staging into `hfs_txn`; inline extents only; 4 host tests |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
 | Default UI typography | `in progress` | D-23/D-24 and `docs/ui.md` record the 14/17/12/11 px scale and grayscale anti-aliasing. Licensed IBM Plex Sans and Manrope subsets, OFL texts, hashes and two 320×240 host mockups are in `assets/fonts/` and `assets/ui/`; `tools/render-ui-mockup.py` reproduces them with clipping checks. Firmware renderer and 6G panel run remain T-042 |
-| Bootloader splash redesign | `planned` | Current splash is the owner-supplied 320×240 1-bit image; owner will design a new splash (T-045). Rendering path and licence/source are open |
+| Bootloader splash redesign | `in progress` | Owner design in `assets/bootloader/` with `VERSION Alpha` and a green/red `HFS+ DETAILS` mask. The loader test image uses a 16-colour 4bpp RGB565 representation (38,400-byte base + 592-byte mask); the PNG mockups preserve the source. Font: ITC Benguiat Std Book 9px, owner-provided, not committed. No device run |
 | Host test harness | `in progress` | 132 portable tests (101 HFS+, 31 bootloader), sanitizer clean, plus the macOS disposable-image, Unicode, crash-injection, inner-image, outer-volume and loader tests; fixture plan in `fixtures.md`; first diagnostic boot is owner-reported |
 | Backup/recovery protocol | `implemented` | Full-volume backup, read-back, disposable restore rehearsal and Apple-restore/DFU path owner-confirmed 2026-11-04; protocol and stop conditions in `outer-volume-test.md` |
 | Fixture plan | `implemented` | `docs/fixtures.md` lists synthetic reader/journal/B-tree/catalog/extents/bitmap/Unicode fixtures, disposable-image writer fixtures and write/flush/partial crash fixtures; no disk images committed |
@@ -89,9 +89,9 @@ Helikon-OS poster above the goals on 2026-11-03.
 |---|---|---|
 | Helikon-OS firmware source tree | `in progress` | Host HFS+ read core, diagnostic bootloader, host write diagnostics and host firmware loader exist; no kernel, VFS or player |
 | Host firmware loader | `implemented` | `bootloader/manifest.c`, `bootstate.c`, `sha256.c`, `ed25519.c`, `keys.c`, `firmware_loader.c` and `hfs_loader.c`; formats frozen in `bootloader/LOADER.md`. Signature is verified before any image byte; then SHA-256 and bootstate. 13 manifest/loader tests, 2 HFS adapter tests, 4 Ed25519/key-table tests and a macOS HFS+ fixture with a real generated key pass. No jump and no writes |
-| Helikon-OS firmware-loading bootloader | `in progress` | Host loader exists and the separate DFU-only loader test image builds (76,584 bytes, 52,448 bytes `MOVE_AREA` headroom). It verifies Ed25519 before reading the image, reads directly to the signed DRAM address, executes only a signed development payload and disables production handoff. No device run; T-006/D-20 still owns signing keys |
+| Helikon-OS firmware-loading bootloader | `in progress` | Host loader exists and the separate DFU-only loader test image builds (106,216 bytes, 22,816 bytes `MOVE_AREA` headroom). It verifies Ed25519 before reading the image, reads directly to the signed DRAM address, executes only a signed development payload and disables production handoff. The owner splash with `VERSION Alpha` and a green/red HFS+ label is linked. No device run; T-006/D-20 still owns signing keys |
 | Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; separate inner-image and outer-volume write diagnostics built; none loads firmware. The inner image has one owner-reported run; the outer image has one successful 6G run |
-| Loader test image | `unproven` | `build/loader-bootloader/out/bootloader-ipod6g-loader-test.ipod` builds (76,584 bytes, 52,448 bytes headroom) and passes host/DFU dry-run gates; it executes a signed 12-byte ARM payload, not firmware. No device run is recorded |
+| Loader test image | `unproven` | `build/loader-bootloader/out/bootloader-ipod6g-loader-test.ipod` builds (106,216 bytes, 22,816 bytes headroom) with the owner splash and passes host/DFU dry-run gates; it executes a signed 12-byte ARM payload, not firmware. No device run is recorded |
 | Bootloader manifest/boot state | `implemented` | Formats frozen in `bootloader/LOADER.md`; host parser/verifier/selector, real Ed25519 and HFS loader tested; loader test image built but no device run. D-02 A/B fallback still has the single-image-path gap (C-10) |
 | VFS, player, UI, database | `planned` | No implementation |
 | HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete/growth/deep delete/in-place update, fork staging, file/folder create/delete/rename, multi-extent/overflow data append/truncate, FastUnicodeCompare, HFS+ normalization, metadata policy and disposable-image `fsck_hfs` validation exist. One outer-volume 6G run passed; D-05 cache limits, broader fuzzing, timing and the device power-cut/adapter matrix remain |

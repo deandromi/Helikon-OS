@@ -35,7 +35,7 @@
 #include "keys.h"
 #include "loader_error.h"
 #include "manifest.h"
-#include "splash.h"
+#include "splash_color.h"
 
 /* Donor partition-table scanner. It only reads. */
 #include "hfsplus_partition.h"
@@ -52,10 +52,6 @@
 static uint8_t catalog_scratch[LOADER_SCRATCH_SIZE]
     __attribute__((aligned(4)));
 static uint8_t extents_scratch[LOADER_SCRATCH_SIZE]
-    __attribute__((aligned(4)));
-
-/* Rockbox mono bitmaps pack eight vertical pixels per byte. */
-static uint8_t splash_mono[HELIKON_SPLASH_BYTES]
     __attribute__((aligned(4)));
 
 static int loader_read(void *context, uint64_t offset, void *buffer,
@@ -89,18 +85,6 @@ static int loader_read(void *context, uint64_t offset, void *buffer,
         }
     }
     return 0;
-}
-
-void helikon_splash_show(void)
-{
-    helikon_splash_pack_rockbox(splash_mono, sizeof(splash_mono));
-
-    lcd_set_foreground(LCD_WHITE);
-    lcd_set_background(LCD_BLACK);
-    lcd_clear_display();
-    lcd_mono_bitmap(splash_mono, 0, 0, HELIKON_SPLASH_WIDTH,
-                    HELIKON_SPLASH_HEIGHT);
-    lcd_update();
 }
 
 static void show_lines(const char *const *lines, int count)
@@ -164,6 +148,8 @@ static void fail_hfs(const char *message, int error) __attribute__((noreturn));
 static void fail_hfs(const char *message, int error)
 {
     char code[48];
+    helikon_splash_set_hfs(0);
+    sleep(HZ * 2);
     snprintf(code, sizeof(code), "HFS error: %d", error);
     show_message(message, code);
     power_off_after_button();
@@ -226,6 +212,9 @@ void helikon_loader_main(void)
     struct helikon_hfs_loader hfs_loader = {
         &catalog, have_extents ? &extents : NULL
     };
+
+    /* Volume and catalog opened: the HFS+ read path is working. */
+    helikon_splash_set_hfs(1);
 
     /*
      * Read the manifest once to learn the signed load address. The loader

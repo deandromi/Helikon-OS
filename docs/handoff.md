@@ -24,10 +24,15 @@ file grows. Do not rely on chat history for current state.
   size are checked after the read.
 - Added a separate DFU-only loader test image:
   `build/loader-bootloader/out/bootloader-ipod6g-loader-test.ipod`
-  (76,584 bytes, SHA-256 `09ea9cc4…`, `MOVE_AREA` headroom 52,448 bytes). It
+  (106,216 bytes, SHA-256 `c6125103…`, `MOVE_AREA` headroom 22,816 bytes). It
   reads `/.helikon/firmware.manifest|img` and `bootstate`, verifies the signed
   manifest, reads the image directly to its signed DRAM address, executes a
   signed 12-byte ARM payload returning `HELO`, and disables production handoff.
+- Added the owner Alpha splash in `assets/bootloader/`: `VERSION Alpha` and a
+  green/red `HFS+ DETAILS` label. The loader image stores a 16-colour 4bpp
+  base (38,400 bytes) plus a 4bpp label mask (592 bytes) and renders to RGB565;
+  the PNG mockups preserve the source. Font: ITC Benguiat Std Book 9px,
+  owner-provided and not committed.
 - Added `tools/build-loader-bootloader.sh` (generated test key under `build/`,
   never committed; signed manifest/bootstate; `mks5lboot` dry run) and
   `tools/check-loader-artifact.sh` (exact generated files through the host HFS+

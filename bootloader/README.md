@@ -29,6 +29,24 @@ macOS HFS+ fixture and the exact-artifact check pass. A separate DFU-only
 payload; production handoff is disabled. No firmware image exists and no device
 run is recorded, so no firmware boot is claimed.
 
+## Bootloader splash
+
+The loader test image uses the owner-supplied Alpha design in
+[`../assets/bootloader/`](../assets/bootloader/README.md): a 320×240 off-white
+engraving with `VERSION Alpha` and an `HFS+ DETAILS` label that is green when the
+HFS+ volume and catalog open, red on an HFS+ probe/catalog error, and neutral
+while probing. The source illustration and title are preserved.
+
+The device stores the base as a 16-colour 4bpp image (38,400 bytes) plus a 4bpp
+alpha mask (592 bytes) and renders it to RGB565. The exact sRGB variants are in
+`assets/bootloader/`; the 4bpp representation is the device limit. The label
+font is ITC Benguiat Std Book 9px, provided by the owner and **not committed**;
+see the asset README for the licence note and regeneration command.
+
+`splash_color.c/.h` implement the loader splash. `splash.c` remains the 1-bit
+splash for the separate write diagnostics. The diagnostic read-only image still
+uses the old splash until it is rebuilt and re-tested.
+
 ## What this is
 
 - `diagnostics.c` probes the HFS+ volume, opens the catalog, looks up a probe

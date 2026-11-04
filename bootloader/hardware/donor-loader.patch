@@ -8,7 +8,7 @@ index 8510479..16ce133 100644
  #endif
 +
 +helikon/helikon_loader_hw.c
-+helikon/splash.c
++helikon/splash_color.c
 +helikon/sha256.c
 +helikon/manifest.c
 +helikon/bootstate.c
