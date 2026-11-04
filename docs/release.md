@@ -2,14 +2,36 @@
 
 > Purpose: channels, signing, staging, rollback, bootloader DFU and support
 > policy. This is a stub: several owner decisions are pending.
-> Status: stub — owner and TODOs below
+> Status: bootloader-only Alpha prerelease published; no firmware release.
 > Owner: release lead; project owner for signing/support decisions
-> Last updated: 2026-11-03
+> Last updated: 2026-11-04
 > Source: design paper §16, §18, §28.2.5, §28.4.3; `docs/validation.md`
 
-**No release exists.** There is no firmware image, bootloader image, installer,
-manifest, signing key, release channel or support window. Do not publish release
-artifacts or a version claim from this repository.
+**No firmware release exists.** A **bootloader-only Alpha prerelease** exists:
+`Alpha 1.0 Bootloader Only - A Quick Start`
+([GitHub](https://github.com/deandromi/Helikon-OS/releases/tag/alpha-1.0)).
+It contains the functional loader test image, a signed 12-byte test payload, a
+DFU installer and an uninstaller. It does **not** boot firmware, does not use a
+release key and is not a support claim. Do not publish a firmware release or a
+production version claim from this repository yet.
+
+## 0. Bootloader-only prerelease
+
+| Field | Value |
+|---|---|
+| Release | `Alpha 1.0 Bootloader Only - A Quick Start` |
+| Tag | `alpha-1.0` |
+| Type | GitHub prerelease; bootloader test image only |
+| Image | `bootloader-ipod6g-loader-test.ipod` |
+| Image SHA-256 | `3979de6ff4bb7634f2b48b2e2e72b2d16c84a32288c161057f46b875bc6a0c9a` |
+| Tested | One 6G/iFlash SD; owner-reported pass; 6.5 s startup |
+| Not included | Firmware image, kernel, release key, A/B rollback, recovery menu |
+| Open evidence | `fsck_hfs -fn` after the run; repeat/power-cut matrix; other devices |
+
+The release assets are the tested set: bootloader, `firmware.manifest`,
+12-byte `firmware.img`, `bootstate`, public test key, DFU installer, uninstaller
+and `QUICKSTART.md`. The build-local test key is not a release key. Use the
+files as one set.
 
 ## 1. Channels
 
@@ -25,7 +47,8 @@ new installer design, not a promise of a specific date.
 
 ## 2. Signed manifests
 
-Design requirements; none implemented. The intended manifest fields (paper
+Design requirements; the host loader and bootloader test image implement the
+manifest fields, but no release key exists. The intended manifest fields (paper
 §16/§28.2.5):
 
 ```text
@@ -59,15 +82,14 @@ engine. No update on a dirty/damaged volume.
 
 ## 4. Boot state and rollback
 
-The intended boot state is a two-slot checksummed native file
-`/.helikon/bootstate`, read-only from the bootloader and written only through the
-transaction engine. If missing/corrupt, the bootloader falls back to the default
-image and button-selected recovery.
+The boot state is a two-slot checksummed native file `/.helikon/bootstate`,
+read-only from the bootloader and written only through the transaction engine.
+If missing/corrupt, the bootloader can fall back to the single installed
+verified image and button/DFU recovery.
 
-Rollback rules:
-
-- Keep the previous verified image until the new image passes its self-test.
-- A failed boot/self-test marks the new slot failed and boots the previous slot.
+Owner decision (2026-11-04): **single-image fail-closed, no A/B rollback.** A
+failed or mismatched slot shows recovery and does not jump. Recovery is
+DFU/Apple restore. Do not claim a previous-image boot.
 - Bootloader changes are not staged on HFS+; they recover through DFU.
 - The Apple NOR path and DFU recovery are preserved. `--single` is never used.
 - No auto-format, no journal deletion, no metadata "repair".

@@ -68,6 +68,11 @@ file grows. Do not rely on chat history for current state.
 - T-050 is closed by owner decision: single-image fail-closed, no A/B rollback.
   D-26 removes the in-bootloader OF/recovery menu; native Menu+Play and DFU are
   the recovery paths.
+- Published the bootloader-only Alpha prerelease
+  [`alpha-1.0`](https://github.com/deandromi/Helikon-OS/releases/tag/alpha-1.0):
+  `Alpha 1.0 Bootloader Only - A Quick Start`. Assets include the tested
+  `3979de6f…` image, DFU installer, test manifest/payload/bootstate, uninstaller
+  and quick start. It is not a firmware release and uses a test key.
 
 ## What is next
 
