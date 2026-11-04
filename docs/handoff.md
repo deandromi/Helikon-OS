@@ -24,7 +24,7 @@ file grows. Do not rely on chat history for current state.
   size are checked after the read.
 - Added a separate DFU-only loader test image:
   `build/loader-bootloader/out/bootloader-ipod6g-loader-test.ipod`
-  (106,536 bytes, SHA-256 `30f5bda2…`, `MOVE_AREA` headroom 22,496 bytes). It
+  (106,600 bytes, SHA-256 `ca26b5a6…`, `MOVE_AREA` headroom 22,432 bytes). It
   reads `/.helikon/firmware.manifest|img` and `bootstate`, verifies the signed
   manifest, reads the image directly to its signed DRAM address, executes a
   signed 12-byte ARM payload returning `HELO`, and disables production handoff.
@@ -48,14 +48,14 @@ file grows. Do not rely on chat history for current state.
 - `./tools/build-loader-bootloader.sh`: image/DFU dry run; exact artifact check
   passes; `fsck_hfs -fn` clean on the disposable volume.
 - One owner-reported startup on `c6125103…`: splash displayed, startup completed
-  after about 3 minutes. `HFS+ DETAILS` stayed neutral on that pre-`lcd_update`
-  image. Exact `JUMP OK`/`JUMP FAILED` text and post-run `fsck_hfs` are still to
-  record. The new `30f5bda2…` build is not installed. The test image remains
-  `unproven`.
+  after about 3 minutes, `Battery status ok` shown, and `JUMP OK` confirmed.
+  `HFS+ DETAILS` stayed neutral on that pre-`lcd_update` image. Post-run
+  `fsck_hfs` is still to record. The new `ca26b5a6…` build is not installed. The
+  test image remains `unproven`.
 
 ## What is next
 
-1. Install `30f5bda2…` through DFU using `LOADER_TEST.md`; the added bottom stage
+1. Install `ca26b5a6…` through DFU using `LOADER_TEST.md`; the added bottom stage
    line shows where the ~3-minute startup goes, and `lcd_update` pushes the
    green HFS+ label. Record the screens and post-run `fsck_hfs -fn`.
 2. T-050: resolve the D-02 A/B gap (single image path cannot boot a previous

@@ -75,7 +75,22 @@ static int loader_read(void *context, uint64_t offset, void *buffer,
         if (chunk > length)
             chunk = length;
 
-        if (in_sector == 0 && chunk == sizeof(sector)) {
+        /*
+         * HFS+ B-tree nodes are several sectors. Read all complete sectors in
+         * one ATA command when the destination is aligned; an iFlash SD can
+         * otherwise spend minutes in one-sector command overhead.
+         */
+        if (in_sector == 0 && length >= 512u &&
+            ((uintptr_t)dest & 3u) == 0) {
+            size_t sectors = length / 512u;
+            if (ata_read_sectors(IF_MD(0,) (sector_t)lba, (int)sectors,
+                                 dest) != 0)
+                return -1;
+            size_t bytes = sectors * 512u;
+            dest += bytes;
+            offset += bytes;
+            length -= bytes;
+        } else if (in_sector == 0 && chunk == sizeof(sector)) {
             if (ata_read_sectors(IF_MD(0,) (sector_t)lba, 1, dest) != 0)
                 return -1;
             dest += sizeof(sector);
