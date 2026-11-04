@@ -160,6 +160,7 @@ tools/
   make-outer-opt-in.sh      create the outer-volume opt-in file
   install-write-diagnostic.sh  send the inner-image DFU with hash check
   install-outer-diagnostic.sh  send the outer-volume DFU with hash check
+  cleanup-outer-test.sh     inspect/remove a marked outer test folder safely
   uninstall-bootloader.sh   send the 6G bootloader uninstaller DFU
   gen-hfs-unicode-table.py  generate the HFS+ fold/decomposition tables
   hfsplus/                  host inspector, fixtures, tests

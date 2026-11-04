@@ -175,6 +175,23 @@ exists, it did not write. Mount macOS, inspect that folder, and remove it only
 if it is the Helikon test folder. The diagnostic deliberately does not delete a
 pre-existing folder automatically.
 
+Use the dry-run cleanup helper first:
+
+```sh
+tools/cleanup-outer-test.sh /Volumes/<iPod>
+```
+
+It refuses a folder without the exact `HELIKON-OUTER-TEST` marker, a symlink, a
+directory or an unexpected entry. If the dry run shows only `marker`, `test`
+and/or `renamed`, remove it with:
+
+```sh
+tools/cleanup-outer-test.sh /Volumes/<iPod> --yes
+```
+
+Then `diskutil verifyVolume` and run the diagnostic again. If the helper
+refuses, preserve the folder and report its contents; do not use `rm -rf`.
+
 ## Stop conditions
 
 Stop and restore from the backup if any of these happen:

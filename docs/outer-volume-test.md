@@ -119,7 +119,9 @@ Stop and restore from the backup if any of these happen:
 
 - `fsck_hfs` reports a repair, orphan, bad catalog/bitmap or dirty journal;
 - a library file is missing, changed or unreadable;
-- the test folder remains after a successful report;
+- the test folder remains after a successful report; if `Cleanup: FAIL` with
+  `HFS_ERR_BUSY` appears before any write, inspect the existing folder with
+  `tools/cleanup-outer-test.sh /Volumes/<iPod>` and do not delete unknown data;
 - the diagnostic reports FAIL or writes outside `helikon-outer-test`;
 - the device hangs, crashes or powers off unexpectedly.
 
