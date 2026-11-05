@@ -270,14 +270,72 @@ static int ata_configure_identified(struct helikon_ata *ata,
     return HELIKON_OK;
 }
 
+/* Donor controller reset tail: CFG pulse, SWRST, control enable, PIO timing. */
+static void ata_controller_reset(struct helikon_ata *ata)
+{
+    S5L_PCON(7) = 0x44444444u;
+    S5L_PCON(8) = 0x44444444u;
+    S5L_PCON(9) = 0x44444444u;
+    S5L_PCON(10) = (S5L_PCON(10) & ~0xffffu) | 0x4444u;
+    S5L_PWRCON(S5L_CLOCKGATE_ATA >> 5) &=
+        ~(1u << (S5L_CLOCKGATE_ATA & 0x1fu));
+
+    S5L_ATA_CFG = 1u;
+    helikon_clock_delay_us(ata->clock, 10000u);
+    S5L_ATA_CFG = 0u;
+    helikon_clock_delay_us(ata->clock, 10000u);
+    S5L_ATA_SWRST = 1u;
+    helikon_clock_delay_us(ata->clock, 10000u);
+    S5L_ATA_SWRST = 0u;
+    helikon_clock_delay_us(ata->clock, 100000u);
+    S5L_ATA_CONTROL = 1u;
+    helikon_clock_delay_us(ata->clock, 200000u);
+    S5L_ATA_PIO_TIME = 0x191f7u;
+    S5L_ATA_PIO_LHR = 0u;
+    S5L_ATA_CFG = 1u << 6;
+}
+
+/*
+ * Prove the controller/device path with a sector-0 read and probe LBA48. The
+ * firmware never needs the IDENTIFY table in adopt mode: geometry comes from
+ * the partition table and flush uses the non-EXT command.
+ */
+static int ata_adopt_read(struct helikon_ata *ata, uint32_t timeout_ms)
+{
+    ata->sector_size = 512u;
+    ata->total_sectors = 0xffffffffu;
+    ata->write_cache = 0;
+    ata->identify_valid = 0;
+    /* Flush is attempted before commit; the journal gates on it. */
+    ata->can_flush = 1;
+    ata->powered = 1;
+    ata->initialized = 1;
+
+    ata->lba48 = 1;
+    int rc = helikon_ata_read(ata, 0u, 1u, ata->identify, timeout_ms);
+    if (rc != HELIKON_OK) {
+        (void)ata_wait_not_bsy(ata, timeout_ms);
+        ata->lba48 = 0;
+        rc = helikon_ata_read(ata, 0u, 1u, ata->identify, timeout_ms);
+    }
+    if (rc != HELIKON_OK) {
+        ata->sector_size = 0u;
+        ata->total_sectors = 0u;
+        ata->can_flush = 0;
+        ata->powered = 0;
+        ata->initialized = 0;
+    }
+    return rc;
+}
+
 /*
  * Adopt the loader's live ATA controller.
  *
  * The firmware loader has just read this image from the same disk, so the
  * controller, device and PIO timing registers are already working. A second
  * IDENTIFY is what this iFlash SD bridge rejects; a plain sector read is the
- * exact operation the loader just completed. Do not reset the controller, do
- * not power-cycle the disk and do not send IDENTIFY.
+ * exact operation the loader just completed. Prefer a soft enable, then fall
+ * back to a controller reset without IDENTIFY if the block was clocked down.
  *
  * The read also probes LBA48: a large card's HFS volume can sit above the
  * LBA28 limit, and the command is valid at LBA 0, so support is measured
@@ -331,42 +389,32 @@ static int ata_adopt(struct helikon_ata *ata, uint32_t timeout_ms,
     if (attempt != NULL)
         attempt->stage = 9;
 
-    ata->sector_size = 512u;
-    ata->total_sectors = 0xffffffffu;
-    ata->write_cache = 0;
-    /*
-     * The adapter is known to read and write, but its IDENTIFY table was
-     * never fetched in adopt mode. FLUSH CACHE (0xE7) is the safe command;
-     * do not infer FLUSH CACHE EXT from the scratch buffer.
-     */
-    ata->identify_valid = 0;
-    /* Flush is attempted before commit; the journal gates on it. */
-    ata->can_flush = 1;
-    ata->powered = 1;
-    ata->initialized = 1;
-
     if (attempt != NULL)
         attempt->stage = 10;
-    ata->lba48 = 1;
-    rc = helikon_ata_read(ata, 0u, 1u, ata->identify, adopt_timeout);
-    if (rc != HELIKON_OK) {
-        (void)ata_wait_not_bsy(ata, adopt_timeout);
-        ata->lba48 = 0;
-        rc = helikon_ata_read(ata, 0u, 1u, ata->identify, adopt_timeout);
-    }
-    if (rc != HELIKON_OK) {
-        ata->sector_size = 0;
-        ata->total_sectors = 0;
-        ata->write_cache = 0;
-        ata->can_flush = 0;
-        ata->powered = 0;
-        ata->initialized = 0;
-        return rc;
+    rc = ata_adopt_read(ata, adopt_timeout);
+    if (rc == HELIKON_OK) {
+        if (attempt != NULL)
+            attempt->stage = 11;
+        return HELIKON_OK;
     }
 
+    /*
+     * A soft enable does not always restart a controller the loader clocked
+     * down: PIO ready stays 0 until the donor CFG/SWRST reset runs. Reset the
+     * controller, but still do not send IDENTIFY.
+     */
     if (attempt != NULL)
-        attempt->stage = 11;
-    return HELIKON_OK;
+        attempt->stage = 12;
+    ata_controller_reset(ata);
+    rc = ata_wait_ready_bits(ata, 0x2u, timeout_ms);
+    if (rc != HELIKON_OK)
+        return rc;
+    if (attempt != NULL)
+        attempt->stage = 13;
+    rc = ata_adopt_read(ata, timeout_ms);
+    if (rc == HELIKON_OK && attempt != NULL)
+        attempt->stage = 14;
+    return rc;
 }
 
 static int ata_power_up(struct helikon_ata *ata, uint32_t timeout_ms,
@@ -395,26 +443,7 @@ static int ata_power_up(struct helikon_ata *ata, uint32_t timeout_ms,
     int rc;
 
     /* ATA pin mux and controller reset, donor storage_ata-6g.c. */
-    S5L_PCON(7) = 0x44444444u;
-    S5L_PCON(8) = 0x44444444u;
-    S5L_PCON(9) = 0x44444444u;
-    S5L_PCON(10) = (S5L_PCON(10) & ~0xffffu) | 0x4444u;
-    S5L_PWRCON(S5L_CLOCKGATE_ATA >> 5) &=
-        ~(1u << (S5L_CLOCKGATE_ATA & 0x1fu));
-
-    S5L_ATA_CFG = 1u;
-    helikon_clock_delay_us(ata->clock, 10000u);
-    S5L_ATA_CFG = 0u;
-    helikon_clock_delay_us(ata->clock, 10000u);
-    S5L_ATA_SWRST = 1u;
-    helikon_clock_delay_us(ata->clock, 10000u);
-    S5L_ATA_SWRST = 0u;
-    helikon_clock_delay_us(ata->clock, 100000u);
-    S5L_ATA_CONTROL = 1u;
-    helikon_clock_delay_us(ata->clock, 200000u);
-    S5L_ATA_PIO_TIME = 0x191f7u;
-    S5L_ATA_PIO_LHR = 0u;
-    S5L_ATA_CFG = 1u << 6;
+    ata_controller_reset(ata);
 
     if (attempt != NULL)
         attempt->stage = 1;
