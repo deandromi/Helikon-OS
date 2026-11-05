@@ -37,6 +37,14 @@
 #include "manifest.h"
 #include "splash_color.h"
 
+/*
+ * Handoff marker, shared with firmware/boot/firmware_main.c. It sits in the
+ * reserved boot-info page at 0x087ff000; the payload reads it before T-059
+ * fills the page.
+ */
+#define HELIKON_HANDOFF_MARKER_ADDR 0x087ff800u
+#define HELIKON_HANDOFF_MARKER 0x484c4f31u /* "HLO1" */
+
 /* Donor partition-table scanner. It only reads. */
 #include "hfsplus_partition.h"
 
@@ -206,7 +214,6 @@ void helikon_loader_main(void)
 
     /* The donor main already painted the splash before storage init. */
     progress("storage ready");
-    sleep(HZ / 2);
 
     if (button_hold()) {
         show_message("Hold switch is on.", "Unlock it and reboot.");
@@ -303,23 +310,6 @@ void helikon_loader_main(void)
         fail("Manifest changed during boot.", HELIKON_LOADER_OK);
 
     char line[48];
-    const char *lines[6];
-    int n = 0;
-    lines[n++] = "HELIKON-OS LOADER TEST";
-    lines[n++] = "Firmware verified.";
-    snprintf(line, sizeof(line), "Version: %lu",
-             (unsigned long)result.manifest.image_version);
-    lines[n++] = line;
-    snprintf(line, sizeof(line), "Load: 0x%08lx",
-             (unsigned long)result.manifest.load_address);
-    lines[n++] = line;
-    snprintf(line, sizeof(line), "Size: %lu bytes",
-             (unsigned long)result.manifest.image_size);
-    lines[n++] = line;
-    lines[n++] = result.bootstate_valid ? "Boot state: GOOD"
-                                        : "Boot state: DEFAULT";
-    show_lines(lines, n);
-    sleep(HZ * 2);
 
     if ((result.manifest.flags & HELIKON_MANIFEST_FLAG_DEVELOPMENT) == 0) {
         show_message("Production handoff is disabled",
@@ -327,14 +317,18 @@ void helikon_loader_main(void)
         power_off_after_button();
     }
 
-    show_message("Executing signed test payload...", "");
-    sleep(HZ);
+    /*
+     * No confirmation screen and no fixed delay: the image is verified and in
+     * DRAM, so jump immediately. The splash stays up while storage work runs;
+     * the firmware's first frame replaces it.
+     */
 
     /*
-     * This loader build is PIO-only so the iFlash SD bridge is not left in a
-     * DMA state that the firmware's PIO ATA init cannot recover. Leave the
-     * controller active and let the firmware reset and identify it.
+     * Stamp the handoff in the reserved boot-info page and pass a zero
+     * boot-info pointer: the page is not filled yet (T-059).
      */
+    *(volatile uint32_t *)HELIKON_HANDOFF_MARKER_ADDR =
+        HELIKON_HANDOFF_MARKER;
 
     /*
      * The image is already at its linked address in DRAM. Flush/invalidate
@@ -342,11 +336,12 @@ void helikon_loader_main(void)
      * firmware entry point would not return.
      */
     progress("jump");
-    uint32_t (*entry)(void) =
-        (uint32_t (*)(void))(uintptr_t)result.manifest.load_address;
+    uint32_t (*entry)(uintptr_t, uint32_t) =
+        (uint32_t (*)(uintptr_t, uint32_t))(uintptr_t)
+            result.manifest.load_address;
     disable_irq();
     commit_discard_idcache();
-    uint32_t marker = entry();
+    uint32_t marker = entry(0u, 0u);
     enable_irq();
 
     if (marker == LOADER_TEST_RETURN) {

@@ -32,6 +32,13 @@ struct helikon_lcd {
 int helikon_lcd_init(struct helikon_lcd *lcd, struct helikon_clock *clock,
                      uint32_t timeout_ms);
 
+/*
+ * Attach to a panel the loader already initialized. Sets the panel type,
+ * command set and frame mode without sending a reset or init sequence, so the
+ * splash stays visible until the first firmware frame replaces it.
+ */
+int helikon_lcd_attach(struct helikon_lcd *lcd, struct helikon_clock *clock);
+
 /* Matches struct helikon_display_ops::present. */
 int helikon_lcd_present(void *context, const uint16_t *pixels, uint32_t stride,
                         uint32_t x, uint32_t y, uint32_t width,

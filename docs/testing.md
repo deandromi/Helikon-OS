@@ -223,6 +223,15 @@ make -C tests/firmware test
 make -C tests/firmware sanitize
 ```
 
+The launcher renderer has its own host preview and checks:
+
+```sh
+make -C tests/ui preview
+```
+
+It renders the real firmware framebuffer to `build/ui/launcher.png` and checks
+the focus marks, icon presence and framebuffer bounds.
+
 The groups are:
 
 - `test_lib` — mem/string/endian/CRC-32/fixed-point/bounded format;
