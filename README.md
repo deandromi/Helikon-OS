@@ -6,7 +6,7 @@ A new bootloader and firmware for the iPod Classic 6th and 7th Generation create
 
 # Goals
 - [ ] Improved battery life over Rockbox
-- [ ] Cleaner interfaces
+- [X] Cleaner interfaces
 - [ ] The ability to use Rockbox skins on Helikon-OS
 - [ ] Improved RAM usage
 - [ ] Cleaner graphics
@@ -14,17 +14,17 @@ A new bootloader and firmware for the iPod Classic 6th and 7th Generation create
 - [ ] Improved database building on iPods
 - [ ] Keeping this open-source and community-friendly
 - [ ] Regular firmware/bootloader updates
-- [ ] Clearer installation procedures
+- [X] Clearer installation procedures
 - [ ] Make everything easier to use
-- [ ] HFS+ native without an overlay or FAT support
-- [ ] Active anti-corruption protection for files
+- [X] HFS+ native without an overlay or FAT support
+- [X] Active anti-corruption protection for files
 - [ ] Keeping the code lightweight (wherever possible)
 - [ ] (Custom) game support
 - [ ] Improved DAC support
 - [ ] Improved read/write speeds (if possible)
 - [ ] (Custom) application support
 - [ ] Improved podcast support
-- [ ] A companion desktop app for:
+- [X] A companion desktop app for:
   - [ ] File tagging
   - [ ] Album descriptions and ratings
   - [ ] Last.fm scrobbling
