@@ -27,8 +27,8 @@ swift test
 # Debug build, open immediately
 ./scripts/build-app.sh --debug --open
 
-# Developer preview with the fictional sample library
-open "dist/Helikon Companion.app" --args --demo --section library
+# Developer preview with the fictional sample library, skipping the welcome screen
+open "dist/Helikon Companion.app" --args --demo --skip-splash --section library
 ```
 
 Requirements: macOS 14 or newer, Xcode command-line tools with Swift 6. The app
@@ -61,6 +61,12 @@ sandbox entitlement, update feed or support matrix.
   MP3, API and SHA-256, plus a volume name supplied by the device.
 - Counts and install steps keep their numbers because those numbers are data or
   sequence, not navigation decoration.
+- The welcome screen uses the owner-supplied Halftone banner, cropped from
+  `assets/branding/helikon-os-poster.png` into the app resource
+  `Sources/HelikonCompanion/Resources/helikon-os-banner.png` (1600×1054). It is
+  not redrawn, recoloured or generated. The poster remains the source asset.
+- The welcome screen can be reopened from the app menu or Settings; use
+  `--skip-splash` for direct developer previews.
 
 ## What the app does
 
@@ -157,7 +163,8 @@ Sources/CompanionCore/        testable models and services
 Sources/HelikonCompanion/    SwiftUI app
   App/                       app entry, app model, root/sidebar
   Design/                    palette, type, components
-  Features/                  overview, library, transfer, metadata, etc.
+  Features/                  welcome splash, overview, library, transfer, metadata, etc.
+  Resources/                 cropped owner banner for the welcome screen
 
 Tests/CompanionCoreTests/    21 XCTest cases
 scripts/build-app.sh         release/debug .app bundle and ad-hoc signing

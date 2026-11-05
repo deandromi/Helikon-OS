@@ -21,6 +21,7 @@ let package = Package(
             name: "HelikonCompanion",
             dependencies: ["CompanionCore"],
             path: "Sources/HelikonCompanion",
+            resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .testTarget(

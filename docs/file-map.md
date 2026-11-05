@@ -154,7 +154,8 @@ Helikon-OS/
       test_ed25519.c        RFC 8032, 192-byte and key-table tests
   tools/desktop/            macOS companion app (SwiftPM, host only, in progress)
     Sources/CompanionCore/   testable device, library, metadata, transfer and scrobble services
-    Sources/HelikonCompanion/ SwiftUI app shell and screens
+    Sources/HelikonCompanion/ SwiftUI app shell, screens and welcome splash
+    Sources/HelikonCompanion/Resources/ owner poster crop for the welcome screen
     Tests/CompanionCoreTests/ 21 host tests
     scripts/                 app bundle and icon generation
   docs/

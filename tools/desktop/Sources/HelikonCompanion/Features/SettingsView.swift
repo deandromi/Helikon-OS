@@ -241,12 +241,18 @@ struct SettingsView: View {
                     .lineSpacing(2)
             }
             Spacer()
-            Button("Project repository") {
-                if let url = URL(string: "https://github.com/deandromi/Helikon-OS") {
-                    NSWorkspace.shared.open(url)
+            HStack(spacing: 8) {
+                Button("Welcome screen") {
+                    model.showSplash()
                 }
+                .buttonStyle(SecondaryButtonStyle())
+                Button("Project repository") {
+                    if let url = URL(string: "https://github.com/deandromi/Helikon-OS") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .buttonStyle(SecondaryButtonStyle())
             }
-            .buttonStyle(SecondaryButtonStyle())
         }
         .padding(.top, 4)
         .padding(.bottom, 18)

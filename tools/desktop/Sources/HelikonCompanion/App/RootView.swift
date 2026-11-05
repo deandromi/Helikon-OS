@@ -5,13 +5,14 @@ struct RootView: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        HStack(spacing: 0) {
-            SidebarView()
-                .frame(width: 248)
-            VerticalHairline()
-            content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(HColor.paper)
+        Group {
+            if model.isShowingSplash {
+                SplashView()
+                    .transition(.opacity)
+            } else {
+                mainContent
+                    .transition(.opacity)
+            }
         }
         .background(HColor.paper)
         .sheet(item: $model.metadataSearch) { context in
@@ -43,6 +44,19 @@ struct RootView: View {
             model.saveSettings()
         }
         .animation(.easeInOut(duration: 0.18), value: model.statusMessage)
+        .animation(.easeInOut(duration: 0.28), value: model.isShowingSplash)
+    }
+
+    private var mainContent: some View {
+        HStack(spacing: 0) {
+            SidebarView()
+                .frame(width: 248)
+            VerticalHairline()
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(HColor.paper)
+        }
+        .background(HColor.paper)
     }
 
     @ViewBuilder

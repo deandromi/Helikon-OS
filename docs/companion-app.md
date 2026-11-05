@@ -17,6 +17,7 @@ place and plans writes before it makes them.
 | Item | Status | Evidence |
 |---|---|---|
 | Native macOS app shell | `in progress` | SwiftPM package and release build pass; host visual review only |
+| Welcome screen | `in progress` | Owner banner crop, Open companion and Add music; host screenshot reviewed; no UI automation |
 | HFS+ volume detection | `in progress` | `diskutil` metadata and volume markers; a mounted 32 MiB HFS+ test image with `.helikon` was detected as Helikon-OS, read/write; no device acceptance run |
 | Library scan and host library | `in progress` | AVFoundation scan; 21 core tests pass |
 | Metadata search | `in progress` | MusicBrainz and Apple clients; live API shape checked; no search matrix |
@@ -51,6 +52,7 @@ exist.
 
 | Screen | What it does | Current state |
 |---|---|---|
+| Welcome | Owner banner, companion introduction, Open companion and Add music | host only; opens at launch |
 | Overview | Device status, library counts, attention list, recent activity, album shelf | host only |
 | Library | Tracks/albums/artists, search, missing-tag queue, inspector, manual edit | host only |
 | Transfer | Drag/drop, plan, conflicts, verification, backup, progress, report | host only; no device run |
@@ -80,6 +82,15 @@ tags use title case; uppercase is reserved for acronyms such as HFS+, MP3, API
 and SHA-256, and for volume names supplied by the device. Counts and installation
 steps keep their numbers because those numbers carry meaning, not navigation
 decoration.
+
+The welcome screen is a full-window paper canvas built around the owner’s
+Halftone banner. The banner is a 1600×1054 crop of the photo area in
+[`../assets/branding/helikon-os-poster.png`](../assets/branding/helikon-os-poster.png),
+kept as an app resource at
+`tools/desktop/Sources/HelikonCompanion/Resources/helikon-os-banner.png`.
+Nothing is redrawn or recoloured. The screen adds only the companion wordmark,
+a lead, Open companion and Add music; it can be reopened from the app menu or
+Settings. `--skip-splash` is the developer shortcut to the main shell.
 
 ## 4. Transport and writes
 

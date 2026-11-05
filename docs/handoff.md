@@ -11,6 +11,38 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-05 (companion app welcome screen)
+
+## What happened
+
+- Added a full-window welcome screen to the companion app. It opens at launch
+  and can be reopened from the app menu or Settings.
+- Used the owner-supplied `assets/branding/helikon-os-poster.png` as the source.
+  The app bundles a 1600×1054 crop of the Halftone photo area at
+  `tools/desktop/Sources/HelikonCompanion/Resources/helikon-os-banner.png`;
+  nothing was redrawn, recoloured or generated.
+- Added **Open companion** and **Add music…** actions, plus a `--skip-splash`
+  developer launch option. The splash avoids touching a mounted volume until the
+  user enters the app, so macOS volume permission is requested in context.
+- Updated [`../docs/companion-app.md`](../docs/companion-app.md) and
+  [`../tools/desktop/README.md`](../tools/desktop/README.md).
+- Evidence: `swift test` passes 21 tests; `swift build -c release` passes; the
+  debug app bundle and resource bundle were built and the welcome screen was
+  visually reviewed on the host. No device write or transfer was performed.
+
+## What is next
+
+1. Check the splash on the minimum window size and with large accessibility text.
+2. Run the macOS task matrix and a real device transfer on a backed-up volume.
+3. Continue the installer only after the signed release exists.
+
+## Do not claim
+
+- That the splash is a device result, a release screen or a UI test pass.
+- That the poster was recreated or that the banner is new artwork.
+
+---
+
 # Handoff — 2026-11-05 (companion app chrome cleanup)
 
 ## What happened

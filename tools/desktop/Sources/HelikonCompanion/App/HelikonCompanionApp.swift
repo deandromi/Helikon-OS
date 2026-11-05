@@ -15,6 +15,11 @@ struct HelikonCompanionApp: App {
         .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(after: .appInfo) {
+                Button("Welcome to Helikon Companion") {
+                    model.showSplash()
+                }
+            }
             CommandMenu("Device") {
                 Button("Refresh Volumes") {
                     Task { await model.refreshDevices() }

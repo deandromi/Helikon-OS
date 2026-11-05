@@ -31,6 +31,17 @@ mkdir -p "$MACOS" "$RESOURCES"
 cp "$BIN" "$MACOS/HelikonCompanion"
 chmod 755 "$MACOS/HelikonCompanion"
 
+RESOURCE_BUNDLE="$ROOT/.build/$CONFIG/HelikonCompanion_HelikonCompanion.bundle"
+if [ -d "$RESOURCE_BUNDLE" ]; then
+    cp -R "$RESOURCE_BUNDLE" "$RESOURCES/"
+fi
+
+SPLASH_ASSET="$RESOURCES/HelikonCompanion_HelikonCompanion.bundle/Contents/Resources/helikon-os-banner.png"
+if [ ! -f "$SPLASH_ASSET" ]; then
+    echo "missing welcome banner in the app bundle: $SPLASH_ASSET" >&2
+    exit 1
+fi
+
 if [ -f "$ROOT/Resources/AppIcon.png" ]; then
     ICONSET="$ROOT/.build/AppIcon.iconset"
     rm -rf "$ICONSET"
