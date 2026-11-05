@@ -976,10 +976,10 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
     text_append(ata_line, sizeof(ata_line), " ID82 ");
     append_u32(ata_line, sizeof(ata_line), ata_probe.identify_82);
     helikon_screen_text(&ctx->screen, 16, 156, 2, ata_line);
-    helikon_strlcpy(ata_line, "ID83 ", sizeof(ata_line));
-    append_u32(ata_line, sizeof(ata_line), ata_probe.identify_83);
-    text_append(ata_line, sizeof(ata_line), " ID80 ");
-    append_u32(ata_line, sizeof(ata_line), ata_probe.identify_80);
+    helikon_strlcpy(ata_line, "CEATA ", sizeof(ata_line));
+    append_i32(ata_line, sizeof(ata_line), ata_probe.adopt_ceata);
+    text_append(ata_line, sizeof(ata_line), " PDAT11 ");
+    append_u32(ata_line, sizeof(ata_line), ata_probe.adopt_pdat11);
     helikon_screen_text(&ctx->screen, 16, 176, 2, ata_line);
     helikon_strlcpy(ata_line, "RESULT ", sizeof(ata_line));
     text_append(ata_line, sizeof(ata_line),

@@ -37,6 +37,8 @@ struct helikon_ata_probe {
     int adopt_rc;
     int adopt_lba48;
     int adopt_power;
+    int adopt_ceata;
+    uint16_t adopt_pdat11;
     uint16_t adopt_word0;
     uint16_t adopt_csd;
     uint16_t adopt_dad;
