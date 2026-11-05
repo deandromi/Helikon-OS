@@ -185,9 +185,12 @@ The wheel and left/right move the focus row-major through the six cells with
 wrap. SELECT or PLAY opens a labelled placeholder app screen; MENU or SELECT
 returns to the launcher, and MENU on the launcher exits. The diagnostic image
 powers off after 60 s idle. The input driver clears the wheel interrupt latch
-before reading the status, and the launcher build draws its first frame
-immediately after LCD init, so the loader splash is not followed by a debug
-stage list.
+before reading the status. The launcher build attaches to the loader's
+already-initialized PMU, backlight and panel instead of resetting them, so the
+loader splash stays lit until the first home frame. Buttons are edge-triggered
+and the wheel requires four clicks per move with a 120 ms gate, so one press
+or scroll notch moves one cell. The first firmware frame is the launcher; no
+debug stage list appears.
 
 ```sh
 make -C firmware BOARD=6g VERSION=10 BOOTSTATE_STATE=good UI=1 \
