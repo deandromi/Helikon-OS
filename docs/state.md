@@ -132,13 +132,15 @@ Helikon-OS poster above the goals on 2026-11-03.
 ## Last known-good commit and branch
 
 - **Base branch:** `main`
-- **Base commit:** `2788f73` (`Docs: record F1 device run and close T-054`,
-  2026-11-04); the F1 branch was cut from `c0ef679`.
+- **Base commit:** `2912609` (`Docs: add the D-52 home-screen concept set`,
+  2026-11-05); the 2026-11-05 consolidation merged F2, the companion app and the
+  design docs. Check `git log -1` for the current docs commit.
 - **F1 work:** merged to `main` from `firmware/f1-skeleton`; the source, host
   tests and docs carry the owner-reported 6G run. Check
   `git log -- firmware tests/firmware`.
-- **F2 work:** `firmware/f2-bootstate` (local branch, not merged or pushed in
-  this session); host-verified, no device run. Check
+- **F2 work:** merged to `main` on 2026-11-05; the current tree builds the
+  normal F2 image `f33f2791…` (76,160 bytes) and the PIO-only loader `8f80e40d…`
+  (106,088 bytes); host-verified, no device run. Check
   `git log -- firmware tests/firmware tests/image tools`.
 - **Last known-good code commits:** `a86ed57` (`Firmware: harden F1
   display/panic paths and add HFS file test`, 2026-11-04) built the F1 image
@@ -146,7 +148,9 @@ Helikon-OS poster above the goals on 2026-11-03.
   add separate inner-image write diagnostic`, 2026-11-03) passed one inner-image
   6G run; `8b528d1` (`Code: fix outer diagnostic truncate hang`, 2026-11-04)
   produced image `32eeb541…`, which passed one outer-volume 6G run on
-  2026-11-04. Check `git log -- firmware/hfs bootloader tests tools`.
+  2026-11-04. The 2026-11-05 consolidation merged F2, the companion app and
+  the design docs; F2 and the app remain host-verified only. Check
+  `git log -- firmware/hfs bootloader tests tools`.
 - **Last known-good documentation commit:** `59db37e` (`Docs: record first
   write-diagnostic hardware pass`, 2026-11-03). Any later docs housekeeping
   commit is on `main`; check `git log -1`.

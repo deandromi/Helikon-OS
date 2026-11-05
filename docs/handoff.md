@@ -11,6 +11,44 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-05 (repository consolidation)
+
+## What happened
+
+- Snapshotted the 30-file dirty worktree on
+  `rescue/2026-11-05-multiagent` and tagged it `wip/2026-11-05-pre-cleanup`;
+  every old branch tip is preserved under an `archive/*` tag.
+- Merged F2/T-055 (seven commits) into `main`. Rebuilt the current tree: the
+  normal F2 image is 76,160 bytes, SHA-256 `f33f2791…`; the older `9f21f490…`
+  artifact is not reproduced by the merged tree. `tools/check-f2-artifact.sh`
+  passes.
+- Cherry-picked the two companion-app commits onto `main`; `swift test` passes
+  21 tests and `swift build -c release` passes.
+- Added the D-52/home-screen concept docs, the companion-app docs and the
+  F2/loader docs while keeping `main`'s newer competitive, audio and manual-audit
+  content.
+- Deleted the stale or already-merged branches and worktrees. `main` is the only
+  integration branch; old tips remain recoverable from the archive tags.
+
+## What is next
+
+1. Run the F2 device gate on a backed-up 6G and record the promotion,
+   post-run `fsck_hfs` and loader `GOOD` evidence.
+2. Run the macOS companion-app task matrix on a disposable HFS+ image and a
+   backed-up 6G.
+3. Owner decision on D-52 and the home concept.
+4. Decide whether to add CI, branch protection and a PR template; neither exists
+   yet.
+
+## Do not claim
+
+- No F2 device run, app device run, design acceptance or support claim exists.
+- No CI, branch protection, release signing or reproducible release build exists.
+- The `9f21f490…` image is historical; the current source rebuilds to
+  `f33f2791…`.
+
+---
+
 # Handoff — 2026-11-05 (macOS companion app MVP)
 
 ## What happened
