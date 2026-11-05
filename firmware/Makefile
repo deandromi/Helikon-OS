@@ -15,6 +15,7 @@ BOARD ?= 6g
 VERSION ?= 1
 BOOTSTATE_STATE ?= good
 EXTRA_CFLAGS ?=
+UI ?= 0
 CROSS ?= arm-elf-eabi-
 CC := $(CROSS)gcc
 OBJCOPY := $(CROSS)objcopy
@@ -30,6 +31,7 @@ ARCH := -mcpu=arm926ej-s -marm -mno-thumb-interwork -mfloat-abi=soft
 CFLAGS := -std=c99 -O2 -g -ffreestanding -fno-builtin -nostdinc \
           -isystem $(GCC_INCLUDE) -DHELIKON_IMAGE_VERSION=$(VERSION) \
           -Ilib -Iboot -Iboard/$(BOARD) -Ihal/$(BOARD) -Iblock -Idiag -Ihfs \
+          -Iui \
           -Wall -Wextra -Werror -Wconversion -Wshadow -Wundef \
           -Wpointer-arith -ffunction-sections -fdata-sections -fno-common \
           -fno-stack-protector -fno-unwind-tables \
@@ -57,8 +59,11 @@ HFS_SRC := hfs/hfs_volume.c hfs/hfs_btree.c hfs/hfs_catalog.c \
            hfs/hfs_btree_write.c hfs/hfs_btree_tree.c \
            hfs/hfs_extents_write.c hfs/hfs_catalog_write.c
 
+UI_SRC := $(if $(filter 1,$(UI)),ui/launcher.c ui/launcher_run.c \
+          ui/launcher_assets.c,)
+
 ALL_SRC := $(BOOT_SRC) $(LIB_SRC) $(BOARD_SRC) $(HAL_SRC) $(BLOCK_SRC) \
-           $(DIAG_SRC) $(HFS_ADAPTER_SRC) $(HFS_SRC)
+           $(DIAG_SRC) $(HFS_ADAPTER_SRC) $(HFS_SRC) $(UI_SRC)
 OBJS := $(patsubst %.c,$(BUILD)/%.o,$(patsubst %.S,$(BUILD)/%.o,$(ALL_SRC)))
 ELF := $(BUILD)/firmware.elf
 RAW := $(BUILD)/firmware.raw

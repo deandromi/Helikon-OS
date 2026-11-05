@@ -30,6 +30,9 @@
 #include "hfs_journal.h"
 #include "hfs_txn.h"
 #include "hfs_volume.h"
+#ifdef HELIKON_DIAG_LAUNCHER
+#include "launcher_run.h"
+#endif
 #include "mem.h"
 #include "panic.h"
 #include "partition.h"
@@ -926,6 +929,22 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
                       ctx->board.lcd.cmdset);
     paint_stages_checked(ctx, HELIKON_STAGE_LCD);
     stage_pass(ctx, HELIKON_STAGE_LCD);
+
+#ifdef HELIKON_DIAG_LAUNCHER
+    /*
+     * Home-screen build: no storage is touched. The launcher owns the panel
+     * until SELECT/MENU, the hold switch or the idle timeout, then the image
+     * powers off so a diagnostic run cannot drain the battery.
+     */
+    rc = helikon_board_input_init(&ctx->board, BOOT_POWER_TIMEOUT_MS);
+    if (rc != HELIKON_OK)
+        boot_fail(ctx, HELIKON_STAGE_INPUT, rc,
+                  "The buttons did not initialize.");
+    (void)helikon_launcher_run(&ctx->screen, &ctx->board.buttons,
+                               &ctx->board.clock);
+    paint_message(ctx, "HOME", "POWER OFF");
+    boot_power_off(ctx);
+#endif
 
     stage_begin(ctx, HELIKON_STAGE_ATA);
 #ifdef HELIKON_DIAG_ATA_PROBE
