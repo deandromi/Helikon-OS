@@ -27,8 +27,8 @@ Helikon-OS/
   assets/branding/          owner-supplied poster; README embeds it
   assets/startup/           320×240 old startup crop; provenance only
   assets/bootloader/        owner Alpha splash source, PNG variants and README
-  assets/fonts/             licensed IBM Plex Sans and Manrope subsets
-  assets/ui/                host 320×240 typography mockups
+  assets/fonts/             licensed Plex/Manrope subsets; external Benguiat (not committed)
+  assets/ui/                host 320×240 UI mockups (typography, home concepts, album wall)
   bootloader/
     README.md               diagnostic bootloader scope, build and limits
     DFU.md                  backup, manual SHA-256, DFU install and recovery
@@ -283,8 +283,8 @@ is created; do not let it drift.
 | `assets/logo/` | Owner-supplied mountain reference; owner will design the logo | owner/branding | `assets/logo/README.md` | image opens, no generated assets | Do not replace or redistribute the reference image; source/licence is an open question |
 | `assets/branding/` | Owner-supplied Helikon-OS poster and branding notes | owner/branding | `assets/branding/README.md` | image opens, README embed resolves | Do not replace the poster without owner approval |
 | `assets/startup/` | 320×240 startup crop for the iPod screen | boot/UI | `assets/branding/README.md` | exact 320×240, no writes in future display path | Not wired into firmware yet; do not claim it displays |
-| `assets/fonts/` | Licensed IBM Plex Sans and Manrope subsets for the UI | UI lead | `assets/fonts/README.md` | OFL present, hashes match, host mockup renders | Do not add proprietary fonts or use the IBM Plex reserved name for a modified subset |
-| `assets/ui/` | Host 320×240 typography mockups | UI lead | `assets/ui/README.md`, `docs/ui.md` | 320×240 grayscale, no clipping, reproducible script | Host artifacts only; not a device panel run |
+| `assets/fonts/` | Licensed IBM Plex Sans and Manrope subsets; owner-supplied Benguiat for the home/album concepts | UI lead | `assets/fonts/README.md` | OFL present, hashes match, host mockup renders | Do not commit the Benguiat `.otf` files; do not use the IBM Plex reserved name for a modified subset |
+| `assets/ui/` | Host 320×240 UI mockups: typography, launcher/index home concepts and three content walls | UI lead | `assets/ui/README.md`, `docs/ui.md`, D-52 | five 320×240 1× frames and 2× previews, no clipping, regeneration needs `BENGUIAT_DIR` | Host artifacts only; the owner chose the launcher; the walls are browsers, not home candidates |
 | `docs/` | Agent documentation | docs lead | `docs/conventions.md` | `git diff --check`, link check | One canonical file per topic; no duplicate `agent.md`/`decision-log.md` |
 | `docs/f2-bootstate-test.md` | F2 build, host gates and 6G bootstate runbook | firmware/test lead | T-055, D-02, `docs/hfsplus-write-engine.md` | host artifact check, clean `fsck_hfs`, next loader `GOOD`, device power-cut | Writes only `/.helikon/bootstate`; no other file; no device run yet |
 | `bootloader/` | Diagnostic core and splash exist; hardware entry/manifest still planned | boot lead | `bootloader/README.md`, `docs/architecture.md`, paper §5, §16 | 7 host tests; device tests planned | No filesystem writes; no overlay; no `--single`; no write modules linked; not flashable yet |
@@ -314,7 +314,7 @@ is created; do not let it drift.
 | `tools/firmware-size.py` | Print the F1 map/size/headroom and check undefined symbols | firmware lead | ADR-0003, T-054 | `__image_end`, `__bss_end`, raw-size equality, banned hosted symbols | Host check only; not a device measurement |
 | `tools/make-bootloader-splash.py` | Generate the pre-final owner splash PNG variants and 4bpp C data | boot/UI | T-045 | version, label mask, palette, packed base, preview | Requires the owner-provided ITC Benguiat file; font is not committed; historical design only |
 | `tools/make-final-bootloader-splash.py` | Generate the final splash variants and 4bpp C data from the owner green/red PNGs | boot/UI | T-045, `assets/bootloader/README.md` | pair-difference mask, palette, packed base, preview | Uses the exact owner PNGs; no font file required; 6bc6927c refresh is not device-tested |
-| `tools/render-ui-mockup.py` | Host 320×240 typography mockups | UI lead | `docs/ui.md`, `assets/fonts/README.md` | image is 320×240 grayscale; text fits | Host artifact only; not a device panel run |
+| `tools/render-ui-mockup.py` | Host 320×240 UI mockups, including launcher, index and album-wall concepts | UI lead | `docs/ui.md`, `assets/fonts/README.md`, `assets/ui/README.md`, D-52 | images are 320×240, previews 640×480; text fits; concept step requires `BENGUIAT_DIR` | Host artifact only; no font file committed; not a device panel run or accepted theme |
 | `tools/hfsplus/` | Host inspector, fixtures, tests | test lead | paper §8, §17, donor `tools/hfsplus` | host tests, sanitizer | Donor code is reference; do not modify donor; no device claims |
 | `tools/db/` | Host database builder | database lead | paper §12, §28.4.1 | 10k-track parity | No on-device claim without device evidence |
 | `tools/migrate/` | Donor overlay exporter | migration lead | paper §22 | fixture/hash/verify tests | Host-side only; never a runtime overlay; never overwrite silently |

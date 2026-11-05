@@ -84,6 +84,7 @@ re-litigate them.
 | D-49 | Decoder provenance and licensing | proposed | owner | §13, §18; audio-formats |
 | D-50 | Audio output ceiling and resampling | proposed | owner | §13, §28.3.8; audio-formats |
 | D-51 | Audio metadata, artwork and gapless policy | proposed | owner | §9.4, §28.3.8; D-06; audio-formats |
+| D-52 | Display face for home-screen headers (ITC Benguiat) | proposed | owner | §14, §28.3.4; D-23 |
 
 The paper's §25 lists 17 decisions. D-18, D-19, D-20 and D-26 are added from §18,
 §28.4.4 and the bootloader recovery policy. D-18 and D-20 are accepted; D-19 was
@@ -94,7 +95,7 @@ inner-image write diagnostic; D-25 records the separate outer-volume diagnostic
 and its backup gate. D-27/D-28 record the firmware memory map and entry ABI.
 See C-08.
 
-**D-29–D-51 are proposed, not accepted.** They were added on 2026-11-05 as the
+**D-29–D-52 are proposed, not accepted.** They were added on 2026-11-05 as the
 decision layer for the Rockbox competitive review in
 [`competitive-roadmap.md`](competitive-roadmap.md) and the audio-format review
 in [`audio-formats.md`](audio-formats.md). They do not change D-01–D-28, the 25
@@ -1179,6 +1180,44 @@ accept, reject or narrow one of them.
 - **Follow-up:** T-099 (metadata/artwork), T-100 (gapless/seek/resume), T-067
   (index). The owner confirms the multi-value and artwork storage policy.
 
+## D-52 — Display face for home-screen headers (ITC Benguiat)
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §14, §28.3.4; D-23.
+- **Context:** D-23 accepts IBM Plex Sans as the single UI family and Manrope
+  Bold for the wordmark. The owner’s bootloader splash is owner artwork using
+  ITC Benguiat. On 2026-11-05 the owner directed the home-screen headers to use
+  the same face.
+- **Options:** (a) keep Plex only and treat Benguiat as splash-only artwork;
+  (b) use Benguiat for the home wordmark and section headers while body and
+  list text stay Plex; (c) use Benguiat across the whole UI.
+- **Proposed direction:** option (b), scoped to the home/album concepts for
+  now. The launcher uses Benguiat Medium 26 px for the wordmark and Book 13 px
+  for tile labels; the index uses Medium 22 px for the wordmark, Book 20 px for
+  section names and Book 12 px for numerals; the album wall uses Book 18 px for
+  its title. Album captions, descriptions, counts, menu rows and list items
+  remain IBM Plex Sans 12/11. This is a display/body pairing, not a second body
+  family. D-23 still governs body/list UI. Whether the wordmark change becomes
+  global rather than concept-only is a separate owner decision.
+- **Licensing:** ITC Benguiat is proprietary Monotype font software. The owner
+  supplied the `.otf` files locally; they are not committed, redistributed or
+  extracted from the rendered mockup. The host renderer reads `BENGUIAT_DIR`.
+  Another machine cannot reproduce the concept mockups without the
+  owner-supplied font. Rendered PNGs are design artifacts, not font packages. Firmware
+  embedding or atlas use needs a licence decision before T-042/T-057.
+- **Consequences:** the concepts match the splash’s display voice; the UI gains a
+  serif/sans pairing. A missing font must fall back visibly to a tracked
+  Plex Semibold treatment, not to another proprietary face or an invisible
+  substitution. The older Manrope wordmark rule remains for surfaces outside
+  this header exception until the owner decides otherwise.
+- **Follow-up:** owner confirms home-only versus all first-party headers and
+  whether the wordmark changes globally; resolve font embedding; implement in
+  T-042/T-057; record a panel check.
+- **Evidence:** owner brief 2026-11-05; host mockups
+  [`../assets/ui/launcher/helikon-os-home-launcher-320x240.png`](../assets/ui/launcher/helikon-os-home-launcher-320x240.png),
+  [`../assets/ui/index/helikon-os-home-index-320x240.png`](../assets/ui/index/helikon-os-home-index-320x240.png)
+  and
+  [`../assets/ui/album-wall/helikon-os-album-wall-320x240.png`](../assets/ui/album-wall/helikon-os-album-wall-320x240.png).
+
 ## Conflicts and source separation
 
 These are recorded so an agent does not silently pick a side. A conflict does
@@ -1252,7 +1291,7 @@ not authorize a product change.
 - **Affected docs:** `release.md`, `security.md`, `CONTRIBUTING.md`,
   `SECURITY.md`.
 
-### C-08 — Paper §25 has 17 decisions; this file has 51
+### C-08 — Paper §25 has 17 decisions; this file has 52
 
 - **What:** the paper's §25 lists 17 open decisions. The documentation task
   requires licensing, code of conduct and signing-key ownership as well.
@@ -1261,9 +1300,10 @@ not authorize a product change.
   recovery decisions; D-27–D-28 record the firmware memory map and entry ABI;
   D-29–D-48 are the proposed competitive-horizon decisions added 2026-11-05;
   D-49–D-51 are the audio-decoder, output-ceiling and metadata decisions added
-  in the same session. D-18 and D-20 are accepted; D-19 was rejected after the
-  owner deleted the code of conduct; D-29–D-51 are `proposed`. This is a
-  documentation reconciliation, not a new product decision.
+  in the same session; D-52 is the home-screen display-face exception. D-18 and
+  D-20 are accepted; D-19 was rejected after the owner deleted the code of
+  conduct; D-29–D-52 are `proposed`. This is a documentation reconciliation,
+  not a new product decision.
 - **Affected docs:** this file, `agents.md`, `goals.md`,
   `competitive-roadmap.md`.
 

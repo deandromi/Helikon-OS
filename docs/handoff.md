@@ -59,6 +59,64 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-05 (home-screen concept set)
+
+## What happened
+
+- Two earlier home attempts were rejected: a bento dashboard was too dense and
+  button-like; an album shelf with a now-playing strip read as a botched Now
+  Playing screen. The owner asked for two home concepts and a separate album
+  browser.
+- Added five host mockups:
+  - **Phone-style launcher** — six frameless coloured line-icon cells on short
+    accent plinths (Music, Podcasts, Audiobooks, Playlists, Games, Settings), a
+    small mountain divider with end diamonds, no playback;
+  - **Neoclassical index** — four numbered Benguiat sections (Listen, Browse,
+    Play, Settings) with descriptions, counts and an hourglass, no playback;
+  - **Album wall** — a 4×3 cover browser with a selected-album caption and
+    search icon; a browser, not a home candidate.
+  - **Podcast wall** — the same wall for shows, with green new-episode dots and
+    a latest-episode caption.
+  - **Audiobook wall** — the same wall for books, with author, duration and
+    reading-progress caption.
+- All three use the off-white palette and 1 px rules. Home concepts have no
+  now-playing hero, strip, progress bar or green playback dot.
+- Headers use the owner-supplied ITC Benguiat Std; body text remains IBM Plex
+  Sans 12/11. D-52 records the proposed D-23 exception and the licensing
+  boundary: the `.otf` files are not committed or redistributed, and
+  `BENGUIAT_DIR` is required to regenerate the mockups.
+- Added the concepts to [`ui.md`](ui.md) §5, updated
+  [`../assets/ui/README.md`](../assets/ui/README.md),
+  [`../assets/fonts/README.md`](../assets/fonts/README.md) and
+  [`decisions.md`](decisions.md) (D-52).
+- Extended `tools/render-ui-mockup.py` to render the three 1× frames and their
+  `@2x` previews. It asserts launcher labels and fixed columns; the host frames
+  have no clipping or overlap. The icons and covers are generated line art, not
+  album artwork.
+- Updated the UI row in [`state.md`](state.md) and the asset/tool rows in
+  [`file-map.md`](file-map.md).
+
+## What is next
+
+1. The owner chooses a home concept: launcher, index, or a hybrid. The album wall
+   remains the album browser, not a home candidate.
+2. Confirm D-52 scope: home headers only or all first-party headers, and whether
+   the wordmark changes globally.
+3. Resolve ITC Benguiat licensing/embedding before firmware headers depend on it;
+   use the tracked Plex Semibold fallback if it cannot ship.
+4. If accepted, implement the chosen home and album wall in T-057, the header/body
+   type in T-042, and record a real 6G panel run.
+
+## Do not claim
+
+- That a firmware home screen, renderer or accepted theme exists.
+- That the launcher, index or album wall is the owner’s chosen design.
+- That any of these host mockups is a 6G panel result or a support claim.
+- That the generated icons/covers are album artwork or licensed images.
+- That the ITC Benguiat `.otf` files are part of the repository or redistributable.
+
+---
+
 # Handoff — 2026-11-05 (full manual coverage audit)
 
 ## What happened
