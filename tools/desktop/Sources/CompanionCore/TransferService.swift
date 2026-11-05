@@ -39,6 +39,7 @@ public actor TransferService {
         }
 
         var items: [TransferItem] = []
+        var usedDestinations = Set<String>()
         for source in files {
             let values = try? source.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey])
             guard values?.isRegularFile == true else {
@@ -47,14 +48,23 @@ public actor TransferService {
             let relative = relativePath(for: source, root: relativeRoot)
             var destination = destinationRoot.appendingPathComponent(relative)
             var conflict = fileManager.fileExists(atPath: destination.path)
-            if conflict && conflictPolicy == .keepBoth {
-                destination = FileNaming.uniqueDestination(for: source, in: destination.deletingLastPathComponent())
-                conflict = false
+            let duplicateInPlan = usedDestinations.contains(destination.standardizedFileURL.path)
+            if duplicateInPlan || (conflict && conflictPolicy == .keepBoth) {
+                destination = FileNaming.uniqueDestination(
+                    for: source,
+                    in: destination.deletingLastPathComponent(),
+                    fileExists: { candidate in
+                        usedDestinations.contains(candidate.standardizedFileURL.path)
+                            || fileManager.fileExists(atPath: candidate.path)
+                    }
+                )
+                conflict = fileManager.fileExists(atPath: destination.path)
             }
+            usedDestinations.insert(destination.standardizedFileURL.path)
             items.append(TransferItem(
                 sourceURL: source,
                 destinationURL: destination,
-                relativePath: relative,
+                relativePath: relativePath(for: destination, root: destinationRoot),
                 byteCount: Int64(values?.fileSize ?? 0),
                 kind: kind,
                 conflict: conflict
@@ -86,6 +96,7 @@ public actor TransferService {
                 continue
             }
 
+            var destinationReplaced = false
             do {
                 guard fileManager.fileExists(atPath: item.sourceURL.path) else {
                     throw TransferError.sourceMissing(item.sourceURL.path)
@@ -134,6 +145,7 @@ public actor TransferService {
                 } else {
                     try fileManager.moveItem(at: temporary, to: item.destinationURL)
                 }
+                destinationReplaced = true
                 if verify {
                     let destinationHash = try Hashing.sha256(of: item.destinationURL)
                     guard destinationHash == finalHash else {
@@ -150,6 +162,14 @@ public actor TransferService {
                 }
                 onProgress?(item)
             } catch {
+                if destinationReplaced {
+                    if let backup = item.backupURL {
+                        try? fileManager.removeItem(at: item.destinationURL)
+                        try? fileManager.copyItem(at: backup, to: item.destinationURL)
+                    } else {
+                        try? fileManager.removeItem(at: item.destinationURL)
+                    }
+                }
                 item.status = .failed
                 item.error = error.localizedDescription
                 item.progress = 0
@@ -298,7 +318,11 @@ public struct BackupService {
             let destination = folder.appendingPathComponent(relative)
             try FileManager.default.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
             try FileManager.default.copyItem(at: entry.source, to: destination)
+            let sourceChecksum = try Hashing.sha256(of: entry.source)
             let checksum = try Hashing.sha256(of: destination)
+            guard sourceChecksum == checksum else {
+                throw TransferError.verificationFailed(entry.source.lastPathComponent)
+            }
             let size = Int64((try? entry.source.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0)
             files.append(BackupFile(relativePath: relative, byteCount: size, checksum: checksum))
             progress?(index + 1, sources.count, entry.source.lastPathComponent)

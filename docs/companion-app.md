@@ -18,7 +18,7 @@ place and plans writes before it makes them.
 |---|---|---|
 | Native macOS app shell | `in progress` | SwiftPM package and release build pass; host visual review only |
 | HFS+ volume detection | `in progress` | `diskutil` metadata and volume markers; a mounted 32 MiB HFS+ test image with `.helikon` was detected as Helikon-OS, read/write; no device acceptance run |
-| Library scan and host library | `in progress` | AVFoundation scan; 20 core tests pass |
+| Library scan and host library | `in progress` | AVFoundation scan; 21 core tests pass |
 | Metadata search | `in progress` | MusicBrainz and Apple clients; live API shape checked; no search matrix |
 | Music transfer | `in progress` | Plan, streaming copy, SHA-256, backup-before-replace and MP3 ID3 test pass; no device run |
 | Podcast subscription/download | `in progress` | RSS/Atom parser fixtures and download code; no 500-episode run |
@@ -163,15 +163,15 @@ Current host evidence:
 
 ```text
 swift build -c release      PASS
-swift test                  PASS — 20 tests
+swift test                  PASS — 21 tests
 ./scripts/build-app.sh      PASS — ad-hoc app bundle
 mounted HFS+ test image     PASS — detected as HFS+, writable, Helikon-OS marker
 ```
 
-The 20 tests cover:
+The 21 tests cover:
 
-- transfer planning, conflict handling, copy verification, backup/skip and
-  replace-with-verified-backup,
+- transfer planning, conflict handling, duplicate destinations, copy
+  verification, backup/skip and replace-with-verified-backup,
 - MP3 ID3 tag writing into the copy only,
 - Last.fm signature canonicalisation,
 - Rockbox log and JSON play-history import,
