@@ -147,10 +147,14 @@ is published:
 | 10 | Adapter safety and measurement | Rockbox documents SD/CF/SATA quirks and older corruption bugs (§2.1.2). Helikon-OS records identify data, sector size, flush behaviour and a known-bad list. | SD/CF/SSD/HDD boot, play, write, sleep and 100-cycle resume | D-42 |
 | 11 | Evidence discipline | Rockbox is mature; Helikon-OS is new and cannot borrow that trust. Every claim is tied to a hash and a run. | `validation.md` rows and `device-matrix.md` entries | D-29, D-40 |
 | 12 | Privacy by construction | The device has no network; Helikon-OS adds no telemetry and makes scrobbling host-side and opt-in. | No network stack on device; host export is explicit | D-48 |
+| 13 | Device health and care | Rockbox offers a battery benchmark and debug screen, not a health dashboard. | Battery/storage/temperature/checksum report and diagnostics bundle | D-39/D-41, T-105 |
+| 14 | Library doctor and smart navigation | Rockbox explicitly declines list-letter jumping and scandisk-like scans. | Duplicate/tag/corruption report; alphabet jump and saved searches | D-29/D-33, T-106 |
+| 15 | First-party utilities | Rockbox ships plugins; the daily-use basics should not require a plugin download. | Clock/alarm/timer/calculator/reader/lyrics/metronome/stats pass | D-37, T-104 |
+| 16 | Per-output profiles and hearing protection | Rockbox has global sound settings and a car mode, not automatic output profiles. | Headphone/line-out/car/dock profiles and safe limits pass | D-35/D-41, T-107 |
 
 These bets are not all v1. Bets 1, 2, 3 and 6 are the strongest reason to choose
-Helikon-OS; bets 4, 5, 7, 8, 9, 10 and 11 are v1.x/v2 work. The roadmap must
-not pretend otherwise.
+Helikon-OS; bets 4, 5, 7–16 are v1.x/v2 work. The roadmap must not pretend
+otherwise.
 
 ### 3.3 What “every aspect” means
 
@@ -216,6 +220,7 @@ The matrix is grouped by user job. Horizon codes are defined in §6. Tasks are i
 | Original firmware / dual boot | The Rockbox bootloader can choose Rockbox or the original firmware (§2.5, §3.1.3) | Preserve the Apple NOR path; documented boot gesture; tested restore | `match` | H1 | T-063 |
 | Uninstall | Rockbox Utility or manual uninstall; delete `.rockbox` (§2.5) | One-click restore; remove Helikon files; verify Apple boot | `match` | H1 | T-063 |
 | Update | Unzip a build over the existing install; ROLO can load another `.ipod` file (§2.4, §13.4.1) | Signed staged update; preflight; bootstate fail-closed; manual recovery copy | `exceed` | H1 | T-064 |
+| In-app firmware reload | ROLO loads another `.ipod` file without rebooting (§13.4.1) | No unsigned in-place load; the signed staged update may offer a controlled restart after commit | `differ` | H2 | T-064 |
 | Update signature | No signature check is documented | Ed25519 manifest verified before any image byte (D-01) | `exceed` | H1 | T-064 |
 | Release channels | Release, current build and archived daily build (§2.2.1) | Stable, beta and development channels; signed | `match` | H2 | T-086 |
 | Support window | Not documented | Published support window, LTS line and security response | `exceed` | H2 | T-086 |
@@ -232,6 +237,7 @@ The matrix is grouped by user job. Horizon codes are defined in §6. Tasks are i
 | Symlinks and hard links | Not documented for the FAT target | Explicit policy: read safely; creation deferred until proven | `differ` | H2 | T-065, D-32 |
 | Resource forks / xattrs | Not documented | Preserve on copy; expose only through a capability; never silently drop | `differ` | H2 | T-065 |
 | Data checksums and scrub | Not documented | Checksum sidecar, verify-on-open, charging/idle scrub, quarantine (D-11) | `exceed` | H2 | T-078 |
+| Read-only health scan | Rockbox explicitly declines “scandisk-like” features (Appendix G.2.2) | Bounded read-only scan of journal, B-trees, bitmap, extents and checksum index; no auto-repair, charging/idle only | `exceed` | H2 | T-078, T-105 |
 | Adapter quirks | SD/CF/SATA differences; older versions had corruption on flash mods (§2.1.2) | Identify-data quirks table, sector-size handling, flush errors, known-bad list | `match` | H1 | T-081 |
 | Large volumes | FAT32 partitions cannot exceed 2 TiB; early 6G Apple firmware has a 128 GiB caveat (§2.1.1) | HFS+ volume limits; the same 6G caveat is documented and tested | `differ` | H2 | T-081 |
 
@@ -240,6 +246,9 @@ The matrix is grouped by user job. Horizon codes are defined in §6. Tasks are i
 | Capability | Rockbox baseline (manual) | Helikon-OS target | Label | Horizon | Task |
 |---|---|---|---|---|---|
 | File browser | Icons, context menu, virtual keyboard, sort and filter options (§4.1) | Same job; one navigation model and explicit empty/error states | `match` | H1 | T-094 |
+| File operations and context menu | View, rename, cut, copy, paste, delete, delete directory, new directory, properties, open with, set as backdrop/playlist/database/recording/start directory, add to shortcuts (§4.1.2) | Same through the VFS and transaction engine; destructive actions confirm and never bypass `hfs_txn` | `match` | H1 | T-094 |
+| Virtual keyboard | Layout picker and Morse-code input (§4.1.3) | Layout picker, Morse mode and accessible focus; no hidden mode required for normal tasks | `match` | H1 | T-094 |
+| File view settings | Sort case/dirs/files/type, whole-number sort, show files/extensions, follow playlist, show path, remember last folder, file-browser hotkey (§8.3) | Same, plus saved per-library views | `match` | H1 | T-094 |
 | Database | On-device scan, load-to-RAM option, auto update and runtime data (§4.2) | Host-built immutable index plus on-device incremental delta; no full RAM copy | `exceed` | H1–H2 | T-066, T-067 |
 | Metadata limits | 1,800 bytes total, 500 bytes per item, one tag type per extension, no normalization on the Classic (Appendix B.2.3) | Bounded but larger, normalized, sidecar-capable; no silent truncation | `exceed` | H1 | T-066 |
 | Browse categories | Artist, album, genre, title and runtime data (§4.2.3–§4.2.4) | Same plus album/artist pages with local sidecars | `match` | H1–H2 | T-088 |
@@ -247,10 +256,12 @@ The matrix is grouped by user job. Horizon codes are defined in §6. Tasks are i
 | Playlists | M3U/M3U8, dynamic current playlist, queue, save/load (§4.4) | Same; transactional save; import from Rockbox | `match` | H1 | T-093 |
 | Bookmarks and resume | Bookmarks and automatic resume (§8.8–§8.9) | Same; per-podcast and per-audiobook resume | `match` | H1 | T-093 |
 | Search | Database browsing and a Search viewer plugin (§4.2, §12.3.13) | Global search across library and files; bounded results | `match` | H2 | T-094 |
+| Alphabetical jump / type-ahead | Rockbox explicitly declines list-letter jumping (Appendix G.2.2) | Alphabet strip and type-ahead backed by the host index; no full scan per key | `exceed` | H2 | T-106 |
 | Shortcuts, hotkeys, quick screen | §4.5, §5.12, §5.13 | Same, with a conflict-free default map | `match` | H2 | T-094 |
 | Cuesheets | Cuesheet support, embedded or sidecar (§7.15) | Same; validate and report malformed cues | `match` | H2 | T-093 |
 | Album art | BMP/JPEG; no RLE BMP, progressive or multi-scan JPEG (Appendix C) | JPEG/PNG, bounded decode, cache and missing-art fallback | `exceed` | H1 | T-068, T-088 |
-| Settings files | `.cfg` files, `fixed.cfg`, save/load profiles (§13.3) | Import/export and profiles; schema-versioned; no silent reset | `match` | H2 | T-095 |
+| Settings files | `.cfg` files, `fixed.cfg`, save/load profiles (§13.3) | Import/export, full setting inventory, `fixed.cfg`, profiles, diff/rollback; schema-versioned; no silent reset | `match` | H2 | T-095 |
+| Library doctor | No duplicate/tag/checksum doctor; only runtime stats and the Disk Tidy plugin (§12.4.9, §12.4.25) | Host+device report for duplicates, missing tags, corrupt files, checksum mismatches and storage cleanup; read-only recommendations | `exceed` | H2 | T-106 |
 
 ### 5.4 Playback, audio and formats
 
@@ -270,6 +281,8 @@ The matrix is grouped by user job. Horizon codes are defined in §6. Tasks are i
 | Headphone unplug | Pause and resume options (§7.14) | Same; safe default | `match` | H1 | T-070 |
 | Volume limit | Volume limit setting (§6.2) | Same plus a first-boot safe limit | `match` | H1 | T-070 |
 | Line-out and car | Car-adapter mode, delay, accessory power, line-out (§8.6.7–§8.6.10) | Tier 1 line-out/charging/resume; Tier 2 control subset (D-14) | `match` | H2 | T-089 |
+| Per-output sound profiles | Global sound settings; themes can switch `.cfg` files, but no automatic per-output profile | Headphone, line-out, car and dock profiles with per-output EQ/ReplayGain/volume caps and safe defaults | `exceed` | H2 | T-107 |
+| Hearing protection | Volume limit only (§6.2) | Volume ramp, per-output caps, optional listening-dose estimate and a hearing-protection notice | `exceed` | H2 | T-107 |
 | Internal DAC | Internal codec path | Measure CS42L55 noise, THD+N, response and channel separation | `match` | H2 | T-092 |
 | Sample-rate policy | A playback frequency can be selected; other rates are resampled (§7.21) | Play native rates where the path supports it; document the resampler | `exceed` | H2 | T-092 |
 | Audio chiptune/tracker families | GBS, AY, HES, KSS, SGC, VGM/VGZ, MOD, NSF/NSFE, SAP, SID, SPC (Appendix B.1.3) | Included in the v1.x audio parity set; no video claim | `match` | H2 | T-100 |
@@ -289,8 +302,13 @@ The matrix is grouped by user job. Horizon codes are defined in §6. Tasks are i
 | Accessibility | Voice support and a blind-users FAQ reference (§3.1.1, §8.11) | Voice, large text, high contrast, reduced motion and a focus model | `exceed` | H2 | T-074 |
 | Custom main menu | Configurable main menu (§13.1.1) | Configurable home with safe defaults | `match` | H2 | T-072 |
 | Status bar and peak meter | Status bar, peak meter and many theme tags (Appendix D) | Same information, simpler defaults | `match` | H1 | T-072 |
-| Clock and time/date | Time and date settings (§11) | RTC-backed clock; no fake time when the RTC is absent | `match` | H1 | T-072, T-079 |
-| Display and backlight | Backlight, brightness, sleep and scrolling settings (§8.5) | Same, with measured power defaults and reduced motion | `match` | H1 | T-079, T-080 |
+| WPS context menu | Current playlist, add to playlist, sound/playback shortcuts, rating, bookmarks, track info, show in files, pitch, album art (§4.3.3) | Same actions with a stable focus model; no dead ends | `match` | H1 | T-094 |
+| Hotkeys, quick screen and shortcuts | Per-screen hotkeys, four-setting quick screen, file/folder/setting shortcuts (§4.5, §5.12, §5.13) | Same, plus conflict detection and reset-to-default | `match` | H2 | T-094 |
+| Main menu and playername | Hide/reorder main-menu items, custom playername (§13.1.1–§13.1.2) | Same, with safe defaults and a reset path | `match` | H2 | T-094 |
+| Clock and time/date | Time and date settings; 12/24-hour clock; voice the time (§11) | RTC-backed clock; no fake time when the RTC is absent; host time sync | `match` | H1 | T-072, T-079 |
+| Display and backlight | Backlight, plugged-in backlight, hold, caption, brightness, sleep, scrolling, paged scrolling, wrap, list order, peak-meter settings, codepage (§8.5) | Same, with measured power defaults and reduced motion | `match` | H1 | T-103 |
+| Startup and shutdown | Start screen, hold-clears-settings, idle poweroff, sleep timer, shutdown message (§8.7) | Same, plus transactional settings save and a safe-mode start | `match` | H1 | T-103 |
+| First-party utilities | Plugins/apps: clock, alarm, timer, stopwatch, calendar, calculator, text/image viewer, metronome, pitch detector, lyrics, stats, battery benchmark, disk tidy, search/sort (§12.3–§12.4) | Integrated first-party suite for the critical utilities; optional games/emulators stay in the sandbox | `match` | H2 | T-104 |
 | Reduced motion | Not documented | A setting; transitions have a frame budget | `exceed` | H2 | T-074 |
 
 ### 5.6 Connectivity, desktop and ecosystem
@@ -321,6 +339,8 @@ The matrix is grouped by user job. Horizon codes are defined in §6. Tasks are i
 | Write speed | No published benchmark in the manual | Measure raw device, journal cost and 1,000-file create/delete | `exceed` | H2 | T-079 |
 | Adapter power and quirks | SD adapters omit some ATA power commands; cards vary widely (§2.1.2) | Quirks table, conservative defaults, APM and known-bad list | `match` | H1 | T-081 |
 | Thermal behaviour | Not documented | Thermal policy and charge-aware throttling; no unmeasured claim | `exceed` | H2 | T-080 |
+| Device health dashboard | Battery Benchmark plugin and a developer debug screen (§5.11, §12.4.2) | Battery health/cycles/voltage/temperature, storage identify/SMART, SD/CF wear, journal/fsck/checksum status, last backup, versions and a diagnostics bundle | `exceed` | H2 | T-105 |
+| Charge preservation | Charge-during-USB and accessory power settings (§8.6.1, §8.6.9) | Optional charge limit, temperature-aware charging and battery-care notice | `exceed` | H2 | T-105 |
 
 ### 5.8 Extensibility, community and ports
 
@@ -351,14 +371,14 @@ its dependency phase has passed.
 |---|---|---|---|---|
 | H1-A Install and recovery | Native-HFS+ install, backup/verify, dual boot, uninstall, signed update, recovery | Phase 4 + T-051 | T-062, T-063, T-064 | A non-coder installs, updates, rolls back and restores on a 6G with no data loss |
 | H1-B Storage and safety | VFS semantics, journal path, adapter matrix, `fsck_hfs` gate | Phase 3 | T-065, T-081 | Crash matrix and adapter matrix pass; zero `fsck_hfs` repairs |
-| H1-C Library parity | File browser, playlists, bookmarks, resume, cuesheets, 10k index | Phase 4 | T-066, T-093, T-094 | 10k tracks browse and resume; host/device parity; no playback stall |
+| H1-C Library parity | File browser, file operations, playlists, bookmarks, resume, cuesheets, 10k index | Phase 4 | T-066, T-093, T-094 | 10k tracks browse and resume; host/device parity; no playback stall |
 | H1-D Playback parity | Tier 1 codecs, gapless, ReplayGain, EQ, crossfade, volume limit | Phase 1 + audio HAL | T-068, T-070 | 20-track codec corpus; gapless and seek pass; no clipping |
-| H1-E UI parity | First-party renderer, themes, status bar, now playing, album art | Phase 1 + T-042 | T-072, T-079 | 30 fps scroll, <200 ms open, panel photos, no clipping |
+| H1-E UI parity | First-party renderer, themes, display/startup settings, status bar, now playing, album art | Phase 1 + T-042 | T-072, T-079, T-103 | 30 fps scroll, <200 ms open, panel photos, settings parity |
 | H1-F Desktop and USB | Read-only LUN, HID, charge-only, macOS app MVP | Phase 9 | T-076, T-083 | Backup, import, tag, install and verify pass on macOS |
-| H2-A Data leadership | Checksum sidecar, scrub, quarantine, corruption reporting | H1-B | T-078 | Injected corruption detected; zero false OK; no playback dropout |
-| H2-B Index leadership | On-device incremental builder, power-cut resume | H1-C | T-067 | 10k build resumes at 25/50/75%; host parity |
-| H2-C Audio leadership | Tier 2 codecs, advanced DSP, DAC measurements | H1-D | T-069, T-071, T-092 | Published measurements; no battery regression without a note |
-| H2-D Interface leadership | WPS subset, 20-skin corpus, voice, large text, localization | H1-E | T-073, T-074, T-075 | 20 skins render; voice and large-text tasks pass |
+| H2-A Data leadership | Checksum sidecar, scrub, quarantine, corruption reporting, read-only health scan, device health | H1-B | T-078, T-105 | Injected corruption detected; zero false OK; health report recorded |
+| H2-B Index leadership | On-device incremental builder, power-cut resume, library doctor, smart navigation | H1-C | T-067, T-106 | 10k build resumes at 25/50/75%; host parity; library doctor clean |
+| H2-C Audio leadership | Tier 2 codecs, advanced DSP, DAC measurements, per-output profiles | H1-D | T-069, T-071, T-092, T-107 | Published measurements; no battery regression; profile safety check |
+| H2-D Interface leadership | WPS subset, 20-skin corpus, voice, large text, localization, first-party utilities | H1-E | T-073, T-074, T-075, T-104 | 20 skins render; voice, large-text and utility tasks pass |
 | H2-E Ecosystem | Podcast/audiobook, car Tier 1/2, service mode, migration | H1-F | T-077, T-082, T-085, T-089 | 500 episodes; 100 ignition cycles; migration verifies |
 | H2-F Release and support | Channels, LTS, support window, security response | H1-A | T-086 | A signed release train and a published support window |
 | H3-A Sandbox | App/game runtime, SDK, permissions, quotas, signing | H2-D + H2-F | T-084 | Escape, quota and crash-isolation tests pass |
@@ -420,6 +440,12 @@ count.
 - checksum sidecar, verify-on-open and charging scrub;
 - 20-skin WPS corpus plus the native theme;
 - voice menus, talk clips, large text and high contrast;
+- first-party utilities (clock, alarm, timer, calendar, calculator, reader,
+  lyrics, metronome, pitch, stats, battery benchmark, disk tidy, search/sort);
+- device health and care dashboard, read-only health scan, charge/battery care;
+- library doctor, alphabetical jump/type-ahead, saved searches and smart
+  playlists;
+- per-output sound profiles and hearing protection;
 - desktop app tagging, ratings, descriptions, podcast sync and opt-in
   scrobbling;
 - **complete Rockbox audio parity**: all 37 audio families (36 in Appendix B.1
@@ -619,10 +645,131 @@ the runtime and SDK.
 
 ---
 
-## 12. Related
+## 12. Manual section audit
+
+This is a section-by-section coverage map of the Rockbox iPod Classic manual.
+Status values:
+
+- `covered` — an existing decision/task covers the user-visible job;
+- `gap → T-xxx` — a real gap, now assigned;
+- `N/A` — the 6G hardware has no such input/tuner, or the feature is not audio;
+- `declined` — deliberately out of scope;
+- `differ` — Helikon-OS uses a different, documented model.
+
+Game and demo descriptions are summarised as a category; the project does not
+promise a one-for-one port of every Rockbox plugin.
+
+| Manual | Feature area | Coverage | Gap / action |
+|---|---|---|---|
+| §1 | Introduction, help, naming | `N/A` | Documentation, not a feature |
+| §2 | Install, update, uninstall, USB charging | `covered` | D-30/D-31, T-062–T-064 |
+| §3 | Controls, power, original firmware, transfer, first contact, themes, charging | `covered` | T-076, T-094; verify inline remote per revision |
+| §4.1 | File browser, context menu, virtual keyboard | `gap → T-094` | File operations, properties, set-as directories/backdrop/shortcuts, keyboard/Morse |
+| §4.2 | Database, runtime data, auto update, ignore/unignore | `covered` | T-066/T-067; host index plus device delta |
+| §4.3 | WPS, peak meter, WPS context menu | `covered` | T-072/T-094; expand WPS context actions |
+| §4.4 | Playlists, Playing Next, queue, viewer, save/load | `covered` | T-093; expand queue variants and viewer move/remove |
+| §4.5 | Hotkeys | `gap → T-094` | Per-screen hotkeys, conflict detection |
+| §5.1–§5.6 | Main menu, recent bookmarks, files, database, resume | `covered` | T-093/T-094 |
+| §5.7 | Settings menus, defaults, main-menu order | `covered` | T-095; full setting inventory |
+| §5.8 | Recording | `N/A` | The 6G has no audio input |
+| §5.9 | Playlists menu and catalogue | `covered` | T-093 |
+| §5.10 | Plugins | `declined` | No native plugin ABI; sandboxed apps T-084 |
+| §5.11 | System info, credits, runtime, debug | `gap → T-105` | Device health dashboard replaces the debug screen |
+| §5.12 | Quick screen | `gap → T-094` | Four configurable settings |
+| §5.13 | Shortcuts | `gap → T-094` | File, folder and setting shortcuts |
+| §6 | Sound settings: volume, limit, bass, treble, balance, channels, width, crossfeed, EQ, dither, timestretch, Haas, bass enhancement, fatigue, compressor | `covered` | T-070/T-071; core at v1, advanced measured |
+| §7 | Playback: shuffle, repeat, select-first, FF/RW, anti-skip, fade, single/party, crossfade, ReplayGain, beep, auto-directory, headphone, cuesheet, skip, rewind, frequency, art, logging | `covered` | T-070/T-080/T-093; add single/party/auto-directory/beep/logging details |
+| §8.1 | WPS hotkey and context items | `gap → T-094` | Same actions; stable focus |
+| §8.2 | Playlist settings: sort, viewer, recursive insert, current playlist, warnings, queue options | `gap → T-093` | Expand T-093 acceptance |
+| §8.3 | File view: sort, show files, extensions, follow playlist, path, remember folder, hotkey | `gap → T-094` | Per-library saved views |
+| §8.4 | Database settings: load to RAM, auto update, scan paths, runtime data | `covered` | T-067 |
+| §8.5 | Display: backlight, hold, caption, brightness, scrolling, peak meter, codepage | `gap → T-103` | Full display settings parity |
+| §8.6 | System: battery, disk, limits, line-in, volume mode, shortcuts, car, accessory, line-out, keyclick, USB HID/keypad | `gap → T-103/T-105` | Line-in `N/A`; rest covered by display/system tasks |
+| §8.7 | Startup/shutdown: start screen, hold reset, idle poweroff, sleep timer, message | `gap → T-103` | Transactional save and safe-mode start |
+| §8.8 | Bookmarking: on stop, update, load last, recent list, ignore/unignore | `gap → T-093` | Expand T-093 acceptance |
+| §8.9 | Automatic resume: global, per-directory, auto track change | `gap → T-093` | Expand T-093 acceptance |
+| §8.10 | Language | `covered` | T-075; runtime load and RTL |
+| §8.11 | Voice menus, directory/filename voicing, talk clips, battery announcements, voice volume | `covered` | T-074; expand talk-clip details |
+| §9 | Theme settings: browse themes, font, WPS, icons, backdrop, status/scrollbar, colours, line selector | `covered` | T-072; expand settings UI |
+| §10 | Recording settings | `N/A` | No input |
+| §11 | Time/date, 12/24-hour, voice time | `gap → T-104` | Clock, alarm, calendar and timer utilities |
+| §12.1 | Games | `declined` | Optional sandboxed games T-084 |
+| §12.2 | Demos | `declined` | Optional sandboxed demos |
+| §12.3 | Viewers: text, image, lyrics, search, sort, video, emulators | `gap → T-104` | Text/image/lyrics/search/sort are first-party; video/emulators declined |
+| §12.4 | Apps/utilities: alarm, battery bench, calculator, calendar, clock, dict, disk tidy, Last.fm, lyrics, md5, metronome, OTP, periodic, pitch, resistor, paint, stats, stopwatch, text editor, timer | `gap → T-104/T-105` | Critical utility set first; optional tools later |
+| §13.1 | UI customisation: main menu, playername, fonts, languages, filetype colours, backdrops, UI viewport | `gap → T-094/T-072` | Main menu/playername T-094; theme/filetype colours and backdrops T-072 |
+| §13.2 | Theme config, WPS/SBS, viewports, additional fonts, conditionals, images | `covered` | T-072/T-073; publish tag coverage |
+| §13.3 | `.cfg` files, `fixed.cfg`, save/load, reset, sound/theme export | `gap → T-095` | Full inventory, diff/rollback |
+| §13.4 | ROLO in-app firmware load | `differ` | Signed staged update; no unsigned in-place load (T-064) |
+| §13.5 | Battery optimisation | `covered` | T-080/T-101 |
+| App A | File formats: bookmarks, config, cuesheet, font, language, playlist, WPS, image, text, voice, firmware, plugin | `covered` | T-072/T-093/T-095/T-104; plugin format declined |
+| App B | Audio and metadata formats | `covered` | [`audio-formats.md`](audio-formats.md) |
+| App C | Album art | `covered` | T-099 |
+| App D | Theme tags | `covered` | T-073; subset and 20-skin corpus |
+| App E | Config file options | `gap → T-095` | Full settings table |
+| App F | Menu overview | `gap → T-094` | Main-menu model |
+| App G | Feedback and “features we will not implement” | `differ` | See §13 |
+| App H | Credits and licences | `covered` | D-18, `NOTICE` |
+
+**Audit result.** The manual has no critical untracked area after this pass.
+The remaining gaps are settings breadth, utility breadth and device-health
+features, now assigned to T-103–T-107. Recording, FM and line-in are hardware
+`N/A`; native plugins, video and game emulators are explicit declines.
+
+## 13. Features Rockbox does not have
+
+These are the differentiators beyond the ones already in §3.2. “Rockbox
+position” is based on the manual; “Helikon plan” is a proposal, not an
+implementation claim.
+
+| Feature | Rockbox position | Helikon plan | Task |
+|---|---|---|---|
+| Native HFS+ install without FAT32 reformatting | Rockbox requires FAT32 on the Classic (§2.1) | Preserve the library and install on HFS+ | T-062 |
+| Journaled HFS+ transactions and `fsck_hfs` gate | No HFS+ journal path | Transaction engine and zero-repair gate | T-065 |
+| Signed staged updates | Unzip/ROLO; no signature documented | Ed25519 manifest, fail-closed bootstate | T-064 |
+| Host-built index plus device delta | On-device database; metadata byte caps | 10k-track index with power-cut resume | T-066/T-067 |
+| Anti-corruption checksums and scrub | Not documented | SHA-256 sidecar, verify, quarantine | T-078 |
+| Full desktop app | Rockbox Utility only | Backup, tag, rate, describe, podcast, install | T-083 |
+| Modern UI and accessibility | Bitmap themes, voice menus | Anti-aliased type, large text, high contrast, voice | T-072/T-074 |
+| Sandboxed extensions | Native plugins | Signed apps/themes with capabilities | T-084 |
+| Adapter safety | Documented SD/CF/SATA quirks | Identify table, safe fallback, known-bad list | T-081 |
+| No telemetry/network | No telemetry | Explicit local-only policy | T-091 |
+| **Alphabetical jump / type-ahead** | Explicitly declines list-letter jumping (App. G.2.2) | Alphabet strip and type-ahead from the host index | T-106 |
+| **Read-only filesystem health scan** | Explicitly declines scandisk-like features (App. G.2.2) | Bounded read-only scan; never auto-repair | T-105 |
+| **Device health and care dashboard** | Battery Benchmark plugin and debug screen | Battery health/cycles, storage SMART, SD wear, temperature, backup/checksum status | T-105 |
+| **Library doctor** | No duplicate/tag/checksum doctor | Duplicates, missing tags, corrupt files, checksum mismatch, storage cleanup | T-106 |
+| **Smart playlists and saved searches** | Database/tagnavi only; no first-party builder | Query builder, saved searches, smart shuffle by rating/year/genre | T-106 |
+| **Per-output sound profiles** | Global settings; theme `.cfg` switching | Automatic headphone/line-out/car/dock profiles | T-107 |
+| **Hearing protection** | Volume limit only | Volume ramp, per-output caps, optional listening-dose estimate | T-107 |
+| **Transactional tag editing on device** | Not a documented on-device feature | Tag edits through `hfs_txn`, with a backup copy | T-099 |
+| **Settings diff and rollback** | `.cfg` save/load | Versioned settings, diff, rollback, `fixed.cfg` | T-095 |
+| **In-app help and error explorer** | Manual and error text | Context help, error code explanation, next action | T-103/T-104 |
+| **Automatic host backup on connect** | No | Desktop app offers a verified backup before writes | T-083 |
+| **Curated, signed theme/app repository** | Themes site and native plugins | Signed packages, licence metadata, one-click install | T-072/T-084 |
+| **Play history and statistics dashboard** | Runtime DB and Stats plugin | Host+device dashboard for plays, skips, ratings, storage | T-104 |
+| **Lyrics with per-line sync** | Lrcplayer plugin | First-party synced lyrics screen | T-104 |
+| **RTL and broader localization** | Language files; RTL not guaranteed | RTL rules, font fallback, native review | T-075 |
+| **Charge limit and battery care** | Charge during USB only | Optional charge limit, temperature-aware charging | T-105 |
+| **Storage wear monitoring** | Not documented | SD/CF wear indicators and a replacement warning | T-105 |
+
+### 13.1 What Rockbox says it will not implement
+
+The manual’s “features we will not implement” list is useful because it shows
+where a different product can deliberately differ:
+
+| Rockbox refusal | Reason in the manual | Helikon-OS position |
+|---|---|---|
+| USB host / device-to-device play | The player is a USB slave; the controller is disk-oriented | Same hardware limit on the 6G; no USB-host claim |
+| Filesystems other than FAT32 | Boot/ROM and RAM constraints | Native HFS+ is the product; no FAT or other-FS mount |
+| Scandisk-like repair | Slow, battery-heavy and better on a host | Read-only health scan and host repair guidance; no auto-repair |
+| Alphabetical list skipping | Current list implementation cannot do it | Host index makes type-ahead and an alphabet strip practical |
+| Nonstandard tag formats | Rejected by the project | Support the standard tag families; do not invent a private tag format |
+| DRM playback | Legal and open-source impossibility | No DRM; convert owned files through the desktop app with the user’s authority |
+
+## 14. Related
 
 - [`roadmap.md`](roadmap.md) — phases 0–12 and the horizon lanes
-- [`tasks.md`](tasks.md) — T-060–T-102
+- [`tasks.md`](tasks.md) — T-060–T-107
 - [`decisions.md`](decisions.md) — D-29–D-51 (proposed)
 - [`audio-formats.md`](audio-formats.md) — per-format inventory, tiers, decoder
   architecture, 6G ceiling and test corpus

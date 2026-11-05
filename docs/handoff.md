@@ -11,6 +11,50 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-05 (full manual coverage audit)
+
+## What happened
+
+- Read the Rockbox iPod Classic manual section by section, including the
+  installation/update, file browser/context menu/virtual keyboard, database,
+  WPS, playlists/queue, hotkeys/quick screen/shortcuts, sound, playback,
+  general/display/system/startup/bookmark/voice settings, themes, time/date,
+  plugins/apps/viewers, advanced UI/theme/`.cfg`/ROLO/battery chapters and
+  Appendices A–G.
+- Added a **section-by-section coverage audit** to
+  [`competitive-roadmap.md`](competitive-roadmap.md) §12 and a **features
+  Rockbox does not have** section in §13.
+- The audit found no critical untracked area after the pass. Remaining breadth
+  gaps are now T-103 (display/startup settings), T-104 (first-party utilities),
+  T-105 (device health), T-106 (library doctor/smart navigation) and T-107
+  (per-output profiles/hearing protection).
+- Expanded T-093 (queue/playlist viewer/bookmarks/auto-resume), T-094 (file
+  operations/keyboard/hotkeys/shortcuts/main menu), T-095 (full settings
+  inventory/`.cfg`/rollback), T-072 (theme settings), T-074 (voice/talk clips)
+  and T-075 (RTL/runtime language).
+- Updated the roadmap lanes, differentiation bets, validation rows, FAQ,
+  state, README, file-map, firmware-architecture module table and design-paper
+  Appendix I.
+- The audit is a plan; no utility, page, setting or health feature exists.
+
+## What is next
+
+1. Owner reviews D-29/D-34/D-49–D-51 and the T-103–T-107 scope.
+2. Start T-094/T-093 with the existing UI/library tasks once the writer line
+   allows; T-103–T-107 are H2 breadth and do not jump the queue.
+3. Keep recording/FM/line-in marked `N/A`; do not add native plugin or video
+   parity.
+
+## Do not claim
+
+- That every Rockbox feature is implemented or that Helikon-OS has full parity.
+- That the new utilities, device health, library doctor or per-output profiles
+  exist.
+- That the manual audit is device evidence or that it changes an accepted
+  decision.
+
+---
+
 # Handoff — 2026-11-05 (audio-format parity plan)
 
 ## What happened

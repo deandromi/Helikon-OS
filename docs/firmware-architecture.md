@@ -2449,12 +2449,17 @@ These modules are **not** part of F1–F5 and do not start before the named gate
 They implement the competitive horizon in
 [`competitive-roadmap.md`](competitive-roadmap.md) and
 [`audio-formats.md`](audio-formats.md); the decisions are D-29–D-51 and the
-tasks are T-060–T-102. None exists today.
+tasks are T-060–T-107. None exists today.
 
 | Module | Decisions | Tasks | Entry gate | Must not |
 |---|---|---|---|---|
 | VFS object semantics | D-32 | T-065 | F3 | Expose raw block access; hide an unsupported object |
 | Library index (host + device delta) | D-33 | T-066, T-067 | F3, host builder | Load the whole library into RAM; block playback |
+| File browser, file operations, keyboard and settings UI | D-29, D-32 | T-094, T-103 | F3/F4 | Bypass the VFS; hide an unsupported object |
+| First-party utilities | D-29, D-37 | T-104 | F4, library index | Let a utility block playback or use raw storage |
+| Library doctor and smart navigation | D-33 | T-106 | index, checksums | Auto-delete or auto-repair a file |
+| Device health and care | D-39, D-41 | T-105 | writer, power manager | Claim a battery/health number without a measurement |
+| Per-output profiles and hearing protection | D-35, D-41 | T-107 | core DSP, power manager | Exceed the global safe volume limit |
 | Tier 1 codecs and gapless | D-34 | T-068 | F5 | Claim codec coverage without a corpus |
 | Codec framework and registry | D-34, D-49 | T-097 | F5 | Allocate in the decode path; hide a probe failure |
 | Rockbox audio parity (37 families, including Opus) | D-34, D-49, D-50, D-51 | T-069, T-096, T-099, T-100, T-101 | T-068 | Claim a family without a device corpus; claim native >48 kHz/DSD |

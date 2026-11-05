@@ -189,6 +189,11 @@ single unrecorded row means the corresponding claim is not allowed.
 | 10k-track library | On-device scan; 1,800-byte/500-byte limits | Host/device parity; resume at 25/50/75% | Device build + diff | `not run` |
 | Anti-corruption | Not documented | Injected corruption detected; zero false OK | Bit/block injection + scrub report | `not run` |
 | Audio format parity | 37 audio families (36 in Appendix B.1 plus Opus) | All families play with metadata, seek/resume and a device corpus; APE >`-c1000` labelled best-effort | Per-format corpus + CPU/battery run | `not run` |
+| File, playlist and settings parity | Rockbox file operations, queue, bookmarks, display/startup settings | Critical file actions, queue variants, bookmarks/auto-resume and settings work; `.cfg` round-trip | Task matrix + device run | `not run` |
+| First-party utilities | Rockbox plugins/apps for clock, alarm, timer, reader, lyrics, stats | Critical utility set works without a plugin download; no playback block | Task matrix + device run | `not run` |
+| Device health | Battery Benchmark/debug screen only | Battery/storage/temperature/checksum status and diagnostics bundle recorded | Device report | `not run` |
+| Library doctor | No duplicate/tag/checksum doctor | Duplicates, missing tags, corrupt files and checksum mismatches reported; nothing auto-deleted | Host/device corpus | `not run` |
+| Per-output profiles | Global settings; car mode | Headphone/line-out/car/dock profiles and hearing-protection limits pass | Device + audio rig | `not run` |
 | Cleaner UI | Bitmap themes; no published frame budget | 30 fps scroll; <200 ms screen open; no clipping | Device trace + panel photos | `not run` |
 | Desktop workflow | Rockbox Utility install/uninstall | Backup/tag/rate/describe/install/verify matrix | macOS task matrix | `not run` |
 | Adapter safety | SD quirks; older corruption bugs | SD/CF/SSD/HDD boot/play/write/sleep/100-cycle | Adapter matrix | `not run` |
