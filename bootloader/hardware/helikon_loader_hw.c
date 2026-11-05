@@ -353,8 +353,16 @@ void helikon_loader_main(void)
      * controller active and let the firmware reset and identify it.
      */
 
-    /* Activity stamp: with the sleep timeout disabled, keeps ATA awake. */
-    ata_spin();
+    /*
+     * Hand the firmware a cold ATA device. The donor init/IDENTIFY is only
+     * proven from power-on; a live handoff has failed on this iFlash SD even
+     * with a controller reset, SRST and a disabled spindown. The image is
+     * already in DRAM, so the loader no longer needs the disk.
+     */
+    ide_power_enable(false);
+    sleep(HZ * 2);
+    ide_power_enable(true);
+    sleep(HZ * 2);
 
     /*
      * Stamp the handoff. The marker lives in the boot-info page so the
