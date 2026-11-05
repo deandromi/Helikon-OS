@@ -92,6 +92,36 @@ No. Legacy plugins expose raw hardware and are excluded. "Custom game/applicatio
 support" means a new sandboxed runtime with permissions and quotas, not binary
 compatibility with Rockbox plugins or games.
 
+## What utilities are built in?
+
+The critical first-party set is planned: clock, alarm, sleep timer, stopwatch,
+countdown, calendar, calculator, text editor/reader, image viewer, metronome,
+pitch detector, synced lyrics, play-history stats, battery benchmark, disk tidy,
+search and sort. Optional games, emulators, paint, OTP and similar tools stay in
+the sandbox rather than becoming native plugins. None of this exists yet; the
+plan is T-104.
+
+## Can it scan or repair my library?
+
+It will offer a **read-only health scan** and a library doctor: journal/B-tree/
+bitmap/extents checks, checksum mismatches, duplicate files, missing tags and
+corrupt media are reported with a safe recommendation. It does not auto-repair,
+auto-delete or run a “scandisk” that rewrites metadata. Repair comes from a
+backup, a known-good copy or the host app. See T-105/T-106.
+
+## Can I jump to a letter in a long list?
+
+That is planned. Rockbox explicitly declines list-letter jumping; Helikon-OS
+will use the host index for an alphabet strip and type-ahead, plus saved
+searches and smart playlists. It is a differentiator, not a Rockbox feature.
+
+## Does it show battery and storage health?
+
+Planned: battery health/cycles/voltage/temperature, storage identify/SMART,
+SD/CF wear, free space, journal/fsck/checksum status, last backup and firmware
+versions, with an exportable diagnostics bundle. These are reports, not
+unmeasured battery or lifespan promises. See T-105.
+
 ## Is there a desktop app?
 
 Planned, not built. macOS first, because it can write HFS+ in Disk Mode.

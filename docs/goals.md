@@ -112,11 +112,15 @@ still need the evidence rules in [`validation.md`](validation.md) and
 
 Audio is a separate hard parity line: all 37 audio families documented in or by
 the Rockbox iPod Classic manual (36 in Appendix B.1 plus Opus) are required by
-v1.x. The inventory,
-decoder architecture and 6G ceiling are in
+v1.x. The inventory, decoder architecture and 6G ceiling are in
 [`audio-formats.md`](audio-formats.md). Goal 16 covers the internal DAC path;
 it does not require native 24/96 or DSD output, which the documented 48 kHz
 codec class does not support.
+
+The manual audit also adds first-party utilities (T-104), a device-health
+dashboard (T-105), a library doctor and smart navigation (T-106) and per-output
+profiles with hearing protection (T-107). These support goals 2, 11, 13, 17 and
+25 without turning Helikon-OS into a plugin catalogue.
 
 ## How to change a goal status
 

@@ -87,7 +87,7 @@ status.
 | [`state.md`](state.md) | Current phase, what exists, blockers, evidence status. | living |
 | [`invariants.md`](invariants.md) | Numbered, testable safety invariants. | living |
 | [`decisions.md`](decisions.md) | Decision log, conflict record and 51 decision entries (D-29–D-51 proposed). | living |
-| [`tasks.md`](tasks.md) | Now/Next/Later task queue plus the competitive/audio horizon T-060–T-102. | living |
+| [`tasks.md`](tasks.md) | Now/Next/Later task queue plus the competitive/audio/manual horizon T-060–T-107. | living |
 | [`verification.md`](verification.md) | Per-change proof checklist and evidence template. | living |
 | [`file-map.md`](file-map.md) | “I need to change X” → owning file/module. | living |
 | [`architecture.md`](architecture.md) | Boot chain, layers, boundaries, memory, security. | living |
@@ -107,7 +107,7 @@ status.
 | [`validation.md`](validation.md) | Release-level evidence matrix and scorecard. | living |
 | [`goals.md`](goals.md) | All 25 README goals with priority and acceptance. | living |
 | [`roadmap.md`](roadmap.md) | Phases 0–12, horizon lanes, dependencies, exit criteria. | living |
-| [`competitive-roadmap.md`](competitive-roadmap.md) | Rockbox parity matrix, differentiation bets, horizon lanes and explicit declines. | living |
+| [`competitive-roadmap.md`](competitive-roadmap.md) | Rockbox parity matrix, manual section audit, differentiation bets, horizon lanes and explicit declines. | living |
 | [`audio-formats.md`](audio-formats.md) | Rockbox audio-format inventory, 6G hardware ceiling, tiers, decoder architecture and test corpus. | living |
 | [`hfsplus-write-engine.md`](hfsplus-write-engine.md) | Native writer, journal and crash-consistency deep dive. | living |
 | [`release.md`](release.md) | Channels, signing, staging, rollback, support window. | stub |

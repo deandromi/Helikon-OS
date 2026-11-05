@@ -3259,10 +3259,10 @@ that start only after their dependency phase:
 | H1-D Playback parity | Phase 1 + audio HAL | Tier 1 corpus, gapless and seek pass; no clipping |
 | H1-E UI parity | Phase 1 + renderer | 30 fps, <200 ms open, panel photos |
 | H1-F Desktop and USB | Phase 9 | Backup, import, tag, install and verify on macOS |
-| H2-A Data leadership | H1-B | Injected corruption detected; zero false OK |
-| H2-B Index leadership | H1-C | 10k build resumes at 25/50/75% |
-| H2-C Audio leadership | H1-D | All 37 audio families (including Opus), advanced DSP, DAC/output measurements |
-| H2-D Interface leadership | H1-E | 20 skins; voice and large-text tasks pass |
+| H2-A Data leadership | H1-B | Injected corruption detected; zero false OK; health report recorded |
+| H2-B Index leadership | H1-C | 10k build resumes at 25/50/75%; library doctor clean |
+| H2-C Audio leadership | H1-D | All 37 audio families (including Opus), advanced DSP, DAC/output measurements, safe per-output profiles |
+| H2-D Interface leadership | H1-E | 20 skins; voice, large-text and first-party utility tasks pass |
 | H2-E Ecosystem | H1-F | 500 episodes; 100 ignition cycles; migration verifies |
 | H2-F Release and support | H1-A | Signed train and published support window |
 | H3-A Sandbox | H2-D + H2-F | Escape, quota and crash-isolation tests pass |
@@ -3270,11 +3270,11 @@ that start only after their dependency phase:
 | H4 Continuous | Now | Matrix reviewed each phase; no stale claim |
 
 The lanes are defined in [`roadmap.md`](roadmap.md) and the tasks in
-[`tasks.md`](tasks.md) T-060–T-102.
+[`tasks.md`](tasks.md) T-060–T-107.
 
 ### I.5 Proposed decisions and tasks
 
-The addendum proposes 23 decisions, D-29–D-51, and 43 tasks, T-060–T-102. They
+The addendum proposes 23 decisions, D-29–D-51, and 48 tasks, T-060–T-107. They
 are recorded in [`decisions.md`](decisions.md) and [`tasks.md`](tasks.md). The
 main decision clusters are:
 
@@ -3291,6 +3291,13 @@ main decision clusters are:
 - **Experience:** D-37 (accessibility), D-40 (performance), D-41 (power).
 - **Platform and ecosystem:** D-43 (podcast), D-44 (sandbox), D-45 (migration),
   D-46 (release/support), D-47 (ports).
+
+The manual section audit in [`competitive-roadmap.md`](competitive-roadmap.md)
+§12 found no critical untracked area after this pass. The remaining breadth
+gaps are display/startup settings (T-103), first-party utilities (T-104),
+device health and care (T-105), library doctor and smart navigation (T-106)
+and per-output profiles/hearing protection (T-107). The features Rockbox does
+not have are in §13 of the same document.
 
 None is accepted. An agent must not implement one as if it were settled, and
 must not describe a planned feature as working.
@@ -3332,7 +3339,7 @@ calling Helikon-OS a Rockbox alternative at all.
 - [`audio-formats.md`](audio-formats.md) — 37-format inventory, decoder
   architecture, 6G ceiling and corpus.
 - [`decisions.md`](decisions.md) — D-29–D-51.
-- [`tasks.md`](tasks.md) — T-060–T-102.
+- [`tasks.md`](tasks.md) — T-060–T-107.
 - [`roadmap.md`](roadmap.md) — horizon lanes and v1 threshold.
 - [`goals.md`](goals.md) — the 25 owner goals.
 - [`validation.md`](validation.md) and [`device-matrix.md`](device-matrix.md) —

@@ -199,13 +199,17 @@ firmware/
   hfs/                      read core + writer + journal + txn (current tree)
   vfs/                      lookup, handles, capabilities, object semantics
   db/                       immutable database reader and device delta log
+    doctor/                 duplicates, tags, corruption and storage report
   player/                   buffer/decode/output state machine
   audio/                    DSP chain, ReplayGain, EQ, crossfade, routing
     codecs/                 one bounded decoder module per format family
     metadata/               tag parsers, artwork, cuesheets, chapters
+    profiles/               headphone/line-out/car/dock sound profiles
     resample/               documented polyphase rate conversion
   power/                    power states, spindown, thermal, calibration
   ui/                       retained-mode screens and renderer
+    settings/               display/startup/system settings screens
+    utilities/              clock, alarm, timer, calculator, reader, lyrics
   input/                    click wheel/button events, debounce, focus
   theme/                    native declarative themes and package validation
   skin/                     documented Rockbox WPS subset
@@ -213,6 +217,7 @@ firmware/
   sandbox/                  app/game runtime, quotas, host API
   usb/                      read-only LUN, HID, charge-only, service mode
   diag/                     events, counters, recovery screens
+    health/                 battery/storage/temperature/checksum dashboard
   update/                   staging and bootstate promotion (later)
 tools/
   build-diagnostic-bootloader.sh  pinned donor export, patch, Thumb build, checks
@@ -237,6 +242,8 @@ tools/
   bench/                    boot, frame, seek, write and RAM benchmarks
   audio/                    codec corpus, decode benchmark, provenance matrix
   db/                       host database builder
+  doctor/                    library doctor, duplicate/tag/corruption report
+  health/                    diagnostics bundle and device-health report
   theme/                    theme package validator and WPS tag report
   voice/                    voice-file and talk-clip generation
   podcast/                  host feed fetch and episode sync
