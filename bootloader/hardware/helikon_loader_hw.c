@@ -212,6 +212,15 @@ void helikon_loader_main(void)
     uint64_t disk_size;
     int count;
 
+    /*
+     * Keep ATA alive across the handoff. The donor default is 7 s; the
+     * manifest and "Executing" screens can idle the disk long enough for the
+     * spindown thread to power the controller and drive down before the jump.
+     * A zero timeout means never sleep in this driver.
+     */
+    ata_spindown(0);
+    ata_spin();
+
     /* The donor main already painted the splash before storage init. */
     progress("storage ready");
     sleep(HZ / 2);
@@ -343,6 +352,9 @@ void helikon_loader_main(void)
      * DMA state that the firmware's PIO ATA init cannot recover. Leave the
      * controller active and let the firmware reset and identify it.
      */
+
+    /* Activity stamp: with the sleep timeout disabled, keeps ATA awake. */
+    ata_spin();
 
     /*
      * Stamp the handoff. The marker lives in the boot-info page so the
