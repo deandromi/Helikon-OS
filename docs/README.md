@@ -107,6 +107,7 @@ status.
 | [`goals.md`](goals.md) | All 25 README goals with priority and acceptance. | living |
 | [`roadmap.md`](roadmap.md) | Phases 0–12, horizon lanes, dependencies, exit criteria. | living |
 | [`competitive-roadmap.md`](competitive-roadmap.md) | Rockbox parity matrix, differentiation bets, horizon lanes and explicit declines. | living |
+| [`companion-app.md`](companion-app.md) | macOS companion app scope, screen map, transport boundary, metadata/podcast/audiobook/scrobble status and open questions. | living |
 | [`hfsplus-write-engine.md`](hfsplus-write-engine.md) | Native writer, journal and crash-consistency deep dive. | living |
 | [`release.md`](release.md) | Channels, signing, staging, rollback, support window. | stub |
 | [`security.md`](security.md) | Agent security rules and destructive-operation policy. | living |

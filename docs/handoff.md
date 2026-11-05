@@ -11,6 +11,54 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-05 (macOS companion app MVP)
+
+## What happened
+
+- Built the first macOS-first companion app under [`../tools/desktop/`](../tools/desktop/):
+  a SwiftPM/SwiftUI host with a parchment/ink visual system, device detection,
+  library scanning, metadata search, transfer planning and verification,
+  podcast/audiobook search and download, an offline Last.fm queue and a disabled
+  installation guide.
+- The host core is separate from the UI in `CompanionCore`. It reads HFS+ volume
+  metadata through `diskutil`, reads audio tags through AVFoundation, persists a
+  JSON library, and keeps every write inside a destination the user chooses.
+- Transfers use a temporary file, SHA-256 verification, a verified backup before
+  replacement and an optional ID3v2.3 tag write into an MP3 copy. Metadata search
+  uses MusicBrainz and the Apple Search API; podcasts use Apple/RSS; audiobooks
+  use Open Library/LibriVox; Last.fm is only used after opt-in credentials.
+- Added [`../docs/companion-app.md`](../docs/companion-app.md),
+  [`../tools/desktop/README.md`](../tools/desktop/README.md), the current-tree
+  entries in [`file-map.md`](file-map.md), the T-083 status and the desktop test
+  row. A developer preview launch argument loads a fictional sample library.
+- Evidence: `swift build -c release` passes; `swift test` passes 20 tests; the
+  ad-hoc app bundle builds with `scripts/build-app.sh`; a mounted 32 MiB HFS+
+  test image with `.helikon` was detected as Helikon-OS, read/write. No physical
+  device run, no installer and no signed release.
+
+## What is next
+
+1. Run the macOS task matrix on a disposable HFS+ image and a backed-up 6G:
+   import, tag, rate, transfer, conflict/failed-transfer recovery, podcast and
+   audiobook transfer, and a real Last.fm account session.
+2. Decide the host-store boundary and the device database schema before writing
+   native device metadata; the MVP store is JSON, not the paper's SQLite target.
+3. Build the installer only after a signed firmware image, certificate verifier
+   and restore rehearsal exist. Keep the install action disabled until then.
+4. Add M4A/FLAC/Vorbis tag writers and a real Last.fm metadata provider only if
+   the owner keeps them in scope.
+
+## Do not claim
+
+- That the companion app is released, signed, notarized or supported.
+- That the installer works or that a signed firmware image exists.
+- That a transfer has passed on an iPod, leaves a device database consistent or
+  writes native library metadata.
+- That Windows/Linux are supported.
+- That the sample library is real music or album artwork.
+
+---
+
 # Handoff — 2026-11-05 (competitive horizon planning)
 
 ## What happened
