@@ -481,7 +481,136 @@ Open questions that need an owner decision:
 
 ---
 
-## 11. Related
+## 11. Design sketches for the largest bets
+
+These are implementation sketches, not frozen interfaces. They give the task
+owner a starting shape and name the safety boundary. A frozen interface needs
+its own review and a host test before code depends on it.
+
+### 11.1 Installer state machine
+
+```text
+DETECT -> VERIFY_VOLUME -> BACKUP -> READ_BACK -> DFU_BOOTLOADER
+       -> FIRST_BOOT -> SELF_TEST -> RECORD
+```
+
+Abort with a specific error and no write when:
+
+- the volume is not native HFS+ v4 (`NOT_HFS`);
+- the journal is dirty or invalid (`JOURNAL_DIRTY`);
+- `fsck_hfs` reports a repair (`CORRUPT`);
+- the backup read-back hash differs (`BACKUP_MISMATCH`);
+- the board/revision is unknown or unsupported (`BOARD_UNSUPPORTED`);
+- DFU entry or the bootloader install fails (`DFU_FAILED`);
+- the signed image fails magic/board/version/address/size/hash/signature
+  (`IMAGE_REJECTED`).
+
+The installer never formats, never deletes the journal and never uses
+`--single`. A failed bootloader step must leave the Apple path and DFU
+recovery available. T-062 owns the flow; T-063 owns the restore path.
+
+### 11.2 Update state machine
+
+```text
+IDLE -> STAGED -> VERIFIED -> ARMED -> TRYING -> GOOD
+                                      \-> FAILED -> recovery screen
+```
+
+- `STAGED`: files under `/.helikon/update/`, written through `hfs_txn`.
+- `VERIFIED`: manifest, hash and signature checked before install and again
+  before jump.
+- `ARMED`: the user explicitly chose install; no silent update.
+- `TRYING`: the new image boots once and must promote itself to `GOOD`.
+- `FAILED`: no jump on the next boot; recovery is manual/DFU (D-02/D-31).
+- A recovery copy under `/.helikon/recovery/` is a file for manual restore, not
+  an automatic A/B slot.
+
+The state record is the existing two-slot bootstate; no new boot path is
+created.
+
+### 11.3 Library index
+
+```text
+/.helikon/index/
+  CURRENT                 pointer to the active generation, written by hfs_txn
+  00000001/
+    manifest              schema version, generation, counts, checksums
+    tracks                typed columns
+    strings               normalized name/tag string pool
+    art                   artwork references and hashes
+    delta                 device-side operations since the generation
+```
+
+A track row needs at least: CNID, parent CNID, name, kind, size, mtime,
+duration, bitrate, sample rate, channels, title/artist/album/albumartist/
+genre/year/track/disc, art reference, optional content hash and source. The
+delta log holds add/remove/rename/rating/play-state records with a sequence.
+The device applies deltas to an overlay, validates counts and checksums, then
+swaps `CURRENT` atomically. A stale or corrupt generation falls back to a
+catalog scan and reports `DB_STALE`; it never blocks playback.
+
+### 11.4 Anti-corruption sidecar
+
+```text
+record = cnid, path, size, mtime, sha256, tier, last_verified, status
+status = OK | MISMATCH | UNREADABLE | NOT_CHECKED
+```
+
+Two generations live under `/.helikon/checksums/`, each with its own checksum.
+Critical files are verified on open; imported media is hashed on import, write
+close and desktop transfer. A full scrub is charging/idle only, rate-limited
+and resumable. A mismatch is reported and quarantined, never rewritten or
+deleted. A corrupt index is rebuilt by reading files, not trusted.
+
+### 11.5 Service-mode frame
+
+```text
+magic "HLKS" | version | op | flags | sequence | payload_len | payload | crc32
+```
+
+The frame is bounded and versioned. Operations are file-level: stat, list, open,
+read, write, append, rename, delete, mkdir, sync and close. There is no
+read-block/write-block/NOR/PMU operation. A session requires explicit user
+opt-in and authentication; it times out and returns to the read-only LUN. The
+device applies every write through the VFS and transaction engine. T-077 owns
+the protocol; T-091 owns the threat review.
+
+### 11.6 Theme package
+
+```text
+theme/
+  manifest        id, name, version, author, licence, capabilities, checksums
+  layout          declarative screens and viewports
+  fonts/          licensed font subsets
+  images/         bounded image assets
+```
+
+The manifest is data only. The parser caps node count, image count and
+dimensions, font count and per-frame work. A theme cannot execute code, read
+outside its package or change storage/update settings. A malformed package is
+rejected with a reason; the first-party UI remains available. WPS compatibility
+is a separate parser that maps a documented tag subset to the same scene model.
+
+### 11.7 Sandbox capabilities
+
+| Capability | What it grants | Default | Risk control |
+|---|---|---|---|
+| `display` | Draw inside the app viewport | Ask | Viewport and frame budget |
+| `input` | Receive wheel/button events while focused | Ask | Focus and escape guarantee |
+| `audio` | One mixed audio stream with a volume cap | Ask | Channel and duration quota |
+| `app_storage` | Read/write `/.helikon/apps/<id>/` | Grant | Quota and path jail |
+| `library_read` | Read metadata/art through the VFS capability | Ask | No raw path or block access |
+| `library_write` | Transactional writes to a user-approved folder | Deny | Explicit folder grant, audit log |
+| `network` | Not available on the device | Deny | No network stack |
+| `raw_storage` | Not available to apps | Deny | No block/NOR/PMU/GPIO |
+
+Quotas cover memory, CPU slice, audio channels and save data. A trap or watchdog
+returns to the home screen; a crashing app cannot panic the kernel. T-084 owns
+the runtime and SDK.
+
+---
+
+## 12. Related
 
 - [`roadmap.md`](roadmap.md) — phases 0–12 and the horizon lanes
 - [`tasks.md`](tasks.md) — T-060–T-095

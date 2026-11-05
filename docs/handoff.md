@@ -21,8 +21,10 @@ file grows. Do not rely on chat history for current state.
   themes, plugins, USB, power and accessibility.
 - Added [`competitive-roadmap.md`](competitive-roadmap.md): a Rockbox parity
   matrix with `match`/`exceed`/`differ`/`decline` labels, 12 leadership bets,
-  horizon lanes H1–H4, a v1 “no-regret” threshold, explicit declines and a
-  differential evidence protocol.
+  horizon lanes H1–H4, a v1 “no-regret” threshold, explicit declines, a
+  differential evidence protocol and design sketches for the installer, update
+  state machine, library index, checksum sidecar, service mode, theme package
+  and sandbox capabilities.
 - Extended [`roadmap.md`](roadmap.md) with the competitive baseline, horizon
   lanes and differentiation bets; extended [`tasks.md`](tasks.md) with
   T-060–T-095 (all `planned`); extended [`decisions.md`](decisions.md) with
