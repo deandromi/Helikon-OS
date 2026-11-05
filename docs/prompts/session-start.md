@@ -4,7 +4,7 @@
 > phase, the active task, the evidence and the next safe step before editing.
 > Status: living — full-procedure prompt
 > Owner: docs lead; every agent
-> Last updated: 2026-11-04
+> Last updated: 2026-11-05
 > Source: `agents.md`, `docs/state.md`, `docs/tasks.md`, `docs/handoff.md`,
 > `docs/conventions.md`
 
@@ -110,6 +110,35 @@ gh api repos/deandromi/Helikon-OS/releases/latest --jq '{tag:.tag_name,prereleas
 For device work, check `docs/device-matrix.md` for the latest recorded run and
 its image hash. Do not reuse an old run as evidence for a new image.
 
+### 2.1 Branch and GitHub etiquette (mandatory)
+
+- **Work from `main`, never on `main`.** Fetch and start every task from an
+  up-to-date `main`; do not commit directly to it.
+- **One short-lived branch per task.** Use
+  `<domain>/<task-id>-<slug>`, for example
+  `firmware/T-055-f2-bootstate`, `app/T-083-companion-mvp` or
+  `design/T-057-home-concepts`. Do not stack a new task on another agent's
+  branch.
+- **Push immediately.** Create the branch and run
+  `git push -u origin <branch>` before doing the work. Work that exists only on
+  one machine is not handed off.
+- **Keep the branch short-lived.** Rebase or merge `main` before opening the PR
+  and again before merging. Resolve conflicts on the branch, not on `main`.
+- **Integrate through a reviewed PR.** Use squash-merge (or the owner's chosen
+  single merge method) and delete the branch. **Never cherry-pick into `main`**;
+  that is what leaves branches looking unmerged and creates duplicate patches.
+- **One worktree per task.** Use `~/Projects/Helikon-OS-<task>` or an
+  Orca-managed worktree. Do not keep unmerged work in a temporary directory.
+- **Commit or stash before switching branches.** Never carry another branch's
+  dirty files into a new task.
+- **Shared docs are edited, not replaced.** Change only your rows and entries,
+  and compare the result with `main` before committing. Do not copy an older
+  branch's whole file over newer documentation.
+- **Clean up after merge.** Remove the worktree and delete the branch. Keep a
+  tag only for an archived branch or a rescue snapshot.
+- **Never force-push or rewrite history.** If the branch is behind or diverged,
+  report it and merge or rebase deliberately.
+
 ---
 
 ## 3. Choose the active task
@@ -198,9 +227,11 @@ For one logical change:
 5. **Record evidence** in the linked file or `docs/device-matrix.md`.
 6. **Update docs** before you forget: state, tasks, handoff, log, decisions,
    failures, file-map, architecture/design if the design changed.
-7. **Commit only your files.** One logical change per commit. Do not commit
-   generated images, backups, private keys or disk images.
-8. **Report** what changed, what was tested, what was not, and the next step.
+7. **Commit and push your task branch.** One logical change per commit. Do not
+   commit generated images, backups, private keys or disk images. Open a PR;
+   never commit directly to `main` and never cherry-pick into `main`.
+8. **Report** what changed, what was tested, what was not, the PR/branch and the
+   next step. Remove the worktree after the merge.
 
 Do not skip step 6 because the code works. A change without evidence and docs is
 not done.
@@ -314,6 +345,9 @@ right.
 - Do not pick a task from a chat summary.
 - Do not trust a handoff over `state.md`/`tasks.md` when they disagree.
 - Do not edit uncommitted user work.
+- Do not work directly on `main`, cherry-pick into `main`, or leave a task
+  branch unpushed.
+- Do not stack a task on another agent's branch or worktree.
 - Do not run `git reset --hard`, `git clean -fd`, `git push --force` or a
   destructive device command.
 - Do not start a second phase because the first is slow.
