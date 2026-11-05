@@ -3,8 +3,9 @@
 > Purpose: map “I need to change X” to the owning file or module.
 > Status: living document
 > Owner: architecture; each module owner
-> Last updated: 2026-11-04
-> Source: repository inspection; design paper §3, §8–§19, Appendices A/B
+> Last updated: 2026-11-05
+> Source: repository inspection; design paper §3, §8–§19, Appendices A/B;
+> [`competitive-roadmap.md`](competitive-roadmap.md)
 
 **Early host code exists.** The HFS+ read core and a read-only diagnostic
 bootloader core are real host-side code. The flashable bootloader, device
@@ -168,12 +169,13 @@ Helikon-OS/
     fixtures.md             fixture plan, generation and hash policy
     validation.md           release matrix
     goals.md                README goals
-    roadmap.md              phases 0–12
+    roadmap.md              phases 0–12, horizon lanes, v1 threshold
+    competitive-roadmap.md  Rockbox parity matrix, differentiation, declines
     hfsplus-write-engine.md writer deep dive
     release.md              release process stub
     security.md             agent security rules
     faq.md                  user FAQ
-    design-paper.md         full source copy with provenance
+    design-paper.md         full source copy with provenance; Appendix I addendum
     adr/                    long-form decision records
     log/                    dated work logs
     prompts/                reusable task prompts; session-start + build-firmware
@@ -194,14 +196,18 @@ firmware/
   board/6g/                 BSP constants, init sequence, memory map
   block/                    block device, flush, power state
   hfs/                      read core + writer + journal + txn (current tree)
-  vfs/                      lookup, handles, capabilities
-  db/                       immutable database reader; host-built first
+  vfs/                      lookup, handles, capabilities, object semantics
+  db/                       immutable database reader and device delta log
   player/                   buffer/decode/output state machine
+  audio/                    DSP chain, ReplayGain, EQ, crossfade, routing
+  power/                    power states, spindown, thermal, calibration
   ui/                       retained-mode screens and renderer
   input/                    click wheel/button events, debounce, focus
+  theme/                    native declarative themes and package validation
   skin/                     documented Rockbox WPS subset
+  accessibility/            voice, talk clips, large text, contrast, motion
   sandbox/                  app/game runtime, quotas, host API
-  usb/                      read-only LUN, optional service mode
+  usb/                      read-only LUN, HID, charge-only, service mode
   diag/                     events, counters, recovery screens
   update/                   staging and bootstate promotion (later)
 tools/
@@ -223,10 +229,16 @@ tools/
   gen-hfs-unicode-table.py  generate the HFS+ fold/decomposition tables
   render-ui-mockup.py       render the 320×240 typography mockups
   hfsplus/                  host inspector, fixtures, tests
+  parity/                   Rockbox differential harness and scorecard
+  bench/                    boot, frame, seek, write and RAM benchmarks
   db/                       host database builder
-  migrate/                  donor overlay exporter (host-side, read-only source)
+  theme/                    theme package validator and WPS tag report
+  voice/                    voice-file and talk-clip generation
+  podcast/                  host feed fetch and episode sync
+  migrate/                  donor overlay and Rockbox/Apple importer
   installer/                guided install, backup, verification
   desktop/                  macOS-first desktop app (separate product)
+  service/                  framed USB service-mode host driver
 tests/
   fixtures/                 deterministic HFS+ images and trees
   fuzz/                     parser and journal fuzz targets

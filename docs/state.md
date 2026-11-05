@@ -3,8 +3,9 @@
 > Purpose: what is true today. This file is not a plan and not a design paper.
 > Status: living document
 > Owner: project owner; maintained by the documentation agent
-> Last updated: 2026-11-04
-> Source: `README.md`, `docs/design-paper.md`, repository inspection
+> Last updated: 2026-11-05
+> Source: `README.md`, `docs/design-paper.md`, repository inspection;
+> Rockbox iPod Classic manual `0d5c2b0604-261105`
 
 ## Current phase
 
@@ -22,7 +23,8 @@ signed development image (39,108 bytes, SHA-256 `d7916411…`); nine host test
 groups and the loader host core pass, and the owner reports the F1 6G device run
 complete on 2026-11-04. F2–F5 are not implemented.
 
-Date of this snapshot: **2026-11-04**.
+Date of this snapshot: **2026-11-05**. Device evidence remains the
+2026-11-04 runs; no new device run was made for the competitive planning.
 
 ## What exists
 
@@ -37,6 +39,7 @@ Date of this snapshot: **2026-11-04**.
 | Session-start prompt | living | [`prompts/session-start.md`](prompts/session-start.md); repo-read bootstrap and Session Brief for every session |
 | Agent contract and documentation set | living | `main`, merged 2026-11-03 |
 | Product intent, safety rules, roadmap, goals, open decisions | living | `docs/` |
+| Competitive roadmap (Rockbox comparison) | living | [`competitive-roadmap.md`](competitive-roadmap.md); Rockbox manual `0d5c2b0604-261105` reviewed 2026-11-05; D-29–D-48 proposed and T-060–T-095 planned; no Helikon-OS feature claim |
 | Donor file references and provenance | living | [`file-map.md`](file-map.md) |
 | License: GPL-2.0-or-later | living | `LICENSE`, `NOTICE`, D-18 |
 | GitHub issue templates | living | `.github/ISSUE_TEMPLATE/` |
@@ -210,6 +213,10 @@ writes, the transaction engine, the bootloader, or any goal in
    manifest, signing-key ceremony record, staging flow, rollback test or support
    window. The D-20 policy is accepted; no release key has been generated and no
    release signing is claimed.
+7. **Competitive horizon decisions are unaccepted.** D-29–D-48 are `proposed`
+   and T-060–T-095 are `planned`; H1 tasks cannot become release gates until the
+   owner accepts D-29 and the relevant decision. This does not block the current
+   P0 writer line, and it does not authorize device work ahead of it.
 
 ## Next task
 
@@ -219,14 +226,13 @@ The writer interface and failure model are frozen in
 probe is intentionally skipped; `-8` is correct because `/rockbox.ipod` is not a
 disk file on this iPod.
 
-The active P0 line is **T-054/F1** (read-only firmware skeleton), followed by
-T-051 (production firmware handoff), which needs a real signed firmware image
-for end-to-end device validation. F1 source and host evidence now exist; the
-remaining acceptance evidence is one recorded 6G run with a screen photo, stage
-timings and a clean `fsck_hfs -fn`. T-006/D-20 and T-049 are implemented; T-050
-is closed by owner decision as an explicit no-A/B, single-image fail-closed
-model. D-26 records that the bootloader has no OF/recovery menu; native Menu+Play
-and DFU cover recovery. The P1 line is:
+The active P0 line is **T-055/F2** (first firmware write), followed by T-051
+(production firmware handoff), which needs a real signed firmware image for
+end-to-end device validation. T-054/F1 is done; F2 is not implemented on this
+branch and remains `planned`. T-006/D-20 and T-049 are implemented; T-050 is
+closed by owner decision as an explicit no-A/B, single-image fail-closed
+model. D-26 records that the bootloader has no OF/recovery menu; native
+Menu+Play and DFU cover recovery. The P1 line is:
 
 - **T-041** — UI font licences and the 320×240 typography mockup.
 - **T-012** — full 6G model/adapter/battery inventory; backup/restore is done.
@@ -235,9 +241,16 @@ and DFU cover recovery. The P1 line is:
   the refreshed image needs one clean device check.
 - **T-053** — release-key certificate, rotation and revocation verifier.
 
-T-042/T-013/T-052 are P2; T-052 tracks reducing startup from 6.5 s toward 2–3 s.
+T-041 and T-045 are implemented. T-042/T-013/T-052 are P2; T-052 tracks
+reducing startup from 6.5 s toward 2–3 s.
 The fixture plan is in [`fixtures.md`](fixtures.md); the writer crash matrix and
 evidence format are in [`validation.md`](validation.md) §2.
+
+The competitive horizon in [`competitive-roadmap.md`](competitive-roadmap.md)
+is planning only. D-29–D-48 are `proposed` and T-060–T-095 are `planned`; none
+changes the active P0 line. The owner must accept D-29 before any H1 task
+becomes a release gate. No “matches Rockbox” or “better than Rockbox” claim is
+allowed until the differential evidence exists.
 
 ## Unproven claims and open questions
 

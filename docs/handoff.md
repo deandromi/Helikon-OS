@@ -3,11 +3,118 @@
 > Purpose: the latest session handoff and the reusable template.
 > Status: living document
 > Owner: session author; next agent reads this first
-> Last updated: 2026-11-04
+> Last updated: 2026-11-05
 > Source: `docs/state.md`, `docs/tasks.md`, repository history
 
 Keep the newest handoff at the top. Move older entries to `docs/log/` when this
 file grows. Do not rely on chat history for current state.
+
+---
+
+# Handoff — 2026-11-05 (competitive horizon planning)
+
+## What happened
+
+- Reviewed the official *Rockbox Manual for iPod Classic*, version
+  `0d5c2b0604-261105` (2026-11-04, 285 pages), for the competitor’s documented
+  features, install model, filesystem support, metadata limits, sound/playback,
+  themes, plugins, USB, power and accessibility.
+- Added [`competitive-roadmap.md`](competitive-roadmap.md): a Rockbox parity
+  matrix with `match`/`exceed`/`differ`/`decline` labels, 12 leadership bets,
+  horizon lanes H1–H4, a v1 “no-regret” threshold, explicit declines and a
+  differential evidence protocol.
+- Extended [`roadmap.md`](roadmap.md) with the competitive baseline, horizon
+  lanes and differentiation bets; extended [`tasks.md`](tasks.md) with
+  T-060–T-095 (all `planned`); extended [`decisions.md`](decisions.md) with
+  D-29–D-48 (all `proposed`) and C-11.
+- Added Appendix I to [`design-paper.md`](design-paper.md) as a forward addendum
+  that does not change revision 2 or the accepted decisions D-01–D-28.
+- Updated [`README.md`](README.md), [`file-map.md`](file-map.md) and added
+  [`log/2026-11-05.md`](log/2026-11-05.md).
+- Host checks still pass: `make -C tests/hfsplus test`,
+  `make -C tests/bootloader test` and `make -C tests/firmware test` all exited
+  0. This is docs-only; no device run was made.
+
+## What is next
+
+1. The owner reviews D-29–D-48 and accepts, narrows or rejects them. They remain
+   `proposed`; none is a release gate.
+2. If D-29 is accepted, start T-060 (parity scorecard) and T-061 (differential
+   harness) against a pinned Rockbox baseline.
+3. Keep the writer line ahead of every H1 task. F2/T-055 still needs its 6G run;
+   T-051 still needs the production handoff.
+
+## Do not claim
+
+- That Helikon-OS matches or beats Rockbox. No differential run exists.
+- That any T-060–T-095 feature is implemented.
+- That D-29–D-48 are accepted owner decisions.
+- That the competitive matrix is a support list or a device matrix.
+- That the Rockbox manual is Helikon-OS evidence or a source of assets.
+
+---
+
+# Handoff — 2026-11-04 (F2 implementation, host-verified)
+
+## What happened
+
+- Implemented T-055/F2 on branch `firmware/f2-bootstate` (not merged or pushed
+  in this session).
+- Added real ATA PIO write and cache flush, with a board-level write gate that
+  stays closed until the read-only self-test, a clean journal and a matching
+  bootstate have passed.
+- Added `firmware/boot/bootstate.c`: bootstate parse, slot checksum validation,
+  two-slot sequence ordering and `TRYING`→`GOOD` promotion against the SHA-256
+  of the running image.
+- Added `hfs_catalog_overwrite_file`: in-place data and catalog-record update
+  through `hfs_txn`, with no allocation or file-size change.
+- Added the `WRITE` boot stage and F2 PASS-screen fields.
+- Added `VERSION` and `BOOTSTATE_STATE=trying|good` handling to the image build,
+  plus a config stamp so a version change rebuilds the objects.
+- Moved the F2 BSS to `0x08890000` and reserved
+  `0x08800000`–`0x0888ffff`. The loader test image keeps its own BSS,
+  framebuffer and LCD DMA scratch in that range; the previous 601 KB F2 BSS
+  started at `0x08800000`, zeroed the active LCD DMA buffers and blanked the
+  display immediately after the jump. The linker now asserts
+  `__bss_start >= 0x08890000`.
+- Added `tests/firmware/test_bootstate`, the writable/unaligned block tests,
+  `tests/image/f2_host.c`, `tests/image/run-f2-macos.sh`, the overwrite crash
+  scenario and `tools/check-f2-artifact.sh`.
+- Updated `state.md`, `tasks.md`, `device-matrix.md`, `testing.md`,
+  `firmware-architecture.md`, `file-map.md`, `log/2026-11-04.md` and this
+  handoff.
+
+## Evidence
+
+```text
+F2 image:       75,472 bytes, SHA-256 5e14793f…
+BSS:            0x08890000..0x08922e60 (loader scratch reserved below)
+bootstate:      TRYING, sequence 1
+host groups:    10, sanitizer-clean
+loader artifact: DEFAULT -> promoted sequence 2, readback GOOD -> loader GOOD
+fsck_hfs:       clean in the disposable-image and artifact tests
+crash matrix:   overwrite covered 22 write cuts + flush + partial modes;
+                create/append/truncate/delete/rename matrices still pass
+```
+
+## What is next
+
+1. Run the F2 device gate using [`f2-bootstate-test.md`](f2-bootstate-test.md):
+   build with `VERSION=2 BOOTSTATE_STATE=trying`, copy the three matching files,
+   boot, press a button, record `WRITE`/`PASS`, run `fsck_hfs -fn`, boot again
+   and require loader `GOOD`.
+2. Perform the device power-cut-during-promotion check.
+3. T-059 remains optional for the read path but is needed for the full ADR-0004
+   handoff.
+4. T-051 and T-053 follow F2; F3/T-056 is the next firmware layer.
+
+## Do not claim
+
+- No F2 device run and no device power-cut result exist.
+- The image uses the development loader test key, not a release key.
+- F2 writes only `/.helikon/bootstate`; there is no full VFS, browser, UI or
+  audio.
+- The host `fsck_hfs` and crash matrix are not device evidence.
 
 ---
 

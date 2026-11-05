@@ -3,8 +3,9 @@
 > Purpose: why the design is what it is, and what is still undecided.
 > Status: living document
 > Owner: project owner
-> Last updated: 2026-11-04
-> Source: design paper §18, §25, §28; Helikon-OS README
+> Last updated: 2026-11-05
+> Source: design paper §18, §25, §28; Helikon-OS README; Rockbox iPod
+> Classic manual `0d5c2b0604-261105`; [`competitive-roadmap.md`](competitive-roadmap.md)
 
 This file is the index and short-form record. Use `docs/adr/` only for a
 decision too large to explain here. Do not invent an owner decision. Mark
@@ -59,6 +60,26 @@ re-litigate them.
 | D-26 | Bootloader recovery/OF selection | accepted | owner | §5, §16, §21 |
 | D-27 | Firmware memory map and image layout | accepted | owner | §19.2, §27; ADR-0003 |
 | D-28 | Firmware entry ABI and boot information | accepted | owner | §5.3, §16; ADR-0004 |
+| D-29 | Competitive parity and differentiation policy | proposed | owner | §23, §28.4.6; competitive roadmap |
+| D-30 | Install, dual boot and uninstall model | proposed | owner | §26.7, §28.4.3; D-26 |
+| D-31 | Update and recovery model | proposed | owner | §16, §28.2.5; D-01, D-02 |
+| D-32 | Filesystem object semantics | proposed | owner | §10.3–§10.4; D-06 |
+| D-33 | Library index architecture | proposed | owner | §12, §28.4.1; D-07 |
+| D-34 | Codec and container tiers | proposed | owner | §13, Appendix B of the Rockbox manual |
+| D-35 | Sound-processing scope | proposed | owner | §6, §13; goal 16 |
+| D-36 | Theme package and trust model | proposed | owner | §14, §28.3.4; D-10, D-15 |
+| D-37 | Accessibility and localization | proposed | owner | §14, §28.3.3; goal 2 |
+| D-38 | USB profile and service mode | proposed | owner | §16.2, §28.4.2; D-09 |
+| D-39 | Anti-corruption algorithm and coverage | proposed | owner | §9.4, §28.2.2; D-11 |
+| D-40 | Performance budgets and measurement | proposed | owner | §19.2, §24, §28.6 |
+| D-41 | Power and thermal policy | proposed | owner | §19, §28.3.1; D-12 |
+| D-42 | Adapter compatibility policy | proposed | owner | §7, §28.2.4; goal 6 |
+| D-43 | Podcast and audiobook model | proposed | owner | §28.3.6; goal 19 |
+| D-44 | App/game runtime and package format | proposed | owner | §25.8, §28.3.9–10; D-08 |
+| D-45 | Migration and coexistence | proposed | owner | §22, §28.4.3; goal 10 |
+| D-46 | Release, support and governance | proposed | owner | §18, §28.4.4; D-18, D-20 |
+| D-47 | Porting contract and hardware matrix | proposed | owner | §28.4.5; D-13 |
+| D-48 | Privacy, telemetry and network policy | proposed | owner | §19.3, §28.3.9 |
 
 The paper's §25 lists 17 decisions. D-18, D-19, D-20 and D-26 are added from §18,
 §28.4.4 and the bootloader recovery policy. D-18 and D-20 are accepted; D-19 was
@@ -68,6 +89,12 @@ accepted for the firmware-loading bootloader. D-22 records the separate
 inner-image write diagnostic; D-25 records the separate outer-volume diagnostic
 and its backup gate. D-27/D-28 record the firmware memory map and entry ABI.
 See C-08.
+
+**D-29–D-48 are proposed, not accepted.** They were added on 2026-11-05 as the
+decision layer for the Rockbox competitive review in
+[`competitive-roadmap.md`](competitive-roadmap.md). They do not change
+D-01–D-28, the 25 README goals, the phase gates or any implementation status.
+Only the owner can accept, reject or narrow one of them.
 
 ## D-01 — Boot image verification
 
@@ -625,6 +652,441 @@ See C-08.
 - **Evidence:** accepted ADR-0004; current loader source and test payload
   behaviour; no device run of a boot-info page yet.
 
+## D-29 — Competitive parity and differentiation policy
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §23, §28.4.6; [`competitive-roadmap.md`](competitive-roadmap.md).
+- **Context:** the owner wants Helikon-OS to be a strong alternative to Rockbox
+  in every aspect and better in several. Rockbox has a much larger codec,
+  plugin, theme and device catalogue. “Every aspect” is unbounded unless it is
+  defined, and a feature count is not a product.
+- **Options:** (a) match every Rockbox feature before v1; (b) define a finite
+  P0/P1 parity set, a measured differentiation set and an explicit decline list;
+  (c) ship only first-party features and make no parity promise.
+- **Proposed direction:** option (b). Every competitive row gets `match`,
+  `exceed`, `differ` or `decline`, a horizon and an evidence pointer. “Strong
+  alternative” means the v1 threshold in `competitive-roadmap.md` §8.1 passes;
+  “better” means an `exceed` row has a baseline and a recorded metric. No
+  “better than Rockbox” release claim without that evidence.
+- **Consequences:** missing plugins or codecs are not automatically regressions;
+  the declines in `competitive-roadmap.md` §7 are part of the product. A new
+  Rockbox release does not automatically add scope. The matrix is reviewed at
+  each phase gate.
+- **Follow-up:** T-060 (scorecard), T-061 (differential harness), T-090
+  (usability) and T-091 (privacy review). The owner must accept or narrow the
+  v1 threshold before it becomes a release gate.
+
+## D-30 — Install, dual boot and uninstall model
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §26.7, §28.4.3; D-26; [`competitive-roadmap.md`](competitive-roadmap.md) §5.1.
+- **Context:** Rockbox on the Classic requires FAT32; HFS+ iPods are unsupported
+  and the manual links a conversion guide. Rockbox installation uses Rockbox
+  Utility or a manual `mks5lboot` DFU flow and needs administrator/root for the
+  bootloader. Helikon-OS is native HFS+ and already refuses FAT.
+- **Options:** (a) macOS-first installer over USB Disk Mode with signed native
+  files, a DFU-only bootloader step, backup/verify and one-click restore;
+  (b) a cross-platform service-mode installer; (c) require a FAT32 conversion
+  like Rockbox (rejected by B-02).
+- **Proposed direction:** option (a) first, option (b) later, option (c)
+  rejected. The installer detects the model, capacity, adapter, filesystem and
+  journal state; refuses an unclean or non-HFS+ volume; backs up and reads back;
+  installs the bootloader only through DFU; installs firmware as signed files;
+  runs a first-boot self-test; and offers a tested restore to Apple firmware.
+  The Apple NOR path and dual boot are preserved. The user must be able to boot
+  the original firmware through a documented gesture and to uninstall without
+  erasing the music.
+- **Consequences:** macOS is the first install platform; Windows/Linux wait for
+  D-38. FAT32 iPods are not supported and need an explicit backup/conversion
+  explanation. The installer is a destructive-adjacent tool and needs the same
+  hard stops as a device write.
+- **Follow-up:** T-062 (installer), T-063 (dual boot/uninstall), T-083 (desktop
+  app). The owner confirms whether booting Apple firmware is a v1 requirement or
+  a documented recovery path.
+
+## D-31 — Update and recovery model
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §16, §28.2.5; D-01, D-02; [`competitive-roadmap.md`](competitive-roadmap.md) §5.1.
+- **Context:** Rockbox updates by unzipping a build over the existing install;
+  ROLO can load another `.ipod` file. No signature is documented. Helikon-OS has
+  a signed manifest and a single-image fail-closed bootstate (D-01/D-02), but no
+  update client or recovery-copy flow.
+- **Options:** (a) one-image transactional update with a signed manifest, a
+  preflight, a `TRYING`/`GOOD` bootstate and a manual recovery copy; (b) A/B
+  slots (rejected by D-02); (c) DFU-only firmware updates (rejected for a
+  regular release train).
+- **Proposed direction:** option (a). Firmware is staged under
+  `/.helikon/update/`, verified before install and again before jump, committed
+  through the transaction engine, and marked `TRYING` until the first
+  successful boot. A recovery copy may be kept under `/.helikon/recovery/` for a
+  manual restore, but it is not an automatic A/B boot path. Bootloader changes
+  remain DFU-only. Stable, beta and development channels are signed.
+- **Consequences:** there is no automatic rollback; recovery is manual or
+  DFU/Apple restore. A power cut during staging must leave the old image
+  bootable. The update client must never write around the transaction engine or
+  `--single`.
+- **Follow-up:** T-064 (update client), T-086 (release train), T-053
+  (certificate/revocation). The owner confirms the recovery-copy retention
+  policy and support window.
+
+## D-32 — Filesystem object semantics
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §10.3–§10.4; D-06, B-02.
+- **Context:** HFS+ can contain regular files, folders, symlinks, hard links,
+  resource forks, extended attributes and macOS private metadata. Rockbox on the
+  Classic is FAT32 and does not expose these HFS+ objects. A Helikon-OS VFS that
+  pretends every path is a regular file will fail on a real Mac-created volume.
+- **Options:** (a) full POSIX-like read/write for every object class;
+  (b) regular files and folders read/write in v1, safe read/preserve for the
+  rest, creation deferred; (c) regular files and folders only, with everything
+  else hidden (rejected: hides real data).
+- **Proposed direction:** option (b). V1 creates and mutates regular files and
+  folders through the transaction engine. Symlinks and hard links are resolved
+  safely on read and preserved on copy/move where the operation permits;
+  creating them is deferred until the writer has a tested path. Resource forks
+  and xattrs are preserved, not silently dropped; exposing them to apps requires
+  a capability. macOS private metadata is skipped or preserved, never treated as
+  user music. A name or object that cannot be represented is reported
+  `UNSUPPORTED`, not hidden.
+- **Consequences:** the VFS has a capability model, not a raw block API. Some
+  macOS-created objects are read-only until a later decision. Copy semantics
+  must say whether forks/xattrs follow the data.
+- **Follow-up:** T-065 (VFS conformance), T-085 (migration). The owner confirms
+  the symlink/hard-link creation scope.
+
+## D-33 — Library index architecture
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §12, §28.4.1; D-07; [`competitive-roadmap.md`](competitive-roadmap.md) §5.3.
+- **Context:** Rockbox builds a database on the device, can load it to RAM, and
+  has a 1,800-byte metadata budget with a 500-byte per-item limit on the Classic
+  (manual Appendix B.2.3). D-07 is unresolved between a host builder and an
+  on-device builder. A 10k-track library needs a bounded, resumable index.
+- **Options:** (a) SQLite on device; (b) a compact host-built immutable
+  generation plus an on-device delta log; (c) a flat tagcache rebuild on every
+  change.
+- **Proposed direction:** option (b). The host builder owns the full scan,
+  normalization, artwork references and optional descriptions. The device owns a
+  versioned delta log for adds, deletes, renames, ratings and play state. The
+  index uses a string pool and typed columns, is validated on mount and is
+  swapped atomically. The runtime keeps a bounded page cache, not the whole
+  library in RAM. A stale or corrupt generation falls back to a catalog scan and
+  reports `DB_STALE`; it never blocks playback.
+- **Consequences:** two builders must agree; schema migration is a release
+  concern; the host app becomes part of the library path. The database remains a
+  cache, not the source of truth.
+- **Follow-up:** T-066 (host builder), T-067 (device builder), T-083 (desktop
+  app). D-07 still decides the v1/v1.x sequencing and the device-only path.
+
+## D-34 — Codec and container tiers
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §13, §28.3.8; Rockbox manual Appendix B.
+- **Context:** Rockbox advertises a large codec list, including lossy, lossless,
+  chiptune, tracker, video and game-music formats. Matching all of them at v1
+  would consume CPU, code size, battery and test time and would create a
+  “supports everything” claim the evidence cannot carry.
+- **Options:** (a) match the full Rockbox list; (b) tier the list by user demand,
+  CPU/battery cost and licence; (c) support only MP3.
+- **Proposed direction:** option (b). **Tier 1 (v1):** MP3 (MPEG-1/2/2.5 Layer
+  III), AAC-LC and HE-AAC in M4A, ALAC, FLAC, WAV/AIFF PCM, Ogg Vorbis and Opus.
+  **Tier 2 (v1.x):** WMA Standard/Professional, APE, WavPack, Musepack,
+  DSD64/DSD128, AC3 and Speex, each with a measured CPU/RAM/battery note.
+  **Tier 3 (declined for v1):** chiptune, tracker, MIDI, video, game-music and
+  plugin-associated formats. A codec licence review precedes release; no patent
+  or “plays everything” claim.
+- **Consequences:** the v1 matrix must say exactly what plays. Tier 1 needs
+  gapless, seek, metadata and corrupt-file tests. Tier 2 is not a v1 promise.
+  Codec modules obey the size budgets in §28.2.6.
+- **Follow-up:** T-068 (Tier 1), T-069 (Tier 2 evaluation). The owner confirms
+  the Tier 1 list and the licence boundary.
+
+## D-35 — Sound-processing scope
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §13, §28.3.8; Rockbox manual §6.
+- **Context:** Rockbox has a parametric EQ, crossfeed, dither, timestretch, Haas
+  surround, perceptual bass, auditory-fatigue reduction and a compressor. All of
+  them cost CPU, battery and test time; some are subtle and easy to get wrong.
+- **Options:** (a) match the full DSP suite at v1; (b) core controls at v1 and
+  advanced effects at v1.x, off by default and measured; (c) no DSP beyond
+  volume.
+- **Proposed direction:** option (b). **Core v1:** volume limit, balance, a
+  bounded EQ, ReplayGain (track/album, prevent clipping, pre-amp), crossfade,
+  gapless and headphone-unplug pause. **Advanced v1.x:** crossfeed, compressor,
+  timestretch/pitch, dither/noise shaping, Haas, perceptual bass and
+  auditory-fatigue reduction. Every effect has a measured CPU and battery cost,
+  a bypass default and a documented latency. No effect may raise the output
+  above the volume limit or clip silently.
+- **Consequences:** v1 does not claim DSP parity. Presets and `.cfg` import are
+  v1.x. The audio path needs a fixed-point/float policy and a clipping test.
+- **Follow-up:** T-070 (core DSP), T-071 (advanced DSP), T-092 (DAC
+  measurements).
+
+## D-36 — Theme package and trust model
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §14, §28.3.4; D-10, D-15.
+- **Context:** Rockbox themes are text files with assets and fonts; a theme can
+  change visual settings and load many images. Helikon-OS needs a native theme
+  format and a Rockbox WPS subset, but must not import arbitrary behaviour or
+  unbounded assets.
+- **Options:** (a) executable theme packages; (b) data-only declarative packages
+  with caps and an optional signature; (c) no theme support.
+- **Proposed direction:** option (b). A theme package contains a manifest, a
+  declarative layout, fonts and images under `/.helikon/themes/<id>/`. It cannot
+  execute code, read arbitrary files or change storage settings. The parser has
+  caps on nodes, images, fonts and per-frame work; malformed packages are
+  rejected with a reason. WPS compatibility is a separate, documented subset
+  that maps tags to Helikon-OS values and shows unsupported tags as visible
+  placeholders. The first-party UI remains usable if a theme fails.
+- **Consequences:** some Rockbox themes will not load or will render differently.
+  Theme assets need a licence review and are installed, not compiled in. A theme
+  cannot make the device unsafe.
+- **Follow-up:** T-072 (native theme), T-073 (WPS subset and 20-skin corpus).
+
+## D-37 — Accessibility and localization
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §14, §28.3.3; goal 2; Rockbox manual §8.10–§8.11.
+- **Context:** Rockbox has voice menus, talk clips, language files and a
+  blind-users FAQ reference. Helikon-OS has a typography scale but no voice,
+  large-text, high-contrast or localization pipeline. Accessibility is part of
+  “cleaner interfaces”, not a post-release extra.
+- **Options:** (a) voice support only; (b) voice plus visual accessibility plus
+  localization; (c) defer all three.
+- **Proposed direction:** option (b), starting in v1.x. **Voice:** spoken menus,
+  file/folder talk clips, error announcements and a volume that follows the
+  safe limit. **Visual:** large-text mode, high-contrast mode, reduced motion
+  and a focus ring that does not rely on colour alone. **Localization:** UTF-8
+  translation files, plural and RTL rules, font fallback and a documented
+  contributor workflow. English is the first complete locale; no language is
+  claimed until a native reviewer checks it.
+- **Consequences:** voice files need a TTS licence and a generation workflow;
+  large text changes layout and row height; translations add release QA.
+- **Follow-up:** T-074 (accessibility), T-075 (localization), T-090 (usability).
+
+## D-38 — USB profile and service mode
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §16.2, §28.4.2; D-09; [`competitive-roadmap.md`](competitive-roadmap.md) §5.6.
+- **Context:** Rockbox exposes a writable mass-storage LUN and USB HID/keypad
+  modes. D-09 rejects a writable LUN for Helikon-OS because it bypasses the VFS
+  and transaction engine. Windows/Linux still need a write path.
+- **Options:** (a) read-only LUN only; (b) read-only LUN plus HID plus
+  charge-only plus an authenticated framed service mode; (c) writable LUN
+  (rejected).
+- **Proposed direction:** option (b). The default is a read-only LUN with
+  descriptors for model, firmware, filesystem and health. HID provides media
+  keys and a keyboard mode. Charge-only is available without enumeration as
+  storage. The service mode is a framed file-operation protocol that runs
+  through the VFS and transaction engine; it never exposes raw block writes, NOR
+  or PMU access. It requires an explicit user opt-in and an authentication
+  method to be decided. macOS uses Disk Mode first; Windows/Linux use the
+  service mode only after it is tested.
+- **Consequences:** the USB stack grows and needs a threat model, fuzzing and a
+  recovery path. No Windows/Linux write claim until the service mode passes.
+- **Follow-up:** T-076 (composite USB), T-077 (service mode), T-091 (security
+  review).
+
+## D-39 — Anti-corruption algorithm and coverage
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §9.4, §28.2.2; D-11.
+- **Context:** HFS+ journals metadata but does not checksum file data. Rockbox
+  documents no data checksum or scrub. The project has a SHA-256 implementation
+  in the bootloader and a write engine; the checksum index design exists but the
+  algorithm, coverage and cadence are open.
+- **Options:** (a) SHA-256 everywhere; (b) BLAKE3 everywhere; (c) no data
+  checksums.
+- **Proposed direction:** option (a) for v1, with BLAKE3 reconsidered if a
+  measured benchmark shows a meaningful device win. The sidecar lives under
+  `/.helikon/checksums`, keyed by CNID, path, size and modification time, with
+  two generations and its own checksum. Coverage is tiered: critical files
+  (settings, database, playlists, firmware, recovery and the index itself) are
+  verified on open; user media is hashed on import, on device write close and on
+  desktop transfer; a full scrub runs only while charging and idle. A mismatch is
+  `MISMATCH` or `UNREADABLE`; it is quarantined and reported, never rewritten or
+  deleted. There is no self-healing claim.
+- **Consequences:** hashing costs CPU and I/O; the index consumes space; a
+  corrupt index is rebuilt, not trusted. Scrub must not wear the card or delay
+  playback.
+- **Follow-up:** T-078 (anti-corruption v1). The owner confirms the coverage
+  tiers and whether the user may disable scrub.
+
+## D-40 — Performance budgets and measurement
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §19.2, §24, §28.6.
+- **Context:** “cleaner”, “faster” and “better RAM” are not claims until they
+  have budgets and a measurement method. The loader currently starts in about
+  6.5 s; the project targets 2–3 s. The UI has a 30 fps/200 ms goal but no
+  recorded trace.
+- **Options:** (a) publish aspirational numbers; (b) publish target budgets and
+  a measurement method, then replace targets with measured values; (c) no
+  numbers until release.
+- **Proposed direction:** option (b). Initial **targets, not measurements**:
+  loader to firmware handoff ≤2.5 s; firmware to first usable UI ≤3 s; list
+  scroll 30 fps; screen open ≤200 ms; track skip ≤150 ms; seek ≤200 ms;
+  database query ≤50 ms on 10k tracks; write path measured separately from raw
+  device throughput; RAM within the §28.3.2 budget; battery compared in three
+  runs. Every number is recorded with image hash, device and adapter.
+- **Consequences:** a benchmark harness and a release scorecard are required.
+  A missed target is reported, not hidden. Targets can change only by a new
+  decision.
+- **Follow-up:** T-079 (harness), T-080 (power), T-052 (startup), T-092 (audio).
+
+## D-41 — Power and thermal policy
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §19, §28.3.1; D-12; Rockbox manual §13.5.
+- **Context:** Rockbox documents backlight, display-off, accessory power,
+  line-out, anti-skip, ReplayGain, codec and DSP settings that affect battery.
+  Helikon-OS has a design budget but no measured baseline. Battery claims are
+  comparative and easy to overstate.
+- **Options:** (a) a fixed power policy with no user controls; (b) explicit power
+  states plus measured defaults and advanced controls; (c) copy Rockbox’s
+  settings.
+- **Proposed direction:** option (b). States: `ACTIVE`, `IDLE`,
+  `STORAGE_GATED`, `STORAGE_DEEP`, `SYSTEM_SLEEP`, `OFF`, each with a measured
+  entry/exit cost. Aggressive disk sleep during playback, charge-aware scrub and
+  index work, thermal throttling, battery calibration and a safe shutdown
+  threshold. The public claim is a three-run comparison on the same device,
+  media, volume, backlight and output; a target such as 10% longer playback is a
+  goal, not a promise. If the measurement fails, the claim is withdrawn.
+- **Consequences:** responsiveness and battery trade off; the user may override
+  some defaults. Thermal and charging behavior need device tests.
+- **Follow-up:** T-080 (power manager and baseline), T-079 (harness).
+
+## D-42 — Adapter compatibility policy
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §7, §28.2.4; goal 6; Rockbox manual §2.1.2.
+- **Context:** iFlash adapters are ATA bridges with different sector sizes,
+  power-management support and error behaviour. Rockbox documents SD quirks and
+  older corruption bugs. Helikon-OS has one outer-volume run and no adapter
+  matrix.
+- **Options:** (a) treat every ATA device as identical; (b) an identify-data
+  quirks table with conservative defaults and a measured matrix; (c) support
+  only the owner’s SD adapter.
+- **Proposed direction:** option (b). The block layer records identify model,
+  firmware, capacity, logical/physical sector size, DMA/PIO mode and flush
+  behaviour. Unknown devices use a slow-but-safe path. Quirks stay in the block
+  layer, never in HFS+. A known-bad list is published. The matrix covers HDD,
+  iFlash SD, iFlash CF and SSD with boot, play, write, sleep/wake and 100-cycle
+  resume.
+- **Consequences:** more block-layer code and test devices; unknown adapters may
+  be slower. No adapter-specific filesystem hacks.
+- **Follow-up:** T-081 (quirks and matrix), T-079 (benchmarks).
+
+## D-43 — Podcast and audiobook model
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §28.3.6; goal 19.
+- **Context:** the device has no network. Rockbox’s Classic manual has no
+  dedicated podcast workflow; it has file playback, resume and speed/pitch
+  tools. Helikon-OS has a desktop app in the plan. Podcast state must survive a
+  power cut and sync round-trips.
+- **Options:** (a) device fetches feeds (rejected: no network); (b) host
+  subscribes/downloads and the device plays with a local episode model;
+  (c) file playback only.
+- **Proposed direction:** option (b). The desktop app subscribes to RSS/Atom,
+  downloads episodes, reads show notes, chapters and artwork, and syncs a
+  bounded set. The device shows show/episode lists, played state, per-episode
+  resume, speed, skip intervals, chapters and show notes. A sidecar JSON under
+  `/.helikon/podcasts/` carries state. The device never fetches a feed and never
+  uploads listening history.
+- **Consequences:** the desktop app is required for subscription; a 500-episode
+  library is the test; sync conflicts need a rule.
+- **Follow-up:** T-082 (podcast/audiobook), T-083 (desktop app).
+
+## D-44 — App/game runtime and package format
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §25.8, §28.3.9–10; D-08.
+- **Context:** Rockbox plugins and games are native binaries in the same system.
+  Helikon-OS excludes that model. The runtime is a P2 feature and cannot delay
+  writer work.
+- **Options:** (a) WebAssembly interpreter without JIT; (b) a small bytecode VM;
+  (c) a native signed-code sandbox.
+- **Proposed direction:** option (a) as the preferred candidate, subject to a
+  measured prototype; option (b) if WASM cannot meet the memory/frame budget;
+  option (c) rejected for the first runtime. A package contains a manifest,
+  signature, code, assets and requested capabilities. Permissions cover display,
+  input, audio, app-private storage and read-only library access; no raw block,
+  NOR, PMU, GPIO or network. Quotas cover memory, CPU slice, audio channels and
+  save data. A trap or watchdog returns to the home screen. The SDK has a host
+  simulator, examples and a capability reference.
+- **Consequences:** no Rockbox plugin/game binary compatibility; a smaller
+  ecosystem at launch; the runtime is optional and can be built out.
+- **Follow-up:** T-084 (runtime and SDK). The owner must accept the runtime
+  before implementation.
+
+## D-45 — Migration and coexistence
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §22, §28.4.3; goal 10.
+- **Context:** users arrive with an Apple-managed library, a Rockbox install, a
+  donor overlay or a mix. Helikon-OS must not destroy the old state to prove it
+  is native. The donor overlay is migration material, not a runtime format.
+- **Options:** (a) erase and start clean; (b) host-side import with verify and
+  rollback; (c) read the old formats on device.
+- **Proposed direction:** option (b). The host importer reads the source
+  read-only, maps playlists, ratings, settings and database state where the
+  semantics are known, writes native HFS+ files through the transaction engine,
+  verifies counts/hashes, and keeps the source untouched until the user
+  confirms. `.rockbox`, Apple’s database and the donor overlay are preserved as
+  files, not mounted. Unsupported state is reported, not guessed. A rollback
+  restores the pre-migration tree.
+- **Consequences:** some ratings/settings cannot map exactly; the importer is a
+  separate product path; the device never reads the old container at runtime.
+- **Follow-up:** T-085 (migration), T-083 (desktop app).
+
+## D-46 — Release, support and governance
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §18, §28.4.4; D-18, D-20.
+- **Context:** Rockbox has release, current and daily builds and a long community
+  history. Helikon-OS has one bootloader-only Alpha tag, no CI, no reproducible
+  release and no support window. “Regular updates” is a README goal, not a
+  mechanism.
+- **Options:** (a) ad-hoc releases from the owner’s machine; (b) a signed,
+  reproducible train with stable/beta/development channels, an LTS line and a
+  published support window; (c) no formal releases until v2.
+- **Proposed direction:** option (b). Every release has a signed manifest,
+  source tag, build recipe, hashes, size/RAM report, changelog and known-issues
+  list. Bootloader changes are DFU-only. A security response process and a
+  deprecation policy are published. Governance stays owner-led until a
+  contributor process exists; decisions and evidence remain public. No telemetry
+  is used to measure adoption.
+- **Consequences:** release engineering is real work; key custody and CI become
+  project infrastructure. A missed support window is reported.
+- **Follow-up:** T-086 (release train), T-053 (certificate), T-091 (security).
+
+## D-47 — Porting contract and hardware matrix
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §28.4.5; D-13.
+- **Context:** the README asks for a wide range of iPods and maybe other players.
+  Rockbox supports several iPod models; Helikon-OS has one 6G and no 7G board
+  audit. A port without hardware, documentation and a maintainer is a support
+  claim waiting to fail.
+- **Options:** (a) add targets by `#ifdef` as hardware appears; (b) a board
+  description plus a HAL contract, a per-target matrix and a named maintainer;
+  (c) 6G only forever.
+- **Proposed direction:** option (b). A port provides a board description (SoC,
+  RAM, panel, codec, storage, boot ROM/DFU, button map, `MOVE_AREA`), a BSP
+  implementation and a maintainer with hardware. The shared core has no target
+  `#ifdef`; differences live behind the HAL. The 7G port waits for owner
+  hardware and a board audit. No target is `supported` without a recorded
+  matrix.
+- **Consequences:** ports are slower to add but testable; 7G remains deferred;
+  other players are exploratory.
+- **Follow-up:** T-087 (HAL contract and 7G readiness), T-081 (adapter matrix).
+
+## D-48 — Privacy, telemetry and network policy
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §19.3, §28.3.9.
+- **Context:** a local music player does not need a network stack. The desktop
+  app may scrobble or fetch podcasts, and support needs logs. A vague privacy
+  policy becomes an accidental data path.
+- **Options:** (a) optional telemetry and cloud sync; (b) no network or telemetry
+  on device, host-side opt-in features, local logs only; (c) no logs and no
+  diagnostics.
+- **Proposed direction:** option (b). The firmware has no network stack and
+  sends no telemetry. Play history, ratings and crash logs stay on the device or
+  the user’s computer. The desktop app performs network work only for explicit
+  user actions (podcast download, opt-in scrobbling) and shows what will be
+  sent. Scrobbling is off by default. Support logs are exported manually and
+  reviewed for personal data before sharing. No unique device identifier is
+  published.
+- **Consequences:** support relies on user-provided evidence; there is no
+  adoption metric. The service mode must not become a covert network path.
+- **Follow-up:** T-091 (privacy and security review), T-083 (desktop app).
+
 ## Conflicts and source separation
 
 These are recorded so an agent does not silently pick a side. A conflict does
@@ -698,17 +1160,19 @@ not authorize a product change.
 - **Affected docs:** `release.md`, `security.md`, `CONTRIBUTING.md`,
   `SECURITY.md`.
 
-### C-08 — Paper §25 has 17 decisions; this file has 28
+### C-08 — Paper §25 has 17 decisions; this file has 48
 
 - **What:** the paper's §25 lists 17 open decisions. The documentation task
   requires licensing, code of conduct and signing-key ownership as well.
 - **Resolution:** D-01–D-17 mirror §25; D-18–D-20 are added from §18 and
   §28.4.4; D-21–D-26 record the diagnostic, splash, outer-volume and bootloader
-  recovery decisions; D-27–D-28 record the firmware memory map and entry ABI.
-  D-18 and D-20 are accepted; D-19 was rejected after the
-  owner deleted the code of conduct. This is a documentation reconciliation,
+  recovery decisions; D-27–D-28 record the firmware memory map and entry ABI;
+  D-29–D-48 are the proposed competitive-horizon decisions added 2026-11-05.
+  D-18 and D-20 are accepted; D-19 was rejected after the owner deleted the code
+  of conduct; D-29–D-48 are `proposed`. This is a documentation reconciliation,
   not a new product decision.
-- **Affected docs:** this file, `agents.md`, `goals.md`.
+- **Affected docs:** this file, `agents.md`, `goals.md`,
+  `competitive-roadmap.md`.
 
 ### C-09 — Paper suggests permissive docs license; repository uses GPL-2.0-or-later
 
@@ -730,6 +1194,25 @@ not authorize a product change.
   closed as an explicit no-A/B decision.
 - **Affected docs:** `bootloader/LOADER.md`, `bootloader/LOADER_TEST.md`,
   `docs/state.md`, `docs/tasks.md`, `docs/architecture.md`.
+
+### C-11 — “Strong alternative in every aspect” vs explicit declines
+
+- **What:** the owner wants Helikon-OS to be a strong alternative in every
+  aspect and better in several. A literal reading would require every Rockbox
+  codec, plugin, theme tag, language and device. The project also has an
+  explicit decline list (FAT32, full WPS, native plugins, video, chiptune,
+  writable USB LUN, self-healing and others).
+- **Why it is not a bug:** “every aspect” is a product ambition, not an
+  unbounded feature list. Matching every Rockbox plugin would conflict with the
+  lightweight, safety and sandbox goals. The competitive matrix defines the
+  finite P0/P1 use cases; the declines are deliberate tradeoffs, not forgotten
+  work.
+- **Status:** open owner confirmation. D-29 is proposed; the v1 threshold and
+  the decline list are not release gates until the owner accepts or narrows
+  them. Until then, documentation may say “competitive roadmap” but must not
+  say “matches Rockbox” or “better than Rockbox”.
+- **Affected docs:** `competitive-roadmap.md`, `roadmap.md`, `tasks.md`,
+  `goals.md`, `faq.md`, `validation.md`.
 
 ## Adding a decision
 

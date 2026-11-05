@@ -5,9 +5,9 @@
 > Status: living document — design paper; the F1 read-only implementation exists
 > and has one owner-reported 6G run; F2–F5 are design only.
 > Owner: architecture lead; firmware lead
-> Last updated: 2026-11-04
+> Last updated: 2026-11-05
 > Source: design paper §5–§19, §27; `docs/architecture.md`; `docs/ui.md`;
-> ADR-0003; ADR-0004
+> ADR-0003; ADR-0004; [`competitive-roadmap.md`](competitive-roadmap.md)
 
 **Evidence statement.** This paper describes the firmware design and the F1
 implementation skeleton. The F1/T-054 source tree now exists under `firmware/`
@@ -2431,6 +2431,36 @@ measurement.
 | F3 | Build a database, hide unsupported files, write metadata |
 | F4 | Let a skin/theme break the default UI, block on I/O in render |
 | F5 | Write metadata during playback, claim unmeasured audio/battery results |
+
+### 13.9 Beyond F5 — competitive modules (planned)
+
+These modules are **not** part of F1–F5 and do not start before the named gate.
+They implement the competitive horizon in
+[`competitive-roadmap.md`](competitive-roadmap.md); the decisions are D-29–D-48
+and the tasks are T-060–T-095. None exists today.
+
+| Module | Decisions | Tasks | Entry gate | Must not |
+|---|---|---|---|---|
+| VFS object semantics | D-32 | T-065 | F3 | Expose raw block access; hide an unsupported object |
+| Library index (host + device delta) | D-33 | T-066, T-067 | F3, host builder | Load the whole library into RAM; block playback |
+| Tier 1 codecs and gapless | D-34 | T-068 | F5 | Claim codec coverage without a corpus |
+| Core DSP | D-35 | T-070 | F5 | Clip, exceed the volume limit or run by default |
+| Advanced DSP | D-35 | T-071 | T-070 | Claim an audible benefit without measurement |
+| Native theme and WPS subset | D-36 | T-072, T-073 | F4 | Execute theme code; let a theme break the default UI |
+| Accessibility and localization | D-37 | T-074, T-075 | F4 | Ship a locale without native review |
+| USB composite and service mode | D-38 | T-076, T-077 | F5 + security review | Expose a writable LUN or raw block access |
+| Signed update and recovery | D-31 | T-064 | F2, T-053 | Write around `hfs_txn`; add an A/B path |
+| Anti-corruption | D-39 | T-078 | writer, T-065 | Self-heal, rewrite or delete a mismatch |
+| Power manager and thermal policy | D-41 | T-080 | F5 | Publish an unmeasured battery percentage |
+| Performance budgets | D-40 | T-079 | F4/F5 | Mix targets and measurements in one column |
+| Podcast/audiobook model | D-43 | T-082 | library index, desktop app | Fetch a feed on the device |
+| Sandbox and SDK | D-44 | T-084 | v1, H2-D | Grant raw block/NOR/PMU/GPIO access |
+| Porting contract | D-47 | T-087 | 6G matrix, owner hardware | Add a target `#ifdef` to the shared core |
+
+The module boundaries in §6 still apply: a new module may depend downward, never
+sideways into the filesystem or boot policy. A new cache or buffer needs a
+maximum and a budget line in §11. A new screen needs an error state and a
+fallback.
 
 ---
 
