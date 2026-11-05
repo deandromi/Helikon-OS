@@ -35,6 +35,7 @@ int helikon_ata_init(struct helikon_ata *ata, struct helikon_pmu *pmu,
 #ifdef HELIKON_DIAG_ATA_PROBE
 struct helikon_ata_probe {
     int adopt_rc;
+    int adopt_stage;
     int adopt_lba48;
     int adopt_power;
     int adopt_ceata;

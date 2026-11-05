@@ -47,6 +47,14 @@
 
 #define BOOT_INFO_PATH "/.helikon/firmware.manifest"
 #define BOOTSTATE_PATH "/.helikon/bootstate"
+
+/*
+ * Loader handoff marker, shared with
+ * bootloader/hardware/helikon_loader_hw.c. It lives in the reserved boot-info
+ * page before T-059 fills the page.
+ */
+#define HELIKON_HANDOFF_MARKER_ADDR 0x087ff800u
+#define HELIKON_HANDOFF_MARKER 0x484c4f31u /* "HLO1" */
 #define BOOTSTATE_NAME_UNITS 9u
 #define BOOT_MANIFEST_SIZE 256u
 #define BOOT_CATALOG_SCRATCH 32768u
@@ -935,15 +943,18 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
                                 &ata_probe);
     paint_title(ctx, "ATA PROBE");
     char ata_line[64];
+    uint32_t handoff = *(volatile uint32_t *)HELIKON_HANDOFF_MARKER_ADDR;
     helikon_strlcpy(ata_line, "ADOPT ", sizeof(ata_line));
     append_i32(ata_line, sizeof(ata_line), ata_probe.adopt_rc);
+    text_append(ata_line, sizeof(ata_line), " S ");
+    append_i32(ata_line, sizeof(ata_line), ata_probe.adopt_stage);
     text_append(ata_line, sizeof(ata_line), " LBA48 ");
     append_i32(ata_line, sizeof(ata_line), ata_probe.adopt_lba48);
     helikon_screen_set_foreground(&ctx->screen,
                                   ata_probe.adopt_rc == HELIKON_OK
                                       ? HELIKON_COLOR_SUCCESS
                                       : HELIKON_COLOR_FAILURE);
-    helikon_screen_text(&ctx->screen, 16, 56, 2, ata_line);
+    helikon_screen_text(&ctx->screen, 16, 52, 2, ata_line);
     helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
     helikon_strlcpy(ata_line, "CTL ", sizeof(ata_line));
     append_u32(ata_line, sizeof(ata_line), ata_probe.adopt_control);
@@ -951,12 +962,12 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
     append_i32(ata_line, sizeof(ata_line), ata_probe.adopt_power);
     text_append(ata_line, sizeof(ata_line), " RDY ");
     append_u32(ata_line, sizeof(ata_line), ata_probe.adopt_ready);
-    helikon_screen_text(&ctx->screen, 16, 76, 2, ata_line);
+    helikon_screen_text(&ctx->screen, 16, 72, 2, ata_line);
     helikon_strlcpy(ata_line, "CSD ", sizeof(ata_line));
     append_u32(ata_line, sizeof(ata_line), ata_probe.adopt_csd);
     text_append(ata_line, sizeof(ata_line), " DAD ");
     append_u32(ata_line, sizeof(ata_line), ata_probe.adopt_dad);
-    helikon_screen_text(&ctx->screen, 16, 96, 2, ata_line);
+    helikon_screen_text(&ctx->screen, 16, 92, 2, ata_line);
     helikon_strlcpy(ata_line, "FIRST ", sizeof(ata_line));
     append_i32(ata_line, sizeof(ata_line), ata_probe.first_stage);
     text_append(ata_line, sizeof(ata_line), " RC ");
@@ -965,29 +976,33 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
     append_i32(ata_line, sizeof(ata_line), ata_probe.first_hdd_rc);
     text_append(ata_line, sizeof(ata_line), " ID ");
     append_i32(ata_line, sizeof(ata_line), ata_probe.first_identify_rc);
-    helikon_screen_text(&ctx->screen, 16, 116, 2, ata_line);
+    helikon_screen_text(&ctx->screen, 16, 112, 2, ata_line);
     helikon_strlcpy(ata_line, "SECOND ", sizeof(ata_line));
     append_i32(ata_line, sizeof(ata_line), ata_probe.second_stage);
     text_append(ata_line, sizeof(ata_line), " RC ");
     append_i32(ata_line, sizeof(ata_line), ata_probe.second_rc);
-    helikon_screen_text(&ctx->screen, 16, 136, 2, ata_line);
+    helikon_screen_text(&ctx->screen, 16, 132, 2, ata_line);
     helikon_strlcpy(ata_line, "SECTORS ", sizeof(ata_line));
     append_u32(ata_line, sizeof(ata_line), ata_probe.total_sectors);
     text_append(ata_line, sizeof(ata_line), " ID82 ");
     append_u32(ata_line, sizeof(ata_line), ata_probe.identify_82);
-    helikon_screen_text(&ctx->screen, 16, 156, 2, ata_line);
+    helikon_screen_text(&ctx->screen, 16, 152, 2, ata_line);
     helikon_strlcpy(ata_line, "CEATA ", sizeof(ata_line));
     append_i32(ata_line, sizeof(ata_line), ata_probe.adopt_ceata);
     text_append(ata_line, sizeof(ata_line), " PDAT11 ");
     append_u32(ata_line, sizeof(ata_line), ata_probe.adopt_pdat11);
-    helikon_screen_text(&ctx->screen, 16, 176, 2, ata_line);
+    helikon_screen_text(&ctx->screen, 16, 172, 2, ata_line);
+    helikon_strlcpy(ata_line, "LOADER ", sizeof(ata_line));
+    text_append(ata_line, sizeof(ata_line),
+                handoff == HELIKON_HANDOFF_MARKER ? "V1 PIO" : "OLD/NONE");
+    helikon_screen_text(&ctx->screen, 16, 192, 2, ata_line);
     helikon_strlcpy(ata_line, "RESULT ", sizeof(ata_line));
     text_append(ata_line, sizeof(ata_line),
                 rc == HELIKON_OK ? "OK" : "FAIL");
     helikon_screen_set_foreground(&ctx->screen,
                                   rc == HELIKON_OK ? HELIKON_COLOR_SUCCESS
                                                    : HELIKON_COLOR_FAILURE);
-    helikon_screen_text(&ctx->screen, 16, 196, 2, ata_line);
+    helikon_screen_text(&ctx->screen, 16, 212, 2, ata_line);
     present_or_trace(ctx, HELIKON_TRACE_INFO, HELIKON_STAGE_ATA);
     if (rc != HELIKON_OK)
         diag_finish(ctx);

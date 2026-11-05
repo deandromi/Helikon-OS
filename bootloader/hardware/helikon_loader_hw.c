@@ -37,6 +37,14 @@
 #include "manifest.h"
 #include "splash_color.h"
 
+/*
+ * Handoff marker, shared with firmware/boot/firmware_main.c. It sits in the
+ * reserved boot-info page at 0x087ff000; the payload reads it before T-059
+ * fills the page.
+ */
+#define HELIKON_HANDOFF_MARKER_ADDR 0x087ff800u
+#define HELIKON_HANDOFF_MARKER 0x484c4f31u /* "HLO1" */
+
 /* Donor partition-table scanner. It only reads. */
 #include "hfsplus_partition.h"
 
@@ -337,16 +345,26 @@ void helikon_loader_main(void)
      */
 
     /*
+     * Stamp the handoff. The marker lives in the boot-info page so the
+     * payload can tell which loader ran even before T-059 fills the page.
+     * It is written before the cache flush, so it reaches DRAM.
+     */
+    *(volatile uint32_t *)HELIKON_HANDOFF_MARKER_ADDR =
+        HELIKON_HANDOFF_MARKER;
+
+    /*
      * The image is already at its linked address in DRAM. Flush/invalidate
      * the caches before executing it. The test payload returns "HELO"; a real
-     * firmware entry point would not return.
+     * firmware entry point would not return. Pass a zero boot-info pointer
+     * explicitly: without T-059 the loader has no page to hand over.
      */
     progress("jump");
-    uint32_t (*entry)(void) =
-        (uint32_t (*)(void))(uintptr_t)result.manifest.load_address;
+    uint32_t (*entry)(uintptr_t, uint32_t) =
+        (uint32_t (*)(uintptr_t, uint32_t))(uintptr_t)
+            result.manifest.load_address;
     disable_irq();
     commit_discard_idcache();
-    uint32_t marker = entry();
+    uint32_t marker = entry(0u, 0u);
     enable_irq();
 
     if (marker == LOADER_TEST_RETURN) {

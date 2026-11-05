@@ -537,6 +537,7 @@ int helikon_ata_init_probe(struct helikon_ata *ata, struct helikon_pmu *pmu,
     ata_probe_reset(ata);
 
     probe->adopt_rc = HELIKON_ERR_IO;
+    probe->adopt_stage = -1;
     probe->adopt_lba48 = 0;
     probe->adopt_power = -1;
     probe->adopt_ceata = 0;
@@ -563,6 +564,7 @@ int helikon_ata_init_probe(struct helikon_ata *ata, struct helikon_pmu *pmu,
     adopt.identify_rc = HELIKON_OK;
     int rc = ata_adopt(ata, timeout_ms, &adopt);
     probe->adopt_rc = rc;
+    probe->adopt_stage = adopt.stage;
     probe->adopt_lba48 = ata->lba48;
     probe->adopt_word0 = ata->identify[0];
     probe->adopt_csd = (uint16_t)(S5L_ATA_PIO_CSD & 0xffffu);
