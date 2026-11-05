@@ -5,7 +5,8 @@
 > Owner: project owner; maintained by the documentation agent
 > Last updated: 2026-11-05
 > Source: `README.md`, `docs/design-paper.md`, repository inspection;
-> Rockbox iPod Classic manual `0d5c2b0604-261105`
+> Rockbox iPod Classic manual `0d5c2b0604-261105`;
+> [`audio-formats.md`](audio-formats.md)
 
 ## Current phase
 
@@ -39,7 +40,8 @@ Date of this snapshot: **2026-11-05**. Device evidence remains the
 | Session-start prompt | living | [`prompts/session-start.md`](prompts/session-start.md); repo-read bootstrap and Session Brief for every session |
 | Agent contract and documentation set | living | `main`, merged 2026-11-03 |
 | Product intent, safety rules, roadmap, goals, open decisions | living | `docs/` |
-| Competitive roadmap (Rockbox comparison) | living | [`competitive-roadmap.md`](competitive-roadmap.md); Rockbox manual `0d5c2b0604-261105` reviewed 2026-11-05; D-29–D-48 proposed and T-060–T-095 planned; no Helikon-OS feature claim |
+| Competitive roadmap (Rockbox comparison) | living | [`competitive-roadmap.md`](competitive-roadmap.md); Rockbox manual `0d5c2b0604-261105` reviewed 2026-11-05; D-29–D-51 proposed and T-060–T-102 planned; no Helikon-OS feature claim |
+| Audio-format plan | living | [`audio-formats.md`](audio-formats.md); 37 audio families (36 in Appendix B.1 plus Opus) inventoried; Tier 1 at v1 and full Rockbox audio parity at v1.x; no decoder exists yet |
 | Donor file references and provenance | living | [`file-map.md`](file-map.md) |
 | License: GPL-2.0-or-later | living | `LICENSE`, `NOTICE`, D-18 |
 | GitHub issue templates | living | `.github/ISSUE_TEMPLATE/` |
@@ -213,10 +215,11 @@ writes, the transaction engine, the bootloader, or any goal in
    manifest, signing-key ceremony record, staging flow, rollback test or support
    window. The D-20 policy is accepted; no release key has been generated and no
    release signing is claimed.
-7. **Competitive horizon decisions are unaccepted.** D-29–D-48 are `proposed`
-   and T-060–T-095 are `planned`; H1 tasks cannot become release gates until the
+7. **Competitive horizon decisions are unaccepted.** D-29–D-51 are `proposed`
+   and T-060–T-102 are `planned`; H1 tasks cannot become release gates until the
    owner accepts D-29 and the relevant decision. This does not block the current
-   P0 writer line, and it does not authorize device work ahead of it.
+   P0 writer line, and it does not authorize device work ahead of it. The audio
+   plan additionally requires D-34/D-49/D-50/D-51 before decoder work starts.
 
 ## Next task
 
@@ -247,10 +250,11 @@ The fixture plan is in [`fixtures.md`](fixtures.md); the writer crash matrix and
 evidence format are in [`validation.md`](validation.md) §2.
 
 The competitive horizon in [`competitive-roadmap.md`](competitive-roadmap.md)
-is planning only. D-29–D-48 are `proposed` and T-060–T-095 are `planned`; none
-changes the active P0 line. The owner must accept D-29 before any H1 task
-becomes a release gate. No “matches Rockbox” or “better than Rockbox” claim is
-allowed until the differential evidence exists.
+and the audio-format plan in [`audio-formats.md`](audio-formats.md) are planning
+only. D-29–D-51 are `proposed` and T-060–T-102 are `planned`; none changes the
+active P0 line. The owner must accept D-29 before any H1 task becomes a release
+gate. No “matches Rockbox”, “better than Rockbox”, “24/96” or “hi-res” claim is
+allowed until the differential and audio evidence exists.
 
 ## Unproven claims and open questions
 

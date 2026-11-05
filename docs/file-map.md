@@ -171,6 +171,7 @@ Helikon-OS/
     goals.md                README goals
     roadmap.md              phases 0–12, horizon lanes, v1 threshold
     competitive-roadmap.md  Rockbox parity matrix, differentiation, declines
+    audio-formats.md        audio-format inventory, tiers, decoder plan, corpus
     hfsplus-write-engine.md writer deep dive
     release.md              release process stub
     security.md             agent security rules
@@ -200,6 +201,9 @@ firmware/
   db/                       immutable database reader and device delta log
   player/                   buffer/decode/output state machine
   audio/                    DSP chain, ReplayGain, EQ, crossfade, routing
+    codecs/                 one bounded decoder module per format family
+    metadata/               tag parsers, artwork, cuesheets, chapters
+    resample/               documented polyphase rate conversion
   power/                    power states, spindown, thermal, calibration
   ui/                       retained-mode screens and renderer
   input/                    click wheel/button events, debounce, focus
@@ -231,6 +235,7 @@ tools/
   hfsplus/                  host inspector, fixtures, tests
   parity/                   Rockbox differential harness and scorecard
   bench/                    boot, frame, seek, write and RAM benchmarks
+  audio/                    codec corpus, decode benchmark, provenance matrix
   db/                       host database builder
   theme/                    theme package validator and WPS tag report
   voice/                    voice-file and talk-clip generation
@@ -241,6 +246,7 @@ tools/
   service/                  framed USB service-mode host driver
 tests/
   fixtures/                 deterministic HFS+ images and trees
+  audio/                    per-format corpus, malformed files and decode bench
   fuzz/                     parser and journal fuzz targets
   model/                    B-tree/allocation model tests
   powerloss/                crash injection harness

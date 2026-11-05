@@ -110,6 +110,14 @@ competitive roadmap passes and the release audit records it. “Better” claims
 still need the evidence rules in [`validation.md`](validation.md) and
 [`device-matrix.md`](device-matrix.md).
 
+Audio is a separate hard parity line: all 37 audio families documented in or by
+the Rockbox iPod Classic manual (36 in Appendix B.1 plus Opus) are required by
+v1.x. The inventory,
+decoder architecture and 6G ceiling are in
+[`audio-formats.md`](audio-formats.md). Goal 16 covers the internal DAC path;
+it does not require native 24/96 or DSD output, which the documented 48 kHz
+codec class does not support.
+
 ## How to change a goal status
 
 1. Find the metric in [`validation.md`](validation.md).

@@ -3233,7 +3233,7 @@ roadmap. The design position is:
 | Crash consistency | No HFS+ journal path; no `fsck_hfs` gate | Journal/transaction engine; `fsck_hfs` zero repairs gate | `exceed` |
 | Library | On-device database; 1,800-byte metadata budget | Host-built index plus resumable device delta | `exceed` |
 | Playlists/resume | Mature | Same job; transactional state | `match` |
-| Codecs | Very broad | Tiered; Tier 1 at v1, Tier 2 measured, Tier 3 declined | `differ` |
+| Codecs | 37 audio families (36 in Appendix B.1 plus Opus) | Tier 1 at v1; all 37 at v1.x; beyond-Rockbox only after measurement | `match` at v1.x |
 | Sound | Full DSP suite | Core at v1; advanced measured and off by default | `differ` |
 | Themes | Full WPS/SBS language | Native declarative theme plus documented WPS subset | `differ` |
 | Plugins/games | Native plugin catalogue | No native ABI; signed sandbox only | `decline`/`differ` |
@@ -3261,7 +3261,7 @@ that start only after their dependency phase:
 | H1-F Desktop and USB | Phase 9 | Backup, import, tag, install and verify on macOS |
 | H2-A Data leadership | H1-B | Injected corruption detected; zero false OK |
 | H2-B Index leadership | H1-C | 10k build resumes at 25/50/75% |
-| H2-C Audio leadership | H1-D | Tier 2 codecs, advanced DSP, DAC measurements |
+| H2-C Audio leadership | H1-D | All 37 audio families (including Opus), advanced DSP, DAC/output measurements |
 | H2-D Interface leadership | H1-E | 20 skins; voice and large-text tasks pass |
 | H2-E Ecosystem | H1-F | 500 episodes; 100 ignition cycles; migration verifies |
 | H2-F Release and support | H1-A | Signed train and published support window |
@@ -3270,16 +3270,20 @@ that start only after their dependency phase:
 | H4 Continuous | Now | Matrix reviewed each phase; no stale claim |
 
 The lanes are defined in [`roadmap.md`](roadmap.md) and the tasks in
-[`tasks.md`](tasks.md) T-060–T-095.
+[`tasks.md`](tasks.md) T-060–T-102.
 
 ### I.5 Proposed decisions and tasks
 
-The addendum proposes 20 decisions, D-29–D-48, and 36 tasks, T-060–T-095. They
+The addendum proposes 23 decisions, D-29–D-51, and 43 tasks, T-060–T-102. They
 are recorded in [`decisions.md`](decisions.md) and [`tasks.md`](tasks.md). The
 main decision clusters are:
 
 - **Scope:** D-29 (parity policy), D-34 (codec tiers), D-35 (DSP scope),
   D-36 (theme/trust), D-48 (privacy).
+- **Audio:** D-34 (all 37 audio families, including Opus, by v1.x), D-49
+  (decoder provenance/licensing), D-50 (output ceiling/resampling), D-51
+  (metadata/artwork/gapless). The detailed inventory is in
+  [`audio-formats.md`](audio-formats.md).
 - **Install and recovery:** D-30 (install/dual boot), D-31 (update/recovery),
   D-38 (USB/service mode).
 - **Data:** D-32 (VFS object semantics), D-33 (index), D-39 (anti-corruption),
@@ -3312,7 +3316,7 @@ calling Helikon-OS a Rockbox alternative at all.
 
 - It does not change the 25 README goals or mark any goal met.
 - It does not change the phase table, phase gates or critical path.
-- It does not accept D-29–D-48.
+- It does not accept D-29–D-51.
 - It does not add a FAT fallback, a writable USB LUN, a native plugin ABI or a
   full WPS engine.
 - It does not authorize a 7G port, a library write or a device run.
@@ -3325,8 +3329,10 @@ calling Helikon-OS a Rockbox alternative at all.
   §2–§13 and Appendices A–G (competitor reference; not bundled).
 - [`competitive-roadmap.md`](competitive-roadmap.md) — full matrix and evidence
   protocol.
-- [`decisions.md`](decisions.md) — D-29–D-48.
-- [`tasks.md`](tasks.md) — T-060–T-095.
+- [`audio-formats.md`](audio-formats.md) — 37-format inventory, decoder
+  architecture, 6G ceiling and corpus.
+- [`decisions.md`](decisions.md) — D-29–D-51.
+- [`tasks.md`](tasks.md) — T-060–T-102.
 - [`roadmap.md`](roadmap.md) — horizon lanes and v1 threshold.
 - [`goals.md`](goals.md) — the 25 owner goals.
 - [`validation.md`](validation.md) and [`device-matrix.md`](device-matrix.md) —
