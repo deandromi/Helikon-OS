@@ -228,7 +228,12 @@ final class AppModel: ObservableObject {
 
         let scan = LibraryScanResult(tracks: allTracks, errors: errors, scannedCount: allTracks.count)
         let root = urls.count == 1 ? urls[0] : urls[0].deletingLastPathComponent()
-        snapshot = LibraryMerger.merge(scan: scan, into: snapshot, root: root, prune: scannedDirectory && urls.count == 1)
+        snapshot = LibraryMerger.merge(
+            scan: scan,
+            into: snapshot,
+            root: root,
+            prune: scannedDirectory && urls.count == 1 && !allTracks.isEmpty
+        )
         scheduleSave()
         scanProgress = ""
         record("Library scanned", detail: "\(allTracks.count) tracks · \(errors.count) unreadable", symbol: "music.note.list", tint: HColor.rust)
@@ -496,8 +501,9 @@ final class AppModel: ObservableObject {
     var lastFMSessionIsStored: Bool { KeychainStore.get(account: KeychainStore.lastFMSessionAccount) != nil }
 
     func saveLastFMSecret(_ secret: String) {
-        KeychainStore.set(secret, account: KeychainStore.lastFMSecretAccount)
-        lastFMStatus = secret.isEmpty ? "Secret removed." : "Secret saved in Keychain."
+        let trimmed = secret.trimmingCharacters(in: .whitespacesAndNewlines)
+        KeychainStore.set(trimmed.isEmpty ? nil : trimmed, account: KeychainStore.lastFMSecretAccount)
+        lastFMStatus = trimmed.isEmpty ? "Secret removed." : "Secret saved in Keychain."
     }
 
     func beginLastFMAuthentication() async {

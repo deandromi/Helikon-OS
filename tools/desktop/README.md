@@ -18,7 +18,7 @@ It does not expose a writable USB LUN, raw block access or a second filesystem.
 ```sh
 cd tools/desktop
 
-# Core tests (20 tests: transfer, scrobble, podcast RSS, library, ID3)
+# Core tests (21 tests: transfer, scrobble, podcast RSS, library, ID3)
 swift test
 
 # Release app bundle in tools/desktop/dist/
@@ -41,7 +41,7 @@ source icon and needs Pillow; a committed 1024 px PNG is enough for normal build
 |---|---|---|
 | App shell and visual system | `in progress` | `swift build -c release` succeeds; host screenshots reviewed at 2000×1290; no UI test suite |
 | HFS+ volume detection | `in progress` | `DeviceDetector` read `diskutil -plist` metadata; a mounted 32 MiB HFS+ test image with `.helikon` was detected as Helikon-OS, read/write; no physical acceptance run |
-| Library read/scan | `in progress` | AVFoundation tag scan and JSON library store; 20 core tests pass; large-library timing not measured |
+| Library read/scan | `in progress` | AVFoundation tag scan and JSON library store; 21 core tests pass; large-library timing not measured |
 | Metadata search | `in progress` | MusicBrainz recording/release/artist and Apple Search API clients; network integration exercised against live endpoints, but no recorded search matrix |
 | Music transfer | `in progress` | plan, streaming copy, SHA-256 verification, backup-before-replace and MP3 ID3 copy test pass; no device transfer run |
 | Podcast subscription/download | `in progress` | iTunes directory search, RSS/Atom parser test and download code; no 500-episode test |
@@ -150,7 +150,7 @@ Sources/HelikonCompanion/    SwiftUI app
   Design/                    palette, type, components
   Features/                  overview, library, transfer, metadata, etc.
 
-Tests/CompanionCoreTests/    20 XCTest cases
+Tests/CompanionCoreTests/    21 XCTest cases
 scripts/build-app.sh         release/debug .app bundle and ad-hoc signing
 scripts/make-icon.py         source icon generator
 ```

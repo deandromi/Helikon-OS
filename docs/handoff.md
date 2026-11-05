@@ -31,7 +31,7 @@ file grows. Do not rely on chat history for current state.
   [`../tools/desktop/README.md`](../tools/desktop/README.md), the current-tree
   entries in [`file-map.md`](file-map.md), the T-083 status and the desktop test
   row. A developer preview launch argument loads a fictional sample library.
-- Evidence: `swift build -c release` passes; `swift test` passes 20 tests; the
+- Evidence: `swift build -c release` passes; `swift test` passes 21 tests; the
   ad-hoc app bundle builds with `scripts/build-app.sh`; a mounted 32 MiB HFS+
   test image with `.helikon` was detected as Helikon-OS, read/write. No physical
   device run, no installer and no signed release.

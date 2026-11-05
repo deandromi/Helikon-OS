@@ -47,6 +47,31 @@ final class TransferPlannerTests: XCTestCase {
         XCTAssertEqual(keepBoth.items[0].destinationURL.lastPathComponent, "track 2.mp3")
     }
 
+    func testDuplicatePlanDestinationsAreMadeUnique() async throws {
+        let firstFolder = root.appendingPathComponent("one", isDirectory: true)
+        let secondFolder = root.appendingPathComponent("two", isDirectory: true)
+        let destination = root.appendingPathComponent("destination", isDirectory: true)
+        try FileManager.default.createDirectory(at: firstFolder, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: secondFolder, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        let first = firstFolder.appendingPathComponent("track.mp3")
+        let second = secondFolder.appendingPathComponent("track.mp3")
+        try Data("one".utf8).write(to: first)
+        try Data("two".utf8).write(to: second)
+
+        let service = TransferService(backupsRoot: root.appendingPathComponent("backups", isDirectory: true))
+        let plan = try await service.plan(
+            files: [first, second],
+            destinationRoot: destination,
+            relativeRoot: nil,
+            kind: .music,
+            conflictPolicy: .replaceWithBackup
+        )
+        XCTAssertEqual(plan.items.count, 2)
+        XCTAssertNotEqual(plan.items[0].destinationURL, plan.items[1].destinationURL)
+        XCTAssertEqual(plan.items[1].destinationURL.lastPathComponent, "track 2.mp3")
+    }
+
     func testExecuteCopiesVerifiesAndReports() async throws {
         let sourceFolder = root.appendingPathComponent("source", isDirectory: true)
         let destination = root.appendingPathComponent("destination", isDirectory: true)
