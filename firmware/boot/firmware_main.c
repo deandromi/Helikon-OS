@@ -927,7 +927,9 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
     helikon_trace_add(&ctx->trace, HELIKON_TRACE_INFO, HELIKON_TRACE_HAL,
                       0x3000u, ctx->board.lcd.panel_type,
                       ctx->board.lcd.cmdset);
+#ifndef HELIKON_DIAG_LAUNCHER
     paint_stages_checked(ctx, HELIKON_STAGE_LCD);
+#endif
     stage_pass(ctx, HELIKON_STAGE_LCD);
 
 #ifdef HELIKON_DIAG_LAUNCHER

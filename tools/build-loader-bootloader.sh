@@ -159,8 +159,9 @@ PY
 echo "Exporting donor $DONOR_COMMIT ..."
 git -C "$DONOR" archive "$DONOR_COMMIT" | tar -x -C "$SRC_DIR"
 
-echo "Disabling ATA DMA for the PIO firmware handoff ..."
-python3 - "$SRC_DIR/firmware/export/config/ipod6g.h" <<'PY'
+if [ "${LOADER_PIO:-0}" = "1" ]; then
+    echo "Disabling ATA DMA for the PIO firmware handoff ..."
+    python3 - "$SRC_DIR/firmware/export/config/ipod6g.h" <<'PY'
 import sys
 
 path = sys.argv[1]
@@ -172,6 +173,22 @@ for line in lines:
     else:
         out.append(line)
 open(path, "w", encoding="utf-8").write("\n".join(out) + "\n")
+PY
+else
+    echo "Keeping ATA DMA for the fast loader path ..."
+fi
+
+echo "Shortening the boot button-hold sampling wait ..."
+python3 - "$SRC_DIR/bootloader/ipod-s5l87xx.c" <<'PY'
+import sys
+
+path = sys.argv[1]
+text = open(path, encoding="utf-8").read()
+old = "while (USEC_TIMER < 400000);"
+new = "while (USEC_TIMER < 50000);"
+if old not in text:
+    raise SystemExit("button wait not found")
+open(path, "w", encoding="utf-8").write(text.replace(old, new, 1))
 PY
 
 HELIKON_DIR="$SRC_DIR/bootloader/helikon"

@@ -74,6 +74,20 @@ int helikon_buttons_poll(struct helikon_buttons *buttons, uint32_t *events,
             *hold = locked;
     }
 
+    /*
+     * The wheel controller latches events in WHEELINT. The donor's interrupt
+     * handler clears the pending bits before reading WHEELRX; do the same, or
+     * the RX status keeps reporting the last latched value and never sees a
+     * new button or wheel movement.
+     */
+    uint32_t latch = S5L_WHEELINT;
+    if ((latch & 4u) != 0u)
+        S5L_WHEELINT = 4u;
+    if ((latch & 2u) != 0u)
+        S5L_WHEELINT = 2u;
+    if ((latch & 1u) != 0u)
+        S5L_WHEELINT = 1u;
+
     uint32_t status = S5L_WHEELRX;
     uint8_t wheel = 0;
     int touched = 0;
