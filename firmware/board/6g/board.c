@@ -92,6 +92,29 @@ int helikon_board_display_init(struct helikon_board_runtime *runtime,
     return HELIKON_OK;
 }
 
+int helikon_board_power_attach(struct helikon_board_runtime *runtime)
+{
+    if (runtime == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    runtime->pmu.clock = &runtime->clock;
+    runtime->pmu.initialized = 1;
+    runtime->backlight.pmu = &runtime->pmu;
+    runtime->backlight.initialized = 1;
+    return HELIKON_OK;
+}
+
+int helikon_board_display_attach(struct helikon_board_runtime *runtime)
+{
+    if (runtime == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    int rc = helikon_lcd_attach(&runtime->lcd, &runtime->clock);
+    if (rc != HELIKON_OK)
+        return rc;
+    runtime->display = &display_ops;
+    runtime->display_context = &runtime->lcd;
+    return HELIKON_OK;
+}
+
 int helikon_board_storage_init(struct helikon_board_runtime *runtime,
                                uint32_t timeout_ms)
 {

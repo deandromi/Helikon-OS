@@ -38,7 +38,15 @@ int helikon_launcher_run(struct helikon_screen *screen,
     if (screen == NULL || buttons == NULL || clock == NULL)
         return -1;
 
+    const int32_t wheel_step = 4;
+    const uint64_t wheel_repeat_us = 120000u;
+    const uint64_t wheel_idle_us = 300000u;
+
     uint32_t selected = 0u;
+    uint32_t previous_events = 0u;
+    int32_t wheel_accumulator = 0;
+    uint64_t last_wheel_us = 0u;
+    uint64_t last_move_us = 0u;
     int app_open = 0;
     helikon_launcher_draw(screen, selected);
     uint64_t idle_start = helikon_clock_now_us(clock);
@@ -47,41 +55,73 @@ int helikon_launcher_run(struct helikon_screen *screen,
         uint32_t events = 0u;
         int32_t wheel = 0;
         int hold = 0;
-        int delta = 0;
 
         if (helikon_buttons_poll(buttons, &events, &wheel, &hold, 20u) ==
             HELIKON_OK) {
-            if ((events & HELIKON_BUTTON_LEFT) != 0u)
+            uint64_t now = helikon_clock_now_us(clock);
+            uint32_t pressed = events & ~previous_events;
+            previous_events = events;
+            int delta = 0;
+
+            /*
+             * A button only counts on the transition from released to held;
+             * otherwise a held direction repeats every poll and races through
+             * the grid. The wheel is accumulated so a fast spin cannot move
+             * more than one cell per wheel_repeat_us.
+             */
+            if ((pressed & HELIKON_BUTTON_LEFT) != 0u) {
                 delta = -1;
-            else if ((events & HELIKON_BUTTON_RIGHT) != 0u)
+                wheel_accumulator = 0;
+            } else if ((pressed & HELIKON_BUTTON_RIGHT) != 0u) {
                 delta = 1;
-            else if (wheel > 0)
-                delta = 1;
-            else if (wheel < 0)
-                delta = -1;
+                wheel_accumulator = 0;
+            } else if (wheel != 0) {
+                if (now - last_wheel_us > wheel_idle_us)
+                    wheel_accumulator = 0;
+                wheel_accumulator += wheel;
+                if (wheel_accumulator > wheel_step * 2)
+                    wheel_accumulator = wheel_step * 2;
+                else if (wheel_accumulator < -wheel_step * 2)
+                    wheel_accumulator = -wheel_step * 2;
+                last_wheel_us = now;
+                idle_start = now;
+                if (now - last_move_us >= wheel_repeat_us) {
+                    if (wheel_accumulator >= wheel_step) {
+                        delta = 1;
+                        wheel_accumulator -= wheel_step;
+                        last_move_us = now;
+                    } else if (wheel_accumulator <= -wheel_step) {
+                        delta = -1;
+                        wheel_accumulator += wheel_step;
+                        last_move_us = now;
+                    }
+                }
+            } else if (now - last_wheel_us > wheel_idle_us) {
+                wheel_accumulator = 0;
+            }
 
             if (app_open) {
-                if ((events & (HELIKON_BUTTON_MENU |
-                               HELIKON_BUTTON_SELECT |
-                               HELIKON_BUTTON_PLAY)) != 0u) {
+                if ((pressed & (HELIKON_BUTTON_MENU |
+                                HELIKON_BUTTON_SELECT |
+                                HELIKON_BUTTON_PLAY)) != 0u) {
                     app_open = 0;
                     helikon_launcher_draw(screen, selected);
-                    idle_start = helikon_clock_now_us(clock);
+                    idle_start = now;
                 }
             } else {
-                if ((events & (HELIKON_BUTTON_SELECT |
-                               HELIKON_BUTTON_PLAY)) != 0u) {
+                if ((pressed & (HELIKON_BUTTON_SELECT |
+                                HELIKON_BUTTON_PLAY)) != 0u) {
                     app_open = 1;
                     draw_app_screen(screen, selected);
-                    idle_start = helikon_clock_now_us(clock);
-                } else if ((events & HELIKON_BUTTON_MENU) != 0u) {
+                    idle_start = now;
+                } else if ((pressed & HELIKON_BUTTON_MENU) != 0u) {
                     return (int)selected;
                 } else if (delta != 0) {
                     uint32_t next = helikon_launcher_step(selected, delta);
                     if (next != selected) {
                         selected = next;
                         helikon_launcher_draw(screen, selected);
-                        idle_start = helikon_clock_now_us(clock);
+                        idle_start = now;
                     }
                 }
             }

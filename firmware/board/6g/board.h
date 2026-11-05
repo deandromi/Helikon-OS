@@ -54,6 +54,14 @@ int helikon_board_power_init(struct helikon_board_runtime *runtime,
                              uint32_t timeout_ms);
 int helikon_board_display_init(struct helikon_board_runtime *runtime,
                                uint32_t timeout_ms);
+
+/*
+ * Handoff attach for a payload that follows the firmware loader: the loader
+ * has already initialized the PMU, backlight and panel, so do not reset them.
+ * Used by the launcher image to keep the splash lit until the first frame.
+ */
+int helikon_board_power_attach(struct helikon_board_runtime *runtime);
+int helikon_board_display_attach(struct helikon_board_runtime *runtime);
 int helikon_board_storage_init(struct helikon_board_runtime *runtime,
                                uint32_t timeout_ms);
 int helikon_board_input_init(struct helikon_board_runtime *runtime,

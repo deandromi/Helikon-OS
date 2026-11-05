@@ -63,6 +63,7 @@
 #define BOOT_READ_TIMEOUT_MS 3000u
 #define BOOT_INPUT_TIMEOUT_MS 10000u
 #define BOOT_INPUT_POLL_MS 20u
+#define BOOT_LAUNCHER_INPUT_TIMEOUT_MS 500u
 
 HELIKON_STATIC_ASSERT(HELIKON_SCREEN_WIDTH == HELIKON_LCD_WIDTH,
                       screen_width_matches_panel);
@@ -905,7 +906,11 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
     paint_message(ctx, "PMU+BL OK", "DIAGNOSTIC COMPLETE");
     diag_finish(ctx);
 #else
+#ifdef HELIKON_DIAG_LAUNCHER
+    rc = helikon_board_power_attach(&ctx->board);
+#else
     rc = helikon_board_power_init(&ctx->board, BOOT_POWER_TIMEOUT_MS);
+#endif
     if (rc != HELIKON_OK)
         boot_fail(ctx, HELIKON_STAGE_PMU, rc,
                   "PMU or backlight initialization failed.");
@@ -917,7 +922,11 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
     stage_pass(ctx, HELIKON_STAGE_PMU);
 
     stage_begin(ctx, HELIKON_STAGE_LCD);
+#ifdef HELIKON_DIAG_LAUNCHER
+    rc = helikon_board_display_attach(&ctx->board);
+#else
     rc = helikon_board_display_init(&ctx->board, BOOT_DISPLAY_TIMEOUT_MS);
+#endif
     if (rc != HELIKON_OK)
         boot_fail(ctx, HELIKON_STAGE_LCD, rc, "The panel did not initialize.");
     helikon_screen_init(&ctx->screen, ctx->framebuffer,
@@ -938,7 +947,8 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
      * until SELECT/MENU, the hold switch or the idle timeout, then the image
      * powers off so a diagnostic run cannot drain the battery.
      */
-    rc = helikon_board_input_init(&ctx->board, BOOT_POWER_TIMEOUT_MS);
+    rc = helikon_board_input_init(&ctx->board,
+                                  BOOT_LAUNCHER_INPUT_TIMEOUT_MS);
     if (rc != HELIKON_OK)
         boot_fail(ctx, HELIKON_STAGE_INPUT, rc,
                   "The buttons did not initialize.");
