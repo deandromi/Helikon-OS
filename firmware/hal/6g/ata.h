@@ -63,8 +63,8 @@ struct helikon_ata_probe {
  * with a plain sector read, then reports the failing substep of the full reset
  * path and retries it once. Substeps:
  * 8 adopt entry, 9 soft controller ready, 10 soft sector read,
- * 11 soft success, 12 reset without IDENTIFY, 13 reset sector read,
- * 14 adopt success;
+ * 11 soft success, 12 reset without IDENTIFY, 13 device SRST,
+ * 14 reset sector read, 15 adopt success;
  * 0 HDD power, 1 controller ready, 2 identify, 3 sector geometry,
  * 4 SET FEATURES 0x03, 5 SET FEATURES 0xAA, 6 write-cache hint, 7 success.
  */

@@ -401,7 +401,9 @@ static int ata_adopt(struct helikon_ata *ata, uint32_t timeout_ms,
     /*
      * A soft enable does not always restart a controller the loader clocked
      * down: PIO ready stays 0 until the donor CFG/SWRST reset runs. Reset the
-     * controller, but still do not send IDENTIFY.
+     * controller, then reset the device interface itself with SRST. The donor
+     * uses this exact sequence in its error-recovery path; a controller reset
+     * alone does not clear a wedged device interface. Still no IDENTIFY.
      */
     if (attempt != NULL)
         attempt->stage = 12;
@@ -409,11 +411,24 @@ static int ata_adopt(struct helikon_ata *ata, uint32_t timeout_ms,
     rc = ata_wait_ready_bits(ata, 0x2u, timeout_ms);
     if (rc != HELIKON_OK)
         return rc;
+
     if (attempt != NULL)
         attempt->stage = 13;
+    rc = ata_write_cbr(ata, &S5L_ATA_PIO_DAD, 0x6u, timeout_ms);
+    if (rc == HELIKON_OK) {
+        helikon_clock_delay_us(ata->clock, 10u);
+        rc = ata_write_cbr(ata, &S5L_ATA_PIO_DAD, 0x0u, timeout_ms);
+    }
+    if (rc == HELIKON_OK)
+        rc = ata_wait_rdy(ata, timeout_ms);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    if (attempt != NULL)
+        attempt->stage = 14;
     rc = ata_adopt_read(ata, timeout_ms);
     if (rc == HELIKON_OK && attempt != NULL)
-        attempt->stage = 14;
+        attempt->stage = 15;
     return rc;
 }
 
