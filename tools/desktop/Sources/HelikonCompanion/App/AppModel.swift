@@ -38,6 +38,7 @@ final class AppModel: ObservableObject {
     static let version = "0.1.0"
 
     @Published var section: CompanionSection = .overview
+    @Published var isShowingSplash = true
     @Published var settings: AppSettings
     @Published var snapshot: LibrarySnapshot
     @Published var devices: [DeviceInfo] = []
@@ -92,9 +93,14 @@ final class AppModel: ObservableObject {
            let requested = CompanionSection(rawValue: CommandLine.arguments[index + 1]) {
             section = requested
         }
+        if CommandLine.arguments.contains("--skip-splash") {
+            isShowingSplash = false
+        }
         try? AppPaths.prepare()
         record("Companion opened", detail: "Ready to inspect a mounted volume.", symbol: "sparkles", tint: HColor.blue)
-        Task { await refreshDevices() }
+        if !isShowingSplash {
+            Task { await refreshDevices() }
+        }
     }
 
     // MARK: - Computed state
@@ -174,6 +180,19 @@ final class AppModel: ObservableObject {
 
     func selectDevice(_ id: String) {
         selectedDeviceID = id
+    }
+
+    // MARK: - Welcome screen
+
+    func dismissSplash() {
+        isShowingSplash = false
+        if devices.isEmpty {
+            Task { await refreshDevices() }
+        }
+    }
+
+    func showSplash() {
+        isShowingSplash = true
     }
 
     // MARK: - Library

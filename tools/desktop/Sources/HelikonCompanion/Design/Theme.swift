@@ -4,6 +4,7 @@ import SwiftUI
 // MARK: - Palette
 
 enum HColor {
+    static let posterPaper = Color(hex: 0xEFEDE5)
     static let paper = Color(hex: 0xF3F0E7)
     static let paperLight = Color(hex: 0xFAF8F2)
     static let paperDeep = Color(hex: 0xEAE5D9)
