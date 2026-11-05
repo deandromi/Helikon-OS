@@ -74,6 +74,13 @@ The app uses system fonts (New York/Charter-class serif and SF for UI) so it doe
 not redistribute a proprietary typeface. No album artwork is bundled; sample
 covers are generated geometry. The app icon is generated from the mountain mark.
 
+The shell is deliberately flat: one page header per screen, no second title bar
+above it, and a plain named sidebar with no ordinal numbers. Meta labels and
+tags use title case; uppercase is reserved for acronyms such as HFS+, MP3, API
+and SHA-256, and for volume names supplied by the device. Counts and installation
+steps keep their numbers because those numbers carry meaning, not navigation
+decoration.
+
 ## 4. Transport and writes
 
 The current path is **macOS Disk Mode**, i.e. D-09 option (a). The app writes

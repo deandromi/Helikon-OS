@@ -36,23 +36,26 @@ struct DashboardView: View {
                 subtitle: "A quiet desk for the library on your iPod: read it, tag it, move it, and keep a record of what leaves the house."
             )
             Spacer(minLength: 20)
-            VStack(alignment: .trailing, spacing: 9) {
+            VStack(alignment: .trailing, spacing: 8) {
                 Button {
-                    if model.selectedDevice != nil {
-                        model.scanSelectedDevice()
-                    } else {
-                        model.chooseAudioFiles()
-                    }
+                    model.chooseAudioFiles()
                 } label: {
-                    Label(model.selectedDevice == nil ? "Scan a folder" : "Scan volume", systemImage: "arrow.triangle.2.circlepath")
+                    Label("Add music", systemImage: "plus")
                 }
                 .buttonStyle(PrimaryButtonStyle())
-                Button("Load sample library") {
-                    model.loadDemoLibrary()
+                HStack(spacing: 14) {
+                    if model.selectedDevice != nil {
+                        Button("Scan volume") {
+                            model.scanSelectedDevice()
+                        }
+                        .buttonStyle(QuietButtonStyle())
+                    }
+                    Button("Load sample library") {
+                        model.loadDemoLibrary()
+                    }
+                    .buttonStyle(QuietButtonStyle())
+                    .disabled(model.demoMode)
                 }
-                .buttonStyle(QuietButtonStyle())
-                .disabled(model.demoMode)
-                .opacity(model.demoMode ? 0.4 : 1)
             }
             .padding(.top, 4)
         }
@@ -358,7 +361,7 @@ struct DashboardView: View {
         var items: [AttentionItem] = []
         if model.missingMetadataCount > 0 {
             items.append(AttentionItem(
-                title: "\(model.missingMetadataCount) tracks are missing tags or artwork",
+                title: "\(model.missingMetadataCount) \(model.missingMetadataCount == 1 ? "track is" : "tracks are") missing tags or artwork",
                 actionTitle: "Review",
                 tint: HColor.ochre,
                 action: { model.section = .metadata }
@@ -455,9 +458,8 @@ private struct DeviceFact: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(label.uppercased())
-                .font(HFont.label(8.5))
-                .tracking(1)
+            Text(label)
+                .font(HFont.body(10))
                 .foregroundStyle(HColor.muted)
             Text(value)
                 .font(HFont.body(11))
@@ -504,13 +506,12 @@ struct DeviceSilhouette: View {
                     )
                     .overlay(alignment: .topLeading) {
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("HELIKON")
+                            Text("Helikon")
                                 .font(HFont.display(6.5, weight: .semibold))
-                                .tracking(0.8)
+                                .tracking(0.2)
                                 .foregroundStyle(HColor.ink)
-                            Text(device == nil ? "NO VOLUME" : "HFS+")
-                                .font(HFont.label(4.5))
-                                .tracking(0.5)
+                            Text(device == nil ? "No volume" : "HFS+")
+                                .font(HFont.label(5))
                                 .foregroundStyle(HColor.muted)
                         }
                         .padding(6)
@@ -529,8 +530,8 @@ struct DeviceSilhouette: View {
                         .frame(width: 20, height: 20)
                         .overlay(Circle().stroke(HColor.rule, lineWidth: 1))
                     VStack(spacing: 24) {
-                        Text("MENU").font(HFont.label(4.5)).tracking(0.5)
-                        Text("PLAY").font(HFont.label(4.5)).tracking(0.5)
+                        Text("Menu").font(HFont.label(5))
+                        Text("Play").font(HFont.label(5))
                     }
                     .foregroundStyle(HColor.muted)
                     .offset(y: 1)

@@ -1,4 +1,3 @@
-import AppKit
 import CompanionCore
 import SwiftUI
 
@@ -10,11 +9,9 @@ struct RootView: View {
             SidebarView()
                 .frame(width: 248)
             VerticalHairline()
-            VStack(spacing: 0) {
-                TopBarView()
-                content
-            }
-            .background(HColor.paper)
+            content
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(HColor.paper)
         }
         .background(HColor.paper)
         .sheet(item: $model.metadataSearch) { context in
@@ -64,81 +61,6 @@ struct RootView: View {
     }
 }
 
-// MARK: - Top bar
-
-struct TopBarView: View {
-    @EnvironmentObject private var model: AppModel
-
-    var body: some View {
-        HStack(spacing: 14) {
-            EyebrowLabel(text: "\(model.section.index) / \(model.section.title)")
-            Spacer()
-            devicePill
-            Button {
-                Task { await model.refreshDevices() }
-            } label: {
-                Image(systemName: model.isRefreshingDevices ? "arrow.triangle.2.circlepath" : "arrow.clockwise")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(HColor.muted)
-                    .frame(width: 26, height: 26)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .help("Refresh mounted volumes")
-
-            if [.overview, .library, .transfer, .podcasts, .audiobooks].contains(model.section) {
-                Button {
-                    model.chooseAudioFiles()
-                } label: {
-                    Label("Add music", systemImage: "plus")
-                        .font(HFont.body(11.5, weight: .medium))
-                        .foregroundStyle(HColor.paperLight)
-                        .padding(.horizontal, 11)
-                        .padding(.vertical, 6)
-                        .background(HColor.ink)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 28)
-        .frame(height: 50)
-        .background(HColor.paper.opacity(0.96))
-        .overlay(alignment: .bottom) { Hairline() }
-    }
-
-    private var devicePill: some View {
-        Button {
-            if let device = model.selectedDevice {
-                NSWorkspace.shared.activateFileViewerSelecting([device.mountURL])
-            } else {
-                Task { await model.refreshDevices() }
-            }
-        } label: {
-            HStack(spacing: 7) {
-                StatusDot(color: model.selectedDevice == nil ? HColor.faint : HColor.live, size: 5)
-                Text(model.selectedDevice.map { "\($0.name) · \($0.kindLabel)" } ?? "No volume")
-                    .font(HFont.body(11, weight: .medium))
-                    .foregroundStyle(HColor.inkSoft)
-                    .lineLimit(1)
-                if let device = model.selectedDevice {
-                    Text(Formatters.bytes(device.availableCapacity))
-                        .font(HFont.mono(10))
-                        .foregroundStyle(HColor.muted)
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(HColor.paperLight)
-            .overlay(
-                Capsule().stroke(HColor.rule, lineWidth: 1)
-            )
-            .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 // MARK: - Sidebar
 
 struct SidebarView: View {
@@ -183,18 +105,18 @@ struct SidebarView: View {
     }
 
     private var brand: some View {
-        VStack(alignment: .leading, spacing: 9) {
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
                 MountainMark()
                     .frame(width: 30, height: 19)
-                Text("HELIKON")
-                    .font(HFont.display(21, weight: .semibold))
-                    .tracking(1.2)
+                Text("Helikon")
+                    .font(HFont.display(23, weight: .semibold))
+                    .tracking(0.2)
                     .foregroundStyle(HColor.ink)
             }
-            Text("COMPANION")
-                .font(HFont.label(9.5, weight: .semibold))
-                .tracking(3.0)
+            Text("Companion")
+                .font(HFont.display(12, weight: .regular))
+                .tracking(0.7)
                 .foregroundStyle(HColor.muted)
                 .padding(.leading, 40)
         }
@@ -206,9 +128,8 @@ struct SidebarView: View {
                 EyebrowLabel(text: "Volume")
                 Spacer()
                 if model.demoMode {
-                    Text("SAMPLE")
-                        .font(HFont.label(8.5, weight: .bold))
-                        .tracking(0.7)
+                    Text("Sample")
+                        .font(HFont.label(9, weight: .medium))
                         .foregroundStyle(HColor.ochre)
                 }
             }
@@ -269,9 +190,8 @@ struct SidebarView: View {
         VStack(alignment: .leading, spacing: 7) {
             Hairline()
                 .padding(.bottom, 5)
-            Text("PRE-RELEASE · \(AppModel.version)")
-                .font(HFont.label(9, weight: .medium))
-                .tracking(1)
+            Text("Pre-release · \(AppModel.version)")
+                .font(HFont.body(9.5, weight: .medium))
                 .foregroundStyle(HColor.muted)
             Text("The installer is not available in this build.")
                 .font(HFont.body(9.5))
@@ -289,11 +209,7 @@ struct SidebarRow: View {
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
-                Text(section.index)
-                    .font(HFont.mono(9.5))
-                    .foregroundStyle(selected ? HColor.paperLight.opacity(0.55) : HColor.faint)
-                    .frame(width: 18, alignment: .leading)
+            HStack(spacing: 11) {
                 Image(systemName: section.icon)
                     .font(.system(size: 12, weight: .regular))
                     .frame(width: 16)

@@ -118,7 +118,7 @@ struct AudiobooksView: View {
                                     .foregroundStyle(book.fileCount > 0 ? HColor.moss : HColor.faint)
                             }
                             Spacer(minLength: 2)
-                            if book.isPublicDomain { Tag(text: "PD", color: HColor.moss) }
+                            if book.isPublicDomain { Tag(text: "Public domain", color: HColor.moss) }
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 11)
@@ -247,8 +247,8 @@ private struct AudiobookSearchCard: View {
         VStack(alignment: .leading, spacing: 8) {
             AudiobookCover(book: book, size: 128)
             HStack(spacing: 5) {
-                Tag(text: book.source.shortTitle, color: HColor.ochre)
-                if book.isPublicDomain { Tag(text: "PD", color: HColor.moss) }
+                Tag(text: book.source.title, color: HColor.ochre)
+                if book.isPublicDomain { Tag(text: "Public domain", color: HColor.moss) }
             }
             Text(book.title)
                 .font(HFont.body(11.5, weight: .medium))
