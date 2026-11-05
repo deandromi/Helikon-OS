@@ -155,7 +155,7 @@ Helikon-OS/
   tools/desktop/            macOS companion app (SwiftPM, host only, in progress)
     Sources/CompanionCore/   testable device, library, metadata, transfer and scrobble services
     Sources/HelikonCompanion/ SwiftUI app shell and screens
-    Tests/CompanionCoreTests/ 20 host tests
+    Tests/CompanionCoreTests/ 21 host tests
     scripts/                 app bundle and icon generation
   docs/
     README.md               documentation index and reading order
