@@ -187,9 +187,9 @@ replaced by the matching F2 set after the test.
 ## 11. Current evidence
 
 - F2 image: 76,160 bytes, SHA-256 `f33f2791…`, BSS `0x08890000`–`0x08922e60`,
-  The current tree rebuilds to `f33f2791…`; an earlier 76,160-byte
-  artifact, `9f21f490…`, exists in an old build directory but is not reproduced
-  by the merged source.
+  The current tree rebuilds to `f33f2791…`; an earlier build produced a
+  76,160-byte artifact with SHA-256 `9f21f490…`, which is not reproduced by the
+  merged source.
   bootstate `TRYING` sequence 1. The PMU interrupt-latch clear is best-effort;
   a failed latch read does not block backlight init. The ATA write-cache hint
   (`SET FEATURES 0x02`) and the redundant PMU HDD-enable write are best-effort;
