@@ -3,11 +3,54 @@
 > Purpose: the latest session handoff and the reusable template.
 > Status: living document
 > Owner: session author; next agent reads this first
-> Last updated: 2026-11-04
+> Last updated: 2026-11-05
 > Source: `docs/state.md`, `docs/tasks.md`, repository history
 
 Keep the newest handoff at the top. Move older entries to `docs/log/` when this
 file grows. Do not rely on chat history for current state.
+
+---
+
+# Handoff — 2026-11-05 (competitive horizon planning)
+
+## What happened
+
+- Reviewed the official *Rockbox Manual for iPod Classic*, version
+  `0d5c2b0604-261105` (2026-11-04, 285 pages), for the competitor’s documented
+  features, install model, filesystem support, metadata limits, sound/playback,
+  themes, plugins, USB, power and accessibility.
+- Added [`competitive-roadmap.md`](competitive-roadmap.md): a Rockbox parity
+  matrix with `match`/`exceed`/`differ`/`decline` labels, 12 leadership bets,
+  horizon lanes H1–H4, a v1 “no-regret” threshold, explicit declines and a
+  differential evidence protocol.
+- Extended [`roadmap.md`](roadmap.md) with the competitive baseline, horizon
+  lanes and differentiation bets; extended [`tasks.md`](tasks.md) with
+  T-060–T-095 (all `planned`); extended [`decisions.md`](decisions.md) with
+  D-29–D-48 (all `proposed`) and C-11.
+- Added Appendix I to [`design-paper.md`](design-paper.md) as a forward addendum
+  that does not change revision 2 or the accepted decisions D-01–D-28.
+- Updated [`README.md`](README.md), [`file-map.md`](file-map.md) and added
+  [`log/2026-11-05.md`](log/2026-11-05.md).
+- Host checks still pass: `make -C tests/hfsplus test`,
+  `make -C tests/bootloader test` and `make -C tests/firmware test` all exited
+  0. This is docs-only; no device run was made.
+
+## What is next
+
+1. The owner reviews D-29–D-48 and accepts, narrows or rejects them. They remain
+   `proposed`; none is a release gate.
+2. If D-29 is accepted, start T-060 (parity scorecard) and T-061 (differential
+   harness) against a pinned Rockbox baseline.
+3. Keep the writer line ahead of every H1 task. F2/T-055 still needs its 6G run;
+   T-051 still needs the production handoff.
+
+## Do not claim
+
+- That Helikon-OS matches or beats Rockbox. No differential run exists.
+- That any T-060–T-095 feature is implemented.
+- That D-29–D-48 are accepted owner decisions.
+- That the competitive matrix is a support list or a device matrix.
+- That the Rockbox manual is Helikon-OS evidence or a source of assets.
 
 ---
 

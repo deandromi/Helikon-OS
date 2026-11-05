@@ -3,8 +3,9 @@
 > Purpose: preserve every owner-authored README goal and tie it to evidence.
 > Status: living document
 > Owner: project owner; docs lead maintains the mapping
-> Last updated: 2026-11-04
-> Source: root `README.md`; design paper §28.1 and §28.6
+> Last updated: 2026-11-05
+> Source: root `README.md`; design paper §28.1 and §28.6;
+> [`competitive-roadmap.md`](competitive-roadmap.md)
 
 The root `README.md` is the source of the goals and is not modified. The paper
 is the technical design response. If a goal and the paper appear to conflict,
@@ -91,6 +92,23 @@ The paper explicitly does not promise:
 
 These are scope boundaries, not missing features to be silently added. A change
 to one is an owner decision, not an agent guess.
+
+## Competitive lens (2026-11-05)
+
+The 25 goals above remain the product contract and are reproduced verbatim. The
+Rockbox comparison in [`competitive-roadmap.md`](competitive-roadmap.md) does
+not add a 26th goal and does not change a goal status. It adds three things:
+
+- a finite **v1 parity set** for the basic jobs a Rockbox user expects;
+- a **differentiation set** with a metric for each “better than Rockbox” claim;
+- an explicit **decline list** so a missing plugin, codec or theme tag is not
+  silently treated as a bug.
+
+Goal 25 (“a modern feasible alternative”) is the goal that owns this comparison.
+It is not met by a feature count; it is met when the v1 threshold in the
+competitive roadmap passes and the release audit records it. “Better” claims
+still need the evidence rules in [`validation.md`](validation.md) and
+[`device-matrix.md`](device-matrix.md).
 
 ## How to change a goal status
 

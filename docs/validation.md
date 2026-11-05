@@ -3,8 +3,9 @@
 > Purpose: define the evidence required before a release or a goal claim.
 > Status: living document
 > Owner: release lead; test lead
-> Last updated: 2026-11-04
-> Source: design paper §24, §26.12, §28.6; `docs/verification.md`
+> Last updated: 2026-11-05
+> Source: design paper §24, §26.12, §28.6; `docs/verification.md`;
+> [`competitive-roadmap.md`](competitive-roadmap.md)
 
 **No Helikon-OS release exists and no validation gate has been run.** Every
 status below is `not run` or `unproven`. A green table is not evidence; a
@@ -171,6 +172,28 @@ supported today.
 | Games/apps | Sandbox | No escape, crash isolation | Adversarial tests | v2 | `not run` |
 | 7G/ports | Per-target matrix | Boot/play/charge/write | Device run | v2 | `not run` |
 | Community | Release audit | Public docs, GPL-2.0-or-later, CI, signed builds | Checklist | continuous | `not run` |
+
+### 8.1 Competitive differential evidence
+
+The Rockbox comparison is not a release gate until the owner accepts D-29. When
+accepted, each row below needs a Rockbox baseline (version/commit, device,
+adapter, battery health, media and settings) and a Helikon-OS image hash. A
+single unrecorded row means the corresponding claim is not allowed.
+
+| Claim | Rockbox baseline | Helikon-OS metric | Method | Status |
+|---|---|---|---|---|
+| Install without reformatting | FAT32 Classic install; Rockbox Utility/DFU | HFS+ 6G install; no data loss; verified backup | Moderated install + `fsck_hfs`/tree diff | `not run` |
+| Safer crash consistency | FAT writes; no HFS+ journal | Zero `fsck_hfs` repairs after the power-cut matrix | Fault injection + device run | `not run` |
+| Signed update | Unzip/ROLO; no signature | Bad board/hash/signature rejected; cut during staging leaves old image bootable | Fault injection + device run | `not run` |
+| 10k-track library | On-device scan; 1,800-byte/500-byte limits | Host/device parity; resume at 25/50/75% | Device build + diff | `not run` |
+| Anti-corruption | Not documented | Injected corruption detected; zero false OK | Bit/block injection + scrub report | `not run` |
+| Cleaner UI | Bitmap themes; no published frame budget | 30 fps scroll; <200 ms screen open; no clipping | Device trace + panel photos | `not run` |
+| Desktop workflow | Rockbox Utility install/uninstall | Backup/tag/rate/describe/install/verify matrix | macOS task matrix | `not run` |
+| Adapter safety | SD quirks; older corruption bugs | SD/CF/SSD/HDD boot/play/write/sleep/100-cycle | Adapter matrix | `not run` |
+| Battery/RAM | Mature tuning; no Helikon baseline | Three-run battery/RAM range | Same device/media/settings | `not run` |
+
+A “better than Rockbox” sentence in release notes requires the matching row to
+be `pass`, not `not run` or `partial`.
 
 ## 9. Sign-off
 
