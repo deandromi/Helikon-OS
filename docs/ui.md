@@ -1,7 +1,7 @@
 # UI design — default theme and typography
 
 > Purpose: the first-party Helikon-OS UI look and the default typography scale.
-> Status: living document; typography owner-settled, font subsets and host mockups implemented, home-screen look proposed, renderer not started.
+> Status: living document; typography owner-settled, font subsets and host mockups implemented, launcher renderer implemented on host, 6G panel run pending.
 > Owner: project owner; UI lead
 > Last updated: 2026-11-05
 > Source: owner-supplied typography table, 2026-11-03; owner home-screen brief,
@@ -169,6 +169,30 @@ label.
 This is the most literal “home screen” reading. It is a launcher: the six
 cells are the only decisions on the surface. It does not show what is playing.
 The Music cell opens the library root; the album wall can be one of its views.
+
+#### Firmware launcher renderer (implemented on host)
+
+`firmware/ui/launcher.c` composes the launcher from precomputed RGB565 tiles;
+`tools/make-launcher-assets.py` generates them from the same
+`tools/render-ui-mockup.py` icon and layout code. The firmware uses the tracked
+IBM Plex Sans fallback for the wordmark and labels; it does not embed or
+redistribute the external Benguiat face. The folio, wordmark, divider, six
+icons and six labels are opaque tiles. The accent plinths, the selected cell's
+apex diamond and the 2 px label underline are drawn at runtime.
+
+The wheel and left/right move the focus row-major through the six cells with
+wrap. SELECT or MENU exits; the diagnostic image powers off after 60 s idle.
+
+```sh
+make -C firmware BOARD=6g VERSION=10 BOOTSTATE_STATE=good UI=1 \
+  EXTRA_CFLAGS='-DHELIKON_DIAG_LAUNCHER' \
+  BUILD=../build/firmware/6g-launcher image
+```
+
+The image stops after the LCD stage and does not touch storage.
+`make -C tests/ui preview` renders the real firmware buffer to
+`build/ui/launcher.png` and checks the focus marks, icon presence and
+framebuffer bounds. No 6G panel run yet.
 
 ### 5.3 Concept B — neoclassical index
 
