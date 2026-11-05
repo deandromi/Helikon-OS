@@ -46,3 +46,5 @@ tests/firmware/test_hfs_file
 tools/desktop/.build/
 tools/desktop/.swiftpm/
 tools/desktop/dist/
+tests/ui/test_launcher
+tests/ui/*.dSYM/

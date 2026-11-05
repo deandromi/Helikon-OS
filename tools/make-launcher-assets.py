@@ -3,9 +3,10 @@
 """Generate the firmware launcher tiles from the committed UI mockup code.
 
 The launcher layout and icon line art come from tools/render-ui-mockup.py so
-the firmware and the design sources cannot drift. The proprietary ITC Benguiat
-face is not used or embedded: the firmware uses the tracked IBM Plex Sans
-fallback for the wordmark and labels, as D-52 requires.
+the firmware and the design sources cannot drift. The HELIKON-OS wordmark is
+rasterized from the owner-supplied ITC Benguiat Medium face, at the owner's
+direction; the .otf file is not committed. Labels use the tracked IBM Plex
+Sans fallback.
 
 Outputs firmware/ui/launcher_assets.c and launcher_assets.h. Every tile is an
 opaque RGB565 rectangle on the paper background; the firmware draws only the
@@ -14,6 +15,7 @@ focus diamond and underline dynamically.
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from pathlib import Path
 
@@ -23,6 +25,8 @@ ROOT = Path(__file__).resolve().parent.parent
 MOCK = ROOT / "tools" / "render-ui-mockup.py"
 OUT_C = ROOT / "firmware" / "ui" / "launcher_assets.c"
 OUT_H = ROOT / "firmware" / "ui" / "launcher_assets.h"
+BENGUIAT_DIR = Path(os.environ.get(
+    "BENGUIAT_DIR", str(Path.home() / "Downloads" / "ITC Benguiat"))).expanduser()
 
 spec = importlib.util.spec_from_file_location("helikon_mockup", MOCK)
 mock = importlib.util.module_from_spec(spec)
@@ -48,12 +52,21 @@ def rgb565(rgb):
     return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
 
 
+def benguiat(size, weight):
+    path = BENGUIAT_DIR / f"BenguiatStd-{weight}.otf"
+    if not path.is_file():
+        raise SystemExit(
+            f"launcher wordmark: missing {path}. Set BENGUIAT_DIR to the "
+            "owner-supplied ITC Benguiat folder. The font is not committed.")
+    return mock.ImageFont.truetype(str(path), size)
+
+
 def background_tile():
     """320x64: folio, wordmark and divider exactly as the launcher mockup."""
     image = mock.Image.new("RGB", (mock.WIDTH, 64), PAPER)
     draw = mock.ImageDraw.Draw(image)
     system = mock.ui_font(11, 400)
-    wordmark = mock.ui_font(26, 600)
+    wordmark = benguiat(26, "Medium")
 
     mock.draw_tracked(draw, (20, 18), "ALPHA · 6G", system, MUTED, 0.8)
     mock.draw_right_tracked(draw, (274, 18), "12:34", system, MUTED)

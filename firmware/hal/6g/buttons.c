@@ -41,8 +41,12 @@ int helikon_buttons_init(struct helikon_buttons *buttons,
     uint64_t start = helikon_clock_now_us(clock);
     for (;;) {
         uint32_t status = S5L_WHEELRX;
-        if ((status & 0x8000ffffu) == 0x8000023au ||
-            (status & 0x800000ffu) == 0x8000001au) {
+        /*
+         * 0x8000023a is the WHEELTX command value, not a button status.
+         * Accepting it made init return before the controller reported real
+         * buttons, so the poll loop never saw SELECT or the wheel.
+         */
+        if ((status & 0x800000ffu) == 0x8000001au) {
             buttons->initialized = 1;
             return HELIKON_OK;
         }
@@ -89,17 +93,6 @@ int helikon_buttons_poll(struct helikon_buttons *buttons, uint32_t *events,
             touched = 1;
             wheel = (uint8_t)((status >> 16) & 0x7fu);
         }
-    } else if ((status & 0x8000ffffu) == 0x8000023au) {
-        if ((status & 0x00010000u) != 0u)
-            *events |= HELIKON_BUTTON_SELECT;
-        if ((status & 0x00020000u) != 0u)
-            *events |= HELIKON_BUTTON_RIGHT;
-        if ((status & 0x00040000u) != 0u)
-            *events |= HELIKON_BUTTON_LEFT;
-        if ((status & 0x00080000u) != 0u)
-            *events |= HELIKON_BUTTON_PLAY;
-        if ((status & 0x00100000u) != 0u)
-            *events |= HELIKON_BUTTON_MENU;
     } else {
         return HELIKON_ERR_IO;
     }

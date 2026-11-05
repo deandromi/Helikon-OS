@@ -262,7 +262,7 @@ if moveend > end:
 PY
 
 if ! strings -a "$OBJ_DIR/bootloader-ipod6g.ipod" |
-        grep -q 'HELIKON-OS LOADER TEST'; then
+        grep -q 'Production handoff is disabled'; then
     echo "error: built image does not contain the loader test marker" >&2
     exit 1
 fi
