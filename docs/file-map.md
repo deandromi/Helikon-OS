@@ -152,6 +152,11 @@ Helikon-OS/
       test_loader.c         manifest, SHA-256, bootstate and loader tests
       test_loader_hfs.c     HFS+ file-read adapter tests
       test_ed25519.c        RFC 8032, 192-byte and key-table tests
+  tools/desktop/            macOS companion app (SwiftPM, host only, in progress)
+    Sources/CompanionCore/   testable device, library, metadata, transfer and scrobble services
+    Sources/HelikonCompanion/ SwiftUI app shell and screens
+    Tests/CompanionCoreTests/ 20 host tests
+    scripts/                 app bundle and icon generation
   docs/
     README.md               documentation index and reading order
     state.md                current phase and blockers
@@ -253,7 +258,7 @@ tools/
   podcast/                  host feed fetch and episode sync
   migrate/                  donor overlay and Rockbox/Apple importer
   installer/                guided install, backup, verification
-  desktop/                  macOS-first desktop app (separate product)
+  desktop/                  macOS-first desktop app; MVP now in the current tree
   service/                  framed USB service-mode host driver
 tests/
   fixtures/                 deterministic HFS+ images and trees
@@ -314,7 +319,7 @@ is created; do not let it drift.
 | `tools/db/` | Host database builder | database lead | paper §12, §28.4.1 | 10k-track parity | No on-device claim without device evidence |
 | `tools/migrate/` | Donor overlay exporter | migration lead | paper §22 | fixture/hash/verify tests | Host-side only; never a runtime overlay; never overwrite silently |
 | `tools/installer/` | Guided install, backup, model checks | release lead | paper §28.4.3, `docs/release.md` | clean-device install, recovery | No `--single`; no format as first response; backup first |
-| `tools/desktop/` | macOS-first desktop app | host lead | paper §28.4.2, D-09 | task matrix, failed-transfer consistency | No silent overwrite; host scrobbling opt-in; no secrets |
+| `tools/desktop/` | macOS-first companion app, SwiftPM target | host lead | [`companion-app.md`](companion-app.md), paper §28.4.2, D-09 | `swift test`, release build; task matrix not run | No silent overwrite; host scrobbling opt-in; no installer claim; no secrets |
 | `tests/` | Host volume/B-tree, disposable-image, Unicode and crash fixtures now; fuzz/model/device planned | test lead | `docs/testing.md`, `docs/fixtures.md`, `docs/validation.md` | all layers | No proprietary themes/art/fonts; no personal data; no disk images in repo |
 | `docs/adr/` | Long-form decisions | docs lead | `docs/decisions.md` | review | Only for decisions too large for `decisions.md`; do not duplicate |
 | `docs/log/` | Dated work logs | docs lead | `docs/log/TEMPLATE.md` | review | One file per active day/session; no secrets |

@@ -41,3 +41,8 @@ tests/firmware/test_screen
 tests/firmware/test_trace
 tests/firmware/*.dSYM/
 tests/firmware/test_hfs_file
+
+# macOS companion app (SwiftPM)
+tools/desktop/.build/
+tools/desktop/.swiftpm/
+tools/desktop/dist/
