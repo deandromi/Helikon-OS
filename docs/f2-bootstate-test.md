@@ -152,7 +152,37 @@ soon as `_start` zeroes BSS and can leave the display controller in a state
 where the firmware never reaches its first frame. The linker asserts
 `__bss_start >= 0x08890000`.
 
-## 10. Current evidence
+## 10. Early-display diagnostic build
+
+If the loader reaches `Executing signed test payload...` and the screen goes
+black before the F2 title, build a diagnostic image that initializes the LCD
+and paints a marker **before** PMU/backlight init:
+
+```sh
+make -C firmware BOARD=6g VERSION=3 BOOTSTATE_STATE=good \
+  BUILD=../build/firmware/6g-diag \
+  EXTRA_CFLAGS=-DHELIKON_DIAG_EARLY_DISPLAY image
+./tools/check-loader-artifact.sh build/firmware/6g-diag/out
+```
+
+Copy `build/firmware/6g-diag/out/{firmware.img,firmware.manifest,bootstate}` as
+one set. The diagnostic screen shows:
+
+```text
+HELIKON-OS
+EARLY DISPLAY OK
+F2 CODE RUNNING
+BEFORE PMU INIT
+```
+
+If that text appears, F2 entry, BSS and LCD init work; the failure is in PMU or
+a later stage. If it succeeds it then paints `PMU OK / DIAGNOSTIC COMPLETE` and
+powers off. If the loader text remains, the failure is before the LCD path.
+
+The diagnostic image does not read or write bootstate. It is not F2 and must be
+replaced by the matching F2 set after the test.
+
+## 11. Current evidence
 
 - F2 image: 75,472 bytes, SHA-256 `5e14793f…`, BSS `0x08890000`–`0x08922e60`,
   bootstate `TRYING` sequence 1.

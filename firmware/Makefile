@@ -14,6 +14,7 @@
 BOARD ?= 6g
 VERSION ?= 1
 BOOTSTATE_STATE ?= good
+EXTRA_CFLAGS ?=
 CROSS ?= arm-elf-eabi-
 CC := $(CROSS)gcc
 OBJCOPY := $(CROSS)objcopy
@@ -33,6 +34,7 @@ CFLAGS := -std=c99 -O2 -g -ffreestanding -fno-builtin -nostdinc \
           -Wpointer-arith -ffunction-sections -fdata-sections -fno-common \
           -fno-stack-protector -fno-unwind-tables \
           -fno-asynchronous-unwind-tables
+CFLAGS += $(EXTRA_CFLAGS)
 LDFLAGS := $(ARCH) -nostdlib -T boot/firmware.ld -Wl,--gc-sections \
            -Wl,-Map=$(BUILD)/firmware.map -Wl,--build-id=none
 

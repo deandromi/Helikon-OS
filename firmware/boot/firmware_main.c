@@ -663,10 +663,40 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
         boot_fail(ctx, HELIKON_STAGE_PMU, rc, "The clock did not start.");
     helikon_trace_add(&ctx->trace, HELIKON_TRACE_INFO, HELIKON_TRACE_HAL,
                       0x2000u, (uint32_t)helikon_cpu_control(), 0u);
+
+#ifdef HELIKON_DIAG_EARLY_DISPLAY
+    /*
+     * Diagnostic image only: prove the F2 entry and LCD path before touching
+     * PMU/backlight. If this message appears, the loader jump, F2 _start, BSS
+     * and LCD init are alive; a later black screen is then PMU/backlight or a
+     * subsequent stage.
+     */
+    rc = helikon_board_display_init(&ctx->board, BOOT_DISPLAY_TIMEOUT_MS);
+    if (rc != HELIKON_OK)
+        boot_fail(ctx, HELIKON_STAGE_PMU, rc, "Early display init failed.");
+    helikon_screen_init(&ctx->screen, ctx->framebuffer,
+                        HELIKON_SCREEN_WIDTH, HELIKON_SCREEN_HEIGHT,
+                        ctx->board.display, ctx->board.display_context);
+    ctx->screen_ready = 1;
+    paint_title(ctx, "EARLY DISPLAY OK");
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+    helikon_screen_text(&ctx->screen, 16, 80, 2, "F2 CODE RUNNING");
+    helikon_screen_text(&ctx->screen, 16, 100, 2, "BEFORE PMU INIT");
+    if (present_or_trace(ctx, HELIKON_TRACE_ERROR, HELIKON_STAGE_PMU) !=
+        HELIKON_OK)
+        boot_fail(ctx, HELIKON_STAGE_PMU, HELIKON_ERR_IO,
+                  "Early display transfer failed.");
+#endif
+
     rc = helikon_board_power_init(&ctx->board, BOOT_POWER_TIMEOUT_MS);
     if (rc != HELIKON_OK)
         boot_fail(ctx, HELIKON_STAGE_PMU, rc,
                   "PMU or backlight initialization failed.");
+#ifdef HELIKON_DIAG_EARLY_DISPLAY
+    paint_message(ctx, "PMU OK", "DIAGNOSTIC COMPLETE");
+    helikon_clock_delay_us(&ctx->board.clock, 3000000u);
+    boot_power_off(ctx);
+#endif
     stage_pass(ctx, HELIKON_STAGE_PMU);
 
     stage_begin(ctx, HELIKON_STAGE_LCD);
