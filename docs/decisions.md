@@ -5,7 +5,8 @@
 > Owner: project owner
 > Last updated: 2026-11-05
 > Source: design paper §18, §25, §28; Helikon-OS README; Rockbox iPod
-> Classic manual `0d5c2b0604-261105`; [`competitive-roadmap.md`](competitive-roadmap.md)
+> Classic manual `0d5c2b0604-261105`; [`competitive-roadmap.md`](competitive-roadmap.md);
+> [`audio-formats.md`](audio-formats.md)
 
 This file is the index and short-form record. Use `docs/adr/` only for a
 decision too large to explain here. Do not invent an owner decision. Mark
@@ -80,6 +81,9 @@ re-litigate them.
 | D-46 | Release, support and governance | proposed | owner | §18, §28.4.4; D-18, D-20 |
 | D-47 | Porting contract and hardware matrix | proposed | owner | §28.4.5; D-13 |
 | D-48 | Privacy, telemetry and network policy | proposed | owner | §19.3, §28.3.9 |
+| D-49 | Decoder provenance and licensing | proposed | owner | §13, §18; audio-formats |
+| D-50 | Audio output ceiling and resampling | proposed | owner | §13, §28.3.8; audio-formats |
+| D-51 | Audio metadata, artwork and gapless policy | proposed | owner | §9.4, §28.3.8; D-06; audio-formats |
 
 The paper's §25 lists 17 decisions. D-18, D-19, D-20 and D-26 are added from §18,
 §28.4.4 and the bootloader recovery policy. D-18 and D-20 are accepted; D-19 was
@@ -90,11 +94,12 @@ inner-image write diagnostic; D-25 records the separate outer-volume diagnostic
 and its backup gate. D-27/D-28 record the firmware memory map and entry ABI.
 See C-08.
 
-**D-29–D-48 are proposed, not accepted.** They were added on 2026-11-05 as the
+**D-29–D-51 are proposed, not accepted.** They were added on 2026-11-05 as the
 decision layer for the Rockbox competitive review in
-[`competitive-roadmap.md`](competitive-roadmap.md). They do not change
-D-01–D-28, the 25 README goals, the phase gates or any implementation status.
-Only the owner can accept, reject or narrow one of them.
+[`competitive-roadmap.md`](competitive-roadmap.md) and the audio-format review
+in [`audio-formats.md`](audio-formats.md). They do not change D-01–D-28, the 25
+README goals, the phase gates or any implementation status. Only the owner can
+accept, reject or narrow one of them.
 
 ## D-01 — Boot image verification
 
@@ -777,25 +782,38 @@ Only the owner can accept, reject or narrow one of them.
 
 ## D-34 — Codec and container tiers
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §13, §28.3.8; Rockbox manual Appendix B.
-- **Context:** Rockbox advertises a large codec list, including lossy, lossless,
-  chiptune, tracker, video and game-music formats. Matching all of them at v1
-  would consume CPU, code size, battery and test time and would create a
-  “supports everything” claim the evidence cannot carry.
-- **Options:** (a) match the full Rockbox list; (b) tier the list by user demand,
-  CPU/battery cost and licence; (c) support only MP3.
-- **Proposed direction:** option (b). **Tier 1 (v1):** MP3 (MPEG-1/2/2.5 Layer
-  III), AAC-LC and HE-AAC in M4A, ALAC, FLAC, WAV/AIFF PCM, Ogg Vorbis and Opus.
-  **Tier 2 (v1.x):** WMA Standard/Professional, APE, WavPack, Musepack,
-  DSD64/DSD128, AC3 and Speex, each with a measured CPU/RAM/battery note.
-  **Tier 3 (declined for v1):** chiptune, tracker, MIDI, video, game-music and
-  plugin-associated formats. A codec licence review precedes release; no patent
-  or “plays everything” claim.
-- **Consequences:** the v1 matrix must say exactly what plays. Tier 1 needs
-  gapless, seek, metadata and corrupt-file tests. Tier 2 is not a v1 promise.
-  Codec modules obey the size budgets in §28.2.6.
-- **Follow-up:** T-068 (Tier 1), T-069 (Tier 2 evaluation). The owner confirms
-  the Tier 1 list and the licence boundary.
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §13, §28.3.8; Rockbox manual Appendix B; [`audio-formats.md`](audio-formats.md).
+- **Context:** Rockbox documents 36 audio format families for the iPod Classic
+  in Appendix B.1 and Opus elsewhere in the manual, for 37 total. The owner
+  requires Helikon-OS to support at least all of them, and more only where the
+  6G hardware supports it. Matching them
+  all at v1 would consume CPU, code size, battery and test time and would create
+  a “supports everything” claim the evidence cannot carry.
+- **Options:** (a) support only a small v1 subset and never claim parity;
+  (b) stage the work: Tier 1 core at v1, full Rockbox audio parity at v1.x, and
+  a measured Tier 3 for anything beyond Rockbox; (c) attempt every family at
+  v1.
+- **Proposed direction:** option (b). **Tier 1 (v1, eight families):** MP3,
+  AAC-LC, ALAC, FLAC, WAV, AIFF, Ogg Vorbis and Opus. **Tier 2 (v1.x, hard
+  parity requirement):** every remaining audio family in Rockbox manual
+  Appendix B.1 plus Opus — AC3, ADX, AAC-HE/HEv2, MP1/MP2, Musepack, ATRAC3,
+  RealAudio Cook, Speex, VOX, WMA Standard/Professional, DSD, APE, AU/SND,
+  Shorten, TTA, W64, WavPack, Atari, MMF, GBS, AY, HES, KSS, SGC, VGM/VGZ, MOD,
+  NSF/NSFE, SAP, SID and SPC. **Tier 3 (beyond Rockbox, measurement-gated):**
+  24-bit/44.1 or 24-bit/48 PCM output, 24-bit lossless without a 16-bit downmix,
+  chained Ogg, CAF, WMA Lossless, WMA Voice, MIDI and other tracker aliases only
+  after T-098 and T-102. Video and recording are not audio formats and are out
+  of scope. A codec licence and patent review precedes release; no “plays
+  everything” or hi-res claim without the corpus.
+- **Consequences:** the v1 matrix says exactly what plays; the v1.x release
+  notes must list any missing Tier 2 family as a release gap. APE above
+  `-c1000` is not real-time on the 6G in Rockbox’s own 2014 data and must be
+  labelled best-effort. DSD and >48 kHz sources are decoded and converted to
+  PCM; native DSD or native 24/96 output is not claimed. Codec modules obey the
+  size budgets in §28.2.6 and the 512 KiB codec workspace.
+- **Follow-up:** T-068 (Tier 1), T-069 (Tier 2 parity), T-096–T-102. The owner
+  confirms the Tier 1 list, the Tier 2 parity requirement and the licence
+  boundary. The detailed inventory is in [`audio-formats.md`](audio-formats.md).
 
 ## D-35 — Sound-processing scope
 
@@ -1087,6 +1105,80 @@ Only the owner can accept, reject or narrow one of them.
   adoption metric. The service mode must not become a covert network path.
 - **Follow-up:** T-091 (privacy and security review), T-083 (desktop app).
 
+## D-49 — Decoder provenance and licensing
+
+- **Status:** proposed. **Owner:** owner/legal. **Date:** 2026-11-05. **Paper:** §13, §18; [`audio-formats.md`](audio-formats.md).
+- **Context:** Helikon-OS is GPL-2.0-or-later. Rockbox is GPL-2.0-or-later and
+  has working decoders for every format in its manual. Some upstream libraries
+  are BSD, LGPL or GPL; some codecs have patent or distribution questions. A
+  decoder copied without provenance is a licence and maintenance risk.
+- **Options:** (a) port Rockbox decoders with attribution; (b) use maintained
+  upstream libraries where they exist; (c) write every decoder from scratch.
+- **Proposed direction:** option (b) first for maintained, licence-compatible
+  libraries; option (a) where no suitable library exists or the Rockbox decoder
+  is smaller/better for the 6G; option (c) only for a small container or PCM
+  parser. Every decoder gets an entry in the provenance matrix: name, version,
+  source URL/commit, licence, modifications, patent note, owner and test
+  corpus. GPL obligations and Rockbox attribution are preserved. No proprietary
+  blob, no code with an incompatible licence, no decoder without a test file.
+- **Consequences:** the firmware may contain a mix of GPL and BSD/LGPL
+  components; the licence file and source offer must list them. A decoder
+  upgrade is a normal maintenance task. A patent-sensitive codec may be
+  disabled in a release build.
+- **Follow-up:** T-096 (provenance matrix), T-068/T-069 (decoders), T-091
+  (release/security review). The owner/legal reviewer confirms the licence and
+  patent boundary before a release.
+
+## D-50 — Audio output ceiling and resampling
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §13, §28.3.8; [`audio-formats.md`](audio-formats.md) §2.
+- **Context:** the 6G uses a Cirrus Logic CS42L55, a 24-bit, 48 kHz-class
+  stereo codec. Apple documents the stock audio format list but not the internal
+  output width. Rockbox plays high-resolution files by downmixing/downsampling
+  in places. The owner wants “more than Rockbox if the iPod supports it”.
+- **Options:** (a) fixed 16-bit/44.1 output; (b) 16-bit/44.1 or 48 with native
+  rate selection; (c) attempt 24-bit/48; (d) attempt 24/96.
+- **Proposed direction:** measure before claiming. **Default:** native 44.1 or
+  48 kHz, 16-bit until T-098 proves a clean 24-bit path. **If T-098 passes:**
+  24-bit/44.1 and 24-bit/48 output for 24-bit lossless sources, with a
+  documented dither policy for 16-bit. **Above 48 kHz:** decode and resample to
+  48 or 44.1 with a documented polyphase filter; never truncate. **DSD:**
+  convert to PCM with a documented low-pass filter; no native DSD claim.
+  **24/96 or 24/192:** compatibility playback through the resampler, not
+  “hi-res output”. Non-stock overclocking is not a supported path.
+- **Consequences:** no “24/96” or “hi-res” marketing claim on the stock 6G.
+  The UI shows source and output rate/bit depth separately. The resampler costs
+  CPU and battery and must be measured. A 24-bit path that adds noise is
+  rejected.
+- **Follow-up:** T-098 (ceiling measurement), T-101 (CPU/battery), T-102
+  (Tier 3 candidates), T-092 (line-out measurements).
+
+## D-51 — Audio metadata, artwork and gapless policy
+
+- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §9.4, §28.3.8; D-06, D-33; [`audio-formats.md`](audio-formats.md) §5.5.
+- **Context:** Rockbox supports ID3, APE, Vorbis, MP4, ASF and codec-specific
+  tags, but the Classic has a 1,800-byte total / 500-byte item limit, only one
+  tag type per extension, no multi-value tags and no normalization. Album art
+  is limited to certain JPEG/BMP cases. Helikon-OS has a host-built index and
+  HFS+ Unicode normalization, so it can do better.
+- **Options:** (a) match Rockbox’s tag limits; (b) support the same tag families
+  with larger bounded values, multi-value fields and normalized names;
+  (c) support only ID3.
+- **Proposed direction:** option (b). Support every tag family Rockbox lists
+  (ID3v1/v2.2/2.3/2.4, APE v1/v2, Vorbis, MP4, ASF and codec-specific), plus
+  multi-value fields, Unicode normalization, ReplayGain 1.0/2.0, cuesheets,
+  chapters and embedded/external JPEG/PNG/BMP art. The host index carries the
+  full values; the decoder uses a bounded working set. Missing/malformed tags
+  return `TAG_MISSING`/`TAG_INVALID` and fall back to the filename. Artwork is
+  decoded to a bounded thumbnail; a huge/malformed image never stops playback.
+  Gapless uses encoder delay/padding where the format provides it; otherwise it
+  reports `GAPLESS_UNKNOWN`.
+- **Consequences:** metadata parsers need fuzzing; multi-value tags need a
+  stable index schema; artwork needs a separate bounded cache. The Rockbox
+  byte caps are not copied. Power-cut resume must remain transactional.
+- **Follow-up:** T-099 (metadata/artwork), T-100 (gapless/seek/resume), T-067
+  (index). The owner confirms the multi-value and artwork storage policy.
+
 ## Conflicts and source separation
 
 These are recorded so an agent does not silently pick a side. A conflict does
@@ -1160,17 +1252,18 @@ not authorize a product change.
 - **Affected docs:** `release.md`, `security.md`, `CONTRIBUTING.md`,
   `SECURITY.md`.
 
-### C-08 — Paper §25 has 17 decisions; this file has 48
+### C-08 — Paper §25 has 17 decisions; this file has 51
 
 - **What:** the paper's §25 lists 17 open decisions. The documentation task
   requires licensing, code of conduct and signing-key ownership as well.
 - **Resolution:** D-01–D-17 mirror §25; D-18–D-20 are added from §18 and
   §28.4.4; D-21–D-26 record the diagnostic, splash, outer-volume and bootloader
   recovery decisions; D-27–D-28 record the firmware memory map and entry ABI;
-  D-29–D-48 are the proposed competitive-horizon decisions added 2026-11-05.
-  D-18 and D-20 are accepted; D-19 was rejected after the owner deleted the code
-  of conduct; D-29–D-48 are `proposed`. This is a documentation reconciliation,
-  not a new product decision.
+  D-29–D-48 are the proposed competitive-horizon decisions added 2026-11-05;
+  D-49–D-51 are the audio-decoder, output-ceiling and metadata decisions added
+  in the same session. D-18 and D-20 are accepted; D-19 was rejected after the
+  owner deleted the code of conduct; D-29–D-51 are `proposed`. This is a
+  documentation reconciliation, not a new product decision.
 - **Affected docs:** this file, `agents.md`, `goals.md`,
   `competitive-roadmap.md`.
 

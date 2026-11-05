@@ -40,8 +40,9 @@ scope, licensing, or app/plugin compatibility — stop and record it in
 6. [`tasks.md`](tasks.md)
 7. [`verification.md`](verification.md)
 8. [`decisions.md`](decisions.md)
-9. [`goals.md`](goals.md), [`roadmap.md`](roadmap.md) and
-   [`competitive-roadmap.md`](competitive-roadmap.md)
+9. [`goals.md`](goals.md), [`roadmap.md`](roadmap.md),
+   [`competitive-roadmap.md`](competitive-roadmap.md) and
+   [`audio-formats.md`](audio-formats.md)
 10. [`design-paper.md`](design-paper.md)
 11. [`failures.md`](failures.md), [`glossary.md`](glossary.md),
     [`device-matrix.md`](device-matrix.md)
@@ -85,8 +86,8 @@ status.
 | [`../.github/ISSUE_TEMPLATE/`](../.github/ISSUE_TEMPLATE/) | Bug, feature and device-test issue forms. | living |
 | [`state.md`](state.md) | Current phase, what exists, blockers, evidence status. | living |
 | [`invariants.md`](invariants.md) | Numbered, testable safety invariants. | living |
-| [`decisions.md`](decisions.md) | Decision log, conflict record and 48 decision entries (D-29–D-48 proposed). | living |
-| [`tasks.md`](tasks.md) | Now/Next/Later task queue plus the competitive horizon T-060–T-095. | living |
+| [`decisions.md`](decisions.md) | Decision log, conflict record and 51 decision entries (D-29–D-51 proposed). | living |
+| [`tasks.md`](tasks.md) | Now/Next/Later task queue plus the competitive/audio horizon T-060–T-102. | living |
 | [`verification.md`](verification.md) | Per-change proof checklist and evidence template. | living |
 | [`file-map.md`](file-map.md) | “I need to change X” → owning file/module. | living |
 | [`architecture.md`](architecture.md) | Boot chain, layers, boundaries, memory, security. | living |
@@ -107,6 +108,7 @@ status.
 | [`goals.md`](goals.md) | All 25 README goals with priority and acceptance. | living |
 | [`roadmap.md`](roadmap.md) | Phases 0–12, horizon lanes, dependencies, exit criteria. | living |
 | [`competitive-roadmap.md`](competitive-roadmap.md) | Rockbox parity matrix, differentiation bets, horizon lanes and explicit declines. | living |
+| [`audio-formats.md`](audio-formats.md) | Rockbox audio-format inventory, 6G hardware ceiling, tiers, decoder architecture and test corpus. | living |
 | [`hfsplus-write-engine.md`](hfsplus-write-engine.md) | Native writer, journal and crash-consistency deep dive. | living |
 | [`release.md`](release.md) | Channels, signing, staging, rollback, support window. | stub |
 | [`security.md`](security.md) | Agent security rules and destructive-operation policy. | living |
@@ -139,6 +141,7 @@ status.
 Key entry points: [`design-paper.md`](design-paper.md),
 [`goals.md`](goals.md), [`roadmap.md`](roadmap.md),
 [`competitive-roadmap.md`](competitive-roadmap.md),
+[`audio-formats.md`](audio-formats.md),
 [`validation.md`](validation.md), [`decisions.md`](decisions.md).
 
 ## What this documentation is not
@@ -163,6 +166,9 @@ Key entry points: [`design-paper.md`](design-paper.md),
   [`competitive-roadmap.md`](competitive-roadmap.md) is a plan; no row is
   evidence, and “better than Rockbox” requires the differential runs described
   there.
+- It does not claim audio-format support today. [`audio-formats.md`](audio-formats.md)
+  lists 37 audio families (36 in Appendix B.1 plus Opus) and the planned tiers; no
+  decoder exists yet, and native 24/96 or DSD output is not claimed.
 
 ## Maintenance rule
 

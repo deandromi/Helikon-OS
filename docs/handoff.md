@@ -11,6 +11,50 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-05 (audio-format parity plan)
+
+## What happened
+
+- Reviewed the Rockbox iPod Classic manual Appendix B.1–B.2 and §7.21, the
+  Rockbox 2014 iPod Classic codec benchmark (`b320bba`, 216/54 MHz), Apple’s
+  6G audio specification, the Rockbox `ipod6g.h` platform limits and the
+  CS42L55 codec metadata.
+- Added [`audio-formats.md`](audio-formats.md): all **37 audio format families
+  (36 in Appendix B.1 plus Opus)**, the measured 6G decode costs, the 24-bit/48 kHz-class
+  codec ceiling, Tier 1 (v1), Tier 2 (full Rockbox audio parity at v1.x) and
+  Tier 3 (beyond Rockbox, measurement-gated), plus decoder architecture,
+  metadata/artwork rules and the test corpus.
+- Revised D-34 so Tier 2 is a hard v1.x parity requirement, not an optional
+  subset. Added D-49 (decoder provenance/licensing), D-50 (output ceiling and
+  resampling) and D-51 (metadata/artwork/gapless).
+- Added T-096–T-102 (all `planned`): corpus/provenance, codec framework, output
+  ceiling, metadata, gapless/seek/resume, benchmarking and Tier 3 evaluation.
+  T-068/T-069 now cover the Tier 1 and Tier 2 implementations.
+- Updated [`roadmap.md`](roadmap.md), [`tasks.md`](tasks.md),
+  [`decisions.md`](decisions.md), [`competitive-roadmap.md`](competitive-roadmap.md),
+  [`validation.md`](validation.md), [`faq.md`](faq.md), [`state.md`](state.md),
+  [`README.md`](README.md), [`file-map.md`](file-map.md),
+  [`firmware-architecture.md`](firmware-architecture.md) and
+  [`design-paper.md`](design-paper.md).
+
+## What is next
+
+1. The owner reviews D-34 and D-49–D-51. No decoder work starts until they are
+   accepted or narrowed.
+2. Start T-096 (corpus/provenance) and T-097 (codec framework) after D-34 is
+   accepted. T-098 (output ceiling) needs the audio measurement rig.
+3. The writer line (T-055/F2 → T-051) remains ahead of any audio device testing.
+
+## Do not claim
+
+- That Helikon-OS plays any Rockbox audio format today.
+- That the 6G supports native 24/96, native DSD or “hi-res” output.
+- That the 2014 Rockbox benchmark is Helikon-OS evidence.
+- That D-34 or D-49–D-51 are accepted owner decisions.
+- That Tier 2 parity is complete; no decoder and no corpus exist yet.
+
+---
+
 # Handoff — 2026-11-05 (competitive horizon planning)
 
 ## What happened
