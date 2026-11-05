@@ -293,14 +293,37 @@ static int ata_adopt(struct helikon_ata *ata, uint32_t timeout_ms,
         attempt->identify_rc = HELIKON_OK;
     }
 
-    /* The loader may have gated the clock; keep its controller configuration. */
+    /*
+     * A loader built with ata_sleepnow() leaves the controller disabled and
+     * the HDD rail off. Detect that and give the bridge power-up time; an
+     * active handoff needs neither.
+     */
+    uint8_t power = 0xffu;
+    int power_was_off = 0;
+    if (ata->pmu != NULL &&
+        helikon_pmu_read(ata->pmu, HELIKON_PMU_REG_AUTOENA, &power,
+                         adopt_timeout) == HELIKON_OK &&
+        power == 0u)
+        power_was_off = 1;
+    (void)helikon_pmu_hdd_power(ata->pmu, 1, adopt_timeout);
+
+    /* The loader may have gated the clock and parked the pin mux. */
     S5L_PCON(7) = 0x44444444u;
     S5L_PCON(8) = 0x44444444u;
     S5L_PCON(9) = 0x44444444u;
     S5L_PCON(10) = (S5L_PCON(10) & ~0xffffu) | 0x4444u;
     S5L_PWRCON(S5L_CLOCKGATE_ATA >> 5) &=
         ~(1u << (S5L_CLOCKGATE_ATA & 0x1fu));
-    S5L_ATA_CFG = 1u << 6; /* PIO mode, as the loader left it */
+
+    /* Re-enable the controller without the CFG/SWRST reset sequence. */
+    S5L_ATA_CONTROL = 1u;
+    helikon_clock_delay_us(ata->clock, 200000u);
+    S5L_ATA_PIO_TIME = 0x191f7u;
+    S5L_ATA_PIO_LHR = 0u;
+    S5L_ATA_CFG = 1u << 6; /* PIO mode */
+
+    if (power_was_off)
+        helikon_clock_delay_us(ata->clock, 2000000u);
 
     int rc = ata_wait_ready_bits(ata, 0x2u, adopt_timeout);
     if (rc != HELIKON_OK)
@@ -471,14 +494,21 @@ int helikon_ata_init_probe(struct helikon_ata *ata, struct helikon_pmu *pmu,
 
     probe->adopt_rc = HELIKON_ERR_IO;
     probe->adopt_lba48 = 0;
+    probe->adopt_power = -1;
     probe->adopt_word0 = 0;
     probe->adopt_csd = 0;
     probe->adopt_dad = 0;
     probe->adopt_ready = 0;
+    probe->adopt_control = 0;
     probe->second_stage = -1;
     probe->second_rc = HELIKON_OK;
     probe->second_hdd_rc = HELIKON_OK;
     probe->second_identify_rc = HELIKON_OK;
+
+    uint8_t power = 0xffu;
+    if (helikon_pmu_read(pmu, HELIKON_PMU_REG_AUTOENA, &power, timeout_ms) ==
+        HELIKON_OK)
+        probe->adopt_power = (int)power;
 
     struct ata_attempt adopt;
     adopt.stage = -1;
@@ -491,6 +521,7 @@ int helikon_ata_init_probe(struct helikon_ata *ata, struct helikon_pmu *pmu,
     probe->adopt_csd = (uint16_t)(S5L_ATA_PIO_CSD & 0xffffu);
     probe->adopt_dad = (uint16_t)(S5L_ATA_PIO_DAD & 0xffffu);
     probe->adopt_ready = S5L_ATA_PIO_READY;
+    probe->adopt_control = S5L_ATA_CONTROL & 0xffffu;
     if (rc == HELIKON_OK) {
         probe->first_stage = adopt.stage;
         probe->first_rc = HELIKON_OK;

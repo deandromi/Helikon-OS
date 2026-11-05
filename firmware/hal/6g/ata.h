@@ -36,10 +36,12 @@ int helikon_ata_init(struct helikon_ata *ata, struct helikon_pmu *pmu,
 struct helikon_ata_probe {
     int adopt_rc;
     int adopt_lba48;
+    int adopt_power;
     uint16_t adopt_word0;
     uint16_t adopt_csd;
     uint16_t adopt_dad;
     uint32_t adopt_ready;
+    uint32_t adopt_control;
     int first_stage;
     int first_rc;
     int first_hdd_rc;
