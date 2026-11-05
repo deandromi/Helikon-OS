@@ -159,6 +159,21 @@ PY
 echo "Exporting donor $DONOR_COMMIT ..."
 git -C "$DONOR" archive "$DONOR_COMMIT" | tar -x -C "$SRC_DIR"
 
+echo "Disabling ATA DMA for the PIO firmware handoff ..."
+python3 - "$SRC_DIR/firmware/export/config/ipod6g.h" <<'PY'
+import sys
+
+path = sys.argv[1]
+lines = open(path, encoding="utf-8").read().splitlines()
+out = []
+for line in lines:
+    if line.strip() == "#define HAVE_ATA_DMA":
+        out.append("/* HAVE_ATA_DMA disabled for the PIO firmware handoff */")
+    else:
+        out.append(line)
+open(path, "w", encoding="utf-8").write("\n".join(out) + "\n")
+PY
+
 HELIKON_DIR="$SRC_DIR/bootloader/helikon"
 mkdir -p "$HELIKON_DIR"
 cp "$ROOT/bootloader/sha256.c" "$ROOT/bootloader/sha256.h" \

@@ -6,7 +6,8 @@
 > Owner: product owner; docs lead maintains the matrix
 > Last updated: 2026-11-05
 > Source: Rockbox iPod Classic manual, version `0d5c2b0604-261105` (built
-> 2026-11-04, 285 pages); design paper §23, §28; decisions D-29–D-48
+> 2026-11-04, 285 pages); design paper §23, §28; decisions D-29–D-51;
+> [`audio-formats.md`](audio-formats.md)
 
 **This document is a plan.** Rockbox capabilities are taken from its published
 manual and cited by section. Helikon-OS status is taken from
@@ -79,8 +80,9 @@ manual:
 
 Current status comes from [`state.md`](state.md), [`tasks.md`](tasks.md),
 [`goals.md`](goals.md) and the accepted decisions D-01–D-28. Proposed decisions
-D-29–D-48 are recorded in [`decisions.md`](decisions.md); they are not accepted
-until the owner says so.
+D-29–D-51 are recorded in [`decisions.md`](decisions.md); they are not accepted
+until the owner says so. The audio-format detail is in
+[`audio-formats.md`](audio-formats.md).
 
 ### 2.3 Rules
 
@@ -165,8 +167,10 @@ not every Rockbox plugin or codec. The parity set is:
 - recovery from a bad update, a corrupt file and a power cut;
 - a documented way back to Apple firmware.
 
-A missing plugin, a chiptune format or a full WPS tag is not a v1 regression if
-it is documented in §7. A missing play, resume or recovery path is.
+A missing plugin, a video format or a full WPS tag is not a v1 regression if it
+is documented in §7. Chiptune and tracker formats are audio families and are in
+the v1.x parity set, not the decline list. A missing play, resume or recovery
+path is a regression.
 
 ---
 
@@ -252,7 +256,7 @@ The matrix is grouped by user job. Horizon codes are defined in §6. Tasks are i
 
 | Capability | Rockbox baseline (manual) | Helikon-OS target | Label | Horizon | Task |
 |---|---|---|---|---|---|
-| Codec breadth | Large lossy, lossless and chiptune/tracker list (Appendix B.1) | Tier 1 core first; Tier 2 evaluated; chiptune/tracker declined for v1 | `differ` | H1–H2 | T-068, T-069 |
+| Codec breadth | Large lossy, lossless and chiptune/tracker list (Appendix B.1) | Tier 1 core at v1; **all 37 Rockbox audio families plus Opus** at v1.x; Tier 3 beyond Rockbox only after measurement | `match` at v1.x | H1–H2 | T-068, T-069, T-096–T-102 |
 | Gapless playback | Supported by many codecs (Appendix B.1.4) | Gapless for Tier 1; sample-accurate test | `match` | H1 | T-068 |
 | ReplayGain | Track/album gain, prevent clipping, pre-amp (§7.10) | Same, with a measured CPU cost | `match` | H1 | T-070 |
 | Equalizer | Up to 10-band parametric EQ, graphical/simple/advanced, presets (§6.9) | Core EQ in v1; advanced bands and presets in v1.x | `match` | H1–H2 | T-070, T-071 |
@@ -268,7 +272,8 @@ The matrix is grouped by user job. Horizon codes are defined in §6. Tasks are i
 | Line-out and car | Car-adapter mode, delay, accessory power, line-out (§8.6.7–§8.6.10) | Tier 1 line-out/charging/resume; Tier 2 control subset (D-14) | `match` | H2 | T-089 |
 | Internal DAC | Internal codec path | Measure CS42L55 noise, THD+N, response and channel separation | `match` | H2 | T-092 |
 | Sample-rate policy | A playback frequency can be selected; other rates are resampled (§7.21) | Play native rates where the path supports it; document the resampler | `exceed` | H2 | T-092 |
-| Video, image, text, chiptune, tracker | Viewers and plugins cover many formats (§12.3) | Not v1; optional sandboxed viewer later | `decline` | H3 | T-069, T-084 |
+| Audio chiptune/tracker families | GBS, AY, HES, KSS, SGC, VGM/VGZ, MOD, NSF/NSFE, SAP, SID, SPC (Appendix B.1.3) | Included in the v1.x audio parity set; no video claim | `match` | H2 | T-100 |
+| Video, image, text viewers | Viewers and plugins cover many formats (§12.3) | Not v1; optional sandboxed viewer later | `decline` | H3 | T-084 |
 | Recording and FM | Recording settings exist in the manual; the Classic has no input/tuner | Not applicable to the 6G | `decline` | — | — |
 
 ### 5.5 UI, themes and accessibility
@@ -373,7 +378,8 @@ These are deliberate. A future owner decision may reopen one; an agent may not.
 | FAT32 support | The defining product promise is native HFS+ (B-02) | `NOT_HFS` screen; backup and conversion guidance; no hidden FAT fallback |
 | Writable USB mass-storage LUN | A raw writable LUN bypasses the transaction engine | Read-only LUN plus a framed service mode (D-09/D-38) |
 | Self-healing repair | HFS+ data is not checksummed and silent repair can destroy evidence | Detect, quarantine, restore from backup (D-11/D-39) |
-| Video, chiptune and tracker formats in v1 | CPU, code size, battery and test cost; not a P0 use case | Optional sandboxed viewers after v2 |
+| Video, image and text viewers in v1 | Not audio; CPU, code size and test cost; not a P0 use case | Optional sandboxed viewers after v2 |
+| Native DSD or native >48 kHz output | The CS42L55 is a 24-bit, 48 kHz-class PCM DAC | Decode and downsample to PCM; label the output rate honestly |
 | External USB DAC on the 6G | The 6G is a USB device, not a USB host | Use and measure the internal CS42L55 path |
 | Cloud, streaming and network on device | No network stack; privacy and battery cost | Host-side download, sync and scrobble |
 | Apple accessory certification claim | Legal and certification risk; no certification exists | Tier 1 line-out/charging; Tier 2 subset with a legal review |
@@ -416,7 +422,9 @@ count.
 - voice menus, talk clips, large text and high contrast;
 - desktop app tagging, ratings, descriptions, podcast sync and opt-in
   scrobbling;
-- Tier 2 codecs and advanced DSP, each with a measured battery/CPU note;
+- **complete Rockbox audio parity**: all 37 manual families plus Opus, each
+  with a recorded corpus, metadata, seek/resume and a measured battery/CPU note;
+- advanced DSP, each with a measured battery/CPU note;
 - car Tier 1 and the receiver matrix;
 - migration from Rockbox and Apple;
 - published battery/RAM/performance results against a recorded baseline.
@@ -613,8 +621,10 @@ the runtime and SDK.
 ## 12. Related
 
 - [`roadmap.md`](roadmap.md) — phases 0–12 and the horizon lanes
-- [`tasks.md`](tasks.md) — T-060–T-095
-- [`decisions.md`](decisions.md) — D-29–D-48 (proposed)
+- [`tasks.md`](tasks.md) — T-060–T-102
+- [`decisions.md`](decisions.md) — D-29–D-51 (proposed)
+- [`audio-formats.md`](audio-formats.md) — per-format inventory, tiers, decoder
+  architecture, 6G ceiling and test corpus
 - [`goals.md`](goals.md) — the 25 README goals and acceptance
 - [`validation.md`](validation.md) — release scorecard and evidence
 - [`device-matrix.md`](device-matrix.md) — device, adapter and receiver runs

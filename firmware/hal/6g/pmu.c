@@ -285,6 +285,14 @@ int helikon_pmu_init(struct helikon_pmu *pmu, struct helikon_clock *clock,
     for (size_t i = 0; rc == HELIKON_OK &&
                        i < sizeof(pmu_preinit_table) /
                                sizeof(pmu_preinit_table[0]); ++i) {
+        /*
+         * AUTOENA is the HDD power switch. The firmware loader has already
+         * powered the disk to read this image, and cutting the rail here
+         * destroys the live ATA state that F2 adopts. Cold boot leaves the
+         * rail off until helikon_ata_init() enables it.
+         */
+        if (pmu_preinit_table[i].reg == HELIKON_PMU_REG_AUTOENA)
+            continue;
         rc = i2c_write_bytes(pmu, pmu_preinit_table[i].reg,
                              &pmu_preinit_table[i].value, 1u, timeout_ms);
         if (rc != HELIKON_OK)
@@ -314,6 +322,16 @@ int helikon_pmu_init(struct helikon_pmu *pmu, struct helikon_clock *clock,
             if (rc == HELIKON_OK)
                 rc = i2c_stop(pmu, timeout_ms);
         }
+        if (rc != HELIKON_OK) {
+            /*
+             * Clearing latched interrupts is advisory: all mask registers are
+             * already written and the mask is 0xff. A failed latch read must
+             * not turn a usable PMU into a boot failure. Best-effort stop, then
+             * continue to the version sanity check.
+             */
+            (void)i2c_stop(pmu, timeout_ms);
+            rc = HELIKON_OK;
+        }
     }
     i2c_clock_off();
 
@@ -328,6 +346,87 @@ int helikon_pmu_init(struct helikon_pmu *pmu, struct helikon_clock *clock,
     pmu->initialized = 1;
     return HELIKON_OK;
 }
+
+#ifdef HELIKON_DIAG_PMU_PROBE
+int helikon_pmu_init_probe(struct helikon_pmu *pmu,
+                           struct helikon_clock *clock, uint32_t timeout_ms,
+                           struct helikon_pmu_probe *probe)
+{
+    if (pmu == NULL || clock == NULL || probe == NULL ||
+        !clock->initialized)
+        return HELIKON_ERR_ARGUMENT;
+    probe->stage = 0;
+    probe->reg = 0;
+    probe->value = 0;
+    pmu->clock = clock;
+    pmu->initialized = 0;
+
+    int rc = i2c_preinit(pmu, timeout_ms);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    size_t count = sizeof(pmu_preinit_table) / sizeof(pmu_preinit_table[0]);
+    i2c_clock_on();
+    rc = i2c_wait_ready(pmu, timeout_ms);
+    for (size_t i = 0; rc == HELIKON_OK && i < count; ++i) {
+        uint8_t reg = pmu_preinit_table[i].reg;
+        if (reg == HELIKON_PMU_REG_LEDENA || reg == HELIKON_PMU_REG_LEDCTL ||
+            reg == HELIKON_PMU_REG_LEDDIM ||
+            reg == HELIKON_PMU_REG_AUTOENA)
+            continue;
+        rc = i2c_write_bytes(pmu, reg, &pmu_preinit_table[i].value, 1u,
+                             timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = i2c_stop(pmu, timeout_ms);
+        if (rc != HELIKON_OK) {
+            probe->stage = i + 1u;
+            probe->reg = reg;
+            probe->value = pmu_preinit_table[i].value;
+        }
+    }
+
+    if (rc == HELIKON_OK) {
+        uint8_t discarded[5];
+        rc = i2c_write_bytes(pmu, HELIKON_PMU_REG_INT1, NULL, 0u, timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = i2c_stop(pmu, timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = i2c_read_bytes(pmu, discarded, sizeof(discarded), timeout_ms);
+        if (rc == HELIKON_OK)
+            rc = i2c_stop(pmu, timeout_ms);
+        if (rc == HELIKON_OK) {
+            uint8_t int6;
+            rc = i2c_write_bytes(pmu, HELIKON_PMU_REG_INT6, NULL, 0u,
+                                 timeout_ms);
+            if (rc == HELIKON_OK)
+                rc = i2c_stop(pmu, timeout_ms);
+            if (rc == HELIKON_OK)
+                rc = i2c_read_bytes(pmu, &int6, 1u, timeout_ms);
+            if (rc == HELIKON_OK)
+                rc = i2c_stop(pmu, timeout_ms);
+        }
+        if (rc != HELIKON_OK)
+            probe->stage = count + 1u;
+    }
+    i2c_clock_off();
+
+    if (rc == HELIKON_OK) {
+        uint8_t version = 0;
+        rc = helikon_pmu_read(pmu, HELIKON_PMU_REG_VERSION, &version,
+                              timeout_ms);
+        if (rc != HELIKON_OK || version == 0u || version == 0xffu) {
+            probe->stage = count + 2u;
+            if (rc == HELIKON_OK)
+                rc = HELIKON_ERR_IO;
+        }
+    }
+    if (rc == HELIKON_OK) {
+        pmu->initialized = 1;
+        probe->stage = count + 3u;
+    }
+    return rc;
+}
+#endif
 
 int helikon_pmu_read(struct helikon_pmu *pmu, uint8_t reg, uint8_t *value,
                      uint32_t timeout_ms)

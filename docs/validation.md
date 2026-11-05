@@ -5,7 +5,8 @@
 > Owner: release lead; test lead
 > Last updated: 2026-11-05
 > Source: design paper §24, §26.12, §28.6; `docs/verification.md`;
-> [`competitive-roadmap.md`](competitive-roadmap.md)
+> [`competitive-roadmap.md`](competitive-roadmap.md);
+> [`audio-formats.md`](audio-formats.md)
 
 **No Helikon-OS release exists and no validation gate has been run.** Every
 status below is `not run` or `unproven`. A green table is not evidence; a
@@ -187,6 +188,7 @@ single unrecorded row means the corresponding claim is not allowed.
 | Signed update | Unzip/ROLO; no signature | Bad board/hash/signature rejected; cut during staging leaves old image bootable | Fault injection + device run | `not run` |
 | 10k-track library | On-device scan; 1,800-byte/500-byte limits | Host/device parity; resume at 25/50/75% | Device build + diff | `not run` |
 | Anti-corruption | Not documented | Injected corruption detected; zero false OK | Bit/block injection + scrub report | `not run` |
+| Audio format parity | 37 audio families plus Opus (manual Appendix B.1) | All families play with metadata, seek/resume and a device corpus; APE >`-c1000` labelled best-effort | Per-format corpus + CPU/battery run | `not run` |
 | Cleaner UI | Bitmap themes; no published frame budget | 30 fps scroll; <200 ms screen open; no clipping | Device trace + panel photos | `not run` |
 | Desktop workflow | Rockbox Utility install/uninstall | Backup/tag/rate/describe/install/verify matrix | macOS task matrix | `not run` |
 | Adapter safety | SD quirks; older corruption bugs | SD/CF/SSD/HDD boot/play/write/sleep/100-cycle | Adapter matrix | `not run` |

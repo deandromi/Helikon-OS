@@ -67,7 +67,7 @@ It must:
 
 **Status 2026-11-04: F1/T-054 is complete.** The owner reports the 6G device run
 accepted; the image is `d7916411…` (39,108 bytes). **F2/T-055 is implemented and
-host-verified** (75,472 bytes, `5e14793f…`, `TRYING` sequence 1); its device run
+host-verified** (75,520 bytes, `f74e3485…`, `TRYING` sequence 1); its device run
 and power-cut check are the remaining gate. See
 [`../f2-bootstate-test.md`](../f2-bootstate-test.md).
 

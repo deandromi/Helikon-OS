@@ -274,7 +274,7 @@ partition scan, HFS+ probe, read one known file, input, bootstate promotion,
 browser, first UI, first audio. A rung is not skipped because a host test
 passes. The F1 image `d7916411…` is built and host-verified and has one
 owner-reported 6G device run (2026-11-04), accepted as the T-054 gate. The F2
-image `5e14793f…` is host-verified but has no device run;
+image `f74e3485…` is host-verified but has no device run;
 [`f2-bootstate-test.md`](f2-bootstate-test.md) is its runbook.
 
 ## 6. Device tests

@@ -2447,14 +2447,18 @@ measurement.
 
 These modules are **not** part of F1–F5 and do not start before the named gate.
 They implement the competitive horizon in
-[`competitive-roadmap.md`](competitive-roadmap.md); the decisions are D-29–D-48
-and the tasks are T-060–T-095. None exists today.
+[`competitive-roadmap.md`](competitive-roadmap.md) and
+[`audio-formats.md`](audio-formats.md); the decisions are D-29–D-51 and the
+tasks are T-060–T-102. None exists today.
 
 | Module | Decisions | Tasks | Entry gate | Must not |
 |---|---|---|---|---|
 | VFS object semantics | D-32 | T-065 | F3 | Expose raw block access; hide an unsupported object |
 | Library index (host + device delta) | D-33 | T-066, T-067 | F3, host builder | Load the whole library into RAM; block playback |
 | Tier 1 codecs and gapless | D-34 | T-068 | F5 | Claim codec coverage without a corpus |
+| Codec framework and registry | D-34, D-49 | T-097 | F5 | Allocate in the decode path; hide a probe failure |
+| Rockbox audio parity (37 families + Opus) | D-34, D-49, D-50, D-51 | T-069, T-096, T-099, T-100, T-101 | T-068 | Claim a family without a device corpus; claim native >48 kHz/DSD |
+| Beyond-Rockbox audio candidates | D-49, D-50 | T-102 | T-098, T-069 | Claim 24/96 or hi-res without a measured path |
 | Core DSP | D-35 | T-070 | F5 | Clip, exceed the volume limit or run by default |
 | Advanced DSP | D-35 | T-071 | T-070 | Claim an audible benefit without measurement |
 | Native theme and WPS subset | D-36 | T-072, T-073 | F4 | Execute theme code; let a theme break the default UI |

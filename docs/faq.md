@@ -40,11 +40,14 @@ a “better than Rockbox” claim until the differential evidence exists.
 
 ## Will it play everything Rockbox plays?
 
-No, and the project will not pretend otherwise. v1 targets a Tier 1 set (MP3,
-AAC, ALAC, FLAC, WAV/AIFF, Vorbis and Opus); Tier 2 codecs are evaluated later;
-chiptune, tracker, video and native Rockbox plugins are declined for v1. The
-matrix says which format is in which tier. A missing Tier 3 format is a
-documented scope choice, not a crash to report.
+Audio: yes, by v1.x. The plan requires all 37 audio format families documented
+in the Rockbox iPod Classic manual, plus Opus. v1 ships eight core families
+(MP3, AAC-LC, ALAC, FLAC, WAV, AIFF, Vorbis and Opus); v1.x adds the rest,
+including AC3, WMA, APE, DSD, chiptune and tracker families. APE above
+`-c1000` is best-effort because the 6G is not fast enough for the highest
+profiles. Video, images, native Rockbox plugins and games are separate scopes
+and are not promised. The detailed matrix is in
+[`audio-formats.md`](audio-formats.md).
 
 ## Will it erase my music?
 

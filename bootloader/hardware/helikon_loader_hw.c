@@ -331,6 +331,12 @@ void helikon_loader_main(void)
     sleep(HZ);
 
     /*
+     * This loader build is PIO-only so the iFlash SD bridge is not left in a
+     * DMA state that the firmware's PIO ATA init cannot recover. Leave the
+     * controller active and let the firmware reset and identify it.
+     */
+
+    /*
      * The image is already at its linked address in DRAM. Flush/invalidate
      * the caches before executing it. The test payload returns "HELO"; a real
      * firmware entry point would not return.

@@ -1,9 +1,10 @@
 # UI font assets
 
-> Purpose: licensed IBM Plex Sans and Manrope subsets for the first-party UI.
-> Status: `implemented` for the host mockup; renderer integration is T-042.
+> Purpose: licensed IBM Plex Sans and Manrope subsets, plus the external
+> owner-supplied ITC Benguiat display face used by the home/album mockups.
+> Status: `implemented` for the host mockups; renderer integration is T-042.
 > Owner: UI lead
-> Last updated: 2026-11-04
+> Last updated: 2026-11-05
 
 ## Files
 
@@ -30,17 +31,40 @@ the SIL Open Font License 1.1, not the upstream font names.
 - `HelikonUI-Sans.ttf`: `wght` 100–700, default 400; `wdth` fixed at 100.
   Regular = 400, Medium = 500, Semibold = 600.
 - `HelikonWordmark.ttf`: `wght` 200–800, default 200; Bold = 700.
-  Use only for the Helikon-OS wordmark, never body/menu/title text.
+  Use only for the Helikon-OS wordmark on surfaces that still follow D-23. The
+  proposed home and album-browser concepts use the external Benguiat face under D-52.
 
 ## Scope
 
 - The font subset covers Latin-1 and common UI punctuation. A future firmware
   subset may add the Unicode names the library needs; do not claim full
   coverage until that subset is measured on the device.
-- No proprietary font, theme, artwork or metadata is included.
+- No proprietary font binary, theme, artwork or metadata is included in this
+  directory. The proposed home/album concepts use an external owner-supplied
+  display face; see below.
 - The bootloader splash is a separate asset and rendering path (T-045).
 - The renderer (T-042) must use precomputed glyph masks/atlases, not rasterize a
   full font per frame, and keep a readable 1-bit fallback.
+
+## Owner-supplied display face (not committed)
+
+The proposed home and album-browser concepts use **ITC Benguiat Std** for
+wordmarks and headers under D-52. The owner supplied the files locally:
+
+| File | Use |
+|---|---|
+| `BenguiatStd-Medium.otf` | Launcher wordmark 26 px; index wordmark 22 px |
+| `BenguiatStd-Book.otf` | Launcher labels 13 px; index sections 20 px and numerals 12 px; album-wall title 18 px |
+| `BenguiatStd-Bold.otf` | Not used by the current mockups |
+
+These files are proprietary Monotype font software. They are **not committed**
+to this repository, not redistributed and must not be extracted from rendered
+PNGs. The host renderer reads them via `BENGUIAT_DIR` (default:
+`~/Downloads/ITC Benguiat`); a machine without them cannot regenerate the home
+mockup. If the firmware cannot ship the face, the header fallback is a tracked
+IBM Plex Sans Semibold treatment, not another proprietary face. Resolve the
+licence and embedding question before T-042/T-057 uses Benguiat glyphs in
+firmware.
 
 ## Regeneration
 

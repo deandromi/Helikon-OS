@@ -40,6 +40,8 @@ If the slot is already `GOOD`, the firmware performs no write and reports
 - [ ] The 6G is on the reference iFlash SD or the documented test device.
 - [ ] The volume journal is clean. A dirty volume stays read-only.
 - [ ] The loader test image is installed by DFU only. Never use `--single`.
+      The current PIO-only build is `8f80e40d…` (106,088 bytes); the earlier
+      device-tested image `6bc6927c…` left ATA in a DMA state before the jump.
 - [ ] The three device files are the matching F2 set; do not mix an F1 image
       with an F2 manifest or bootstate.
 
@@ -184,8 +186,22 @@ replaced by the matching F2 set after the test.
 
 ## 11. Current evidence
 
-- F2 image: 75,472 bytes, SHA-256 `5e14793f…`, BSS `0x08890000`–`0x08922e60`,
-  bootstate `TRYING` sequence 1.
+- F2 image: 76,160 bytes, SHA-256 `9f21f490…`, BSS `0x08890000`–`0x08922e60`,
+  bootstate `TRYING` sequence 1. The PMU interrupt-latch clear is best-effort;
+  a failed latch read does not block backlight init. The ATA write-cache hint
+  (`SET FEATURES 0x02`) and the redundant PMU HDD-enable write are best-effort;
+  ATA identify decides whether storage is available, and a flush is still
+  required before a journal commit. F2 first tries to adopt the loader's live
+  controller with a plain sector-0 read: this iFlash SD bridge rejects a second
+  IDENTIFY, but the loader has just completed the same read. The read also
+  probes LBA48. If the loader left `ATA_CONTROL` off and `AUTOENA` at 0 (an
+  `ata_sleepnow` build), adopt re-enables the controller, restores the HDD
+  rail and waits 2 s before the read. If a soft enable never raises PIO ready,
+  a second phase runs the donor controller reset (probe stages 12–14) and reads
+  sector 0 without IDENTIFY. The full reset plus IDENTIFY remains the final
+  cold-boot fallback. The ATA probe
+  image (`beec14c2…`, 77,136 bytes) adds the adopt result, `CTL`/`PWR`/ready,
+  CSD and DAD lines, and continues to `WRITE` when adopt succeeds.
 - Host: ten firmware test groups, sanitizer-clean; `test_catalog_write`
   overwrite test; `run-f2-macos.sh`; `run-crash-macos.sh` overwrite matrix.
 - `tools/check-f2-artifact.sh`: promoter + clean `fsck_hfs` + loader `GOOD`.

@@ -59,6 +59,64 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-05 (home-screen concept set)
+
+## What happened
+
+- Two earlier home attempts were rejected: a bento dashboard was too dense and
+  button-like; an album shelf with a now-playing strip read as a botched Now
+  Playing screen. The owner asked for two home concepts and a separate album
+  browser.
+- Added five host mockups:
+  - **Phone-style launcher** — six frameless coloured line-icon cells on short
+    accent plinths (Music, Podcasts, Audiobooks, Playlists, Games, Settings), a
+    small mountain divider with end diamonds, no playback;
+  - **Neoclassical index** — four numbered Benguiat sections (Listen, Browse,
+    Play, Settings) with descriptions, counts and an hourglass, no playback;
+  - **Album wall** — a 4×3 cover browser with a selected-album caption and
+    search icon; a browser, not a home candidate.
+  - **Podcast wall** — the same wall for shows, with green new-episode dots and
+    a latest-episode caption.
+  - **Audiobook wall** — the same wall for books, with author, duration and
+    reading-progress caption.
+- All three use the off-white palette and 1 px rules. Home concepts have no
+  now-playing hero, strip, progress bar or green playback dot.
+- Headers use the owner-supplied ITC Benguiat Std; body text remains IBM Plex
+  Sans 12/11. D-52 records the proposed D-23 exception and the licensing
+  boundary: the `.otf` files are not committed or redistributed, and
+  `BENGUIAT_DIR` is required to regenerate the mockups.
+- Added the concepts to [`ui.md`](ui.md) §5, updated
+  [`../assets/ui/README.md`](../assets/ui/README.md),
+  [`../assets/fonts/README.md`](../assets/fonts/README.md) and
+  [`decisions.md`](decisions.md) (D-52).
+- Extended `tools/render-ui-mockup.py` to render the three 1× frames and their
+  `@2x` previews. It asserts launcher labels and fixed columns; the host frames
+  have no clipping or overlap. The icons and covers are generated line art, not
+  album artwork.
+- Updated the UI row in [`state.md`](state.md) and the asset/tool rows in
+  [`file-map.md`](file-map.md).
+
+## What is next
+
+1. The owner chooses a home concept: launcher, index, or a hybrid. The album wall
+   remains the album browser, not a home candidate.
+2. Confirm D-52 scope: home headers only or all first-party headers, and whether
+   the wordmark changes globally.
+3. Resolve ITC Benguiat licensing/embedding before firmware headers depend on it;
+   use the tracked Plex Semibold fallback if it cannot ship.
+4. If accepted, implement the chosen home and album wall in T-057, the header/body
+   type in T-042, and record a real 6G panel run.
+
+## Do not claim
+
+- That a firmware home screen, renderer or accepted theme exists.
+- That the launcher, index or album wall is the owner’s chosen design.
+- That any of these host mockups is a 6G panel result or a support claim.
+- That the generated icons/covers are album artwork or licensed images.
+- That the ITC Benguiat `.otf` files are part of the repository or redistributable.
+
+---
+
 # Handoff — 2026-11-05 (competitive horizon planning)
 
 ## What happened
@@ -127,6 +185,40 @@ file grows. Do not rely on chat history for current state.
   started at `0x08800000`, zeroed the active LCD DMA buffers and blanked the
   display immediately after the jump. The linker now asserts
   `__bss_start >= 0x08890000`.
+- Made the PMU interrupt-latch clear best-effort. The device probe reported
+  `STAGE 49` (the latch-clear step) with `-1`; the mask registers are already
+  set, so a failed latch read no longer fails `helikon_pmu_init` and blocks
+  backlight init.
+- Made the ATA write-cache hint (`SET FEATURES 0x02`) best-effort. The iFlash
+  SD bridge rejects it with `-1`; storage bring-up now continues, and the
+  journal still requires a successful cache flush before commit.
+- Made the redundant PMU HDD-enable write best-effort. The loader has already
+  powered the disk to read the image; a failed warm-PMU enable write must not
+  fail storage bring-up before ATA identify runs.
+- Tried and then removed a warm ATA path. The ATA step probe showed `HDD 0`,
+  stage 2 and `IDENTIFY -1` on both the first and retry attempts, with zero ID
+  words: the controller reset left the iFlash SD bridge unable to answer
+  IDENTIFY. The warm IDENTIFY on the loader's still-configured controller also
+  failed, so it was removed; the loader handoff is PIO-only.
+- Implemented the adopt path. F2 reads sector 0 on the loader's live
+  controller before any reset, skips IDENTIFY, and falls back to the donor
+  reset only when there is no live handoff. PMU preinit no longer clears
+  AUTOENA, so the loader's HDD power stays up. If the loader did power ATA
+  down, adopt re-enables `ATA_CONTROL`, restores the rail and waits 2 s. When
+  a soft enable never raises PIO ready, a second phase runs the controller
+  reset without IDENTIFY and reads sector 0. The
+  adopt read also probes LBA48. The normal F2 image is `9f21f490…` (76,160
+  bytes); the ATA adopt probe is `beec14c2…` (77,136 bytes). Device result
+  pending.
+- Fixed the handoff boundary: the loader test image now builds with ATA DMA
+  disabled and leaves the controller active before the jump, so F2 does not
+  have to recover a DMA session. The current loader build is `8f80e40d…`
+  (106,088 bytes); the earlier device-tested loader `6bc6927c…` still used
+  ATA DMA.
+- Matched the donor IDENTIFY sequence: wait for `!BSY`, issue IDENTIFY, wait
+  for DRQ, read the ID table, and do not require DRDY before the command or a
+  post-transfer end status. The previous driver waited for DRDY/end, which this
+  iFlash SD bridge does not assert in the handoff state.
 - Added `tests/firmware/test_bootstate`, the writable/unaligned block tests,
   `tests/image/f2_host.c`, `tests/image/run-f2-macos.sh`, the overwrite crash
   scenario and `tools/check-f2-artifact.sh`.
@@ -137,7 +229,8 @@ file grows. Do not rely on chat history for current state.
 ## Evidence
 
 ```text
-F2 image:       75,472 bytes, SHA-256 5e14793f…
+F2 image:       76,160 bytes, SHA-256 9f21f490…
+F2 ATA probe:  77,136 bytes, SHA-256 beec14c2…
 BSS:            0x08890000..0x08922e60 (loader scratch reserved below)
 bootstate:      TRYING, sequence 1
 host groups:    10, sanitizer-clean
