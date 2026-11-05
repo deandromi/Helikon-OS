@@ -19,6 +19,12 @@
 #define ATA_IDENTIFY_WORDS 256u
 #define ATA_CHUNK_SECTORS 256u
 
+struct ata_attempt {
+    int stage;
+    int hdd_rc;
+    int identify_rc;
+};
+
 static int ata_wait_ready_bits(struct helikon_ata *ata, uint32_t mask,
                                uint32_t timeout_ms)
 {
@@ -128,7 +134,14 @@ static int ata_wait_end(struct helikon_ata *ata, uint32_t timeout_ms)
 
 static int ata_identify(struct helikon_ata *ata, uint32_t timeout_ms)
 {
-    int rc = ata_wait_rdy(ata, timeout_ms);
+    /*
+     * Match the donor storage_ata-6g.c sequence: wait only for !BSY, issue
+     * IDENTIFY, wait for DRQ, and read the 256-word table. Do not require
+     * DRDY first and do not require a post-transfer end status. This iFlash
+     * SD bridge does not assert DRDY in the warm loader handoff state, which
+     * made the previous ata_wait_rdy()/ata_wait_end() path fail with -1.
+     */
+    int rc = ata_wait_not_bsy(ata, timeout_ms);
     if (rc != HELIKON_OK)
         return rc;
     rc = ata_write_cbr(ata, &S5L_ATA_PIO_DVR, 0u, timeout_ms);
@@ -147,7 +160,8 @@ static int ata_identify(struct helikon_ata *ata, uint32_t timeout_ms)
         if (rc != HELIKON_OK)
             return rc;
     }
-    return ata_wait_end(ata, timeout_ms);
+    (void)ata_wait_not_bsy(ata, timeout_ms);
+    return HELIKON_OK;
 }
 
 static int ata_set_feature(struct helikon_ata *ata, uint8_t feature,
@@ -172,42 +186,8 @@ static int ata_set_feature(struct helikon_ata *ata, uint8_t feature,
     return ata_wait_rdy(ata, timeout_ms);
 }
 
-static int ata_power_up(struct helikon_ata *ata, uint32_t timeout_ms)
+static int ata_parse_geometry(struct helikon_ata *ata)
 {
-    int rc = helikon_pmu_hdd_power(ata->pmu, 1, timeout_ms);
-    if (rc != HELIKON_OK)
-        return rc;
-
-    /* ATA pin mux and controller reset, donor storage_ata-6g.c. */
-    S5L_PCON(7) = 0x44444444u;
-    S5L_PCON(8) = 0x44444444u;
-    S5L_PCON(9) = 0x44444444u;
-    S5L_PCON(10) = (S5L_PCON(10) & ~0xffffu) | 0x4444u;
-    S5L_PWRCON(S5L_CLOCKGATE_ATA >> 5) &=
-        ~(1u << (S5L_CLOCKGATE_ATA & 0x1fu));
-
-    S5L_ATA_CFG = 1u;
-    helikon_clock_delay_us(ata->clock, 10000u);
-    S5L_ATA_CFG = 0u;
-    helikon_clock_delay_us(ata->clock, 10000u);
-    S5L_ATA_SWRST = 1u;
-    helikon_clock_delay_us(ata->clock, 10000u);
-    S5L_ATA_SWRST = 0u;
-    helikon_clock_delay_us(ata->clock, 100000u);
-    S5L_ATA_CONTROL = 1u;
-    helikon_clock_delay_us(ata->clock, 200000u);
-    S5L_ATA_PIO_TIME = 0x191f7u;
-    S5L_ATA_PIO_LHR = 0u;
-    S5L_ATA_CFG = 1u << 6;
-
-    rc = ata_wait_ready_bits(ata, 0x2u, timeout_ms);
-    if (rc != HELIKON_OK)
-        return rc;
-
-    rc = ata_identify(ata, timeout_ms);
-    if (rc != HELIKON_OK)
-        return rc;
-
     uint32_t sectors28 = ((uint32_t)ata->identify[61] << 16) |
                          ata->identify[60];
     if ((ata->identify[83] & 0x0400u) != 0u &&
@@ -232,8 +212,19 @@ static int ata_power_up(struct helikon_ata *ata, uint32_t timeout_ms)
             (bytes & (bytes - 1u)) == 0u)
             ata->sector_size = bytes;
     }
-    if (ata->total_sectors == 0u)
-        return HELIKON_ERR_IO;
+    return ata->total_sectors == 0u ? HELIKON_ERR_IO : HELIKON_OK;
+}
+
+static int ata_configure_identified(struct helikon_ata *ata,
+                                    uint32_t timeout_ms,
+                                    struct ata_attempt *attempt)
+{
+    if (attempt != NULL)
+        attempt->stage = 3;
+
+    int rc = ata_parse_geometry(ata);
+    if (rc != HELIKON_OK)
+        return rc;
 
     uint32_t pio_time = 0x11f3u;
     if ((ata->identify[53] & 0x0002u) != 0u) {
@@ -244,33 +235,103 @@ static int ata_power_up(struct helikon_ata *ata, uint32_t timeout_ms)
     }
     S5L_ATA_PIO_TIME = pio_time;
 
+    if (attempt != NULL)
+        attempt->stage = 4;
     rc = ata_set_feature(ata, 0x03u, 0x00u, timeout_ms);
     if (rc != HELIKON_OK)
         return rc;
     if ((ata->identify[82] & 0x0040u) != 0u) {
+        if (attempt != NULL)
+            attempt->stage = 5;
         rc = ata_set_feature(ata, 0xaau, 0x00u, timeout_ms);
         if (rc != HELIKON_OK)
             return rc;
     }
 
-    /*
-     * F2 must not claim durability without a cache flush. Enable the volatile
-     * write cache only when the device advertises a flush command; otherwise
-     * leave the cache policy alone and let hfs_txn fail closed at flush time.
-     */
     ata->can_flush = ((ata->identify[83] & 0x2000u) != 0u) ||
                      ((ata->identify[83] & 0x1000u) != 0u) ||
                      ata->identify[80] >= 0x0020u;
     ata->write_cache = 0;
+    if (attempt != NULL)
+        attempt->stage = 6;
     if (ata->can_flush && (ata->identify[82] & 0x0020u) != 0u) {
         rc = ata_set_feature(ata, 0x02u, 0x00u, timeout_ms);
-        if (rc != HELIKON_OK)
-            return rc;
-        ata->write_cache = 1;
+        if (rc == HELIKON_OK) {
+            ata->write_cache = 1;
+        } else {
+            ata->write_cache = 0;
+            (void)ata_wait_rdy(ata, timeout_ms);
+        }
     }
 
+    if (attempt != NULL)
+        attempt->stage = 7;
     ata->powered = 1;
     return HELIKON_OK;
+}
+
+static int ata_power_up(struct helikon_ata *ata, uint32_t timeout_ms,
+                        struct ata_attempt *attempt)
+{
+    if (attempt != NULL) {
+        attempt->stage = 0;
+        attempt->hdd_rc = HELIKON_OK;
+        attempt->identify_rc = HELIKON_OK;
+    }
+
+    /*
+     * The loader has already powered the disk to read the firmware image. A
+     * redundant PMU enable write can fail on a warm PMU without meaning the
+     * disk is unavailable; let the controller reset and identify decide.
+     */
+    int hdd_rc = helikon_pmu_hdd_power(ata->pmu, 1, timeout_ms);
+    if (attempt != NULL)
+        attempt->hdd_rc = hdd_rc;
+    /*
+     * After the loader's ata_sleepnow() power-down, the iFlash SD bridge needs
+     * time to come back before the controller reset/IDENTIFY. A cold boot has
+     * this time implicitly; the handoff does not.
+     */
+    helikon_clock_delay_us(ata->clock, 1000000u);
+    int rc;
+
+    /* ATA pin mux and controller reset, donor storage_ata-6g.c. */
+    S5L_PCON(7) = 0x44444444u;
+    S5L_PCON(8) = 0x44444444u;
+    S5L_PCON(9) = 0x44444444u;
+    S5L_PCON(10) = (S5L_PCON(10) & ~0xffffu) | 0x4444u;
+    S5L_PWRCON(S5L_CLOCKGATE_ATA >> 5) &=
+        ~(1u << (S5L_CLOCKGATE_ATA & 0x1fu));
+
+    S5L_ATA_CFG = 1u;
+    helikon_clock_delay_us(ata->clock, 10000u);
+    S5L_ATA_CFG = 0u;
+    helikon_clock_delay_us(ata->clock, 10000u);
+    S5L_ATA_SWRST = 1u;
+    helikon_clock_delay_us(ata->clock, 10000u);
+    S5L_ATA_SWRST = 0u;
+    helikon_clock_delay_us(ata->clock, 100000u);
+    S5L_ATA_CONTROL = 1u;
+    helikon_clock_delay_us(ata->clock, 200000u);
+    S5L_ATA_PIO_TIME = 0x191f7u;
+    S5L_ATA_PIO_LHR = 0u;
+    S5L_ATA_CFG = 1u << 6;
+
+    if (attempt != NULL)
+        attempt->stage = 1;
+    rc = ata_wait_ready_bits(ata, 0x2u, timeout_ms);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    if (attempt != NULL)
+        attempt->stage = 2;
+    rc = ata_identify(ata, timeout_ms);
+    if (attempt != NULL)
+        attempt->identify_rc = rc;
+    if (rc != HELIKON_OK)
+        return rc;
+
+    return ata_configure_identified(ata, timeout_ms, attempt);
 }
 
 int helikon_ata_init(struct helikon_ata *ata, struct helikon_pmu *pmu,
@@ -289,12 +350,82 @@ int helikon_ata_init(struct helikon_ata *ata, struct helikon_pmu *pmu,
     ata->powered = 0;
     ata->initialized = 0;
 
-    int rc = ata_power_up(ata, timeout_ms);
+    /*
+     * The loader quiesces ATA before the jump. Start from the donor cold
+     * controller reset path; do not re-identify the loader's warm controller.
+     * This iFlash SD bridge rejects IDENTIFY after the loader has used ATA
+     * unless the controller and device have been powered down first.
+     */
+    int rc = ata_power_up(ata, timeout_ms, NULL);
     if (rc != HELIKON_OK)
         return rc;
     ata->initialized = 1;
     return HELIKON_OK;
 }
+
+#ifdef HELIKON_DIAG_ATA_PROBE
+static void ata_probe_reset(struct helikon_ata *ata)
+{
+    ata->sector_size = 0;
+    ata->total_sectors = 0;
+    ata->lba48 = 0;
+    ata->write_cache = 0;
+    ata->can_flush = 0;
+    ata->powered = 0;
+    ata->initialized = 0;
+}
+
+int helikon_ata_init_probe(struct helikon_ata *ata, struct helikon_pmu *pmu,
+                           struct helikon_clock *clock, uint32_t timeout_ms,
+                           struct helikon_ata_probe *probe)
+{
+    if (ata == NULL || pmu == NULL || clock == NULL || probe == NULL ||
+        !clock->initialized)
+        return HELIKON_ERR_ARGUMENT;
+
+    ata->pmu = pmu;
+    ata->clock = clock;
+    ata_probe_reset(ata);
+
+    struct ata_attempt first;
+    first.stage = -1;
+    first.hdd_rc = HELIKON_OK;
+    first.identify_rc = HELIKON_OK;
+    int rc = ata_power_up(ata, timeout_ms, &first);
+    probe->first_stage = first.stage;
+    probe->first_rc = rc;
+    probe->first_hdd_rc = first.hdd_rc;
+    probe->first_identify_rc = first.identify_rc;
+    probe->second_stage = -1;
+    probe->second_rc = HELIKON_OK;
+    probe->second_hdd_rc = HELIKON_OK;
+    probe->second_identify_rc = HELIKON_OK;
+
+    if (rc == HELIKON_OK) {
+        ata->initialized = 1;
+    } else {
+        helikon_clock_delay_us(clock, 100000u);
+        ata_probe_reset(ata);
+        struct ata_attempt second;
+        second.stage = -1;
+        second.hdd_rc = HELIKON_OK;
+        second.identify_rc = HELIKON_OK;
+        rc = ata_power_up(ata, timeout_ms, &second);
+        probe->second_stage = second.stage;
+        probe->second_rc = rc;
+        probe->second_hdd_rc = second.hdd_rc;
+        probe->second_identify_rc = second.identify_rc;
+        if (rc == HELIKON_OK)
+            ata->initialized = 1;
+    }
+
+    probe->total_sectors = (uint32_t)ata->total_sectors;
+    probe->identify_80 = ata->identify[80];
+    probe->identify_82 = ata->identify[82];
+    probe->identify_83 = ata->identify[83];
+    return rc;
+}
+#endif
 
 static int ata_read_chunk(struct helikon_ata *ata, uint64_t lba,
                           uint32_t count, uint8_t *buffer, uint32_t timeout_ms)

@@ -13,6 +13,7 @@
 #ifndef HELIKON_HAL_6G_PMU_H
 #define HELIKON_HAL_6G_PMU_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "clock.h"
@@ -78,6 +79,24 @@ struct helikon_pmu {
  */
 int helikon_pmu_init(struct helikon_pmu *pmu, struct helikon_clock *clock,
                      uint32_t timeout_ms);
+
+#ifdef HELIKON_DIAG_PMU_PROBE
+struct helikon_pmu_probe {
+    size_t stage;
+    uint8_t reg;
+    uint8_t value;
+};
+
+/*
+ * Diagnostic-only step-through of helikon_pmu_init(): i2c_preinit, the
+ * preinit table (LEDENA/LEDCTL/LEDDIM skipped so the backlight stays on),
+ * interrupt clearing, and the version read. Fills `probe` with the first
+ * failing step/register. Sets pmu->initialized only on success.
+ */
+int helikon_pmu_init_probe(struct helikon_pmu *pmu,
+                           struct helikon_clock *clock, uint32_t timeout_ms,
+                           struct helikon_pmu_probe *probe);
+#endif
 
 int helikon_pmu_read(struct helikon_pmu *pmu, uint8_t reg, uint8_t *value,
                      uint32_t timeout_ms);

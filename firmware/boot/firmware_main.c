@@ -474,6 +474,40 @@ static void boot_power_off(struct boot_context *ctx)
         helikon_cpu_idle();
 }
 
+#if defined(HELIKON_DIAG_EARLY_DISPLAY) || defined(HELIKON_DIAG_PMU_SPLIT) || \
+    defined(HELIKON_DIAG_PMU_PROBE) || defined(HELIKON_DIAG_I2C) || \
+    defined(HELIKON_DIAG_ATA_PROBE)
+static void diag_finish(struct boot_context *ctx)
+{
+    if (ctx->screen_ready) {
+        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_NEUTRAL);
+        helikon_screen_text(&ctx->screen, 16, 220, 2, "PRESS BUTTON TO QUIT");
+        (void)present_or_trace(ctx, HELIKON_TRACE_WARN, HELIKON_STAGE_PMU);
+    }
+
+    if (ctx->board.pmu.initialized && ctx->board.clock.initialized) {
+        if (helikon_board_input_init(&ctx->board, BOOT_POWER_TIMEOUT_MS) ==
+            HELIKON_OK) {
+            uint64_t start = helikon_clock_now_us(&ctx->board.clock);
+            while (!helikon_clock_expired(&ctx->board.clock, start, 60000u)) {
+                uint32_t events = 0;
+                int32_t wheel = 0;
+                int hold = 0;
+                if (helikon_buttons_poll(&ctx->board.buttons, &events, &wheel,
+                                         &hold, 20) == HELIKON_OK &&
+                    ((events & HELIKON_BUTTON_ANY) != 0u || wheel != 0 ||
+                     hold))
+                    break;
+                helikon_clock_delay_us(&ctx->board.clock, 20000u);
+            }
+        }
+    } else {
+        helikon_clock_delay_us(&ctx->board.clock, 30000000u);
+    }
+    boot_power_off(ctx);
+}
+#endif
+
 static void boot_fail(struct boot_context *ctx, int stage, int error,
                       const char *reason) __attribute__((noreturn));
 
@@ -688,14 +722,194 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
                   "Early display transfer failed.");
 #endif
 
+#ifdef HELIKON_DIAG_I2C
+    /*
+     * Diagnostic only: use the loader's already-initialized I2C bus and do not
+     * run the PMU preinit table (which sets LEDENA=0 and makes the failure text
+     * unreadable). This distinguishes a broken I2C/PMU register path from a
+     * failure inside helikon_pmu_init()'s preinit sequence.
+     */
+    ctx->board.pmu.clock = &ctx->board.clock;
+    paint_title(ctx, "I2C DIAGNOSTIC");
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+    helikon_screen_text(&ctx->screen, 16, 80, 2, "READING PMU VERSION");
+    present_or_trace(ctx, HELIKON_TRACE_INFO, HELIKON_STAGE_PMU);
+
+    uint8_t pmu_version = 0;
+    rc = helikon_pmu_read(&ctx->board.pmu, HELIKON_PMU_REG_VERSION,
+                          &pmu_version, BOOT_POWER_TIMEOUT_MS);
+    paint_title(ctx, "I2C DIAGNOSTIC");
+    if (rc != HELIKON_OK) {
+        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_FAILURE);
+        helikon_screen_text(&ctx->screen, 16, 62, 4, "PMU READ FAIL");
+        char code[32] = "ERROR ";
+        append_i32(code, sizeof(code), rc);
+        helikon_screen_text(&ctx->screen, 16, 120, 3, code);
+        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+        helikon_screen_text(&ctx->screen, 16, 168, 2,
+                            "BACKLIGHT WAS NOT TOUCHED");
+        present_or_trace(ctx, HELIKON_TRACE_ERROR, HELIKON_STAGE_PMU);
+        diag_finish(ctx);
+    }
+
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_SUCCESS);
+    helikon_screen_text(&ctx->screen, 16, 62, 4, "PMU READ OK");
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+    char version_line[32] = "VERSION ";
+    append_u32(version_line, sizeof(version_line), pmu_version);
+    helikon_screen_text(&ctx->screen, 16, 120, 3, version_line);
+    present_or_trace(ctx, HELIKON_TRACE_INFO, HELIKON_STAGE_PMU);
+
+    rc = helikon_pmu_write(&ctx->board.pmu, HELIKON_PMU_REG_LEDOUT,
+                           HELIKON_BACKLIGHT_DEFAULT, BOOT_POWER_TIMEOUT_MS);
+    if (rc != HELIKON_OK) {
+        paint_title(ctx, "I2C DIAGNOSTIC");
+        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_FAILURE);
+        helikon_screen_text(&ctx->screen, 16, 62, 4, "LEDOUT WRITE FAIL");
+        char code[32] = "ERROR ";
+        append_i32(code, sizeof(code), rc);
+        helikon_screen_text(&ctx->screen, 16, 120, 3, code);
+        present_or_trace(ctx, HELIKON_TRACE_ERROR, HELIKON_STAGE_PMU);
+        diag_finish(ctx);
+    }
+
+    rc = helikon_pmu_write(&ctx->board.pmu, HELIKON_PMU_REG_LEDENA, 1u,
+                           BOOT_POWER_TIMEOUT_MS);
+    if (rc != HELIKON_OK) {
+        paint_title(ctx, "I2C DIAGNOSTIC");
+        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_FAILURE);
+        helikon_screen_text(&ctx->screen, 16, 62, 4, "LEDENA WRITE FAIL");
+        char code[32] = "ERROR ";
+        append_i32(code, sizeof(code), rc);
+        helikon_screen_text(&ctx->screen, 16, 120, 3, code);
+        present_or_trace(ctx, HELIKON_TRACE_ERROR, HELIKON_STAGE_PMU);
+        diag_finish(ctx);
+    }
+
+    ctx->board.pmu.initialized = 1;
+    paint_title(ctx, "I2C DIAGNOSTIC");
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_SUCCESS);
+    helikon_screen_text(&ctx->screen, 16, 62, 4, "PMU I2C OK");
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+    helikon_screen_text(&ctx->screen, 16, 120, 2, "LEDOUT + LEDENA OK");
+    helikon_screen_text(&ctx->screen, 16, 150, 2,
+                        "FAILURE IS IN PMU INIT SEQUENCE");
+    present_or_trace(ctx, HELIKON_TRACE_INFO, HELIKON_STAGE_PMU);
+    diag_finish(ctx);
+#endif
+
+#ifdef HELIKON_DIAG_PMU_PROBE
+    struct helikon_pmu_probe pmu_probe;
+    rc = helikon_pmu_init_probe(&ctx->board.pmu, &ctx->board.clock,
+                                BOOT_POWER_TIMEOUT_MS, &pmu_probe);
+    paint_title(ctx, "PMU PROBE");
+    if (rc != HELIKON_OK) {
+        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_FAILURE);
+        helikon_screen_text(&ctx->screen, 16, 62, 4, "PROBE FAIL");
+        char line[64] = "STAGE ";
+        append_u32(line, sizeof(line), (uint32_t)pmu_probe.stage);
+        helikon_screen_text(&ctx->screen, 16, 120, 3, line);
+        helikon_strlcpy(line, "REG ", sizeof(line));
+        append_u32(line, sizeof(line), pmu_probe.reg);
+        text_append(line, sizeof(line), " VALUE ");
+        append_u32(line, sizeof(line), pmu_probe.value);
+        helikon_screen_text(&ctx->screen, 16, 150, 2, line);
+        helikon_strlcpy(line, "ERROR ", sizeof(line));
+        append_i32(line, sizeof(line), rc);
+        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+        helikon_screen_text(&ctx->screen, 16, 180, 2, line);
+        present_or_trace(ctx, HELIKON_TRACE_ERROR, HELIKON_STAGE_PMU);
+        uint8_t verify_version = 0;
+        if (helikon_pmu_read(&ctx->board.pmu, HELIKON_PMU_REG_VERSION,
+                             &verify_version, BOOT_POWER_TIMEOUT_MS) ==
+            HELIKON_OK)
+            ctx->board.pmu.initialized = 1;
+        diag_finish(ctx);
+    }
+
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_SUCCESS);
+    helikon_screen_text(&ctx->screen, 16, 62, 4, "PROBE OK");
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+    helikon_screen_text(&ctx->screen, 16, 120, 2,
+                        "FULL PMU INIT SHOULD WORK");
+    present_or_trace(ctx, HELIKON_TRACE_INFO, HELIKON_STAGE_PMU);
+    diag_finish(ctx);
+#endif
+
+#ifdef HELIKON_DIAG_PMU_SPLIT
+    rc = helikon_pmu_init(&ctx->board.pmu, &ctx->board.clock,
+                          BOOT_POWER_TIMEOUT_MS);
+    if (rc != HELIKON_OK) {
+        paint_title(ctx, "PMU DIAGNOSTIC");
+        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_FAILURE);
+        helikon_screen_text(&ctx->screen, 16, 62, 4, "PMU FAIL");
+        char code[32] = "ERROR ";
+        append_i32(code, sizeof(code), rc);
+        helikon_screen_text(&ctx->screen, 16, 120, 3, code);
+        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+        helikon_screen_text(&ctx->screen, 16, 168, 2,
+                            "PMU init returned this error.");
+        present_or_trace(ctx, HELIKON_TRACE_ERROR, HELIKON_STAGE_PMU);
+        diag_finish(ctx);
+    }
+
+    paint_title(ctx, "PMU DIAGNOSTIC");
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_SUCCESS);
+    helikon_screen_text(&ctx->screen, 16, 62, 4, "PMU OK");
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+    helikon_screen_text(&ctx->screen, 16, 120, 2, "TESTING BACKLIGHT");
+    present_or_trace(ctx, HELIKON_TRACE_INFO, HELIKON_STAGE_PMU);
+
+    rc = helikon_pmu_backlight_set(&ctx->board.pmu, HELIKON_BACKLIGHT_DEFAULT,
+                                   BOOT_POWER_TIMEOUT_MS);
+    if (rc != HELIKON_OK) {
+        paint_title(ctx, "PMU DIAGNOSTIC");
+        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_FAILURE);
+        helikon_screen_text(&ctx->screen, 16, 62, 4, "BL SET FAIL");
+        char code[32] = "ERROR ";
+        append_i32(code, sizeof(code), rc);
+        helikon_screen_text(&ctx->screen, 16, 120, 3, code);
+        present_or_trace(ctx, HELIKON_TRACE_ERROR, HELIKON_STAGE_PMU);
+        diag_finish(ctx);
+    }
+
+    rc = helikon_pmu_backlight_enable(&ctx->board.pmu, 1,
+                                      BOOT_POWER_TIMEOUT_MS);
+    if (rc != HELIKON_OK) {
+        paint_title(ctx, "PMU DIAGNOSTIC");
+        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_FAILURE);
+        helikon_screen_text(&ctx->screen, 16, 62, 4, "BL ENABLE FAIL");
+        char code[32] = "ERROR ";
+        append_i32(code, sizeof(code), rc);
+        helikon_screen_text(&ctx->screen, 16, 120, 3, code);
+        present_or_trace(ctx, HELIKON_TRACE_ERROR, HELIKON_STAGE_PMU);
+        diag_finish(ctx);
+    }
+
+    rc = helikon_backlight_init(&ctx->board.backlight, &ctx->board.pmu,
+                                BOOT_POWER_TIMEOUT_MS);
+    if (rc != HELIKON_OK) {
+        paint_title(ctx, "PMU DIAGNOSTIC");
+        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_FAILURE);
+        helikon_screen_text(&ctx->screen, 16, 62, 4, "BL INIT FAIL");
+        char code[32] = "ERROR ";
+        append_i32(code, sizeof(code), rc);
+        helikon_screen_text(&ctx->screen, 16, 120, 3, code);
+        present_or_trace(ctx, HELIKON_TRACE_ERROR, HELIKON_STAGE_PMU);
+        diag_finish(ctx);
+    }
+
+    paint_message(ctx, "PMU+BL OK", "DIAGNOSTIC COMPLETE");
+    diag_finish(ctx);
+#else
     rc = helikon_board_power_init(&ctx->board, BOOT_POWER_TIMEOUT_MS);
     if (rc != HELIKON_OK)
         boot_fail(ctx, HELIKON_STAGE_PMU, rc,
                   "PMU or backlight initialization failed.");
 #ifdef HELIKON_DIAG_EARLY_DISPLAY
     paint_message(ctx, "PMU OK", "DIAGNOSTIC COMPLETE");
-    helikon_clock_delay_us(&ctx->board.clock, 3000000u);
-    boot_power_off(ctx);
+    diag_finish(ctx);
+#endif
 #endif
     stage_pass(ctx, HELIKON_STAGE_PMU);
 
@@ -714,6 +928,54 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
     stage_pass(ctx, HELIKON_STAGE_LCD);
 
     stage_begin(ctx, HELIKON_STAGE_ATA);
+#ifdef HELIKON_DIAG_ATA_PROBE
+    struct helikon_ata_probe ata_probe;
+    rc = helikon_ata_init_probe(&ctx->board.ata, &ctx->board.pmu,
+                                &ctx->board.clock, BOOT_STORAGE_TIMEOUT_MS,
+                                &ata_probe);
+    paint_title(ctx, "ATA PROBE");
+    char ata_line[64];
+    helikon_strlcpy(ata_line, "FIRST STAGE ", sizeof(ata_line));
+    append_i32(ata_line, sizeof(ata_line), ata_probe.first_stage);
+    text_append(ata_line, sizeof(ata_line), " RC ");
+    append_i32(ata_line, sizeof(ata_line), ata_probe.first_rc);
+    helikon_screen_set_foreground(&ctx->screen,
+                                  ata_probe.first_rc == HELIKON_OK
+                                      ? HELIKON_COLOR_SUCCESS
+                                      : HELIKON_COLOR_FAILURE);
+    helikon_screen_text(&ctx->screen, 16, 62, 2, ata_line);
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+    helikon_strlcpy(ata_line, "HDD ", sizeof(ata_line));
+    append_i32(ata_line, sizeof(ata_line), ata_probe.first_hdd_rc);
+    text_append(ata_line, sizeof(ata_line), " ID ");
+    append_i32(ata_line, sizeof(ata_line), ata_probe.first_identify_rc);
+    helikon_screen_text(&ctx->screen, 16, 82, 2, ata_line);
+    helikon_strlcpy(ata_line, "SECOND STAGE ", sizeof(ata_line));
+    append_i32(ata_line, sizeof(ata_line), ata_probe.second_stage);
+    text_append(ata_line, sizeof(ata_line), " RC ");
+    append_i32(ata_line, sizeof(ata_line), ata_probe.second_rc);
+    helikon_screen_text(&ctx->screen, 16, 110, 2, ata_line);
+    helikon_strlcpy(ata_line, "SECTORS ", sizeof(ata_line));
+    append_u32(ata_line, sizeof(ata_line), ata_probe.total_sectors);
+    helikon_screen_text(&ctx->screen, 16, 138, 2, ata_line);
+    helikon_strlcpy(ata_line, "ID82 ", sizeof(ata_line));
+    append_u32(ata_line, sizeof(ata_line), ata_probe.identify_82);
+    text_append(ata_line, sizeof(ata_line), " ID83 ");
+    append_u32(ata_line, sizeof(ata_line), ata_probe.identify_83);
+    helikon_screen_text(&ctx->screen, 16, 158, 2, ata_line);
+    helikon_strlcpy(ata_line, "ID80 ", sizeof(ata_line));
+    append_u32(ata_line, sizeof(ata_line), ata_probe.identify_80);
+    helikon_screen_text(&ctx->screen, 16, 178, 2, ata_line);
+    helikon_strlcpy(ata_line, "RESULT ", sizeof(ata_line));
+    text_append(ata_line, sizeof(ata_line),
+                rc == HELIKON_OK ? "OK" : "FAIL");
+    helikon_screen_set_foreground(&ctx->screen,
+                                  rc == HELIKON_OK ? HELIKON_COLOR_SUCCESS
+                                                   : HELIKON_COLOR_FAILURE);
+    helikon_screen_text(&ctx->screen, 16, 198, 2, ata_line);
+    present_or_trace(ctx, HELIKON_TRACE_INFO, HELIKON_STAGE_ATA);
+    diag_finish(ctx);
+#else
     rc = helikon_board_storage_init(&ctx->board, BOOT_STORAGE_TIMEOUT_MS);
     if (rc != HELIKON_OK)
         boot_fail(ctx, HELIKON_STAGE_ATA, rc, "Storage was not found.");
@@ -726,6 +988,7 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
                       ctx->board.block.info.sector_size);
     stage_pass(ctx, HELIKON_STAGE_ATA);
     paint_stages_checked(ctx, HELIKON_STAGE_ATA);
+#endif
 
     stage_begin(ctx, HELIKON_STAGE_PART);
     select_partition(ctx);
