@@ -114,9 +114,9 @@ struct EyebrowLabel: View {
     var color: Color = HColor.muted
 
     var body: some View {
-        Text(text.uppercased())
-            .font(HFont.label())
-            .tracking(1.5)
+        Text(text)
+            .font(HFont.label(10.5, weight: .medium))
+            .tracking(0.5)
             .foregroundStyle(color)
     }
 }
@@ -170,9 +170,9 @@ struct Tag: View {
     var fill: Color = .clear
 
     var body: some View {
-        Text(text.uppercased())
+        Text(text)
             .font(HFont.label(9.5, weight: .semibold))
-            .tracking(0.9)
+            .tracking(0.1)
             .foregroundStyle(color)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
@@ -190,9 +190,8 @@ struct KeyValue: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(key.uppercased())
-                .font(HFont.label(9.5))
-                .tracking(1)
+            Text(key)
+                .font(HFont.body(10.5))
                 .foregroundStyle(HColor.muted)
                 .frame(width: 92, alignment: .leading)
             Text(value)
@@ -351,11 +350,6 @@ struct CoverArt: View {
         return HColor.accents[Int(hash % UInt32(HColor.accents.count))]
     }
 
-    private var initials: String {
-        let words = title.split(separator: " ").prefix(2)
-        return words.compactMap { $0.first.map(String.init) }.joined().uppercased()
-    }
-
     var body: some View {
         Group {
             if let artworkPath, let image = NSImage(contentsOfFile: artworkPath) {
@@ -395,9 +389,6 @@ struct CoverArt: View {
                             )
                         }
                     }
-                    Text(initials)
-                        .font(HFont.display(max(12, size * 0.22), weight: .medium))
-                        .foregroundStyle(HColor.ink.opacity(0.78))
                 }
             }
         }
@@ -487,20 +478,6 @@ enum CompanionSection: String, CaseIterable, Identifiable {
         case .scrobbler: return "waveform.path.ecg"
         case .install: return "arrow.down.circle"
         case .settings: return "slider.horizontal.3"
-        }
-    }
-
-    var index: String {
-        switch self {
-        case .overview: return "01"
-        case .library: return "02"
-        case .transfer: return "03"
-        case .metadata: return "04"
-        case .podcasts: return "05"
-        case .audiobooks: return "06"
-        case .scrobbler: return "07"
-        case .install: return "08"
-        case .settings: return "09"
         }
     }
 

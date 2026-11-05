@@ -106,20 +106,20 @@ struct LibraryView: View {
                 subtitle: "Tracks, albums and artists read from the mounted volume or a folder you choose. Nothing plays here; this is the desk, not the listener."
             )
             Spacer(minLength: 20)
-            VStack(alignment: .trailing, spacing: 9) {
+            VStack(alignment: .trailing, spacing: 8) {
                 Button {
-                    if model.selectedDevice != nil {
-                        model.scanSelectedDevice()
-                    } else {
-                        model.chooseAudioFiles()
-                    }
+                    model.chooseAudioFiles()
                 } label: {
-                    Label(model.selectedDevice == nil ? "Choose a folder" : "Scan volume", systemImage: "arrow.triangle.2.circlepath")
+                    Label("Add music", systemImage: "plus")
                 }
                 .buttonStyle(PrimaryButtonStyle())
-                Text("Or use Add music above")
-                    .font(HFont.body(9.5))
-                    .foregroundStyle(HColor.faint)
+                Button {
+                    model.scanSelectedDevice()
+                } label: {
+                    Text("Scan volume")
+                }
+                .buttonStyle(QuietButtonStyle())
+                .disabled(model.selectedDevice == nil)
             }
             .padding(.top, 4)
         }
@@ -216,17 +216,17 @@ struct LibraryView: View {
     private var trackList: some View {
         LazyVStack(spacing: 0) {
             HStack(spacing: 12) {
-                Text("TITLE")
+                Text("Title")
                     .frame(maxWidth: .infinity, alignment: .leading)
-                Text("ALBUM")
+                Text("Album")
                     .frame(width: 160, alignment: .leading)
-                Text("LENGTH")
+                Text("Length")
                     .frame(width: 58, alignment: .trailing)
-                Text("TAGS")
+                Text("Tags")
                     .frame(width: 68, alignment: .trailing)
             }
-            .font(HFont.label(8.5))
-            .tracking(1.2)
+            .font(HFont.label(9.5, weight: .medium))
+            .tracking(0.3)
             .foregroundStyle(HColor.muted)
             .padding(.horizontal, 24)
             .padding(.vertical, 9)
@@ -414,7 +414,7 @@ struct TrackLibraryRow: View {
                     Image(systemName: "checkmark")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(HColor.moss)
-                    Text("ok")
+                    Text("Complete")
                         .font(HFont.body(9.5))
                         .foregroundStyle(HColor.muted)
                 } else if track.missingFields == [.artwork] {

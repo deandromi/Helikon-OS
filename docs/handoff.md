@@ -11,6 +11,44 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-05 (companion app chrome cleanup)
+
+## What happened
+
+- Removed the second title bar above every app screen. The page title and
+  subtitle now appear once; the sidebar and the page header carry the navigation
+  context.
+- Removed the ordinal numbers from the sidebar and the section breadcrumb, so
+  Overview, Library, Transfer and the rest are identified by name and icon only.
+- Replaced all-caps UI labels with title case: meta labels, tags, table headings,
+  device facts, brand text, footer, generated-cover lettering and the tiny
+  device diagram labels. Uppercase now survives only for acronyms and
+  device-supplied volume names.
+- Moved Add music into the Overview and Library page headers now that the global
+  top bar is gone. The sidebar keeps the device card and refresh action.
+- Removed the generated initials from placeholder covers; sample covers are now
+  abstract geometry only.
+- Updated [`../docs/companion-app.md`](../docs/companion-app.md) and
+  [`../tools/desktop/README.md`](../tools/desktop/README.md).
+- Evidence: `swift test` passes 21 tests; `swift build -c release` passes;
+  host screenshots of Overview, Library and Transfer were reviewed. The app was
+  run only against a mounted volume and did not write to it.
+
+## What is next
+
+1. Run the macOS companion task matrix and a real device transfer on a backed-up
+   test volume.
+2. Review the post-cleanup screens on the target window sizes and with the
+   accessibility font setting.
+3. Continue the installer only after the signed release exists.
+
+## Do not claim
+
+- No device transfer, UI test suite, notarization or support claim exists.
+- No firmware or installer behaviour changed in this session.
+
+---
+
 # Handoff — 2026-11-05 (repository consolidation)
 
 ## What happened

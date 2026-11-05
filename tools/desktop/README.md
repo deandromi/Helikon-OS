@@ -39,7 +39,7 @@ source icon and needs Pillow; a committed 1024 px PNG is enough for normal build
 
 | Area | Status | Evidence |
 |---|---|---|
-| App shell and visual system | `in progress` | `swift build -c release` succeeds; host screenshots reviewed at 2000×1290; no UI test suite |
+| App shell and visual system | `in progress` | `swift build -c release` succeeds; host screenshots reviewed after removing the duplicate title bar, numbered navigation and all-caps labels; no UI test suite |
 | HFS+ volume detection | `in progress` | `DeviceDetector` read `diskutil -plist` metadata; a mounted 32 MiB HFS+ test image with `.helikon` was detected as Helikon-OS, read/write; no physical acceptance run |
 | Library read/scan | `in progress` | AVFoundation tag scan and JSON library store; 21 core tests pass; large-library timing not measured |
 | Metadata search | `in progress` | MusicBrainz recording/release/artist and Apple Search API clients; network integration exercised against live endpoints, but no recorded search matrix |
@@ -52,6 +52,15 @@ source icon and needs Pillow; a committed 1024 px PNG is enough for normal build
 
 The app is not a release. There is no code signing identity, notarization,
 sandbox entitlement, update feed or support matrix.
+
+### Interface
+
+- One page header per screen; the old second title bar was removed.
+- The sidebar is a plain named list with no ordinal numbers.
+- Labels and tags are title case. Uppercase is limited to acronyms such as HFS+,
+  MP3, API and SHA-256, plus a volume name supplied by the device.
+- Counts and install steps keep their numbers because those numbers are data or
+  sequence, not navigation decoration.
 
 ## What the app does
 

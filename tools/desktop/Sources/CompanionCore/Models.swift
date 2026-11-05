@@ -64,16 +64,6 @@ public enum MetadataProvider: String, Codable, CaseIterable, Hashable, Sendable,
         case .lastFM: return "Last.fm"
         }
     }
-
-    public var shortTitle: String {
-        switch self {
-        case .musicBrainz: return "MB"
-        case .iTunes: return "Apple"
-        case .openLibrary: return "OL"
-        case .librivox: return "LV"
-        case .lastFM: return "LFM"
-        }
-    }
 }
 
 public struct Track: Identifiable, Codable, Hashable, Sendable {
