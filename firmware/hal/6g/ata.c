@@ -270,6 +270,82 @@ static int ata_configure_identified(struct helikon_ata *ata,
     return HELIKON_OK;
 }
 
+/*
+ * Adopt the loader's live ATA controller.
+ *
+ * The firmware loader has just read this image from the same disk, so the
+ * controller, device and PIO timing registers are already working. A second
+ * IDENTIFY is what this iFlash SD bridge rejects; a plain sector read is the
+ * exact operation the loader just completed. Do not reset the controller, do
+ * not power-cycle the disk and do not send IDENTIFY.
+ *
+ * The read also probes LBA48: a large card's HFS volume can sit above the
+ * LBA28 limit, and the command is valid at LBA 0, so support is measured
+ * without the partition map. Geometry is completed from the partition table.
+ */
+static int ata_adopt(struct helikon_ata *ata, uint32_t timeout_ms,
+                     struct ata_attempt *attempt)
+{
+    uint32_t adopt_timeout = timeout_ms > 1500u ? 1500u : timeout_ms;
+    if (attempt != NULL) {
+        attempt->stage = 8;
+        attempt->hdd_rc = HELIKON_OK;
+        attempt->identify_rc = HELIKON_OK;
+    }
+
+    /* The loader may have gated the clock; keep its controller configuration. */
+    S5L_PCON(7) = 0x44444444u;
+    S5L_PCON(8) = 0x44444444u;
+    S5L_PCON(9) = 0x44444444u;
+    S5L_PCON(10) = (S5L_PCON(10) & ~0xffffu) | 0x4444u;
+    S5L_PWRCON(S5L_CLOCKGATE_ATA >> 5) &=
+        ~(1u << (S5L_CLOCKGATE_ATA & 0x1fu));
+    S5L_ATA_CFG = 1u << 6; /* PIO mode, as the loader left it */
+
+    int rc = ata_wait_ready_bits(ata, 0x2u, adopt_timeout);
+    if (rc != HELIKON_OK)
+        return rc;
+    if (attempt != NULL)
+        attempt->stage = 9;
+
+    ata->sector_size = 512u;
+    ata->total_sectors = 0xffffffffu;
+    ata->write_cache = 0;
+    /*
+     * The adapter is known to read and write, but its IDENTIFY table was
+     * never fetched in adopt mode. FLUSH CACHE (0xE7) is the safe command;
+     * do not infer FLUSH CACHE EXT from the scratch buffer.
+     */
+    ata->identify_valid = 0;
+    /* Flush is attempted before commit; the journal gates on it. */
+    ata->can_flush = 1;
+    ata->powered = 1;
+    ata->initialized = 1;
+
+    if (attempt != NULL)
+        attempt->stage = 10;
+    ata->lba48 = 1;
+    rc = helikon_ata_read(ata, 0u, 1u, ata->identify, adopt_timeout);
+    if (rc != HELIKON_OK) {
+        (void)ata_wait_not_bsy(ata, adopt_timeout);
+        ata->lba48 = 0;
+        rc = helikon_ata_read(ata, 0u, 1u, ata->identify, adopt_timeout);
+    }
+    if (rc != HELIKON_OK) {
+        ata->sector_size = 0;
+        ata->total_sectors = 0;
+        ata->write_cache = 0;
+        ata->can_flush = 0;
+        ata->powered = 0;
+        ata->initialized = 0;
+        return rc;
+    }
+
+    if (attempt != NULL)
+        attempt->stage = 11;
+    return HELIKON_OK;
+}
+
 static int ata_power_up(struct helikon_ata *ata, uint32_t timeout_ms,
                         struct ata_attempt *attempt)
 {
@@ -330,6 +406,7 @@ static int ata_power_up(struct helikon_ata *ata, uint32_t timeout_ms,
         attempt->identify_rc = rc;
     if (rc != HELIKON_OK)
         return rc;
+    ata->identify_valid = 1;
 
     return ata_configure_identified(ata, timeout_ms, attempt);
 }
@@ -342,6 +419,7 @@ int helikon_ata_init(struct helikon_ata *ata, struct helikon_pmu *pmu,
 
     ata->pmu = pmu;
     ata->clock = clock;
+    ata->identify_valid = 0;
     ata->sector_size = 0;
     ata->total_sectors = 0;
     ata->lba48 = 0;
@@ -351,12 +429,15 @@ int helikon_ata_init(struct helikon_ata *ata, struct helikon_pmu *pmu,
     ata->initialized = 0;
 
     /*
-     * The loader quiesces ATA before the jump. Start from the donor cold
-     * controller reset path; do not re-identify the loader's warm controller.
-     * This iFlash SD bridge rejects IDENTIFY after the loader has used ATA
-     * unless the controller and device have been powered down first.
+     * Prefer the loader's live controller. The bridge rejects a second
+     * IDENTIFY, but it has just served the reads that loaded this image.
      */
-    int rc = ata_power_up(ata, timeout_ms, NULL);
+    int rc = ata_adopt(ata, timeout_ms, NULL);
+    if (rc == HELIKON_OK)
+        return HELIKON_OK;
+
+    /* No live handoff (cold boot or a loader that powered ATA down). */
+    rc = ata_power_up(ata, timeout_ms, NULL);
     if (rc != HELIKON_OK)
         return rc;
     ata->initialized = 1;
@@ -366,6 +447,7 @@ int helikon_ata_init(struct helikon_ata *ata, struct helikon_pmu *pmu,
 #ifdef HELIKON_DIAG_ATA_PROBE
 static void ata_probe_reset(struct helikon_ata *ata)
 {
+    ata->identify_valid = 0;
     ata->sector_size = 0;
     ata->total_sectors = 0;
     ata->lba48 = 0;
@@ -387,19 +469,50 @@ int helikon_ata_init_probe(struct helikon_ata *ata, struct helikon_pmu *pmu,
     ata->clock = clock;
     ata_probe_reset(ata);
 
-    struct ata_attempt first;
-    first.stage = -1;
-    first.hdd_rc = HELIKON_OK;
-    first.identify_rc = HELIKON_OK;
-    int rc = ata_power_up(ata, timeout_ms, &first);
-    probe->first_stage = first.stage;
-    probe->first_rc = rc;
-    probe->first_hdd_rc = first.hdd_rc;
-    probe->first_identify_rc = first.identify_rc;
+    probe->adopt_rc = HELIKON_ERR_IO;
+    probe->adopt_lba48 = 0;
+    probe->adopt_word0 = 0;
+    probe->adopt_csd = 0;
+    probe->adopt_dad = 0;
+    probe->adopt_ready = 0;
     probe->second_stage = -1;
     probe->second_rc = HELIKON_OK;
     probe->second_hdd_rc = HELIKON_OK;
     probe->second_identify_rc = HELIKON_OK;
+
+    struct ata_attempt adopt;
+    adopt.stage = -1;
+    adopt.hdd_rc = HELIKON_OK;
+    adopt.identify_rc = HELIKON_OK;
+    int rc = ata_adopt(ata, timeout_ms, &adopt);
+    probe->adopt_rc = rc;
+    probe->adopt_lba48 = ata->lba48;
+    probe->adopt_word0 = ata->identify[0];
+    probe->adopt_csd = (uint16_t)(S5L_ATA_PIO_CSD & 0xffffu);
+    probe->adopt_dad = (uint16_t)(S5L_ATA_PIO_DAD & 0xffffu);
+    probe->adopt_ready = S5L_ATA_PIO_READY;
+    if (rc == HELIKON_OK) {
+        probe->first_stage = adopt.stage;
+        probe->first_rc = HELIKON_OK;
+        probe->first_hdd_rc = HELIKON_OK;
+        probe->first_identify_rc = HELIKON_OK;
+        probe->total_sectors = (uint32_t)ata->total_sectors;
+        probe->identify_80 = 0;
+        probe->identify_82 = 0;
+        probe->identify_83 = 0;
+        return HELIKON_OK;
+    }
+
+    ata_probe_reset(ata);
+    struct ata_attempt first;
+    first.stage = -1;
+    first.hdd_rc = HELIKON_OK;
+    first.identify_rc = HELIKON_OK;
+    rc = ata_power_up(ata, timeout_ms, &first);
+    probe->first_stage = first.stage;
+    probe->first_rc = rc;
+    probe->first_hdd_rc = first.hdd_rc;
+    probe->first_identify_rc = first.identify_rc;
 
     if (rc == HELIKON_OK) {
         ata->initialized = 1;
@@ -651,7 +764,8 @@ int helikon_ata_flush(void *context, uint32_t timeout_ms)
         return rc;
 
     uint8_t command = ATA_CMD_FLUSH_CACHE;
-    if (ata->lba48 && (ata->identify[83] & 0x2000u) != 0u)
+    if (ata->identify_valid && ata->lba48 &&
+        (ata->identify[83] & 0x2000u) != 0u)
         command = ATA_CMD_FLUSH_CACHE_EXT;
     rc = ata_write_cbr(ata, &S5L_ATA_PIO_CSD, command, timeout_ms);
     if (rc != HELIKON_OK)

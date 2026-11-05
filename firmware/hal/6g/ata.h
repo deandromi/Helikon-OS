@@ -19,6 +19,7 @@ struct helikon_ata {
     struct helikon_pmu *pmu;
     struct helikon_clock *clock;
     uint16_t identify[256];
+    int identify_valid;
     uint32_t sector_size;
     uint64_t total_sectors;
     int lba48;
@@ -33,6 +34,12 @@ int helikon_ata_init(struct helikon_ata *ata, struct helikon_pmu *pmu,
 
 #ifdef HELIKON_DIAG_ATA_PROBE
 struct helikon_ata_probe {
+    int adopt_rc;
+    int adopt_lba48;
+    uint16_t adopt_word0;
+    uint16_t adopt_csd;
+    uint16_t adopt_dad;
+    uint32_t adopt_ready;
     int first_stage;
     int first_rc;
     int first_hdd_rc;
@@ -48,8 +55,11 @@ struct helikon_ata_probe {
 };
 
 /*
- * Diagnostic-only ATA init: runs the init sequence, reports the failing
- * substep, then retries once from a clean controller reset. Substeps:
+ * Diagnostic-only ATA init: first tries to adopt the loader's live controller
+ * with a plain sector read, then reports the failing substep of the full reset
+ * path and retries it once. Substeps:
+ * 8 adopt entry, 9 adopt controller ready, 10 adopt sector read,
+ * 11 adopt success;
  * 0 HDD power, 1 controller ready, 2 identify, 3 sector geometry,
  * 4 SET FEATURES 0x03, 5 SET FEATURES 0xAA, 6 write-cache hint, 7 success.
  */

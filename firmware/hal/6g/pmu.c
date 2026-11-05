@@ -285,6 +285,14 @@ int helikon_pmu_init(struct helikon_pmu *pmu, struct helikon_clock *clock,
     for (size_t i = 0; rc == HELIKON_OK &&
                        i < sizeof(pmu_preinit_table) /
                                sizeof(pmu_preinit_table[0]); ++i) {
+        /*
+         * AUTOENA is the HDD power switch. The firmware loader has already
+         * powered the disk to read this image, and cutting the rail here
+         * destroys the live ATA state that F2 adopts. Cold boot leaves the
+         * rail off until helikon_ata_init() enables it.
+         */
+        if (pmu_preinit_table[i].reg == HELIKON_PMU_REG_AUTOENA)
+            continue;
         rc = i2c_write_bytes(pmu, pmu_preinit_table[i].reg,
                              &pmu_preinit_table[i].value, 1u, timeout_ms);
         if (rc != HELIKON_OK)
@@ -363,7 +371,8 @@ int helikon_pmu_init_probe(struct helikon_pmu *pmu,
     for (size_t i = 0; rc == HELIKON_OK && i < count; ++i) {
         uint8_t reg = pmu_preinit_table[i].reg;
         if (reg == HELIKON_PMU_REG_LEDENA || reg == HELIKON_PMU_REG_LEDCTL ||
-            reg == HELIKON_PMU_REG_LEDDIM)
+            reg == HELIKON_PMU_REG_LEDDIM ||
+            reg == HELIKON_PMU_REG_AUTOENA)
             continue;
         rc = i2c_write_bytes(pmu, reg, &pmu_preinit_table[i].value, 1u,
                              timeout_ms);

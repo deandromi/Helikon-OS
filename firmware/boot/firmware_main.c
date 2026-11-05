@@ -935,46 +935,60 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
                                 &ata_probe);
     paint_title(ctx, "ATA PROBE");
     char ata_line[64];
+    helikon_strlcpy(ata_line, "ADOPT ", sizeof(ata_line));
+    append_i32(ata_line, sizeof(ata_line), ata_probe.adopt_rc);
+    text_append(ata_line, sizeof(ata_line), " LBA48 ");
+    append_i32(ata_line, sizeof(ata_line), ata_probe.adopt_lba48);
+    helikon_screen_set_foreground(&ctx->screen,
+                                  ata_probe.adopt_rc == HELIKON_OK
+                                      ? HELIKON_COLOR_SUCCESS
+                                      : HELIKON_COLOR_FAILURE);
+    helikon_screen_text(&ctx->screen, 16, 56, 2, ata_line);
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+    helikon_strlcpy(ata_line, "RDY ", sizeof(ata_line));
+    append_u32(ata_line, sizeof(ata_line), ata_probe.adopt_ready);
+    text_append(ata_line, sizeof(ata_line), " CSD ");
+    append_u32(ata_line, sizeof(ata_line), ata_probe.adopt_csd);
+    text_append(ata_line, sizeof(ata_line), " DAD ");
+    append_u32(ata_line, sizeof(ata_line), ata_probe.adopt_dad);
+    helikon_screen_text(&ctx->screen, 16, 76, 2, ata_line);
     helikon_strlcpy(ata_line, "FIRST STAGE ", sizeof(ata_line));
     append_i32(ata_line, sizeof(ata_line), ata_probe.first_stage);
     text_append(ata_line, sizeof(ata_line), " RC ");
     append_i32(ata_line, sizeof(ata_line), ata_probe.first_rc);
-    helikon_screen_set_foreground(&ctx->screen,
-                                  ata_probe.first_rc == HELIKON_OK
-                                      ? HELIKON_COLOR_SUCCESS
-                                      : HELIKON_COLOR_FAILURE);
-    helikon_screen_text(&ctx->screen, 16, 62, 2, ata_line);
-    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+    helikon_screen_text(&ctx->screen, 16, 96, 2, ata_line);
     helikon_strlcpy(ata_line, "HDD ", sizeof(ata_line));
     append_i32(ata_line, sizeof(ata_line), ata_probe.first_hdd_rc);
     text_append(ata_line, sizeof(ata_line), " ID ");
     append_i32(ata_line, sizeof(ata_line), ata_probe.first_identify_rc);
-    helikon_screen_text(&ctx->screen, 16, 82, 2, ata_line);
+    helikon_screen_text(&ctx->screen, 16, 116, 2, ata_line);
     helikon_strlcpy(ata_line, "SECOND STAGE ", sizeof(ata_line));
     append_i32(ata_line, sizeof(ata_line), ata_probe.second_stage);
     text_append(ata_line, sizeof(ata_line), " RC ");
     append_i32(ata_line, sizeof(ata_line), ata_probe.second_rc);
-    helikon_screen_text(&ctx->screen, 16, 110, 2, ata_line);
+    helikon_screen_text(&ctx->screen, 16, 136, 2, ata_line);
     helikon_strlcpy(ata_line, "SECTORS ", sizeof(ata_line));
     append_u32(ata_line, sizeof(ata_line), ata_probe.total_sectors);
-    helikon_screen_text(&ctx->screen, 16, 138, 2, ata_line);
+    helikon_screen_text(&ctx->screen, 16, 156, 2, ata_line);
     helikon_strlcpy(ata_line, "ID82 ", sizeof(ata_line));
     append_u32(ata_line, sizeof(ata_line), ata_probe.identify_82);
     text_append(ata_line, sizeof(ata_line), " ID83 ");
     append_u32(ata_line, sizeof(ata_line), ata_probe.identify_83);
-    helikon_screen_text(&ctx->screen, 16, 158, 2, ata_line);
-    helikon_strlcpy(ata_line, "ID80 ", sizeof(ata_line));
+    text_append(ata_line, sizeof(ata_line), " ID80 ");
     append_u32(ata_line, sizeof(ata_line), ata_probe.identify_80);
-    helikon_screen_text(&ctx->screen, 16, 178, 2, ata_line);
+    helikon_screen_text(&ctx->screen, 16, 176, 2, ata_line);
     helikon_strlcpy(ata_line, "RESULT ", sizeof(ata_line));
     text_append(ata_line, sizeof(ata_line),
                 rc == HELIKON_OK ? "OK" : "FAIL");
     helikon_screen_set_foreground(&ctx->screen,
                                   rc == HELIKON_OK ? HELIKON_COLOR_SUCCESS
                                                    : HELIKON_COLOR_FAILURE);
-    helikon_screen_text(&ctx->screen, 16, 198, 2, ata_line);
+    helikon_screen_text(&ctx->screen, 16, 196, 2, ata_line);
     present_or_trace(ctx, HELIKON_TRACE_INFO, HELIKON_STAGE_ATA);
-    diag_finish(ctx);
+    if (rc != HELIKON_OK)
+        diag_finish(ctx);
+    stage_pass(ctx, HELIKON_STAGE_ATA);
+    paint_stages_checked(ctx, HELIKON_STAGE_ATA);
 #else
     rc = helikon_board_storage_init(&ctx->board, BOOT_STORAGE_TIMEOUT_MS);
     if (rc != HELIKON_OK)
