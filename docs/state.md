@@ -3,8 +3,10 @@
 > Purpose: what is true today. This file is not a plan and not a design paper.
 > Status: living document
 > Owner: project owner; maintained by the documentation agent
-> Last updated: 2026-11-04
-> Source: `README.md`, `docs/design-paper.md`, repository inspection
+> Last updated: 2026-11-05
+> Source: `README.md`, `docs/design-paper.md`, repository inspection;
+> Rockbox iPod Classic manual `0d5c2b0604-261105`;
+> [`audio-formats.md`](audio-formats.md)
 
 ## Current phase
 
@@ -27,7 +29,8 @@ BSS/LCD-DMA scratch and starts its own BSS at `0x08890000`. Ten host test
 groups, the disposable-image F2 artifact check and the overwrite crash matrix
 pass; there is no F2 device run. F3–F5 are not implemented.
 
-Date of this snapshot: **2026-11-04**.
+Date of this snapshot: **2026-11-05**. Device evidence remains the
+2026-11-04 runs; no new device run was made for the competitive planning.
 
 ## What exists
 
@@ -38,11 +41,14 @@ Date of this snapshot: **2026-11-04**.
 | Firmware architecture research paper | living | [`firmware-architecture.md`](firmware-architecture.md); functional, aesthetic and developer-ergonomics design; F1 device run owner-reported 2026-11-04 |
 | Firmware memory map / entry ABI ADRs | living | [`adr/0003-firmware-memory-map.md`](adr/0003-firmware-memory-map.md), [`adr/0004-firmware-entry-abi.md`](adr/0004-firmware-entry-abi.md); D-27/D-28 accepted 2026-11-04 |
 | Firmware F1/T-054 skeleton | `pass` | `firmware/boot`, `firmware/lib`, `firmware/board/6g`, `firmware/hal/6g`, `firmware/block`, `firmware/diag` and the HFS+ read adapter; signed development image 39,108 bytes, SHA-256 `d7916411…`; 9 host test groups sanitizer-clean; loader host core reports `loader: OK` / `bootstate: GOOD`; owner-reported 6G device run accepted 2026-11-04 (PASS, power-off, no write; photo/timings/`fsck_hfs` not attached) |
-| Firmware F2/T-055 bootstate promotion | `in progress` | ATA PIO write/flush, firmware bootstate parser/promoter, in-place `hfs_catalog_overwrite_file` through `hfs_txn`, and the `WRITE` stage. F2 image 75,472 bytes, SHA-256 `5e14793f…`, BSS `0x08890000`–`0x08922e60`, bootstate `TRYING` sequence 1; 10 firmware host test groups sanitizer-clean; `tools/check-f2-artifact.sh` promotes to `GOOD`, `fsck_hfs` clean, loader sees `GOOD`; overwrite crash matrix covers 22 write cuts plus flush/partial modes. No F2 device run. Runbook: [`f2-bootstate-test.md`](f2-bootstate-test.md) |
+| Firmware F2/T-055 bootstate promotion | `in progress` | ATA PIO write/flush, firmware bootstate parser/promoter, in-place `hfs_catalog_overwrite_file` through `hfs_txn`, and the `WRITE` stage. F2 image 76,160 bytes, SHA-256 `f33f2791…`, BSS `0x08890000`–`0x08922e60`, bootstate `TRYING` sequence 1. F2 adopts the loader's live ATA controller with a sector read instead of re-identifying the iFlash SD bridge, which rejects a second IDENTIFY; the full donor reset remains the cold-boot fallback, and adopt soft-enables a loader that powered ATA down. 10 firmware host test groups sanitizer-clean; `tools/check-f2-artifact.sh` promotes to `GOOD`, `fsck_hfs` clean, loader sees `GOOD`; overwrite crash matrix covers 22 write cuts plus flush/partial modes. No F2 device run. Runbook: [`f2-bootstate-test.md`](f2-bootstate-test.md) |
 | Firmware build prompt | living | [`prompts/build-firmware.md`](prompts/build-firmware.md); full-procedure F1–F5 execution prompt |
 | Session-start prompt | living | [`prompts/session-start.md`](prompts/session-start.md); repo-read bootstrap and Session Brief for every session |
 | Agent contract and documentation set | living | `main`, merged 2026-11-03 |
 | Product intent, safety rules, roadmap, goals, open decisions | living | `docs/` |
+| Competitive roadmap (Rockbox comparison) | living | [`competitive-roadmap.md`](competitive-roadmap.md); Rockbox manual `0d5c2b0604-261105` reviewed 2026-11-05; D-29–D-51 proposed and T-060–T-107 planned; manual section audit complete; no Helikon-OS feature claim |
+| Audio-format plan | living | [`audio-formats.md`](audio-formats.md); 37 audio families (36 in Appendix B.1 plus Opus) inventoried; Tier 1 at v1 and full Rockbox audio parity at v1.x; no decoder exists yet |
+| Manual feature audit | living | [`competitive-roadmap.md`](competitive-roadmap.md) §12; every manual section mapped; remaining gaps T-093–T-107; recording/FM/line-in `N/A`; native plugins/video declined |
 | Donor file references and provenance | living | [`file-map.md`](file-map.md) |
 | License: GPL-2.0-or-later | living | `LICENSE`, `NOTICE`, D-18 |
 | GitHub issue templates | living | `.github/ISSUE_TEMPLATE/` |
@@ -96,7 +102,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | Data-fork append/truncate (eight inline + multiple overflow records) | `implemented` | `hfs_catalog_append_file` appends to empty or non-empty files, stages data before metadata, allocates individual free blocks, merges inline extents and writes multiple extents-overflow records; truncate frees all records; the transaction block budget caps very large fragmented writes |
 | Fork block staging | `implemented` | `firmware/hfs/hfs_fork_io.c`; full/partial block write staging into `hfs_txn`; inline extents only; 4 host tests |
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
-| Default UI typography | `in progress` | D-23/D-24 and `docs/ui.md` record the 14/17/12/11 px scale and grayscale anti-aliasing. Licensed IBM Plex Sans and Manrope subsets, OFL texts, hashes and two 320×240 host mockups are in `assets/fonts/` and `assets/ui/`; `tools/render-ui-mockup.py` reproduces them with clipping checks. Firmware renderer and 6G panel run remain T-042 |
+| Default UI typography and home concepts | `in progress` | D-23/D-24 and `docs/ui.md` record the 14/17/12/11 px body scale and grayscale anti-aliasing. Licensed IBM Plex Sans and Manrope subsets, OFL texts, hashes and twelve host mockups (two typography; launcher, neoclassical index, album wall, podcast wall and audiobook wall, each at 1× and 2×) are in `assets/fonts/` and `assets/ui/`; `tools/render-ui-mockup.py` reproduces them with clipping checks. The launcher and index are home candidates; the launcher uses six muted icon accents in a frameless grid with short accent plinths, while the index is typographic. The album, podcast and audiobook walls are content browsers. None of the home candidates shows playback. Their Benguiat headers are an external, uncommitted owner-supplied face and a proposed D-23 exception (D-52). They are not an accepted theme or a renderer. Firmware renderer and 6G panel run remain T-042/T-057 |
 | Bootloader splash redesign | `implemented` | Final owner green/red PNGs are in `assets/bootloader/` with `VERSION ALPHA` and a green/red `HFS+ DETAILS` mask. The refreshed loader image uses a 16-colour 4bpp RGB565 base (38,400 bytes) plus a 324-byte label mask; the temporary bottom stage line is removed. The final-splash `6bc6927c…` image is device-tested: 6.5 s startup and `fsck_hfs -fn` clean |
 | Host test harness | `in progress` | 135 portable HFS+/bootloader tests (104 HFS+, 31 bootloader), sanitizer-clean, plus ten firmware host test groups in `tests/firmware/` (F1's boot-info, block/partition, stages, lib, ring, pool, screen, trace, hfs-file and F2's bootstate) and the macOS disposable-image, Unicode, crash-injection (including overwrite), F2 artifact, inner-image, outer-volume and loader tests; fixture plan in `fixtures.md`; first diagnostic boot is owner-reported |
 | Backup/recovery protocol | `implemented` | Full-volume backup, read-back, disposable restore rehearsal and Apple-restore/DFU path owner-confirmed 2026-11-04; protocol and stop conditions in `outer-volume-test.md` |
@@ -108,15 +114,15 @@ Helikon-OS poster above the goals on 2026-11-03.
 |---|---|---|
 | Helikon-OS firmware source tree | `in progress` | F1 source exists: boot entry/vectors/linker/boot-info/panic, freestanding lib, 6G BSP, clock/PMU/backlight/LCD/ATA/buttons HAL, read-only block/partition scan, HFS+ read adapter and diag stages/trace. F2 adds ATA write/flush, bootstate promotion, in-place HFS+ overwrite and the `WRITE` stage. VFS, player, UI and F3–F5 do not exist; F1 has one owner-reported 6G run and F2 has no device run |
 | Host firmware loader | `implemented` | `bootloader/manifest.c`, `bootstate.c`, `sha256.c`, `ed25519.c`, `keys.c`, `firmware_loader.c` and `hfs_loader.c`; formats frozen in `bootloader/LOADER.md`. Signature is verified before any image byte; then SHA-256 and bootstate. 13 manifest/loader tests, 2 HFS adapter tests, 4 Ed25519/key-table tests and a macOS HFS+ fixture with a real generated key pass. No jump and no writes |
-| Helikon-OS firmware-loading bootloader | `in progress` | The final-splash loader image `6bc6927c…` (106,536 bytes, 22,496 bytes headroom) is a visual-only refresh of the tested `3979de6f…` loader path. The earlier image was owner-reported working at 6.5 s on one 6G/iFlash SD; the final-splash device check passed with a clean `fsck_hfs -fn`. It verifies Ed25519 before any image byte, reads directly to the signed DRAM address, executes only a signed development payload (the F1/F2 development image is one) and disables production handoff. Production handoff is T-051 and needs a real signed firmware image. |
+| Helikon-OS firmware-loading bootloader | `in progress` | The current build `8f80e40d…` (106,088 bytes) builds with ATA DMA disabled and leaves the controller active before the jump; it is host-verified but not device-tested. The last device-tested image is the final-splash `6bc6927c…` (106,536 bytes, 22,496 bytes headroom), owner-reported at 6.5 s on one 6G/iFlash SD with a clean `fsck_hfs -fn`. It verifies Ed25519 before any image byte, reads directly to the signed DRAM address, executes only a signed development payload (the F1/F2 development image is one) and disables production handoff. Production handoff is T-051 and needs a real signed firmware image. |
 | Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; separate inner-image and outer-volume write diagnostics built; the diagnostic images do not load firmware. The separate loader test image loads the signed F1 development image. The inner image has one owner-reported run; the outer image has one successful 6G run |
-| Loader test image | `implemented` | `build/loader-bootloader/out/bootloader-ipod6g-loader-test.ipod` (106,536 bytes, 22,496 bytes headroom) now carries the final Alpha splash; the loader path is the owner-reported `3979de6f…` design at 6.5 s. The final-splash `6bc6927c…` image is device-tested (6.5 s, `fsck_hfs -fn` clean). Production handoff is disabled |
+| Loader test image | `implemented` | `build/loader-bootloader/out/bootloader-ipod6g-loader-test.ipod` (106,088 bytes) is the current PIO-only build `8f80e40d…`; it reuses the test key and its own 12-byte payload still verifies through the host loader core. The last device-tested image is `6bc6927c…` (106,536 bytes, 6.5 s, `fsck_hfs -fn` clean). Production handoff is disabled |
 | Bootloader manifest/boot state | `implemented` | Formats frozen in `bootloader/LOADER.md`; host parser/verifier/selector, real Ed25519 and HFS loader tested; loader test image owner-reported working. D-02 is single-image fail-closed by owner decision: no A/B fallback; recovery is DFU/Apple restore. D-28 entry ABI is accepted; the loader fill is T-059 |
 | VFS, player, UI, database | `planned` | No implementation |
 | HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete/growth/deep delete/in-place update, fork staging, file/folder create/delete/rename, multi-extent/overflow data append/truncate, FastUnicodeCompare, HFS+ normalization, metadata policy and disposable-image `fsck_hfs` validation exist. One outer-volume 6G run passed; D-05 cache limits, broader fuzzing, timing and the device power-cut/adapter matrix remain |
 | F2 bootstate device run | `not run` | Host: F2 artifact promotes `TRYING` to `GOOD`, `fsck_hfs` clean, loader sees `GOOD`; overwrite crash matrix passes. No 6G run and no device power-cut during promotion yet |
 | Journal replay on a real dirty volume | `unproven` | Replay is host-tested on synthetic journals; no macOS-created dirty volume or device run |
-| Installer or desktop app | `planned` | No host application |
+| Installer or desktop app | `in progress` | Companion app MVP under `tools/desktop/`: macOS SwiftUI host with HFS+ detection, library scan, metadata search, transfer planning/verification, podcast/audiobook search/download, offline Last.fm queue and an install guide. 21 host tests and the release build pass; no installer, no signed release and no device run. See [`companion-app.md`](companion-app.md) |
 | Build system, CI, release artifacts | `in progress` | `firmware/Makefile` and `tools/make-firmware-image.py` build the F1/F2 ELF, raw image, manifest, bootstate and signed development image. `VERSION` selects the image version and `BOOTSTATE_STATE=trying|good` selects the initial slot state. Host test Makefiles and bootloader build scripts exist; bootloader-only Alpha release `alpha-1.0.1` published; no CI, reproducible release build or firmware release |
 | Helikon-OS device run | `partial` | Three earlier owner-reported diagnostic runs, the 2026-11-04 outer-volume run with every stage PASS, the loader-test passes on `3979de6f…` and `6bc6927c…`, and the F1 firmware run on `d7916411…` (owner-reported 2026-11-04, accepted as the T-054 gate). The final-splash `6bc6927c…` run passed (6.5 s, `fsck_hfs -fn` clean). No support claim; one device/iFlash SD only |
 | Supported device list | `unproven` | 6G is the reference; 7G physical audit is deferred from the active queue by owner direction (2026-11-04) |
@@ -225,6 +231,11 @@ writes, the transaction engine, the bootloader, or any goal in
    manifest, signing-key ceremony record, staging flow, rollback test or support
    window. The D-20 policy is accepted; no release key has been generated and no
    release signing is claimed.
+7. **Competitive horizon decisions are unaccepted.** D-29–D-51 are `proposed`
+   and T-060–T-107 are `planned`; H1 tasks cannot become release gates until the
+   owner accepts D-29 and the relevant decision. This does not block the current
+   P0 writer line, and it does not authorize device work ahead of it. The audio
+   plan additionally requires D-34/D-49/D-50/D-51 before decoder work starts.
 
 ## Next task
 
@@ -234,14 +245,13 @@ The writer interface and failure model are frozen in
 probe is intentionally skipped; `-8` is correct because `/rockbox.ipod` is not a
 disk file on this iPod.
 
-The active P0 line is **T-054/F1** (read-only firmware skeleton), followed by
-T-051 (production firmware handoff), which needs a real signed firmware image
-for end-to-end device validation. F1 source and host evidence now exist; the
-remaining acceptance evidence is one recorded 6G run with a screen photo, stage
-timings and a clean `fsck_hfs -fn`. T-006/D-20 and T-049 are implemented; T-050
-is closed by owner decision as an explicit no-A/B, single-image fail-closed
-model. D-26 records that the bootloader has no OF/recovery menu; native Menu+Play
-and DFU cover recovery. The P1 line is:
+The active P0 line is **T-055/F2** (first firmware write), followed by T-051
+(production firmware handoff), which needs a real signed firmware image for
+end-to-end device validation. T-054/F1 is done; F2 is not implemented on this
+branch and remains `planned`. T-006/D-20 and T-049 are implemented; T-050 is
+closed by owner decision as an explicit no-A/B, single-image fail-closed
+model. D-26 records that the bootloader has no OF/recovery menu; native
+Menu+Play and DFU cover recovery. The P1 line is:
 
 - **T-041** — UI font licences and the 320×240 typography mockup.
 - **T-012** — full 6G model/adapter/battery inventory; backup/restore is done.
@@ -250,9 +260,18 @@ and DFU cover recovery. The P1 line is:
   the refreshed image needs one clean device check.
 - **T-053** — release-key certificate, rotation and revocation verifier.
 
-T-042/T-013/T-052 are P2; T-052 tracks reducing startup from 6.5 s toward 2–3 s.
+T-041 and T-045 are implemented. T-042/T-013/T-052 are P2; T-052 tracks
+reducing startup from 6.5 s toward 2–3 s.
 The fixture plan is in [`fixtures.md`](fixtures.md); the writer crash matrix and
 evidence format are in [`validation.md`](validation.md) §2.
+
+The competitive horizon in [`competitive-roadmap.md`](competitive-roadmap.md)
+and the audio-format plan in [`audio-formats.md`](audio-formats.md) are planning
+only. D-29–D-51 are `proposed` and T-060–T-107 are `planned`; none changes the
+active P0 line. The owner must accept D-29 before any H1 task becomes a release
+gate. No “matches Rockbox”, “better than Rockbox”, “24/96” or “hi-res” claim is
+allowed until the differential and audio evidence exists. The manual audit
+itself is complete; the remaining breadth gaps are tracked by T-093–T-107.
 
 ## Unproven claims and open questions
 

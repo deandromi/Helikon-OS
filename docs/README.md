@@ -3,8 +3,9 @@
 > Purpose: documentation index and reading order.
 > Status: living document
 > Owner: docs lead
-> Last updated: 2026-11-04
-> Source: `agents.md`, root `README.md`, design paper
+> Last updated: 2026-11-05
+> Source: `agents.md`, root `README.md`, design paper, Rockbox iPod Classic
+> manual `0d5c2b0604-261105`
 
 Helikon-OS is a **design-stage** project to build a native-HFS+ bootloader and
 firmware for the iPod Classic 6G (reference target) and 7G (next named port,
@@ -39,7 +40,9 @@ scope, licensing, or app/plugin compatibility — stop and record it in
 6. [`tasks.md`](tasks.md)
 7. [`verification.md`](verification.md)
 8. [`decisions.md`](decisions.md)
-9. [`goals.md`](goals.md) and [`roadmap.md`](roadmap.md)
+9. [`goals.md`](goals.md), [`roadmap.md`](roadmap.md),
+   [`competitive-roadmap.md`](competitive-roadmap.md) and
+   [`audio-formats.md`](audio-formats.md)
 10. [`design-paper.md`](design-paper.md)
 11. [`failures.md`](failures.md), [`glossary.md`](glossary.md),
     [`device-matrix.md`](device-matrix.md)
@@ -83,8 +86,8 @@ status.
 | [`../.github/ISSUE_TEMPLATE/`](../.github/ISSUE_TEMPLATE/) | Bug, feature and device-test issue forms. | living |
 | [`state.md`](state.md) | Current phase, what exists, blockers, evidence status. | living |
 | [`invariants.md`](invariants.md) | Numbered, testable safety invariants. | living |
-| [`decisions.md`](decisions.md) | Decision log, conflict record and 28 decision entries. | living |
-| [`tasks.md`](tasks.md) | Now/Next/Later task queue with acceptance criteria. | living |
+| [`decisions.md`](decisions.md) | Decision log, conflict record and 51 decision entries (D-29–D-51 proposed). | living |
+| [`tasks.md`](tasks.md) | Now/Next/Later task queue plus the competitive/audio/manual horizon T-060–T-107. | living |
 | [`verification.md`](verification.md) | Per-change proof checklist and evidence template. | living |
 | [`file-map.md`](file-map.md) | “I need to change X” → owning file/module. | living |
 | [`architecture.md`](architecture.md) | Boot chain, layers, boundaries, memory, security. | living |
@@ -103,12 +106,14 @@ status.
 | [`fixtures.md`](fixtures.md) | Host fixture plan, generation methods and hash/evidence policy. | living |
 | [`validation.md`](validation.md) | Release-level evidence matrix and scorecard. | living |
 | [`goals.md`](goals.md) | All 25 README goals with priority and acceptance. | living |
-| [`roadmap.md`](roadmap.md) | Phases 0–12, dependencies, exit criteria. | living |
+| [`roadmap.md`](roadmap.md) | Phases 0–12, horizon lanes, dependencies, exit criteria. | living |
+| [`competitive-roadmap.md`](competitive-roadmap.md) | Rockbox parity matrix, manual section audit, differentiation bets, horizon lanes and explicit declines. | living |
+| [`audio-formats.md`](audio-formats.md) | Rockbox audio-format inventory, 6G hardware ceiling, tiers, decoder architecture and test corpus. | living |
 | [`hfsplus-write-engine.md`](hfsplus-write-engine.md) | Native writer, journal and crash-consistency deep dive. | living |
 | [`release.md`](release.md) | Channels, signing, staging, rollback, support window. | stub |
 | [`security.md`](security.md) | Agent security rules and destructive-operation policy. | living |
 | [`faq.md`](faq.md) | User-facing questions from Appendix G. | living |
-| [`design-paper.md`](design-paper.md) | Full read-only design paper copy with provenance. | source |
+| [`design-paper.md`](design-paper.md) | Full donor design paper copy with provenance; Appendix I is a marked Helikon-OS addendum. | source |
 | [`../assets/logo/README.md`](../assets/logo/README.md) | Logo source notes and the owner-supplied mountain reference image. | living |
 | [`../assets/branding/README.md`](../assets/branding/README.md) | Owner-supplied poster and 320×240 startup crop. | living |
 | [`../bootloader/README.md`](../bootloader/README.md) | Read-only diagnostic bootloader; image built, unproven on hardware. | living |
@@ -123,6 +128,7 @@ status.
 | [`log/TEMPLATE.md`](log/TEMPLATE.md) | Dated log entry template. | template |
 | [`log/2026-11-03.md`](log/2026-11-03.md) | Documentation setup and first diagnostic/write sessions. | living |
 | [`log/2026-11-04.md`](log/2026-11-04.md) | Metadata timestamps and the current write-diagnostic image. | living |
+| [`log/2026-11-05.md`](log/2026-11-05.md) | Competitive-roadmap planning and the Rockbox manual review. | living |
 | [`adr/README.md`](adr/README.md) | When to create a long-form ADR. | living |
 | [`adr/0001-template.md`](adr/0001-template.md) | ADR template. | template |
 | [`prompts/README.md`](prompts/README.md) | Scope and rules for reusable prompts. | living |
@@ -134,6 +140,8 @@ status.
 
 Key entry points: [`design-paper.md`](design-paper.md),
 [`goals.md`](goals.md), [`roadmap.md`](roadmap.md),
+[`competitive-roadmap.md`](competitive-roadmap.md),
+[`audio-formats.md`](audio-formats.md),
 [`validation.md`](validation.md), [`decisions.md`](decisions.md).
 
 ## What this documentation is not
@@ -154,6 +162,13 @@ Key entry points: [`design-paper.md`](design-paper.md),
 - It does not promise full Rockbox WPS compatibility, Rockbox plugin/game binary
   compatibility, FAT support, self-healing repair, or external USB DAC support
   on the 6G.
+- It does not claim that Helikon-OS matches or beats Rockbox. The comparison in
+  [`competitive-roadmap.md`](competitive-roadmap.md) is a plan; no row is
+  evidence, and “better than Rockbox” requires the differential runs described
+  there.
+- It does not claim audio-format support today. [`audio-formats.md`](audio-formats.md)
+  lists 37 audio families (36 in Appendix B.1 plus Opus) and the planned tiers; no
+  decoder exists yet, and native 24/96 or DSD output is not claimed.
 
 ## Maintenance rule
 

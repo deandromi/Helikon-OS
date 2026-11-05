@@ -20,8 +20,11 @@ plain line breaks so the repository whitespace check passes. No wording changed.
 > paper from the donor repository, copied on 2026-11-03 from source commit
 > `3f220a73d0cceb083b3c057c6fe914d88468800a`. The paper is the technical design
 > source; the Helikon-OS root `README.md` is the owner-authored product intent.
-> Do not edit this copy. If the donor paper changes, re-copy it deliberately and
-> record the new commit/hash. Conflicts are recorded in `docs/decisions.md`.
+> Do not edit the donor body. **Appendix I is a marked Helikon-OS addendum**
+> added on 2026-11-05 at the owner's request; it is not part of the donor source
+> commit. If the donor paper is re-copied, preserve or deliberately re-apply
+> Appendix I and record the new commit/hash. Conflicts are recorded in
+> `docs/decisions.md`.
 
 ---
 
@@ -29,7 +32,8 @@ plain line breaks so the repository whitespace check passes. No wording changed.
 
 ### A line-audited design study of the HFSPlus Rockboxed iPod tree
 
-Status: research/design paper, 2026-11-03.
+Status: research/design paper, 2026-11-03; Appendix I (competitive horizon)
+added 2026-11-05.
 Scope: every tracked subsystem in this repository, with custom modules audited at
 file and function level and inherited Rockbox subsystems audited at module level.
 Purpose: decide what to keep, modify, rewrite or exclude if the project became a
@@ -94,6 +98,7 @@ Revision 2 changes the paper in five places:
 - [Appendix F — Glossary](#appendix-f--glossary)
 - [Appendix G — FAQ](#appendix-g--faq)
 - [Appendix H — Build worksheet](#appendix-h--build-worksheet)
+- [Appendix I — Competitive horizon (2026-11-05)](#appendix-i--competitive-horizon-2026-11-05)
 
 ---
 
@@ -3180,6 +3185,165 @@ Copy this into a notes file and fill it in before touching a device.
 - [ ] No write test runs on the only copy of the music.
 - [ ] Every crash test ends with `fsck_hfs` reporting zero repairs.
 - [ ] Every claimed test has a recorded log.
+
+## Appendix I — Competitive horizon (2026-11-05)
+
+### I.1 Status and scope
+
+This appendix is a forward-looking addendum to revision 2. It was added on
+2026-11-05 after a review of the Rockbox iPod Classic manual, version
+`0d5c2b0604-261105` (built 2026-11-04). It does not change the original
+revision-2 source commit, the accepted decisions D-01–D-28, the 25 README goals,
+the phase table in §23 or any implementation status.
+
+The detailed comparison, feature matrix and evidence rules are in
+[`competitive-roadmap.md`](competitive-roadmap.md). This appendix records the
+design position in the paper itself so a future reader does not have to infer
+it from task rows.
+
+### I.2 The competitor in one paragraph
+
+Rockbox is mature and broad. On the iPod Classic it offers a large codec and
+container list, a file browser and database, playlists, bookmarks and resume,
+WPS/SBS themes, plugins, games, viewers, voice menus, many languages, USB mass
+storage and HID, car-adapter mode and a deep sound-processing menu. It also
+requires FAT32 on this target, installs through Rockbox Utility or a manual
+`mks5lboot` DFU flow, updates by unzipping a build, and documents no HFS+
+journal path, no signed update and no data checksum/scrub. Its Classic metadata
+budget is 1,800 bytes with a 500-byte item limit (manual Appendix B.2.3).
+
+Helikon-OS does not win by copying that catalogue. It wins by being safer and
+more coherent at the jobs a Classic owner actually has: install without
+reformatting, write native HFS+ through a journal, update with a signature,
+build a 10k-track library that survives a power cut, detect corruption, present
+a legible modern UI, and give the user a desktop app that can back up, tag,
+rate, install and restore.
+
+### I.3 Match, exceed, differ, decline
+
+Every competitive row gets one label; the full matrix is in the competitive
+roadmap. The design position is:
+
+| Dimension | Rockbox position | Helikon-OS position | Label |
+|---|---|---|---|
+| Filesystem | FAT32 only on the Classic | Native HFS+; FAT reported `NOT_HFS` | `differ` |
+| Install | Utility or manual DFU; FAT32 conversion | Guided macOS-native install; no reformat; backup/verify | `exceed` |
+| Dual boot/recovery | Bootloader can choose original firmware | Preserve Apple path; documented gesture; one-click restore | `match` |
+| Updates | Unzip; ROLO; no signature documented | Signed manifest; staged; fail-closed bootstate; recovery copy | `exceed` |
+| Crash consistency | No HFS+ journal path; no `fsck_hfs` gate | Journal/transaction engine; `fsck_hfs` zero repairs gate | `exceed` |
+| Library | On-device database; 1,800-byte metadata budget | Host-built index plus resumable device delta | `exceed` |
+| Playlists/resume | Mature | Same job; transactional state | `match` |
+| Codecs | 37 audio families (36 in Appendix B.1 plus Opus) | Tier 1 at v1; all 37 at v1.x; beyond-Rockbox only after measurement | `match` at v1.x |
+| Sound | Full DSP suite | Core at v1; advanced measured and off by default | `differ` |
+| Themes | Full WPS/SBS language | Native declarative theme plus documented WPS subset | `differ` |
+| Plugins/games | Native plugin catalogue | No native ABI; signed sandbox only | `decline`/`differ` |
+| Voice/languages | Voice menus, talk clips, many languages | Same plus large text/high contrast/localization pipeline | `match`/`exceed` |
+| USB | Writable LUN, HID | Read-only LUN, HID, framed service mode; no writable LUN | `differ` |
+| Desktop | Rockbox Utility | Full macOS-first backup/tag/rate/describe/install app | `exceed` |
+| Car | Car-adapter mode, line-out | Tier 1 plus optional Tier 2 subset | `match` |
+| Battery/RAM | Mature tuning | Published budgets and three-run baseline | `exceed` |
+| Devices | Several iPod models | 6G, then 7G after audit, then ports | `differ` |
+| Anti-corruption | Not documented | Checksum sidecar, verify-on-open, scrub, quarantine | `exceed` |
+| Privacy | Local player | No network/telemetry; host-side opt-in only | `match` |
+
+### I.4 Horizon lanes
+
+The phase table in §23 stays 0–12. The competitive work is grouped into lanes
+that start only after their dependency phase:
+
+| Lane | Starts after | Exit criterion |
+|---|---|---|
+| H1-A Install and recovery | Phase 4 + production handoff | Non-coder install, update, rollback and restore with no data loss |
+| H1-B Storage and safety | Phase 3 | Crash and adapter matrices pass; zero `fsck_hfs` repairs |
+| H1-C Library parity | Phase 4 | 10k tracks browse/resume; host/device parity |
+| H1-D Playback parity | Phase 1 + audio HAL | Tier 1 corpus, gapless and seek pass; no clipping |
+| H1-E UI parity | Phase 1 + renderer | 30 fps, <200 ms open, panel photos |
+| H1-F Desktop and USB | Phase 9 | Backup, import, tag, install and verify on macOS |
+| H2-A Data leadership | H1-B | Injected corruption detected; zero false OK; health report recorded |
+| H2-B Index leadership | H1-C | 10k build resumes at 25/50/75%; library doctor clean |
+| H2-C Audio leadership | H1-D | All 37 audio families (including Opus), advanced DSP, DAC/output measurements, safe per-output profiles |
+| H2-D Interface leadership | H1-E | 20 skins; voice, large-text and first-party utility tasks pass |
+| H2-E Ecosystem | H1-F | 500 episodes; 100 ignition cycles; migration verifies |
+| H2-F Release and support | H1-A | Signed train and published support window |
+| H3-A Sandbox | H2-D + H2-F | Escape, quota and crash-isolation tests pass |
+| H3-B Ports | H2-F + owner hardware | Board audit and per-target matrix |
+| H4 Continuous | Now | Matrix reviewed each phase; no stale claim |
+
+The lanes are defined in [`roadmap.md`](roadmap.md) and the tasks in
+[`tasks.md`](tasks.md) T-060–T-107.
+
+### I.5 Proposed decisions and tasks
+
+The addendum proposes 23 decisions, D-29–D-51, and 48 tasks, T-060–T-107. They
+are recorded in [`decisions.md`](decisions.md) and [`tasks.md`](tasks.md). The
+main decision clusters are:
+
+- **Scope:** D-29 (parity policy), D-34 (codec tiers), D-35 (DSP scope),
+  D-36 (theme/trust), D-48 (privacy).
+- **Audio:** D-34 (all 37 audio families, including Opus, by v1.x), D-49
+  (decoder provenance/licensing), D-50 (output ceiling/resampling), D-51
+  (metadata/artwork/gapless). The detailed inventory is in
+  [`audio-formats.md`](audio-formats.md).
+- **Install and recovery:** D-30 (install/dual boot), D-31 (update/recovery),
+  D-38 (USB/service mode).
+- **Data:** D-32 (VFS object semantics), D-33 (index), D-39 (anti-corruption),
+  D-42 (adapters).
+- **Experience:** D-37 (accessibility), D-40 (performance), D-41 (power).
+- **Platform and ecosystem:** D-43 (podcast), D-44 (sandbox), D-45 (migration),
+  D-46 (release/support), D-47 (ports).
+
+The manual section audit in [`competitive-roadmap.md`](competitive-roadmap.md)
+§12 found no critical untracked area after this pass. The remaining breadth
+gaps are display/startup settings (T-103), first-party utilities (T-104),
+device health and care (T-105), library doctor and smart navigation (T-106)
+and per-output profiles/hearing protection (T-107). The features Rockbox does
+not have are in §13 of the same document.
+
+None is accepted. An agent must not implement one as if it were settled, and
+must not describe a planned feature as working.
+
+### I.6 What “better” is allowed to mean
+
+A claim of improvement needs:
+
+1. a Rockbox baseline with version/commit, device, adapter, battery health and
+   the same media/settings;
+2. a Helikon-OS image hash and a recorded run;
+3. a metric that a third party can repeat;
+4. a stated range, not a single best run;
+5. a `not run` label when the evidence is missing.
+
+The project does not claim “better battery”, “better graphics”, “better
+database” or “better than Rockbox” until the relevant rows in
+[`validation.md`](validation.md) or [`device-matrix.md`](device-matrix.md)
+exist. The v1 threshold in the competitive roadmap is the minimum bar for
+calling Helikon-OS a Rockbox alternative at all.
+
+### I.7 What this addendum does not change
+
+- It does not change the 25 README goals or mark any goal met.
+- It does not change the phase table, phase gates or critical path.
+- It does not accept D-29–D-51.
+- It does not add a FAT fallback, a writable USB LUN, a native plugin ABI or a
+  full WPS engine.
+- It does not authorize a 7G port, a library write or a device run.
+- It does not use Rockbox code, themes, fonts or artwork. The manual is a
+  competitor reference, not a source of assets.
+
+### I.8 Sources
+
+- *Rockbox Manual for iPod Classic*, version `0d5c2b0604-261105`, 2026-11-04,
+  §2–§13 and Appendices A–G (competitor reference; not bundled).
+- [`competitive-roadmap.md`](competitive-roadmap.md) — full matrix and evidence
+  protocol.
+- [`audio-formats.md`](audio-formats.md) — 37-format inventory, decoder
+  architecture, 6G ceiling and corpus.
+- [`decisions.md`](decisions.md) — D-29–D-51.
+- [`tasks.md`](tasks.md) — T-060–T-107.
+- [`roadmap.md`](roadmap.md) — horizon lanes and v1 threshold.
+- [`goals.md`](goals.md) — the 25 owner goals.
+- [`validation.md`](validation.md) and [`device-matrix.md`](device-matrix.md) —
+  where evidence must be recorded.
 
 ## Closing
 

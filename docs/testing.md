@@ -35,7 +35,7 @@ Helikon-OS validation.
 | Battery/RAM | Runtime, sleep drain, peak RAM, soak | Device/rig | `not run` | Goal 1/4, D-12 |
 | Skin corpus | 20 skins, tags, frame/memory caps, fallback | Device | `not run` | Goal 3, D-10 |
 | App sandbox | Permissions, quotas, escape, crash isolation | Device | `not run` | Goals 15/18, D-08 |
-| Desktop app | Import/tag/rate/scrobble/install/backup, failed transfer | macOS first | `not run` | Goal 20, D-09 |
+| Desktop app | Import/tag/rate/scrobble/install/backup, failed transfer | macOS first | `in progress` — 21 host core tests and release build pass; full macOS task matrix not run | Goal 20, D-09 |
 | Car/receiver | Line-out, charging, resume, ignition, Tier 2 controls | Device + receiver | `not run` | Goal 23, D-14 |
 | Update/rollback | Bad image rejection, staging cut, rollback, version/hash | Device | `not run` | Goal 9, D-01/D-16/D-20 |
 
@@ -274,7 +274,7 @@ partition scan, HFS+ probe, read one known file, input, bootstate promotion,
 browser, first UI, first audio. A rung is not skipped because a host test
 passes. The F1 image `d7916411…` is built and host-verified and has one
 owner-reported 6G device run (2026-11-04), accepted as the T-054 gate. The F2
-image `5e14793f…` is host-verified but has no device run;
+image `f33f2791…` is host-verified but has no device run;
 [`f2-bootstate-test.md`](f2-bootstate-test.md) is its runbook.
 
 ## 6. Device tests

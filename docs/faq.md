@@ -3,16 +3,17 @@
 > Purpose: answer common questions honestly, with the design-stage boundary.
 > Status: living document
 > Owner: docs lead; project owner
-> Last updated: 2026-11-03
-> Source: design paper Appendix G, §28; root `README.md`
+> Last updated: 2026-11-05
+> Source: design paper Appendix G, §28; root `README.md`;
+> [`competitive-roadmap.md`](competitive-roadmap.md)
 
 ## Can I build Helikon-OS today?
 
-No firmware. There is no flashable bootloader image, kernel or installer. A
-host HFS+ read core and a read-only diagnostic bootloader core exist with host
-tests, but that is not bootable firmware. You can build and test the donor project
-today in a separate checkout and follow the paper's assembly plan; that is not
-Helikon-OS firmware.
+No firmware release. Diagnostic bootloader images, a separate loader test image
+and the F1/F2 development firmware sources exist; there is no production
+firmware, kernel, installer or release. The diagnostic images are not a support
+claim. You can build and test the donor project today in a separate checkout and
+follow the paper's assembly plan; that is not Helikon-OS firmware.
 
 ## Do I need to be a programmer?
 
@@ -26,6 +27,27 @@ The first target is the iPod Classic 6G. The 7G is the next named port and
 requires a board audit before support is claimed. Other iPods and players are
 ports, not launch promises. No device is supported until a recorded run is in
 `docs/device-matrix.md`.
+
+## How is Helikon-OS different from Rockbox?
+
+Rockbox is mature and broad; Helikon-OS is early and deliberately narrower. The
+main design differences are native HFS+ instead of FAT32, journaled
+transactional writes, signed staged updates, a host-built plus resumable library
+index, data checksums and scrub, a modern first-party UI, a desktop app and a
+sandboxed extension model. The comparison, including what Rockbox does better
+today, is in [`competitive-roadmap.md`](competitive-roadmap.md). None of this is
+a “better than Rockbox” claim until the differential evidence exists.
+
+## Will it play everything Rockbox plays?
+
+Audio: yes, by v1.x. The plan requires all 37 audio format families documented
+in or by the Rockbox iPod Classic manual: 36 in Appendix B.1, plus Opus. v1 ships eight core families
+(MP3, AAC-LC, ALAC, FLAC, WAV, AIFF, Vorbis and Opus); v1.x adds the rest,
+including AC3, WMA, APE, DSD, chiptune and tracker families. APE above
+`-c1000` is best-effort because the 6G is not fast enough for the highest
+profiles. Video, images, native Rockbox plugins and games are separate scopes
+and are not promised. The detailed matrix is in
+[`audio-formats.md`](audio-formats.md).
 
 ## Will it erase my music?
 
@@ -70,6 +92,36 @@ No. Legacy plugins expose raw hardware and are excluded. "Custom game/applicatio
 support" means a new sandboxed runtime with permissions and quotas, not binary
 compatibility with Rockbox plugins or games.
 
+## What utilities are built in?
+
+The critical first-party set is planned: clock, alarm, sleep timer, stopwatch,
+countdown, calendar, calculator, text editor/reader, image viewer, metronome,
+pitch detector, synced lyrics, play-history stats, battery benchmark, disk tidy,
+search and sort. Optional games, emulators, paint, OTP and similar tools stay in
+the sandbox rather than becoming native plugins. None of this exists yet; the
+plan is T-104.
+
+## Can it scan or repair my library?
+
+It will offer a **read-only health scan** and a library doctor: journal/B-tree/
+bitmap/extents checks, checksum mismatches, duplicate files, missing tags and
+corrupt media are reported with a safe recommendation. It does not auto-repair,
+auto-delete or run a “scandisk” that rewrites metadata. Repair comes from a
+backup, a known-good copy or the host app. See T-105/T-106.
+
+## Can I jump to a letter in a long list?
+
+That is planned. Rockbox explicitly declines list-letter jumping; Helikon-OS
+will use the host index for an alphabet strip and type-ahead, plus saved
+searches and smart playlists. It is a differentiator, not a Rockbox feature.
+
+## Does it show battery and storage health?
+
+Planned: battery health/cycles/voltage/temperature, storage identify/SMART,
+SD/CF wear, free space, journal/fsck/checksum status, last backup and firmware
+versions, with an exportable diagnostics bundle. These are reports, not
+unmeasured battery or lifespan promises. See T-105.
+
 ## Is there a desktop app?
 
 Planned, not built. macOS first, because it can write HFS+ in Disk Mode.
@@ -103,8 +155,8 @@ Repair comes from a backup or a known-good copy. Silent "repair" is not a featur
 
 For a library you care about, yes. The release design writes journaled HFS+. A
 non-journaled volume is a prototype path on disposable data only, because a
-power loss can require `fsck_hfs`. Journal strategy/ownership are open decisions
-(D-03/D-04).
+power loss can require `fsck_hfs`. Journal strategy and ownership are accepted
+decisions (D-03/D-04); the device power-cut matrix is still `not run`.
 
 ## What happens if a write is interrupted?
 

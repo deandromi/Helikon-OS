@@ -3,7 +3,7 @@
 > Purpose: the latest session handoff and the reusable template.
 > Status: living document
 > Owner: session author; next agent reads this first
-> Last updated: 2026-11-04
+> Last updated: 2026-11-05
 > Source: `docs/state.md`, `docs/tasks.md`, repository history
 
 Keep the newest handoff at the top. Move older entries to `docs/log/` when this
@@ -11,12 +11,145 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-05 (full manual coverage audit)
+
+## What happened
+
+- Read the Rockbox iPod Classic manual section by section, including the
+  installation/update, file browser/context menu/virtual keyboard, database,
+  WPS, playlists/queue, hotkeys/quick screen/shortcuts, sound, playback,
+  general/display/system/startup/bookmark/voice settings, themes, time/date,
+  plugins/apps/viewers, advanced UI/theme/`.cfg`/ROLO/battery chapters and
+  Appendices A–G.
+- Added a **section-by-section coverage audit** to
+  [`competitive-roadmap.md`](competitive-roadmap.md) §12 and a **features
+  Rockbox does not have** section in §13.
+- The audit found no critical untracked area after the pass. Remaining breadth
+  gaps are now T-103 (display/startup settings), T-104 (first-party utilities),
+  T-105 (device health), T-106 (library doctor/smart navigation) and T-107
+  (per-output profiles/hearing protection).
+- Expanded T-093 (queue/playlist viewer/bookmarks/auto-resume), T-094 (file
+  operations/keyboard/hotkeys/shortcuts/main menu), T-095 (full settings
+  inventory/`.cfg`/rollback), T-072 (theme settings), T-074 (voice/talk clips)
+  and T-075 (RTL/runtime language).
+- Updated the roadmap lanes, differentiation bets, validation rows, FAQ,
+  state, README, file-map, firmware-architecture module table and design-paper
+  Appendix I.
+- The audit is a plan; no utility, page, setting or health feature exists.
+
+## What is next
+
+1. Owner reviews D-29/D-34/D-49–D-51 and the T-103–T-107 scope.
+2. Start T-094/T-093 with the existing UI/library tasks once the writer line
+   allows; T-103–T-107 are H2 breadth and do not jump the queue.
+3. Keep recording/FM/line-in marked `N/A`; do not add native plugin or video
+   parity.
+
+## Do not claim
+
+- That every Rockbox feature is implemented or that Helikon-OS has full parity.
+- That the new utilities, device health, library doctor or per-output profiles
+  exist.
+- That the manual audit is device evidence or that it changes an accepted
+  decision.
+
+---
+
+# Handoff — 2026-11-05 (audio-format parity plan)
+
+## What happened
+
+- Reviewed the Rockbox iPod Classic manual Appendix B.1–B.2 and §7.21, the
+  Rockbox 2014 iPod Classic codec benchmark (`b320bba`, 216/54 MHz), Apple’s
+  6G audio specification, the Rockbox `ipod6g.h` platform limits and the
+  CS42L55 codec metadata.
+- Added [`audio-formats.md`](audio-formats.md): all **37 audio format families
+  (36 in Appendix B.1 plus Opus)**, the measured 6G decode costs, the 24-bit/48 kHz-class
+  codec ceiling, Tier 1 (v1), Tier 2 (full Rockbox audio parity at v1.x) and
+  Tier 3 (beyond Rockbox, measurement-gated), plus decoder architecture,
+  metadata/artwork rules and the test corpus.
+- Revised D-34 so Tier 2 is a hard v1.x parity requirement, not an optional
+  subset. Added D-49 (decoder provenance/licensing), D-50 (output ceiling and
+  resampling) and D-51 (metadata/artwork/gapless).
+- Added T-096–T-102 (all `planned`): corpus/provenance, codec framework, output
+  ceiling, metadata, gapless/seek/resume, benchmarking and Tier 3 evaluation.
+  T-068/T-069 now cover the Tier 1 and Tier 2 implementations.
+- Updated [`roadmap.md`](roadmap.md), [`tasks.md`](tasks.md),
+  [`decisions.md`](decisions.md), [`competitive-roadmap.md`](competitive-roadmap.md),
+  [`validation.md`](validation.md), [`faq.md`](faq.md), [`state.md`](state.md),
+  [`README.md`](README.md), [`file-map.md`](file-map.md),
+  [`firmware-architecture.md`](firmware-architecture.md) and
+  [`design-paper.md`](design-paper.md).
+
+## What is next
+
+1. The owner reviews D-34 and D-49–D-51. No decoder work starts until they are
+   accepted or narrowed.
+2. Start T-096 (corpus/provenance) and T-097 (codec framework) after D-34 is
+   accepted. T-098 (output ceiling) needs the audio measurement rig.
+3. The writer line (T-055/F2 → T-051) remains ahead of any audio device testing.
+
+## Do not claim
+
+- That Helikon-OS plays any Rockbox audio format today.
+- That the 6G supports native 24/96, native DSD or “hi-res” output.
+- That the 2014 Rockbox benchmark is Helikon-OS evidence.
+- That D-34 or D-49–D-51 are accepted owner decisions.
+- That Tier 2 parity is complete; no decoder and no corpus exist yet.
+
+---
+
+# Handoff — 2026-11-05 (competitive horizon planning)
+
+## What happened
+
+- Reviewed the official *Rockbox Manual for iPod Classic*, version
+  `0d5c2b0604-261105` (2026-11-04, 285 pages), for the competitor’s documented
+  features, install model, filesystem support, metadata limits, sound/playback,
+  themes, plugins, USB, power and accessibility.
+- Added [`competitive-roadmap.md`](competitive-roadmap.md): a Rockbox parity
+  matrix with `match`/`exceed`/`differ`/`decline` labels, 12 leadership bets,
+  horizon lanes H1–H4, a v1 “no-regret” threshold, explicit declines, a
+  differential evidence protocol and design sketches for the installer, update
+  state machine, library index, checksum sidecar, service mode, theme package
+  and sandbox capabilities.
+- Extended [`roadmap.md`](roadmap.md) with the competitive baseline, horizon
+  lanes and differentiation bets; extended [`tasks.md`](tasks.md) with
+  T-060–T-095 (all `planned`); extended [`decisions.md`](decisions.md) with
+  D-29–D-48 (all `proposed`) and C-11.
+- Added Appendix I to [`design-paper.md`](design-paper.md) as a forward addendum
+  that does not change revision 2 or the accepted decisions D-01–D-28.
+- Updated [`README.md`](README.md), [`file-map.md`](file-map.md) and added
+  [`log/2026-11-05.md`](log/2026-11-05.md).
+- Host checks still pass: `make -C tests/hfsplus test`,
+  `make -C tests/bootloader test` and `make -C tests/firmware test` all exited
+  0. This is docs-only; no device run was made.
+
+## What is next
+
+1. The owner reviews D-29–D-48 and accepts, narrows or rejects them. They remain
+   `proposed`; none is a release gate.
+2. If D-29 is accepted, start T-060 (parity scorecard) and T-061 (differential
+   harness) against a pinned Rockbox baseline.
+3. Keep the writer line ahead of every H1 task. F2/T-055 still needs its 6G run;
+   T-051 still needs the production handoff.
+
+## Do not claim
+
+- That Helikon-OS matches or beats Rockbox. No differential run exists.
+- That any T-060–T-095 feature is implemented.
+- That D-29–D-48 are accepted owner decisions.
+- That the competitive matrix is a support list or a device matrix.
+- That the Rockbox manual is Helikon-OS evidence or a source of assets.
+
+---
+
 # Handoff — 2026-11-04 (F2 implementation, host-verified)
 
 ## What happened
 
-- Implemented T-055/F2 on branch `firmware/f2-bootstate` (not merged or pushed
-  in this session).
+- Implemented T-055/F2 on branch `firmware/f2-bootstate`; this record is carried into
+  `main` before the F2 device gate.
 - Added real ATA PIO write and cache flush, with a board-level write gate that
   stays closed until the read-only self-test, a clean journal and a matching
   bootstate have passed.
@@ -34,6 +167,40 @@ file grows. Do not rely on chat history for current state.
   started at `0x08800000`, zeroed the active LCD DMA buffers and blanked the
   display immediately after the jump. The linker now asserts
   `__bss_start >= 0x08890000`.
+- Made the PMU interrupt-latch clear best-effort. The device probe reported
+  `STAGE 49` (the latch-clear step) with `-1`; the mask registers are already
+  set, so a failed latch read no longer fails `helikon_pmu_init` and blocks
+  backlight init.
+- Made the ATA write-cache hint (`SET FEATURES 0x02`) best-effort. The iFlash
+  SD bridge rejects it with `-1`; storage bring-up now continues, and the
+  journal still requires a successful cache flush before commit.
+- Made the redundant PMU HDD-enable write best-effort. The loader has already
+  powered the disk to read the image; a failed warm-PMU enable write must not
+  fail storage bring-up before ATA identify runs.
+- Tried and then removed a warm ATA path. The ATA step probe showed `HDD 0`,
+  stage 2 and `IDENTIFY -1` on both the first and retry attempts, with zero ID
+  words: the controller reset left the iFlash SD bridge unable to answer
+  IDENTIFY. The warm IDENTIFY on the loader's still-configured controller also
+  failed, so it was removed; the loader handoff is PIO-only.
+- Implemented the adopt path. F2 reads sector 0 on the loader's live
+  controller before any reset, skips IDENTIFY, and falls back to the donor
+  reset only when there is no live handoff. PMU preinit no longer clears
+  AUTOENA, so the loader's HDD power stays up. If the loader did power ATA
+  down, adopt re-enables `ATA_CONTROL`, restores the rail and waits 2 s. When
+  a soft enable never raises PIO ready, a second phase runs the controller
+  reset without IDENTIFY and reads sector 0. The
+  adopt read also probes LBA48. The normal F2 image is `f33f2791…` (76,160
+  bytes); the ATA adopt probe is `beec14c2…` (77,136 bytes). Device result
+  pending.
+- Fixed the handoff boundary: the loader test image now builds with ATA DMA
+  disabled and leaves the controller active before the jump, so F2 does not
+  have to recover a DMA session. The current loader build is `8f80e40d…`
+  (106,088 bytes); the earlier device-tested loader `6bc6927c…` still used
+  ATA DMA.
+- Matched the donor IDENTIFY sequence: wait for `!BSY`, issue IDENTIFY, wait
+  for DRQ, read the ID table, and do not require DRDY before the command or a
+  post-transfer end status. The previous driver waited for DRDY/end, which this
+  iFlash SD bridge does not assert in the handoff state.
 - Added `tests/firmware/test_bootstate`, the writable/unaligned block tests,
   `tests/image/f2_host.c`, `tests/image/run-f2-macos.sh`, the overwrite crash
   scenario and `tools/check-f2-artifact.sh`.
@@ -44,7 +211,8 @@ file grows. Do not rely on chat history for current state.
 ## Evidence
 
 ```text
-F2 image:       75,472 bytes, SHA-256 5e14793f…
+F2 image:       76,160 bytes, SHA-256 f33f2791…
+F2 ATA probe:  77,136 bytes, SHA-256 beec14c2…
 BSS:            0x08890000..0x08922e60 (loader scratch reserved below)
 bootstate:      TRYING, sequence 1
 host groups:    10, sanitizer-clean
@@ -75,10 +243,9 @@ crash matrix:   overwrite covered 22 write cuts + flush + partial modes;
 
 ---
 
-# Handoff — 2026-11-04 (F1 device run accepted)
+---
 
-> Superseded by the F2 implementation handoff above; the F1 run is still the
-> accepted T-054 gate.
+# Handoff — 2026-11-04 (F1 device run accepted)
 
 ## What happened
 
@@ -107,8 +274,7 @@ crash matrix:   overwrite covered 22 write cuts + flush + partial modes;
   post-run `fsck_hfs -fn` output were not attached to this repository.
 - The image is signed with the development loader test key, not a release key;
   it is not a product or a release.
-- F3–F5 are not implemented; F2 is host-verified but has no device run. There
-  is no firmware support claim.
+- F2–F5 are not implemented; there is no firmware support claim.
 
 ---
 

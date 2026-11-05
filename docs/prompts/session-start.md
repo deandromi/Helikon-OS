@@ -294,7 +294,7 @@ Active task: T-055 / F2 — bootstate promotion
 Why this task: P0; first firmware write; follows the completed F1 gate
 Dependencies: T-054 done; D-02; hfs_txn/hfs_journal host-tested
 Blocked by: owner authorization for the first firmware write
-Last evidence: F1 d7916411… owner-reported 6G run; F2 5e14793f… host-verified,
+Last evidence: F1 d7916411… owner-reported 6G run; F2 f33f2791… (76,160 bytes) host-verified,
               artifact promotes TRYING→GOOD and loader sees GOOD; no F2 device run
 In scope: F2 6G run, clean fsck_hfs, next loader boot GOOD, device power-cut
 Out of scope: VFS, browser, UI, audio, USB, database, update
