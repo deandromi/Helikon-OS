@@ -57,6 +57,11 @@ wordmarks and headers under D-52. The owner supplied the files locally:
 | `BenguiatStd-Book.otf` | Launcher labels 13 px; index sections 20 px and numerals 12 px; album-wall title 18 px |
 | `BenguiatStd-Bold.otf` | Not used by the current mockups |
 
+The firmware launcher includes a locally rasterized `HELIKON-OS` wordmark
+generated from `BenguiatStd-Medium.otf` by `tools/make-launcher-assets.py`, at
+the owner's direction. The output is a fixed RGB565 image; the `.otf` remains
+uncommitted and is not redistributed.
+
 These files are proprietary Monotype font software. They are **not committed**
 to this repository, not redistributed and must not be extracted from rendered
 PNGs. The host renderer reads them via `BENGUIAT_DIR` (default:

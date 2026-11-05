@@ -2,11 +2,12 @@
 
 > Purpose: install and run the read-only firmware-loader test image on an iPod
 > Classic 6G, record the result, and recover.
-> Status: current PIO-only build `8f80e40d…` is host-verified, not
-> device-tested. The last device-tested image is final-splash `6bc6927c…`
-> (one 6G/iFlash SD, 6.5 s startup, `fsck_hfs -fn` clean). Build `8f80e40d…`
-> disables ATA DMA and leaves the controller active before the jump, so the
-> firmware's PIO init does not have to recover a DMA session.
+> Status: current PIO-only build `be16dd59…` (105,704 bytes) is host-verified,
+> not device-tested. The last device-tested image is final-splash `6bc6927c…`
+> (one 6G/iFlash SD, 6.5 s startup, `fsck_hfs -fn` clean). The success path no
+> longer shows the firmware confirmation or "Executing signed test payload"
+> screens and has no fixed delay: it jumps as soon as verification completes.
+> ATA DMA is disabled and the controller is left active before the jump.
 > Owner: boot lead
 > Last updated: 2026-11-04
 > Source: D-01, D-02, T-049; [`LOADER.md`](LOADER.md), [`DFU.md`](DFU.md)

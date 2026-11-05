@@ -174,14 +174,17 @@ The Music cell opens the library root; the album wall can be one of its views.
 
 `firmware/ui/launcher.c` composes the launcher from precomputed RGB565 tiles;
 `tools/make-launcher-assets.py` generates them from the same
-`tools/render-ui-mockup.py` icon and layout code. The firmware uses the tracked
-IBM Plex Sans fallback for the wordmark and labels; it does not embed or
-redistribute the external Benguiat face. The folio, wordmark, divider, six
-icons and six labels are opaque tiles. The accent plinths, the selected cell's
-apex diamond and the 2 px label underline are drawn at runtime.
+`tools/render-ui-mockup.py` icon and layout code. The HELIKON-OS wordmark is
+rasterized from the owner-supplied ITC Benguiat Medium face at the owner's
+direction; the `.otf` is not committed. Labels use the tracked IBM Plex Sans
+fallback. The folio, wordmark, divider, six icons and six labels are opaque
+tiles. The accent plinths, the selected cell's apex diamond and the 2 px label
+underline are drawn at runtime.
 
 The wheel and left/right move the focus row-major through the six cells with
-wrap. SELECT or MENU exits; the diagnostic image powers off after 60 s idle.
+wrap. SELECT or PLAY opens a labelled placeholder app screen; MENU or SELECT
+returns to the launcher, and MENU on the launcher exits. The diagnostic image
+powers off after 60 s idle.
 
 ```sh
 make -C firmware BOARD=6g VERSION=10 BOOTSTATE_STATE=good UI=1 \
