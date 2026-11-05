@@ -512,6 +512,54 @@ int helikon_ata_init(struct helikon_ata *ata, struct helikon_pmu *pmu,
 }
 
 #ifdef HELIKON_DIAG_ATA_PROBE
+int helikon_ata_early_probe(struct helikon_ata *ata, uint32_t timeout_ms,
+                            struct helikon_ata_early *early)
+{
+    if (ata == NULL || early == NULL || ata->clock == NULL ||
+        !ata->clock->initialized)
+        return HELIKON_ERR_ARGUMENT;
+
+    early->rc = HELIKON_ERR_IO;
+    early->stage = 0;
+    early->lba48 = 0;
+    early->csd = 0;
+    early->dad = 0;
+    early->ready = 0;
+    ata->identify_valid = 0;
+    ata->sector_size = 0u;
+    ata->total_sectors = 0u;
+    ata->lba48 = 0;
+    ata->can_flush = 0;
+    ata->powered = 0;
+    ata->initialized = 0;
+
+    /* Same soft enable as adopt phase A, with no PMU or reset. */
+    S5L_PCON(7) = 0x44444444u;
+    S5L_PCON(8) = 0x44444444u;
+    S5L_PCON(9) = 0x44444444u;
+    S5L_PCON(10) = (S5L_PCON(10) & ~0xffffu) | 0x4444u;
+    S5L_PWRCON(S5L_CLOCKGATE_ATA >> 5) &=
+        ~(1u << (S5L_CLOCKGATE_ATA & 0x1fu));
+    S5L_ATA_CONTROL = 1u;
+    helikon_clock_delay_us(ata->clock, 200000u);
+    S5L_ATA_PIO_TIME = 0x191f7u;
+    S5L_ATA_PIO_LHR = 0u;
+    S5L_ATA_CFG = 1u << 6;
+
+    early->stage = 1;
+    int rc = ata_wait_ready_bits(ata, 0x2u, timeout_ms);
+    if (rc == HELIKON_OK) {
+        early->stage = 2;
+        rc = ata_adopt_read(ata, timeout_ms);
+        early->lba48 = ata->lba48;
+    }
+    early->rc = rc;
+    early->ready = S5L_ATA_PIO_READY;
+    early->csd = (uint16_t)(S5L_ATA_PIO_CSD & 0xffffu);
+    early->dad = (uint16_t)(S5L_ATA_PIO_DAD & 0xffffu);
+    return rc;
+}
+
 static void ata_probe_reset(struct helikon_ata *ata)
 {
     ata->identify_valid = 0;

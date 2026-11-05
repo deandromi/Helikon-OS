@@ -703,6 +703,17 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
     int rc = helikon_board_clock_init(&ctx->board, BOOT_CLOCK_TIMEOUT_MS);
     if (rc != HELIKON_OK)
         boot_fail(ctx, HELIKON_STAGE_PMU, rc, "The clock did not start.");
+#ifdef HELIKON_DIAG_ATA_PROBE
+    /*
+     * Earliest handoff test: one soft ATA sector read before PMU, backlight
+     * or LCD. A failure here means the loader left the bus dead; a success
+     * means F2's later init (or the reset path) is what breaks it.
+     */
+    struct helikon_ata_early early_ata;
+    ctx->board.ata.clock = &ctx->board.clock;
+    ctx->board.ata.pmu = NULL;
+    (void)helikon_ata_early_probe(&ctx->board.ata, 800u, &early_ata);
+#endif
     helikon_trace_add(&ctx->trace, HELIKON_TRACE_INFO, HELIKON_TRACE_HAL,
                       0x2000u, (uint32_t)helikon_cpu_control(), 0u);
 
@@ -995,6 +1006,8 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
     helikon_strlcpy(ata_line, "LOADER ", sizeof(ata_line));
     text_append(ata_line, sizeof(ata_line),
                 handoff == HELIKON_HANDOFF_MARKER ? "V1 PIO" : "OLD/NONE");
+    text_append(ata_line, sizeof(ata_line), " E");
+    append_i32(ata_line, sizeof(ata_line), early_ata.rc);
     helikon_screen_text(&ctx->screen, 16, 192, 2, ata_line);
     helikon_strlcpy(ata_line, "RESULT ", sizeof(ata_line));
     text_append(ata_line, sizeof(ata_line),
