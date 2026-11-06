@@ -52,19 +52,11 @@ struct SplashView: View {
                         .font(HFont.body(13))
                         .foregroundStyle(HColor.muted)
 
-                    HStack(spacing: 10) {
-                        Button("Open companion") {
-                            model.dismissSplash()
-                        }
-                        .buttonStyle(PrimaryButtonStyle())
-                        .keyboardShortcut(.defaultAction)
-
-                        Button("Add music…") {
-                            model.chooseAudioFiles()
-                            model.dismissSplash()
-                        }
-                        .buttonStyle(SecondaryButtonStyle())
+                    Button("Open companion") {
+                        model.dismissSplash()
                     }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .keyboardShortcut(.defaultAction)
                     .padding(.top, 8)
                 }
                 .padding(.top, 26)

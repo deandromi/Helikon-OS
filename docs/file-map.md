@@ -160,11 +160,11 @@ Helikon-OS/
     test_launcher.c         launcher render and checks
     test_music.c            music-browser render against the fixture HDB
   tools/hdb_build.py        HelikonDB reference builder and inspector
-  tools/desktop/            macOS companion app (SwiftPM, host only, in progress)
-    Sources/CompanionCore/   testable device, library, metadata, transfer and scrobble services
-    Sources/HelikonCompanion/ SwiftUI app shell, screens and welcome splash
+  tools/desktop/            macOS companion shell (SwiftPM, no feature modules)
+    Sources/HelikonCompanion/App/       app entry, splash state and empty shell
+    Sources/HelikonCompanion/Design/    paper/ink palette and button styles
+    Sources/HelikonCompanion/Features/ welcome splash only
     Sources/HelikonCompanion/Resources/ owner poster crop for the welcome screen
-    Tests/CompanionCoreTests/ 21 host tests
     scripts/                 app bundle and icon generation
   docs/
     README.md               documentation index and reading order
@@ -268,7 +268,7 @@ tools/
   podcast/                  host feed fetch and episode sync
   migrate/                  donor overlay and Rockbox/Apple importer
   installer/                guided install, backup, verification
-  desktop/                  macOS-first desktop app; MVP now in the current tree
+  desktop/                  macOS-first desktop app; shell now in the current tree
   service/                  framed USB service-mode host driver
 tests/
   fixtures/                 deterministic HFS+ images and trees
@@ -294,7 +294,7 @@ is created; do not let it drift.
 | `assets/branding/` | Owner-supplied Helikon-OS poster and branding notes | owner/branding | `assets/branding/README.md` | image opens, README embed resolves | Do not replace the poster without owner approval |
 | `assets/startup/` | 320×240 startup crop for the iPod screen | boot/UI | `assets/branding/README.md` | exact 320×240, no writes in future display path | Not wired into firmware yet; do not claim it displays |
 | `assets/fonts/` | Licensed IBM Plex Sans and Manrope subsets; owner-supplied Benguiat for the home/album concepts | UI lead | `assets/fonts/README.md` | OFL present, hashes match, host mockup renders | Do not commit the Benguiat `.otf` files; do not use the IBM Plex reserved name for a modified subset |
-| `assets/ui/` | Host 320×240 UI mockups: typography, launcher/index home concepts and three content walls | UI lead | `assets/ui/README.md`, `docs/ui.md`, D-52 | five 320×240 1× frames and 2× previews, no clipping, regeneration needs `BENGUIAT_DIR` | Host artifacts only; the owner chose the launcher; the walls are browsers, not home candidates |
+| `assets/ui/` | Host 320×240 UI mockups: typography, home concepts, three content walls and album/artist detail views | UI lead | `assets/ui/README.md`, `docs/ui.md`, D-52 | seven concept 1× frames and 2× previews, no clipping, regeneration needs `BENGUIAT_DIR` | Host artifacts only; the owner chose the launcher; walls and detail views are not home candidates |
 | `docs/` | Agent documentation | docs lead | `docs/conventions.md` | `git diff --check`, link check | One canonical file per topic; no duplicate `agent.md`/`decision-log.md` |
 | `docs/f2-bootstate-test.md` | F2 build, host gates and 6G bootstate runbook | firmware/test lead | T-055, D-02, `docs/hfsplus-write-engine.md` | host artifact check, clean `fsck_hfs`, next loader `GOOD`, device power-cut | Writes only `/.helikon/bootstate`; no other file; no device run yet |
 | `bootloader/` | Diagnostic core and splash exist; hardware entry/manifest still planned | boot lead | `bootloader/README.md`, `docs/architecture.md`, paper §5, §16 | 7 host tests; device tests planned | No filesystem writes; no overlay; no `--single`; no write modules linked; not flashable yet |
@@ -329,7 +329,7 @@ is created; do not let it drift.
 | `tools/db/` | Host database builder | database lead | paper §12, §28.4.1 | 10k-track parity | No on-device claim without device evidence |
 | `tools/migrate/` | Donor overlay exporter | migration lead | paper §22 | fixture/hash/verify tests | Host-side only; never a runtime overlay; never overwrite silently |
 | `tools/installer/` | Guided install, backup, model checks | release lead | paper §28.4.3, `docs/release.md` | clean-device install, recovery | No `--single`; no format as first response; backup first |
-| `tools/desktop/` | macOS-first companion app, SwiftPM target | host lead | [`companion-app.md`](companion-app.md), paper §28.4.2, D-09 | `swift test`, release build; task matrix not run | No silent overwrite; host scrobbling opt-in; no installer claim; no secrets |
+| `tools/desktop/` | macOS companion shell after the 2026-11-06 reset | host lead | [`companion-app.md`](companion-app.md), paper §28.4.2, D-09 | release build; no test target yet | No feature code, device access, network or installer claim; no generated artwork |
 | `tests/` | Host volume/B-tree, disposable-image, Unicode and crash fixtures now; fuzz/model/device planned | test lead | `docs/testing.md`, `docs/fixtures.md`, `docs/validation.md` | all layers | No proprietary themes/art/fonts; no personal data; no disk images in repo |
 | `docs/adr/` | Long-form decisions | docs lead | `docs/decisions.md` | review | Only for decisions too large for `decisions.md`; do not duplicate |
 | `docs/log/` | Dated work logs | docs lead | `docs/log/TEMPLATE.md` | review | One file per active day/session; no secrets |

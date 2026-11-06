@@ -3,11 +3,46 @@
 > Purpose: the latest session handoff and the reusable template.
 > Status: living document
 > Owner: session author; next agent reads this first
-> Last updated: 2026-11-05
+> Last updated: 2026-11-06
 > Source: `docs/state.md`, `docs/tasks.md`, repository history
 
 Keep the newest handoff at the top. Move older entries to `docs/log/` when this
 file grows. Do not rely on chat history for current state.
+
+---
+
+# Handoff — 2026-11-06 (companion app reset)
+
+## What happened
+
+- Owner-directed reset: removed the complete speculative companion feature set
+  and the sidebar navigation. The app is now a welcome screen and an empty shell.
+- Deleted `CompanionCore`, all feature views, the settings/install/scrobble/
+  podcast/audiobook/transfer/library/metadata surfaces and the 21 core tests.
+- Kept the owner banner crop and the welcome screen, reduced to Open companion.
+- The shell has a brand-only sidebar and an empty-state page. It does not
+  enumerate or read a volume, does not use the network and does not write.
+- Updated [`../docs/companion-app.md`](../docs/companion-app.md),
+  [`../tools/desktop/README.md`](../tools/desktop/README.md), the state row,
+  T-083, the desktop test row and the file map.
+- Evidence: `swift build` and `swift build -c release` pass; the app bundle
+  builds and contains the welcome banner; host screenshots of the welcome screen
+  and empty shell were reviewed.
+
+## What is next
+
+1. Write the companion capability inventory against the current Helikon-OS
+   surface: launcher, read-only library, HelikonDB and diagnostics.
+2. Add one honest host capability with a small test target instead of restoring
+   the deleted feature list.
+3. Keep the splash and shell as the visual base.
+
+## Do not claim
+
+- That library, metadata, transfer, podcast, audiobook, scrobble or install
+  functionality exists; the code was deliberately removed.
+- That the shell has been run against a device.
+- That this reset is a release or support claim.
 
 ---
 
@@ -187,6 +222,10 @@ file grows. Do not rely on chat history for current state.
     a latest-episode caption.
   - **Audiobook wall** — the same wall for books, with author, duration and
     reading-progress caption.
+  - **Album view** — sleeve, year/rating, title, artist, genre, play and
+    Tracks/Notes/Credits tabs with a three-row visible track list.
+  - **Artist view** — plum portrait band, name, genre, play and
+    Overview/Albums/Tracks tabs with biography and facts.
 - All three use the off-white palette and 1 px rules. Home concepts have no
   now-playing hero, strip, progress bar or green playback dot.
 - Headers use the owner-supplied ITC Benguiat Std; body text remains IBM Plex
