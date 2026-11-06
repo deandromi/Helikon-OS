@@ -13,7 +13,7 @@ A new bootloader and firmware for the iPod Classic 6th and 7th Generation create
 - [ ] Improved support for iFlash and other adapters
 - [X] Improved database building on iPods (database building will happen in the companion app)
 - [X] Keeping this open-source and community-friendly
-- [X] Weekly firmware/bootloader updates (Upcoming planned full beta release Sunday 8th of November 2026)
+- [X] Weekly firmware/bootloader updates (Upcoming planned launcher+music-player beta release Sunday 8th of November 2026)
 - [X] Clearer installation procedures
 - [X] Make everything easier to use
 - [X] HFS+ native without an overlay or FAT support
