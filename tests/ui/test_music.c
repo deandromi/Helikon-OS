@@ -96,23 +96,58 @@ int main(int argc, char **argv)
     }
 
     char path[256];
-    struct list_spec root = { .kind = LIST_ROOT, .parent = 0u };
-    draw_list(&target, &root, 0u, 0u, list_count(&root));
-    snprintf(path, sizeof(path), "%s-root.ppm", prefix);
+    draw_hub(&target, 0u);
+    snprintf(path, sizeof(path), "%s-hub.ppm", prefix);
     (void)write_ppm(path);
-    if (framebuffer[0] != MUSIC_PAPER) {
-        fprintf(stderr, "root background is not paper\n");
+    if (framebuffer[0u] != MUSIC_PAPER) {
+        fprintf(stderr, "hub background is not paper\n");
         return 1;
     }
-    if (framebuffer[45u * HELIKON_SCREEN_WIDTH + 10u] != MUSIC_INK) {
-        fprintf(stderr, "root selected row is not ink\n");
+    if (framebuffer[94u * HELIKON_SCREEN_WIDTH + 56u] != MUSIC_INK) {
+        fprintf(stderr, "hub focus diamond is missing\n");
         return 1;
     }
 
-    struct list_spec artists = { .kind = LIST_ARTISTS, .parent = 0u };
-    draw_list(&target, &artists, 0u, 0u, list_count(&artists));
+    draw_wall(&target, WALL_ALBUMS, 0u);
+    snprintf(path, sizeof(path), "%s-albums.ppm", prefix);
+    (void)write_ppm(path);
+    if (framebuffer[36u * HELIKON_SCREEN_WIDTH + 100u] != MUSIC_RULE) {
+        fprintf(stderr, "album wall header rule is missing\n");
+        return 1;
+    }
+    if (framebuffer[44u * HELIKON_SCREEN_WIDTH + 29u] != MUSIC_INK) {
+        fprintf(stderr, "album wall selected frame is not ink\n");
+        return 1;
+    }
+    if (framebuffer[50u * HELIKON_SCREEN_WIDTH + 40u] == MUSIC_PAPER) {
+        fprintf(stderr, "album wall cell has no art or fallback\n");
+        return 1;
+    }
+
+    draw_wall(&target, WALL_ARTISTS, 0u);
     snprintf(path, sizeof(path), "%s-artists.ppm", prefix);
     (void)write_ppm(path);
+    if (framebuffer[44u * HELIKON_SCREEN_WIDTH + 29u] != MUSIC_INK) {
+        fprintf(stderr, "artist wall selected frame is not ink\n");
+        return 1;
+    }
+    if (framebuffer[50u * HELIKON_SCREEN_WIDTH + 40u] == MUSIC_PAPER) {
+        fprintf(stderr, "artist wall cell has no art or fallback\n");
+        return 1;
+    }
+
+    struct list_spec tracks = { .kind = LIST_SONGS, .parent = 0u };
+    draw_list(&target, &tracks, 0u, 0u, list_count(&tracks));
+    snprintf(path, sizeof(path), "%s-tracks.ppm", prefix);
+    (void)write_ppm(path);
+    if (framebuffer[36u * HELIKON_SCREEN_WIDTH + 100u] != MUSIC_RULE) {
+        fprintf(stderr, "tracks header rule is missing\n");
+        return 1;
+    }
+    if (framebuffer[45u * HELIKON_SCREEN_WIDTH + 10u] != MUSIC_INK) {
+        fprintf(stderr, "tracks selected row is not ink\n");
+        return 1;
+    }
 
     draw_artist_page(0u);
     snprintf(path, sizeof(path), "%s-artist.ppm", prefix);
@@ -125,6 +160,19 @@ int main(int argc, char **argv)
     draw_track_page(0u);
     snprintf(path, sizeof(path), "%s-track.ppm", prefix);
     (void)write_ppm(path);
+
+    draw_monogram(&target, 0u, 0u, "Lighthouse");
+    int monogram = 0;
+    for (uint32_t y = 0u; y < MUSIC_TILE_SIZE; ++y) {
+        for (uint32_t x = 0u; x < MUSIC_TILE_SIZE; ++x) {
+            if (framebuffer[y * HELIKON_SCREEN_WIDTH + x] == MUSIC_MUTED)
+                monogram = 1;
+        }
+    }
+    if (!monogram) {
+        fprintf(stderr, "artist monogram fallback did not draw\n");
+        return 1;
+    }
 
     printf("PASS music\n");
     return 0;
