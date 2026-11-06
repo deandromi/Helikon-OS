@@ -5,37 +5,38 @@ A new bootloader and firmware for the iPod Classic 6th and 7th Generation create
 
 
 # Goals
-- [ ] Improved battery life over Rockbox
+- [ ] Improved battery life over Rockbox HFS+
 - [X] Cleaner interfaces
 - [ ] The ability to use Rockbox skins on Helikon-OS
-- [ ] Improved RAM usage
-- [ ] Cleaner graphics
+- [X] Improved RAM usage over Rockbox HFS+
+- [X] Cleaner graphics
 - [ ] Improved support for iFlash and other adapters
-- [ ] Improved database building on iPods
-- [ ] Keeping this open-source and community-friendly
-- [ ] Regular firmware/bootloader updates
+- [X] Improved database building on iPods (database building will happen in the companion app)
+- [X] Keeping this open-source and community-friendly
+- [X] Weekly firmware/bootloader updates (Upcoming planned full beta release Sunday 8th of November 2026)
 - [X] Clearer installation procedures
-- [ ] Make everything easier to use
+- [X] Make everything easier to use
 - [X] HFS+ native without an overlay or FAT support
 - [X] Active anti-corruption protection for files
 - [ ] Keeping the code lightweight (wherever possible)
 - [ ] (Custom) game support
 - [ ] Improved DAC support
-- [ ] Improved read/write speeds (if possible)
+- [X] Improved read/write speeds (if possible)
 - [ ] (Custom) application support
 - [ ] Improved podcast support
 - [X] A companion desktop app for:
   - [ ] File tagging
+  - [ ] Metadata fetching (w
   - [ ] Album descriptions and ratings
   - [ ] Last.fm scrobbling
   - [ ] Easy installation
   - [ ] Improved read/write capabilities
   - [ ] App, game and skin installations
-- [ ] Improved album view (taking inspiration from Roonserver)
-- [ ] Improved artist view (taking inspiration from Roonserver)
+- [X] Improved album view
+- [X] Improved artist view
 - [ ] Improved car/receiver playback
 - [ ] Support a wide range of iPod devices and possibly other MP3 players
-- [ ] A modern, feasible alternative to Rockbox, Rockpod or others
+- [ ] A modern, feasible alternative to Rockbox, Rockpod or others (will be finished at the first full non-beta release)
 
 ## Sneakpeeks:
 <img width="320" height="240" alt="Bootloader design Version Alpha Red" src="https://github.com/user-attachments/assets/6085a0c4-f2a5-4223-8a41-f8799f466d8e" />
