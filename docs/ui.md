@@ -386,14 +386,94 @@ screen.
   on the host.
 - Large-text and high-contrast layouts.
 
-## 6. Not specified yet
+## 6. Album and artist views (proposed)
+
+The album and artist pages are detail screens. They borrow the information
+hierarchy of the owner’s Roon reference — sleeve or portrait, title, year,
+rating, genres, actions, tabs, tracks, notes/credits, biography/facts — but do
+not copy its sidebar, desktop player bar, photographs, button cluster or exact
+layout.
+
+![Album view](../assets/ui/album-view/helikon-os-album-view-320x240@2x.png)
+
+![Artist view](../assets/ui/artist-view/helikon-os-artist-view-320x240@2x.png)
+
+### 6.1 Album view
+
+| Region | Frame (x, y, w, h) | Content |
+|---|---|---|
+| Top bar | 20, 8, 280, 20 | `ALBUM`, time, battery; rule at 30 |
+| Sleeve | 20, 38, 92, 92 | generated terracotta cover with cream engraving |
+| Info | 124, 42, 176, 90 | year and rating, 22 px title, artist, genre/length, `PLAY` |
+| Tabs | 20, 150, 280, 8 | `TRACKS`, `NOTES`, `CREDITS`; track count at right |
+| Tracks | 20, 162, 280, 54 | two visible 26 px rows; the rest scroll |
+
+The album page keeps the sleeve and identity together, then moves down into a
+tabbed body:
+
+| Tab | Content |
+|---|---|
+| Tracks | Numbered title and duration; focused row gets a 2 px ink bar and a 14 px Medium title |
+| Notes | Description, length, rating and format facts |
+| Credits | Composer, performers, producer, engineer and recording date |
+
+The five-diamond rating is sample presentation, not a metadata rule. Long album
+titles may wrap to two lines; the sleeve remains fixed.
+
+### 6.2 Artist view
+
+| Region | Frame (x, y, w, h) | Content |
+|---|---|---|
+| Top bar | 16, 8, 288, 18 | `ARTIST`, time, battery; rule at 26 |
+| Portrait band | 0, 26, 320, 68 | plum band with a cream cameo |
+| Identity | 16, 98, 288, 44 | 22 px name, genre line, `PLAY` |
+| Tabs | 16, 164, 288, 8 | `OVERVIEW`, `ALBUMS`, `TRACKS`; album count at right |
+| Overview | 16, 176, 288, 44 | two-line biography and formed/origin/count facts |
+
+The artist page uses the same tab model:
+
+| Tab | Content |
+|---|---|
+| Overview | Two-line biography, formed/origin facts and album count |
+| Albums | The artist’s album wall, using the committed wall tiles |
+| Tracks | Top tracks with duration and album context |
+
+The portrait is a generated plum field with a cream cameo profile, not a likeness
+and not a copied photograph. A real artist image replaces the band at the same
+size.
+
+### 6.3 Type and colour
+
+- Album title and artist name: ITC Benguiat Std Book, 22 px.
+- Track titles: IBM Plex Sans Regular/Medium, 14 px; artist 12 px; metadata,
+  tabs, biography and facts 11 px. The 11 px minimum holds.
+- Paper `#EFEDE5`; ink `#24231F`; muted `#6B665C`; rules `#B3AD9E`.
+- Album sleeve: terracotta `#9C3F2C` with cream line art. Artist band: plum
+  `#64364C` with a cream cameo. Those are the only large colour areas.
+- No sidebar, no desktop player bar, no rounded cards or shadows. The hardware
+  Menu button is the back path; the click wheel selects tabs and rows.
+
+### 6.4 Behaviour and open questions
+
+- Tabs switch the body; the selected tab is a 2 px ink underline. Lists scroll
+  within the body; the sleeve or portrait stays in place.
+- `PLAY` is the single primary action. Favorite, shuffle, queue and overflow
+  actions are deferred; they should not become a desktop-style button cluster.
+- The album `TRACKS` tab is the default; the artist `OVERVIEW` tab is the
+  default. The other tabs carry the deeper information instead of cramming it
+  into the first viewport.
+- Open: exact tab set, rating presentation, long-title wrapping, biography
+  length, albums/tracks tab density, and whether the artist band should use a
+  real image or remain a provenance-safe placeholder.
+
+## 7. Not specified yet
 
 These are open questions, not implied values. Do not invent and record them as
 settled:
 
 - line height and baseline spacing beyond the proposed home concepts;
-- colour palette and selected-item treatment on screens other than the home;
-- list row height, separators and status-bar layout outside the home screen;
+- colour palette and selected-item treatment beyond the proposed home, wall and detail screens;
+- list row height, separators and status-bar layout outside the proposed screens;
 - whether 11 px is comfortable on the 6G panel or needs a larger default;
 - large-text mode and high-contrast mode;
 - exact wordmark size, lockup and clear space beyond the proposed screen-specific sizes;
@@ -412,7 +492,7 @@ Benguiat header treatment; none is a settled theme until the owner chooses a
 home concept and a panel check records the result. List screens, the main menu
 and the theme format remain open.
 
-## 7. Verification
+## 8. Verification
 
 Before firmware UI code depends on this table:
 
@@ -429,20 +509,23 @@ Before firmware UI code depends on this table:
    Done in [`../assets/fonts/README.md`](../assets/fonts/README.md). The
    external Benguiat display face is recorded there separately; it is not
    committed.
-5. Render and check the three concepts at 320×240. Done:
-   [`../assets/ui/launcher/helikon-os-home-launcher-320x240.png`](../assets/ui/launcher/helikon-os-home-launcher-320x240.png),
-   [`../assets/ui/index/helikon-os-home-index-320x240.png`](../assets/ui/index/helikon-os-home-index-320x240.png)
+5. Render and check the home and wall concepts at 320×240. Done: the launcher,
+   index and the album, podcast and audiobook walls, each with a `@2x` viewing
+   preview. `tools/render-ui-mockup.py` asserts that every launcher label and
+   fixed column fits; the frames are checked for clipping and overlap on the
+   host. The Benguiat headers come from the owner-supplied font via
+   `BENGUIAT_DIR`; no font file is committed. The launcher is chosen; the index
+   is an alternate, and the wall density still needs owner acceptance.
+6. Render and check the album and artist views at 320×240. Done:
+   [`../assets/ui/album-view/helikon-os-album-view-320x240.png`](../assets/ui/album-view/helikon-os-album-view-320x240.png)
    and
-   [`../assets/ui/album-wall/helikon-os-album-wall-320x240.png`](../assets/ui/album-wall/helikon-os-album-wall-320x240.png),
-   each with a `@2x` viewing preview. `tools/render-ui-mockup.py` asserts that
-   every launcher label and fixed column fits; the frames are checked for
-   clipping and overlap on the host. The Benguiat headers come from the
-   owner-supplied font via `BENGUIAT_DIR`; no font file is committed. The home
-   choice, palette and album-wall density still need owner acceptance.
-6. Resolve D-52 (scope and font licence) before firmware headers depend on
+   [`../assets/ui/artist-view/helikon-os-artist-view-320x240.png`](../assets/ui/artist-view/helikon-os-artist-view-320x240.png),
+   each with a `@2x` viewing preview. The sleeve and cameo are generated
+   placeholders; no real artwork is used.
+7. Resolve D-52 (scope and font licence) before firmware headers depend on
    Benguiat; record the fallback if the font cannot ship.
-7. Only then implement the renderer and theme (T-042).
-8. Compare anti-aliased and 1-bit fallback glyphs on the 6G panel, including the
+8. Only then implement the renderer and theme (T-042).
+9. Compare anti-aliased and 1-bit fallback glyphs on the 6G panel, including the
    11 px descriptions/captions, 13 px launcher labels and 20 px index names.
 
 The mockups are host artifacts, not device runs. A device run must still record

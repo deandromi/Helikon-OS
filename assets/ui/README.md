@@ -2,7 +2,7 @@
 
 > Purpose: host-rendered 320×240 UI mockups for the first-party UI.
 > Status: host artifacts; launcher and three walls committed; index alternate;
-> no firmware UI or device panel run.
+> album/artist views proposed; no firmware UI or device panel run.
 > Owner: UI lead
 > Last updated: 2026-11-05
 
@@ -20,14 +20,19 @@
 | `podcast-wall/helikon-os-podcast-wall-320x240@2x.png` | 2× viewing preview of the podcast wall; not a device asset |
 | `audiobook-wall/helikon-os-audiobook-wall-320x240.png` | Audiobook browser: 4×3 book wall with author, duration and progress caption; not a home candidate |
 | `audiobook-wall/helikon-os-audiobook-wall-320x240@2x.png` | 2× viewing preview of the audiobook wall; not a device asset |
+| `album-view/helikon-os-album-view-320x240.png` | Album detail: terracotta sleeve, metadata, rating, play, tabs and track list |
+| `album-view/helikon-os-album-view-320x240@2x.png` | 2× viewing preview of the album view; not a device asset |
+| `artist-view/helikon-os-artist-view-320x240.png` | Artist detail: plum portrait band, name, play, tabs and overview |
+| `artist-view/helikon-os-artist-view-320x240@2x.png` | 2× viewing preview of the artist view; not a device asset |
 
 The first two are 320×240 8-bit grayscale with anti-aliased text. Their dark
 background and white selected row are a neutral typography proof, not the
 selected palette. The concept screens are full-colour RGB because the proposed
 off-white, warm-grey and ink palette cannot be expressed as a neutral grayscale
 proof. The launcher is the chosen home concept; the index remains an alternate;
-the three walls are browsers. Each folder has its own README. None is a settled
-theme until a 6G panel check records contrast and clipping.
+the three walls are browsers, and the album and artist views are detail screens.
+Each folder has its own README. None is a settled theme until a 6G panel check
+records contrast and clipping.
 
 The concept screens need the owner-supplied **ITC Benguiat Std** `.otf` files.
 They are proprietary, are not committed to this repository and must not be
@@ -43,9 +48,9 @@ Regenerate:
 BENGUIAT_DIR="/path/to/ITC Benguiat" python3 tools/render-ui-mockup.py
 ```
 
-The script writes the two typography mockups, the five concept screens and
+The script writes the two typography mockups, the seven concept screens and
 their 2× previews. It asserts that launcher labels and fixed columns fit. The
 typography mockups use the licensed subsets in
-[`../fonts/`](../fonts/README.md). The launcher icons and wall covers are generated
-line art, not album artwork. Renderer integration remains
+[`../fonts/`](../fonts/README.md). The launcher icons, wall covers, album sleeve and artist cameo are generated
+line art, not real artwork. Renderer integration remains
 T-042/T-057; the bootloader splash is T-045.
