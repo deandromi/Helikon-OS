@@ -8,7 +8,7 @@
 
 **Helikon-OS has a host test tree.** It covers the HFS+ read/write core, the
 read-only diagnostic bootloader core, the host firmware loader and the F1
-firmware modules. The portable HFS+/bootloader suites are 135 tests (104 HFS+,
+firmware modules. The portable HFS+/bootloader suites are 136 tests (105 HFS+,
 31 bootloader), sanitizer-clean. The F1 firmware adds nine host test groups
 (`tests/firmware/`: boot-info, block/partition, stages, lib, ring, pool, screen
 and trace), also sanitizer-clean. F2 adds a tenth group for bootstate parsing
@@ -309,8 +309,10 @@ partition scan, HFS+ probe, read one known file, input, bootstate promotion,
 browser, first UI, first audio. A rung is not skipped because a host test
 passes. The F1 image `d7916411…` is built and host-verified and has one
 owner-reported 6G device run (2026-11-04), accepted as the T-054 gate. The F2
-image `f33f2791…` is host-verified but has no device run;
-[`f2-bootstate-test.md`](f2-bootstate-test.md) is its runbook.
+image `1d6d4c92…` (76,080 bytes) is host-verified and is part of Alpha
+2.0.0; the owner reports the release-set 6G test is complete, but the per-image
+result is not attached. [`f2-bootstate-test.md`](f2-bootstate-test.md) is its
+runbook.
 
 ## 6. Device tests
 

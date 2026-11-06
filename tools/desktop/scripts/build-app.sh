@@ -2,25 +2,40 @@
 set -eu
 
 # Build a runnable, ad-hoc-signed .app bundle around the SwiftPM executable.
-# Usage: scripts/build-app.sh [--debug] [--open]
+# Usage: scripts/build-app.sh [--debug] [--open] [--universal]
 
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 CONFIG=release
 OPEN_APP=0
+UNIVERSAL=0
 
 for arg in "$@"; do
     case "$arg" in
         --debug) CONFIG=debug ;;
         --open) OPEN_APP=1 ;;
-        *) echo "usage: $0 [--debug] [--open]" >&2; exit 2 ;;
+        --universal) UNIVERSAL=1 ;;
+        *) echo "usage: $0 [--debug] [--open] [--universal]" >&2; exit 2 ;;
     esac
 done
+
+ARCH_FLAGS=""
+if [ "$UNIVERSAL" -eq 1 ]; then
+    ARCH_FLAGS="--arch arm64 --arch x86_64"
+fi
 
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$ROOT/Resources/Info.plist" 2>/dev/null || echo "0.1.0")
 BUILD=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$ROOT/Resources/Info.plist" 2>/dev/null || echo "1")
 
-swift build -c "$CONFIG" --package-path "$ROOT"
-BIN="$ROOT/.build/$CONFIG/HelikonCompanion"
+# Ask SwiftPM where the product lands. A single-arch build uses .build/<config>;
+# a universal build uses a different Products path on current toolchains.
+BIN_DIR=$(swift build -c "$CONFIG" $ARCH_FLAGS --package-path "$ROOT" --show-bin-path)
+swift build -c "$CONFIG" $ARCH_FLAGS --package-path "$ROOT"
+BIN="$BIN_DIR/HelikonCompanion"
+[ -x "$BIN" ] || {
+    echo "missing executable: $BIN" >&2
+    exit 1
+}
+
 APP="$ROOT/dist/Helikon Companion.app"
 CONTENTS="$APP/Contents"
 MACOS="$CONTENTS/MacOS"
@@ -31,7 +46,7 @@ mkdir -p "$MACOS" "$RESOURCES"
 cp "$BIN" "$MACOS/HelikonCompanion"
 chmod 755 "$MACOS/HelikonCompanion"
 
-RESOURCE_BUNDLE="$ROOT/.build/$CONFIG/HelikonCompanion_HelikonCompanion.bundle"
+RESOURCE_BUNDLE="$BIN_DIR/HelikonCompanion_HelikonCompanion.bundle"
 if [ -d "$RESOURCE_BUNDLE" ]; then
     cp -R "$RESOURCE_BUNDLE" "$RESOURCES/"
 fi

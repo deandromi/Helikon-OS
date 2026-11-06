@@ -2,9 +2,10 @@
 
 > Purpose: the on-disk music catalog, its builder contract and the firmware reader.
 > Status: format v1 implemented; reference builder and reader host-tested on a
-> 100-song macOS corpus; functional embedded-catalog Music hub/wall image built
-> and host-verified; production builder belongs to the companion (T-066);
-> device run pending.
+> 100-song macOS corpus; functional embedded-catalog Music hub/wall image built,
+> host-verified and included in Alpha 2.0.0; production builder belongs to the
+> companion (T-066); the owner reports the release-set 6G test is complete, with
+> per-image detail still to attach.
 > Owner: database/host
 > Last updated: 2026-11-06
 > Source: D-07, D-33, D-53; [`tasks.md`](tasks.md) T-066/T-067

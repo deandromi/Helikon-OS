@@ -1,29 +1,59 @@
 # Release and update process
 
 > Purpose: channels, signing, staging, rollback, bootloader DFU and support
-> policy. This is a stub: several owner decisions are pending.
-> Status: bootloader-only Alpha release published; no firmware release.
+> policy. Several owner decisions (support window, update transport, release
+> key) are still pending.
+> Status: Alpha 2.0.0 development release published; no stable or beta release.
 > Owner: release lead; project owner for signing/support decisions
-> Last updated: 2026-11-04
+> Last updated: 2026-11-06
 > Source: design paper §16, §18, §28.2.5, §28.4.3; `docs/validation.md`
 
-**No firmware release exists.** A **bootloader-only Alpha release** exists:
-`Alpha 1.0.1 Bootloader Only - A Quick Start`
-([GitHub](https://github.com/deandromi/Helikon-OS/releases/tag/alpha-1.0.1)).
-It contains the functional loader test image, a signed 12-byte test payload, a
-DFU installer and an uninstaller. It does **not** include a firmware image, does
-not use a release key and is not a support claim. The F1 read-only firmware is a
-separate development image, not a release asset; its owner-reported 6G run does
-not change the bootloader-only release status. The owner made it a normal GitHub
-release; the Alpha/bootloader-only label and limits still apply. Do not publish a
-firmware release or a production version claim from this repository yet.
+**Alpha 2.0.0 “Launchers and Interfaces”** is published as a normal GitHub
+release at tag `alpha-2.0.0`
+([GitHub](https://github.com/deandromi/Helikon-OS/releases/tag/alpha-2.0.0)).
+It is a **development release**, not a support release: it ships engineering
+firmware images, the loader test image and a companion shell preview. The owner
+reports 6G testing is complete; the detailed per-image results were not attached
+to the repository at cut time. The firmware uses a build-local Ed25519 test key,
+not a release key. There is no CI, reproducible release build, signed update
+path, installer or support window.
 
-## 0. Bootloader-only Alpha release
+Do not describe Alpha 2.0.0 as stable, supported or production firmware. Do not
+claim a release signature, notarization, A/B rollback, audio playback, a working
+companion or a device support matrix. The full notes are archived in
+[`releases/alpha-2.0.0/RELEASE_NOTES.md`](releases/alpha-2.0.0/RELEASE_NOTES.md).
+
+## 0. Alpha 2.0.0 — Launchers and Interfaces
+
+| Field | Value |
+|---|---|
+| Release | `Alpha 2.0.0 — Launchers and Interfaces` |
+| Tag | `alpha-2.0.0` |
+| Date | 2026-11-06 |
+| Type | Normal GitHub release; development alpha |
+| Update type | Firmware + bootloader + companion preview; manual copy and DFU |
+| Firmware | Launcher v10 `b3218ccd…`; Music hub v12 `de6491a9…`; F2 bootstate v2 `1d6d4c92…` |
+| Bootloader | `7f13e7e5…` (106,184 bytes); last device-tested remains `6bc6927c…` |
+| Companion | `Helikon-Companion-0.1.0-alpha2.dmg`; universal, ad-hoc signed, not notarized |
+| Signing | Build-local Ed25519 test key `0x48454c01`; no release key |
+| Device evidence | Owner reports 6G testing complete; per-image details not attached; older 6G/iFlash SD runs recorded |
+| Not included | Audio playback, VFS, storage-backed library, settings, USB, update client, installer, app runtime, working companion |
+| Open evidence | Device power-cut matrix, per-image timings/photos/`fsck_hfs`, other adapters/devices, release key |
+
+The assets are one matched set: loader, DFU installer, uninstaller, three
+firmware zips, companion DMG, test public key, quick start, release notes,
+license, notice and `SHA256SUMS`. The build-local test key is not a release key.
+Use each firmware zip as one set; never mix its image, manifest and bootstate
+with another set. Full hashes and install steps are in the release notes and
+[`QUICKSTART.md`](releases/alpha-2.0.0/QUICKSTART.md).
+
+## 0.1 Alpha 1.0.1 — Bootloader Only
 
 | Field | Value |
 |---|---|
 | Release | `Alpha 1.0.1 Bootloader Only - A Quick Start` |
 | Tag | `alpha-1.0.1` |
+| Date | 2026-11-04 |
 | Type | Normal GitHub release; bootloader test image only |
 | Image | `bootloader-ipod6g-loader-test.ipod` |
 | Image SHA-256 | `6bc6927cb282f7c01b34b07020419171adb9fa61e6ffe1180156b7579b0b2388` |
@@ -31,10 +61,9 @@ firmware release or a production version claim from this repository yet.
 | Not included | Firmware image, kernel, release key, A/B rollback, recovery menu |
 | Open evidence | Repeat/power-cut matrix; other adapters/devices; production firmware handoff and release key |
 
-The release assets are the tested set: bootloader, `firmware.manifest`,
-12-byte `firmware.img`, `bootstate`, public test key, DFU installer, uninstaller
-and `QUICKSTART.md`. The build-local test key is not a release key. Use the
-files as one set.
+The Alpha 1.0.1 assets are the tested loader-only set: bootloader,
+`firmware.manifest`, 12-byte `firmware.img`, `bootstate`, public test key, DFU
+installer, uninstaller and `QUICKSTART.md`.
 
 ## 1. Channels
 
@@ -46,7 +75,10 @@ files as one set.
 
 Channel names are design labels. The cadence is not chosen. "Regular updates"
 means a release train that can support a monthly or quarterly cadence without a
-new installer design, not a promise of a specific date.
+new installer design, not a promise of a specific date. Alpha 2.0.0 is a
+development-channel release. Its F2 image writes only `/.helikon/bootstate` and
+follows [`f2-bootstate-test.md`](f2-bootstate-test.md); no library or settings
+write is included.
 
 ## 2. Signed manifests
 
@@ -156,6 +188,10 @@ No marketing claims. No battery/RAM/frame-time number without method and runs. N
 - [ ] Signing, support-window and key-ownership decisions recorded; the release
       is GPL-2.0-or-later.
 
+This checklist is the **stable-release** gate. A development alpha may ship with
+unexecuted gates only when the release notes disclose every one of them and the
+release is not described as supported. Alpha 2.0.0 does that.
+
 ## 9. Open items and completed follow-ups
 
 - **TODO (owner/release):** generate the first offline root/release keys and
@@ -164,12 +200,20 @@ No marketing claims. No battery/RAM/frame-time number without method and runs. N
 - **TODO (owner):** choose update transport (D-16) and support window.
 - **DONE:** license (GPL-2.0-or-later) is adopted; keep `LICENSE` and `NOTICE`
   current. No code of conduct is currently adopted (D-19 rejected).
-- **TODO (release lead):** define release branches/tags and reproducible build.
+- **DONE (release lead):** Alpha 2.0.0 uses a short-lived `release/alpha-2.0.0`
+  branch, an annotated tag from `main`, a clean release worktree and a draft
+  GitHub release verified before publish. A reproducible build is still open.
 - **TODO (test lead):** define the release evidence bundle and archive location.
-- **TODO (docs lead):** add the release-note template when a release exists.
+- **DONE (docs lead):** release notes are archived under
+  [`releases/`](releases/README.md); use the Alpha 2.0.0 notes as the template.
+- **TODO (release lead):** attach the per-image 6G run details (screen photos,
+  timings and `fsck_hfs`) for the launcher, Music hub and F2 images when the
+  owner provides them.
 
 ## 10. Related
 
+- [`releases/README.md`](releases/README.md) — archived release notes
+- [`releases/alpha-2.0.0/RELEASE_NOTES.md`](releases/alpha-2.0.0/RELEASE_NOTES.md) — current release
 - [`validation.md`](validation.md) — release matrix
 - [`security.md`](security.md) — secrets and signing
 - [`architecture.md`](architecture.md) — update/recovery flow

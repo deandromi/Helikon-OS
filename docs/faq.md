@@ -3,17 +3,20 @@
 > Purpose: answer common questions honestly, with the design-stage boundary.
 > Status: living document
 > Owner: docs lead; project owner
-> Last updated: 2026-11-05
+> Last updated: 2026-11-06
 > Source: design paper Appendix G, §28; root `README.md`;
 > [`competitive-roadmap.md`](competitive-roadmap.md)
 
 ## Can I build Helikon-OS today?
 
-No firmware release. Diagnostic bootloader images, a separate loader test image
-and the F1/F2 development firmware sources exist; there is no production
-firmware, kernel, installer or release. The diagnostic images are not a support
-claim. You can build and test the donor project today in a separate checkout and
-follow the paper's assembly plan; that is not Helikon-OS firmware.
+Alpha 2.0.0 “Launchers and Interfaces” is a development release, not a
+production firmware release. It includes the loader test image, launcher and
+Music-hub/F2 engineering firmware images, and a companion shell DMG. There is
+no production firmware, kernel, installer, audio playback or working companion,
+and the release is not a support claim. Diagnostic bootloader images and the
+F1/F2 development firmware sources also exist. You can build and test the donor
+project today in a separate checkout and follow the paper's assembly plan; that
+is not Helikon-OS firmware.
 
 ## Do I need to be a programmer?
 

@@ -10,27 +10,31 @@
 
 ## Current phase
 
-**Pre-phase 0 — design, host read/write core, diagnostics, host firmware loader
-and the first read-only firmware skeleton with an owner-reported 6G run.** The
-roadmap in [`roadmap.md`](roadmap.md) starts at phase 0 (rescue bootloader and
-read-only firmware skeleton). The read-only diagnostic image exists and has
+**Pre-phase 0 — Alpha 2.0.0 “Launchers and Interfaces” development release
+published.** The release ships the loader test image, three engineering firmware
+images (launcher, Music hub/album-artist walls, F2 bootstate) and a universal
+macOS companion shell. The owner reports 6G testing is complete; the detailed
+per-image results (screen photos, timings and `fsck_hfs`) were not attached to
+the repository at cut time. This is not a support release.
+
+The roadmap in [`roadmap.md`](roadmap.md) starts at phase 0 (rescue bootloader
+and read-only firmware skeleton). The read-only diagnostic image has
 owner-reported 6G runs; the inner-image write diagnostic has one owner-reported
 run, and the outer-volume diagnostic has one successful owner-reported 6G run.
 The diagnostic images do not load firmware; the separate loader test image loads
-the F1 development image. The firmware-internal design is written down in
+the signed development images. The firmware-internal design is written down in
 [`firmware-architecture.md`](firmware-architecture.md) and phases F1–F5
-(T-054–T-058). The F1/T-054 source tree exists under `firmware/` and builds a
-signed development image (39,108 bytes, SHA-256 `d7916411…`); nine host test
-groups and the loader host core pass, and the owner reports the F1 6G device run
-complete on 2026-11-04. The F2/T-055 write path now exists: ATA PIO write/flush,
-a firmware bootstate parser/promoter, in-place HFS+ overwrite through
-`hfs_txn`, and the `WRITE` stage. F2 reserves the loader test image's
-BSS/LCD-DMA scratch and starts its own BSS at `0x08890000`. Ten host test
-groups, the disposable-image F2 artifact check and the overwrite crash matrix
-pass; there is no F2 device run. F3–F5 are not implemented.
+(T-054–T-058). F1 builds a signed read-only image (39,108 bytes, SHA-256
+`d7916411…`) with an owner-reported 6G run. F2 adds ATA PIO write/flush, a
+firmware bootstate parser/promoter, in-place HFS+ overwrite through `hfs_txn`
+and the `WRITE` stage; its current image is 76,080 bytes, SHA-256 `1d6d4c92…`,
+bootstate `TRYING` sequence 1. F3–F5 are not implemented. The launcher, Music
+hub, album/artist walls, HelikonDB reader and companion shell exist; playback,
+VFS, storage-backed library and the working companion do not.
 
-Date of this snapshot: **2026-11-05**. Device evidence remains the
-2026-11-04 runs; no new device run was made for the competitive planning.
+Date of this snapshot: **2026-11-06**. The repository retains the 2026-11-04
+device runs; the owner reports the Alpha 2.0.0 release set was tested on a 6G,
+but the per-image evidence was not attached.
 
 ## What exists
 
@@ -41,7 +45,8 @@ Date of this snapshot: **2026-11-05**. Device evidence remains the
 | Firmware architecture research paper | living | [`firmware-architecture.md`](firmware-architecture.md); functional, aesthetic and developer-ergonomics design; F1 device run owner-reported 2026-11-04 |
 | Firmware memory map / entry ABI ADRs | living | [`adr/0003-firmware-memory-map.md`](adr/0003-firmware-memory-map.md), [`adr/0004-firmware-entry-abi.md`](adr/0004-firmware-entry-abi.md); D-27/D-28 accepted 2026-11-04 |
 | Firmware F1/T-054 skeleton | `pass` | `firmware/boot`, `firmware/lib`, `firmware/board/6g`, `firmware/hal/6g`, `firmware/block`, `firmware/diag` and the HFS+ read adapter; signed development image 39,108 bytes, SHA-256 `d7916411…`; 9 host test groups sanitizer-clean; loader host core reports `loader: OK` / `bootstate: GOOD`; owner-reported 6G device run accepted 2026-11-04 (PASS, power-off, no write; photo/timings/`fsck_hfs` not attached) |
-| Firmware F2/T-055 bootstate promotion | `in progress` | ATA PIO write/flush, firmware bootstate parser/promoter, in-place `hfs_catalog_overwrite_file` through `hfs_txn`, and the `WRITE` stage. F2 image 76,160 bytes, SHA-256 `f33f2791…`, BSS `0x08890000`–`0x08922e60`, bootstate `TRYING` sequence 1. F2 adopts the loader's live ATA controller with a sector read instead of re-identifying the iFlash SD bridge, which rejects a second IDENTIFY; the full donor reset remains the cold-boot fallback, and adopt soft-enables a loader that powered ATA down. 10 firmware host test groups sanitizer-clean; `tools/check-f2-artifact.sh` promotes to `GOOD`, `fsck_hfs` clean, loader sees `GOOD`; overwrite crash matrix covers 22 write cuts plus flush/partial modes. No F2 device run. Runbook: [`f2-bootstate-test.md`](f2-bootstate-test.md) |
+| Firmware F2/T-055 bootstate promotion | `in progress` | ATA PIO write/flush, firmware bootstate parser/promoter, in-place `hfs_catalog_overwrite_file` through `hfs_txn`, and the `WRITE` stage. Current F2 image 76,080 bytes, SHA-256 `1d6d4c92…`, BSS `0x08890000`–`0x08922e60`, bootstate `TRYING` sequence 1. F2 adopts the loader's live ATA controller with a sector read instead of re-identifying the iFlash SD bridge, which rejects a second IDENTIFY; the full donor reset remains the cold-boot fallback, and adopt soft-enables a loader that powered ATA down. 10 firmware host test groups sanitizer-clean; `tools/check-f2-artifact.sh` promotes to `GOOD`, `fsck_hfs` clean, loader sees `GOOD`; overwrite crash matrix covers 22 write cuts plus flush/partial modes. The owner reports 6G testing complete; per-image promotion timing and post-run `fsck_hfs` were not attached. Runbook: [`f2-bootstate-test.md`](f2-bootstate-test.md) |
+| Firmware launcher image | `in progress` | `firmware/ui/launcher.c` plus generated RGB565 tiles: six cells, wheel/left-right row-major focus, SELECT/PLAY placeholders, MENU exit and 60 s idle power-off. Image 84,276 bytes, SHA-256 `b3218ccd…`, version 10, bootstate `GOOD`; no ATA/storage. `tests/ui` and the loader host check pass; the owner reports 6G testing complete with detail not attached. Included in Alpha 2.0.0 as `helikon-alpha2-launcher.zip` |
 | Firmware build prompt | living | [`prompts/build-firmware.md`](prompts/build-firmware.md); full-procedure F1–F5 execution prompt |
 | Session-start prompt | living | [`prompts/session-start.md`](prompts/session-start.md); repo-read bootstrap and Session Brief for every session |
 | Agent contract and documentation set | living | `main`, merged 2026-11-03 |
@@ -104,8 +109,8 @@ Helikon-OS poster above the goals on 2026-11-03.
 | DFU install runbook | living | [`bootloader/DFU.md`](../bootloader/DFU.md); backup, manual SHA-256, DFU install and recovery; image is unproven |
 | Default UI typography and home concepts | `in progress` | D-23/D-24 and `docs/ui.md` record the 14/17/12/11 px body scale and grayscale anti-aliasing. Licensed IBM Plex Sans and Manrope subsets, OFL texts, hashes and sixteen host mockups (two typography; launcher, neoclassical index, album/podcast/audiobook walls, album view and artist view, each at 1× and 2×) are in `assets/fonts/` and `assets/ui/`; `tools/render-ui-mockup.py` reproduces them with clipping checks. The launcher and index are home candidates; the launcher uses six muted icon accents in a frameless grid with short accent plinths, while the index is typographic. The album, podcast and audiobook walls are content browsers; the album and artist views are proposed detail screens. None of the home candidates shows playback. Their Benguiat headers are an external, uncommitted owner-supplied face and a proposed D-23 exception (D-52). They are not an accepted theme or a renderer. The launcher firmware renderer is implemented on host: generated RGB565 tiles from the mockup toolchain, the owner-directed Benguiat wordmark raster with Plex labels, fixed clickwheel input, wheel/left-right row-major focus, a placeholder app screen on SELECT/PLAY, `tests/ui` preview and a storage-free `HELIKON_DIAG_LAUNCHER` image. The 6G panel run and the remaining screens remain T-042/T-057 |
 | Bootloader splash redesign | `implemented` | Final owner green/red PNGs are in `assets/bootloader/` with `VERSION ALPHA` and a green/red `HFS+ DETAILS` mask. The refreshed loader image uses a 16-colour 4bpp RGB565 base (38,400 bytes) plus a 324-byte label mask; the temporary bottom stage line is removed. The final-splash `6bc6927c…` image is device-tested: 6.5 s startup and `fsck_hfs -fn` clean |
-| HelikonDB music catalog | `in progress` | Native HDB v1: one immutable `/.helikon/music.hdb` (128-byte header, 88/48/48-byte track/album/artist records, deduplicated string pool, four precomputed indices, 96×96 RGB565 artwork), `tools/hdb_build.py` reference builder with mtime/size and artwork caches, optional track/album ratings, artist biographies and profile pictures, and the read-only `firmware/db/hdb.c` reader. Tested on a 100-song sample from the owner's macOS library: 100 tracks, 78 artists, 100 albums, 98 album covers, 1.85 MB; cold build 2.1 s, warm 0.007 s; fixture/reader CRC tests pass. The functional embedded-catalog image `de6491a9…` (474,252 bytes) uses a contiguous 100-song sample (6 artists, 10 albums, 10 covers) and `firmware/ui/music.c`: a launcher-style Music hub (Albums/Artists/Tracks), the 4×3 album wall, the artist wall with monogram fallback, 96×96 artwork, ratings, artist pages, wheel/left-right navigation and MENU back. Host loader check and `tests/ui` previews pass; device run pending. Production builder is the companion (T-066); storage-backed HDB, journal and playback remain T-056/T-058/T-067 |
-| Host test harness | `in progress` | 135 portable HFS+/bootloader tests (104 HFS+, 31 bootloader), sanitizer-clean, plus ten firmware host test groups in `tests/firmware/` (F1's boot-info, block/partition, stages, lib, ring, pool, screen, trace, hfs-file and F2's bootstate), the `tests/musicdb` HDB fixture/reader test and the macOS disposable-image, Unicode, crash-injection (including overwrite), F2 artifact, inner-image, outer-volume and loader tests; fixture plan in `fixtures.md`; first diagnostic boot is owner-reported |
+| HelikonDB music catalog | `in progress` | Native HDB v1: one immutable `/.helikon/music.hdb` (128-byte header, 88/48/48-byte track/album/artist records, deduplicated string pool, four precomputed indices, 96×96 RGB565 artwork), `tools/hdb_build.py` reference builder with mtime/size and artwork caches, optional track/album ratings, artist biographies and profile pictures, and the read-only `firmware/db/hdb.c` reader. Tested on a 100-song sample from the owner's macOS library: 100 tracks, 78 artists, 100 albums, 98 album covers, 1.85 MB; cold build 2.1 s, warm 0.007 s; fixture/reader CRC tests pass. The functional embedded-catalog image `de6491a9…` (474,252 bytes) uses a contiguous 100-song sample (6 artists, 10 albums, 10 covers) and `firmware/ui/music.c`: a launcher-style Music hub (Albums/Artists/Tracks), the 4×3 album wall, the artist wall with monogram fallback, 96×96 artwork, ratings, artist pages, wheel/left-right navigation and MENU back. Host loader check and `tests/ui` previews pass. The owner reports 6G testing complete; per-image detail was not attached. It is included in Alpha 2.0.0 as `helikon-alpha2-music-hub.zip`. Production builder is the companion (T-066); storage-backed HDB, journal and playback remain T-056/T-058/T-067 |
+| Host test harness | `in progress` | 136 portable HFS+/bootloader tests (105 HFS+, 31 bootloader), sanitizer-clean, plus ten firmware host test groups in `tests/firmware/` (F1's boot-info, block/partition, stages, lib, ring, pool, screen, trace, hfs-file and F2's bootstate), the `tests/musicdb` HDB fixture/reader test and the macOS disposable-image, Unicode, crash-injection (including overwrite), F2 artifact, inner-image, outer-volume and loader tests; fixture plan in `fixtures.md`; first diagnostic boot is owner-reported |
 | Backup/recovery protocol | `implemented` | Full-volume backup, read-back, disposable restore rehearsal and Apple-restore/DFU path owner-confirmed 2026-11-04; protocol and stop conditions in `outer-volume-test.md` |
 | Fixture plan | `implemented` | `docs/fixtures.md` lists synthetic reader/journal/B-tree/catalog/extents/bitmap/Unicode fixtures, disposable-image writer fixtures and write/flush/partial crash fixtures; no disk images committed |
 
@@ -113,19 +118,19 @@ Helikon-OS poster above the goals on 2026-11-03.
 
 | Item | Status | Note |
 |---|---|---|
-| Helikon-OS firmware source tree | `in progress` | F1 source exists: boot entry/vectors/linker/boot-info/panic, freestanding lib, 6G BSP, clock/PMU/backlight/LCD/ATA/buttons HAL, read-only block/partition scan, HFS+ read adapter and diag stages/trace. F2 adds ATA write/flush, bootstate promotion, in-place HFS+ overwrite and the `WRITE` stage. VFS, player, UI and F3–F5 do not exist; F1 has one owner-reported 6G run and F2 has no device run |
+| Helikon-OS firmware source tree | `in progress` | F1 source exists: boot entry/vectors/linker/boot-info/panic, freestanding lib, 6G BSP, clock/PMU/backlight/LCD/ATA/buttons HAL, read-only block/partition scan, HFS+ read adapter and diag stages/trace. F2 adds ATA write/flush, bootstate promotion, in-place HFS+ overwrite and the `WRITE` stage. VFS, player, storage-backed library and F3–F5 do not exist; F1 and the Alpha 2.0.0 release set are owner-reported on 6G, with per-image detail still to attach |
 | Host firmware loader | `implemented` | `bootloader/manifest.c`, `bootstate.c`, `sha256.c`, `ed25519.c`, `keys.c`, `firmware_loader.c` and `hfs_loader.c`; formats frozen in `bootloader/LOADER.md`. Signature is verified before any image byte; then SHA-256 and bootstate. 13 manifest/loader tests, 2 HFS adapter tests, 4 Ed25519/key-table tests and a macOS HFS+ fixture with a real generated key pass. No jump and no writes |
-| Helikon-OS firmware-loading bootloader | `in progress` | The current build `7f13e7e5…` (106,184 bytes) builds with ATA DMA enabled for the fast loader path (LOADER_PIO=1 keeps the PIO variant), leaves the controller active before the jump, shortens the boot button-hold wait, and removes the firmware-confirmation and "Executing" screens plus their 3 s of delays; it jumps as soon as verification completes. It is host-verified but not device-tested. The last device-tested image is the final-splash `6bc6927c…` (106,536 bytes, 22,496 bytes headroom), owner-reported at 6.5 s on one 6G/iFlash SD with a clean `fsck_hfs -fn`. It verifies Ed25519 before any image byte, reads directly to the signed DRAM address, executes only a signed development payload (the F1/F2 development image is one) and disables production handoff. Production handoff is T-051 and needs a real signed firmware image. |
+| Helikon-OS firmware-loading bootloader | `in progress` | The current build `7f13e7e5…` (106,184 bytes) builds with ATA DMA enabled for the fast loader path (LOADER_PIO=1 keeps the PIO variant), leaves the controller active before the jump, shortens the boot button-hold wait, and removes the firmware-confirmation and "Executing" screens plus their 3 s of delays; it jumps as soon as verification completes. It is host-verified; the owner reports the Alpha 2.0.0 release-set 6G test complete, but the per-image screen and timing evidence was not attached. The last detailed device-tested image is the final-splash `6bc6927c…` (106,536 bytes, 22,496 bytes headroom), owner-reported at 6.5 s on one 6G/iFlash SD with a clean `fsck_hfs -fn`. It verifies Ed25519 before any image byte, reads directly to the signed DRAM address, executes only a signed development payload (the F1/F2 development image is one) and disables production handoff. Production handoff is T-051 and needs a real signed firmware image. |
 | Helikon-OS bootloader image | `unproven` | Read-only diagnostic image built; separate inner-image and outer-volume write diagnostics built; the diagnostic images do not load firmware. The separate loader test image loads the signed F1 development image. The inner image has one owner-reported run; the outer image has one successful 6G run |
 | Loader test image | `implemented` | `build/loader-bootloader/out/bootloader-ipod6g-loader-test.ipod` (106,184 bytes) is the current fast loader build `7f13e7e5…`; it reuses the test key and its own 12-byte payload still verifies through the host loader core. The last device-tested image is `6bc6927c…` (106,536 bytes, 6.5 s, `fsck_hfs -fn` clean). Production handoff is disabled |
 | Bootloader manifest/boot state | `implemented` | Formats frozen in `bootloader/LOADER.md`; host parser/verifier/selector, real Ed25519 and HFS loader tested; loader test image owner-reported working. D-02 is single-image fail-closed by owner decision: no A/B fallback; recovery is DFU/Apple restore. D-28 entry ABI is accepted; the loader fill is T-059 |
-| VFS, player, UI, database | `planned` | No implementation |
+| VFS and player | `planned` | No implementation. The launcher and Music hub are storage-free UI images; playback, VFS and the storage-backed library do not exist |
 | HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete/growth/deep delete/in-place update, fork staging, file/folder create/delete/rename, multi-extent/overflow data append/truncate, FastUnicodeCompare, HFS+ normalization, metadata policy and disposable-image `fsck_hfs` validation exist. One outer-volume 6G run passed; D-05 cache limits, broader fuzzing, timing and the device power-cut/adapter matrix remain |
-| F2 bootstate device run | `not run` | Host: F2 artifact promotes `TRYING` to `GOOD`, `fsck_hfs` clean, loader sees `GOOD`; overwrite crash matrix passes. No 6G run and no device power-cut during promotion yet |
+| F2 bootstate device run | `partial` | Host: F2 artifact promotes `TRYING` to `GOOD`, `fsck_hfs` clean, loader sees `GOOD`; overwrite crash matrix passes. The owner reports the 6G run is complete; promotion timing, screen photo and post-run `fsck_hfs` were not attached, and a device power-cut during promotion is not recorded |
 | Journal replay on a real dirty volume | `unproven` | Replay is host-tested on synthetic journals; no macOS-created dirty volume or device run |
-| Installer or desktop app | `in progress` | Companion app reset under `tools/desktop/`: owner-banner welcome screen and a brand-only shell with no sidebar navigation. All previous device, library, metadata, transfer, podcast, audiobook, scrobbler, install, settings and test code was removed on 2026-11-06. The shell builds but has no device, network or write functionality; see [`companion-app.md`](companion-app.md) |
-| Build system, CI, release artifacts | `in progress` | `firmware/Makefile` and `tools/make-firmware-image.py` build the F1/F2 ELF, raw image, manifest, bootstate and signed development image. `VERSION` selects the image version and `BOOTSTATE_STATE=trying` or `good` selects the initial slot state. Host test Makefiles and bootloader build scripts exist; bootloader-only Alpha release `alpha-1.0.1` published; no CI, reproducible release build or firmware release |
-| Helikon-OS device run | `partial` | Three earlier owner-reported diagnostic runs, the 2026-11-04 outer-volume run with every stage PASS, the loader-test passes on `3979de6f…` and `6bc6927c…`, and the F1 firmware run on `d7916411…` (owner-reported 2026-11-04, accepted as the T-054 gate). The final-splash `6bc6927c…` run passed (6.5 s, `fsck_hfs -fn` clean). No support claim; one device/iFlash SD only |
+| Installer or desktop app | `in progress` | Companion app reset under `tools/desktop/`: owner-banner welcome screen and a brand-only shell with no sidebar navigation. All previous device, library, metadata, transfer, podcast, audiobook, scrobbler, install, settings and test code was removed on 2026-11-06. The shell builds universal (arm64 + x86_64) and ships as `Helikon-Companion-0.1.0-alpha2.dmg`; it has no device, network or write functionality. See [`companion-app.md`](companion-app.md) |
+| Build system, CI, release artifacts | `in progress` | `firmware/Makefile` and `tools/make-firmware-image.py` build the F1/F2 ELF, raw image, manifest, bootstate and signed development image. `VERSION` selects the image version and `BOOTSTATE_STATE=trying` or `good` selects the initial slot state. Host test Makefiles and bootloader build scripts exist. Alpha 2.0.0 (`alpha-2.0.0`) is published with the loader, three firmware sets and a universal companion DMG; it is an engineering preview with a test key. There is no CI, reproducible release build, release key or staged update client |
+| Helikon-OS device run | `partial` | Three earlier owner-reported diagnostic runs, the 2026-11-04 outer-volume run with every stage PASS, the loader-test passes on `3979de6f…` and `6bc6927c…`, and the F1 firmware run on `d7916411…` (owner-reported 2026-11-04, accepted as the T-054 gate). The owner reports the Alpha 2.0.0 release-set 6G test is complete; per-image photos/timings/`fsck_hfs` are not attached. No support claim; one device/iFlash SD only |
 | Supported device list | `unproven` | 6G is the reference; 7G physical audit is deferred from the active queue by owner direction (2026-11-04) |
 | Code of conduct | `rejected` | Owner deleted Contributor Covenant 2.1 on 2026-11-03; no replacement |
 | Signing policy and key ownership | `accepted` | D-20/ADR-0002 option A: offline Ed25519 root on two hardware tokens, certified release key, rotation/revocation/recovery; certificate verifier and a real signed release image are T-053/T-051 |
@@ -133,36 +138,39 @@ Helikon-OS poster above the goals on 2026-11-03.
 ## Last known-good commit and branch
 
 - **Base branch:** `main`
-- **Base commit:** `2912609` (`Docs: add the D-52 home-screen concept set`,
-  2026-11-05); the 2026-11-05 consolidation merged F2, the companion app and the
-  design docs. Check `git log -1` for the current docs commit.
+- **Base commit for Alpha 2.0.0:** `f5f8bfb` (`Revise feature list and add
+  'Soon' labels`, 2026-11-06) plus the release-preparation PR. The release tag
+  `alpha-2.0.0` records the exact commit. Check `git rev-parse alpha-2.0.0`.
 - **F1 work:** merged to `main` from `firmware/f1-skeleton`; the source, host
   tests and docs carry the owner-reported 6G run. Check
   `git log -- firmware tests/firmware`.
-- **F2 work:** merged to `main` on 2026-11-05; the current tree builds the
-  normal F2 image `f33f2791…` (76,160 bytes) and the PIO-only loader `8f80e40d…`
-  (106,088 bytes); host-verified, no device run. Check
-  `git log -- firmware tests/firmware tests/image tools`.
+- **F2 work:** merged to `main`; the current tree builds F2 `1d6d4c92…`
+  (76,080 bytes) and the loader `7f13e7e5…` (106,184 bytes). Host checks pass;
+  the owner reports 6G testing complete, with per-image detail not attached.
+  Check `git log -- firmware tests/firmware tests/image tools`.
 - **Last known-good code commits:** `a86ed57` (`Firmware: harden F1
   display/panic paths and add HFS file test`, 2026-11-04) built the F1 image
   `d7916411…` (39,108 bytes) with one owner-reported 6G run; `4898a6f` (`Code:
   add separate inner-image write diagnostic`, 2026-11-03) passed one inner-image
   6G run; `8b528d1` (`Code: fix outer diagnostic truncate hang`, 2026-11-04)
   produced image `32eeb541…`, which passed one outer-volume 6G run on
-  2026-11-04. The 2026-11-05 consolidation merged F2, the companion app and
-  the design docs; F2 and the app remain host-verified only. Check
-  `git log -- firmware/hfs bootloader tests tools`.
-- **Last known-good documentation commit:** `59db37e` (`Docs: record first
-  write-diagnostic hardware pass`, 2026-11-03). Any later docs housekeeping
-  commit is on `main`; check `git log -1`.
+  2026-11-04. Alpha 2.0.0 adds the launcher, Music hub/walls, F2 image and
+  companion DMG; the new images are owner-reported on 6G, not independently
+  re-run in this cut.
+- **Last known-good documentation commit:** `f5f8bfb` and the Alpha 2.0.0
+  release-preparation PR. Check `git log -1`.
 
 Do not treat the donor V3.2 release as a Helikon-OS baseline. It is a separate
 overlay-based product.
 
 ## Last recorded device run
 
-**F1 read-only firmware, 2026-11-04 (owner-reported), plus three earlier
-diagnostic runs on 2026-11-03 and the outer-volume run on 2026-11-04.**
+**Alpha 2.0.0 release set, 2026-11-06 (owner-reported), plus F1 on 2026-11-04,
+three earlier diagnostic runs on 2026-11-03 and the outer-volume run on
+2026-11-04.** The owner reports the 6G test programme for the loader `7f13e7e5…`,
+F2 `1d6d4c92…`, launcher `b3218ccd…` and Music hub `de6491a9…` is complete.
+Screen photos, timings and post-run `fsck_hfs` output were not attached; the
+device-matrix distinguishes the owner report from the older recorded runs.
 
 The owner reports the F1/T-054 device run complete and accepts it as the F1
 gate. The current development image is 39,108 bytes, SHA-256 `d7916411…`; it
@@ -195,9 +203,11 @@ pass. `.rockpod-rw` was unchanged; `.rockbox` differed only in `.DS_Store`. This
 is one outer-volume run, not a power-cut, adapter or support claim. See
 [`device-matrix.md`](device-matrix.md) §2.1, §2.2 and §2.5.
 
-F2 has no device run. Its host evidence is the disposable-image promotion,
-artifact check and overwrite crash matrix described in
-[`f2-bootstate-test.md`](f2-bootstate-test.md).
+The owner reports the F2 6G run complete. Its host evidence is the
+disposable-image promotion, artifact check and overwrite crash matrix described
+in [`f2-bootstate-test.md`](f2-bootstate-test.md); the device promotion timing,
+photo and post-run `fsck_hfs` were not attached, and a device power-cut during
+promotion is not recorded.
 
 The donor project has owner-reported hardware use for its V3.2 release. That is
 donor evidence, not Helikon-OS evidence, and it does not validate native HFS+
@@ -206,12 +216,14 @@ writes, the transaction engine, the bootloader, or any goal in
 
 ## Current blockers
 
-1. **F2 device evidence and F3–F5 are outstanding.** F1/T-054 is done with one
-   owner-reported 6G run; F2/T-055 is host-verified but has no 6G run. The F2
-   device gate needs the promotion, clean post-run `fsck_hfs`, a clean second
-   loader boot and a device power-cut check. The kernel beyond F2, VFS, player,
-   UI, database, installer, host app, production handoff and release key do not
-   exist. The outer-volume writer has one successful 6G run; library-wide,
+1. **Alpha 2.0.0 per-image evidence and F3–F5 are outstanding.** The owner
+   reports the release-set 6G run is complete, but the per-image photos,
+   timings and post-run `fsck_hfs` for the loader, F2, launcher and Music hub
+   were not attached to the repository. The F2 device gate still needs the
+   recorded promotion, a clean post-run `fsck_hfs`, a clean second loader boot
+   and a device power-cut check. The kernel beyond F2, VFS, player, storage-backed
+   library, installer, working host app, production handoff and release key do
+   not exist. The outer-volume writer has one successful 6G run; library-wide,
    power-cut and adapter paths are not tested.
 2. **Journaled writer exists; device power-cut evidence is incomplete.** D-03
    requires journaled writes and D-04 makes Helikon-OS own replay. The
@@ -231,11 +243,11 @@ writes, the transaction engine, the bootloader, or any goal in
    read-back, disposable restore rehearsal, the Apple-restore/DFU path and the
    6G/iFlash SD loader run are recorded. Other adapters, the full device
    power-cut matrix and library-wide differential remain future coverage.
-6. **No firmware release infrastructure.** A bootloader-only Alpha release
-   (`alpha-1.0.1`) exists, but there is no reproducible firmware build, release
-   manifest, signing-key ceremony record, staging flow, rollback test or support
-   window. The D-20 policy is accepted; no release key has been generated and no
-   release signing is claimed.
+6. **No production release infrastructure.** Alpha 2.0.0 (`alpha-2.0.0`) and
+   the bootloader-only Alpha 1.0.1 (`alpha-1.0.1`) exist, but there is no
+   reproducible firmware build, release manifest, signing-key ceremony record,
+   staging flow, rollback test or support window. The D-20 policy is accepted;
+   no release key has been generated and no release signing is claimed.
 7. **Competitive horizon decisions are unaccepted.** D-29–D-51 are `proposed`
    and T-060–T-107 are `planned`; H1 tasks cannot become release gates until the
    owner accepts D-29 and the relevant decision. This does not block the current
@@ -252,11 +264,13 @@ disk file on this iPod.
 
 The active P0 line is **T-055/F2** (first firmware write), followed by T-051
 (production firmware handoff), which needs a real signed firmware image for
-end-to-end device validation. T-054/F1 is done; F2 is not implemented on this
-branch and remains `planned`. T-006/D-20 and T-049 are implemented; T-050 is
-closed by owner decision as an explicit no-A/B, single-image fail-closed
-model. D-26 records that the bootloader has no OF/recovery menu; native
-Menu+Play and DFU cover recovery. The P1 line is:
+end-to-end device validation. T-054/F1 is done; F2 is implemented and included
+in Alpha 2.0.0, but its per-image device evidence is not attached. T-006/D-20
+and T-049 are implemented; T-050 is closed by owner decision as an explicit
+no-A/B, single-image fail-closed model. D-26 records that the bootloader has no
+OF/recovery menu; native Menu+Play and DFU cover recovery. The next release
+follow-up is to attach the 6G photos, timings and `fsck_hfs` for the loader,
+F2, launcher and Music hub images to `device-matrix.md`. The P1 line is:
 
 - **T-041** — UI font licences and the 320×240 typography mockup.
 - **T-012** — full 6G model/adapter/battery inventory; backup/restore is done.
@@ -283,6 +297,7 @@ itself is complete; the remaining breadth gaps are tracked by T-093–T-107.
 | Claim or question | Status | What would prove it |
 |---|---|---|
 | Helikon-OS boots on a 6G | `unproven` | Recorded boot log and device run |
+| Alpha 2.0.0 launcher, Music hub and F2 images boot on a 6G | owner-reported | Attach screen photos, timings and post-run `fsck_hfs` to `device-matrix.md` |
 | Native HFS+ writes survive power loss | `unproven` | Power-cut matrix plus `fsck_hfs` zero repairs |
 | macOS accepts the written volume | `unproven` | `fsck_hfs -n` and `diskutil verifyVolume` after device writes |
 | Battery life improves over Rockbox | `unproven` | Three-run measured baseline; D-12 |

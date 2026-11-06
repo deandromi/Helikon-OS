@@ -65,11 +65,12 @@ It must:
 9. write **nothing** to the filesystem;
 10. record a device run with a screen photo and `fsck_hfs -fn` clean.
 
-**Status 2026-11-04: F1/T-054 is complete.** The owner reports the 6G device run
-accepted; the image is `d7916411…` (39,108 bytes). **F2/T-055 is implemented and
-host-verified** (76,160 bytes, `f33f2791…`, `TRYING` sequence 1); its device run
-and power-cut check are the remaining gate. See
-[`../f2-bootstate-test.md`](../f2-bootstate-test.md).
+**Status 2026-11-06: F1/T-054 is complete.** The owner reports the 6G device run
+accepted; the image is `d7916411…` (39,108 bytes). **F2/T-055 is implemented,
+host-verified and included in Alpha 2.0.0** (76,080 bytes, `1d6d4c92…`,
+`TRYING` sequence 1); the owner reports the release-set 6G test is complete,
+but the per-image result and the device power-cut check are still to attach.
+See [`../f2-bootstate-test.md`](../f2-bootstate-test.md).
 
 Do not start F2 until F1 has a recorded device run and the owner (or the next
 explicit session instruction) says continue.

@@ -25,9 +25,11 @@ network or installer functionality.
 | Device access | none | The shell does not enumerate or read a volume |
 | Network access | none | No network client remains |
 | Test target | none | The previous 21 host tests were removed with their modules |
+| DMG build | `in progress` | `scripts/build-dmg.sh --universal`; DMG verified, mounted, launched and quit on the build host |
 
-The app is not a release: no notarization, no signed distribution, no device
-matrix and no installer.
+The app is not a release by itself: no notarization, no Developer ID, no device
+matrix and no installer. Alpha 2.0.0 includes it as a preview DMG built from
+this shell.
 
 ## 2. What the reset removed
 
@@ -69,6 +71,25 @@ The shell keeps the editorial paper/ink language: warm paper, deep ink, a serif
 display face, system utility text, thin rules and restrained colour. There are
 no all-caps UI labels; acronyms and device-supplied text are the exception.
 
+### DMG build
+
+`tools/desktop/scripts/build-dmg.sh --universal` builds a drag-to-Applications
+disk image:
+
+```sh
+cd tools/desktop
+./scripts/build-dmg.sh --universal
+```
+
+The result is `dist/Helikon-Companion-0.1.0-alpha2.dmg`; the script also verifies
+the ad-hoc signature, checks the universal arm64/x86_64 binary, verifies the DMG
+and prints its SHA-256. The image contains the app, an `Applications` link,
+`LICENSE`, `NOTICE` and a `Read Me.txt` with the Gatekeeper and scope notes.
+
+The app is ad-hoc signed and **not notarized**. On first launch macOS will warn;
+right-click the app and choose Open, or use System Settings → Privacy & Security
+→ Open Anyway. Do not disable Gatekeeper globally.
+
 ## 4. Why the reset
 
 The removed feature set was built around a planned product, not the current
@@ -95,18 +116,19 @@ The companion will be rebuilt from capabilities that exist and can be tested:
 ## 6. Evidence
 
 ```text
-swift build            PASS
-swift build -c release PASS
-scripts/build-app.sh   PASS — app bundle and owner banner present
-plutil -lint           PASS
-host screenshots       welcome screen and empty shell reviewed
+swift build                          PASS
+swift build -c release --arch arm64 --arch x86_64 PASS
+scripts/build-app.sh --universal     PASS — app bundle and owner banner present
+scripts/build-dmg.sh --universal     PASS — DMG verified, mounted and launched
+plutil -lint                        PASS
+host screenshots                     welcome screen and empty shell reviewed
 ```
 
 Not run:
 - no test target exists after the reset;
 - no device run;
 - no macOS task matrix;
-- no notarization, sandbox or release validation.
+- no notarization, Developer ID, sandbox or release validation.
 
 ## 7. Next
 
@@ -122,7 +144,8 @@ Not run:
 - That the app has library, metadata, transfer, podcast, audiobook, scrobble or
   install functionality.
 - That the app has been run against a device since the reset.
-- That the app shell is a release or a support claim.
+- That the app shell is a standalone release or a support claim; it is included
+  in Alpha 2.0.0 only as a preview.
 - That the owner poster or banner was regenerated.
 
 ## Related

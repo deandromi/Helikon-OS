@@ -192,7 +192,8 @@ Helikon-OS/
     competitive-roadmap.md  Rockbox parity matrix, differentiation, declines
     audio-formats.md        audio-format inventory, tiers, decoder plan, corpus
     hfsplus-write-engine.md writer deep dive
-    release.md              release process stub
+    release.md              release process, history and current release
+    releases/               archived release notes and quick starts
     security.md             agent security rules
     faq.md                  user FAQ
     design-paper.md         full source copy with provenance; Appendix I addendum
@@ -329,7 +330,7 @@ is created; do not let it drift.
 | `tools/db/` | Host database builder | database lead | paper §12, §28.4.1 | 10k-track parity | No on-device claim without device evidence |
 | `tools/migrate/` | Donor overlay exporter | migration lead | paper §22 | fixture/hash/verify tests | Host-side only; never a runtime overlay; never overwrite silently |
 | `tools/installer/` | Guided install, backup, model checks | release lead | paper §28.4.3, `docs/release.md` | clean-device install, recovery | No `--single`; no format as first response; backup first |
-| `tools/desktop/` | macOS companion shell after the 2026-11-06 reset | host lead | [`companion-app.md`](companion-app.md), paper §28.4.2, D-09 | release build; no test target yet | No feature code, device access, network or installer claim; no generated artwork |
+| `tools/desktop/` | macOS companion shell after the 2026-11-06 reset | host lead | [`companion-app.md`](companion-app.md), paper §28.4.2, D-09 | universal release build; `scripts/build-dmg.sh` creates and verifies the DMG; no test target yet | No feature code, device access, network or installer claim; ad-hoc signed, not notarized; no generated artwork |
 | `tests/` | Host volume/B-tree, disposable-image, Unicode and crash fixtures now; fuzz/model/device planned | test lead | `docs/testing.md`, `docs/fixtures.md`, `docs/validation.md` | all layers | No proprietary themes/art/fonts; no personal data; no disk images in repo |
 | `docs/adr/` | Long-form decisions | docs lead | `docs/decisions.md` | review | Only for decisions too large for `decisions.md`; do not duplicate |
 | `docs/log/` | Dated work logs | docs lead | `docs/log/TEMPLATE.md` | review | One file per active day/session; no secrets |
