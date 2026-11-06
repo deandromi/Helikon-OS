@@ -230,8 +230,9 @@ make -C tests/ui preview
 ```
 
 It renders the real firmware framebuffer to `build/ui/launcher.png` and
-`build/ui/music-*.png` (root, artists, artist, album, track), and checks the
-launcher focus marks, icon presence and framebuffer bounds.
+`build/ui/music-*.png` (hub, albums, artists, tracks, artist, album, track),
+and checks the launcher focus marks, the hub focus mark, both wall headers and
+frames, the tracks header and the monogram fallback.
 
 The HelikonDB reader is tested against a generated fixture, with an optional
 real corpus:
@@ -248,7 +249,7 @@ The functional library image embeds an HDB in the signed firmware and is
 checked without a device:
 
 ```sh
-make -C firmware BOARD=6g VERSION=11 BOOTSTATE_STATE=good UI=1 \
+make -C firmware BOARD=6g VERSION=12 BOOTSTATE_STATE=good UI=1 \
   HDB=../build/helikondb/first100/music.hdb \
   EXTRA_CFLAGS='-DHELIKON_DIAG_LAUNCHER' \
   BUILD=../build/firmware/6g-music image
