@@ -519,6 +519,21 @@ def launcher_icon(size, kind, accent):
                  (c * 0.14, c * (y + 0.03)), (c * 0.11, c * y)],
                 fill=ink)
             line(0.28, y, 0.84, y)
+    elif kind == "album":
+        draw.rounded_rectangle(
+            (c * 0.14, c * 0.14, c * 0.86, c * 0.86),
+            radius=c * 0.03, outline=ink, width=width)
+        ellipse(0.34, 0.34, 0.66, 0.66)
+        ellipse(0.46, 0.46, 0.54, 0.54)
+        draw.rectangle(
+            (c * 0.47, c * 0.47, c * 0.53, c * 0.53), fill=ink)
+    elif kind == "artist":
+        ellipse(0.37, 0.12, 0.63, 0.38)
+        line(0.18, 0.86, 0.24, 0.66)
+        line(0.24, 0.66, 0.38, 0.56)
+        line(0.62, 0.56, 0.76, 0.66)
+        line(0.76, 0.66, 0.82, 0.86)
+        line(0.18, 0.86, 0.82, 0.86)
     elif kind == "pawn":
         ellipse(0.38, 0.12, 0.62, 0.36)
         draw.polygon(

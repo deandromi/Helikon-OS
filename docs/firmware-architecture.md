@@ -2736,8 +2736,8 @@ board changes the header, not the core.
 |---|---|---|
 | Boot/stage | Bring-up banner and stage codes | F1 |
 | Home | Main menu: Music, Settings, Now Playing, System | F3 |
-| Music | Artists/Albums/Songs or folder browser | F3 |
-| Album | Track list | F3/F4 |
+| Music | Hub (Albums/Artists/Tracks), album/artist walls, folder browser | F3 |
+| Album | Album page and track list | F3/F4 |
 | Now playing | Title, artist/album, progress, state | F4 |
 | Settings | Playback, display, system | F4 |
 | System info | Firmware/loader version, image hash, storage, HFS+ state | F4 |

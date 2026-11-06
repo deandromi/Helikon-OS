@@ -168,13 +168,15 @@ label.
 
 This is the most literal “home screen” reading. It is a launcher: the six
 cells are the only decisions on the surface. It does not show what is playing.
-The Music cell opens the library root; the album wall can be one of its views.
+The Music cell opens the Music hub; the album and artist walls are two of its
+views.
 
 #### Firmware launcher renderer (implemented on host)
 
 `firmware/ui/launcher.c` composes the launcher from precomputed RGB565 tiles;
-`tools/make-launcher-assets.py` generates them from the same
-`tools/render-ui-mockup.py` icon and layout code. The HELIKON-OS wordmark is
+`tools/make-launcher-assets.py` generates them, the Music hub cells and the
+Music wall headers from the same `tools/render-ui-mockup.py` icon and layout
+code. The HELIKON-OS wordmark is
 rasterized from the owner-supplied ITC Benguiat Medium face at the owner's
 direction; the `.otf` is not committed. Labels use the tracked IBM Plex Sans
 fallback. The folio, wordmark, divider, six icons and six labels are opaque
@@ -182,8 +184,8 @@ tiles. The accent plinths, the selected cell's apex diamond and the 2 px label
 underline are drawn at runtime.
 
 The wheel and left/right move the focus row-major through the six cells with
-wrap. SELECT or PLAY opens a labelled placeholder app screen; MENU or SELECT
-returns to the launcher, and MENU on the launcher exits. The diagnostic image
+wrap. SELECT or PLAY on Music opens the Music hub; the other cells open labelled
+placeholder screens. MENU on the launcher exits. The diagnostic image
 powers off after 60 s idle. The input driver clears the wheel interrupt latch
 before reading the status. The launcher build attaches to the loader's
 already-initialized PMU, backlight and panel instead of resetting them, so the
@@ -203,29 +205,36 @@ The image stops after the LCD stage and does not touch storage.
 `build/ui/launcher.png` and checks the focus marks, icon presence and
 framebuffer bounds. No 6G panel run yet.
 
-#### Music library browser (functional test)
+#### Music hub and library walls (functional test)
 
-`firmware/ui/music.c` is the first functional library screen. The launcher's
-Music cell opens Artists / Albums / Songs, using the HelikonDB tables and the
-title/recent/genre indices; the wheel or left/right scrolls, SELECT opens and
-MENU returns. Album and artist pages show 96×96 artwork, year and ratings;
-the artist page shows the biography and profile picture when the catalog has
-them. The build uses the 3×5 fallback font until the Plex atlas (T-042/T-057);
-the track page states that playback is next.
+`firmware/ui/music.c` is the first functional Music section. The launcher's
+Music cell opens a launcher-style hub with three cells: Albums, Artists and
+Tracks. Albums and Artists use the album-wall geometry from
+`assets/ui/album-wall`: a 4×3 wall of 52 px frames with 46 px art, Benguiat
+headers, counts, a selected caption and a position. Artist entries without a
+profile picture use a monogram. Tracks is the title-index list. The wheel or
+left/right moves, SELECT opens and MENU returns one level; album, artist and
+track pages reuse the same header language. Artwork is 96×96 RGB565 scaled
+96→46 with nearest-neighbour sampling on the wall. The search mark is present
+but has no action yet.
+
+The build uses the 3×5 fallback font for dynamic text until the Plex atlas
+(T-042/T-057); the track page states that playback is next.
 
 For the pre-VFS test, the signed image embeds a 100-song HelikonDB:
 
 ```sh
-make -C firmware BOARD=6g VERSION=11 BOOTSTATE_STATE=good UI=1 \
+make -C firmware BOARD=6g VERSION=12 BOOTSTATE_STATE=good UI=1 \
   HDB=../build/helikondb/first100/music.hdb \
   EXTRA_CFLAGS='-DHELIKON_DIAG_LAUNCHER' \
   BUILD=../build/firmware/6g-music image
 ```
 
-It touches no storage and no ATA. `make -C tests/ui preview` also renders
-`build/ui/music-root.png`, `music-artists.png`, `music-artist.png`,
-`music-album.png` and `music-track.png` from the fixture catalog. Playback is
-F5/T-058; the storage-backed catalog is T-056/T-067.
+It touches no storage and no ATA. `make -C tests/ui preview` renders
+`build/ui/music-hub.png`, `music-albums.png`, `music-artists.png`,
+`music-tracks.png`, `music-artist.png`, `music-album.png` and
+`music-track.png` from the fixture catalog. Playback is F5/T-058; the
+storage-backed catalog is T-056/T-067.
 
 ### 5.3 Concept B — neoclassical index
 

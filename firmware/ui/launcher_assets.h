@@ -18,4 +18,12 @@ extern const struct helikon_launcher_bitmap helikon_launcher_labels[6];
 extern const struct helikon_launcher_bitmap helikon_launcher_icons[6];
 extern const uint16_t helikon_launcher_plinths[6];
 
+#define HELIKON_MUSIC_HUB_CELLS 3u
+#define HELIKON_MUSIC_HEADER_COUNT 6u
+
+extern const struct helikon_launcher_bitmap helikon_music_hub_labels[HELIKON_MUSIC_HUB_CELLS];
+extern const struct helikon_launcher_bitmap helikon_music_hub_icons[HELIKON_MUSIC_HUB_CELLS];
+extern const uint16_t helikon_music_hub_plinths[HELIKON_MUSIC_HUB_CELLS];
+extern const struct helikon_launcher_bitmap helikon_music_headers[HELIKON_MUSIC_HEADER_COUNT];
+
 #endif

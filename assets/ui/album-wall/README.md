@@ -1,9 +1,10 @@
 # Album wall mockup
 
 > Purpose: host-rendered 320×240 mockup of the album browser wall.
-> Status: committed design asset; no firmware screen and no device panel run.
+> Status: implemented in `firmware/ui/music.c`; host previews pass; no device
+> panel run yet.
 > Owner: UI lead
-> Last updated: 2026-11-05
+> Last updated: 2026-11-06
 
 ## Files
 
@@ -15,8 +16,10 @@
 ## Role
 
 This is the **album browser**, not a home-screen candidate. It is reached from
-the `BROWSE` section of the neoclassical index or the `Music` plate of the
-launcher. It has no playback strip, hero, progress bar or green playback dot.
+the Music hub's `Albums` cell. The `Artists` cell reuses the same 4×3 wall with
+artist images (or a monogram fallback); both headers carry a count and the
+same search mark. It has no playback strip, hero, progress bar or green
+playback dot.
 
 The wall is intentionally denser than a home screen: twelve 52 px covers are
 visible so the user can scan by artwork. The header carries the album count and
@@ -51,6 +54,9 @@ scope and the licence path.
 
 The frame was produced by the host UI mockup toolchain; this folder contains the
 two committed PNGs. Regeneration needs the owner-supplied font and the working
-toolchain. The PNGs are design artifacts, not a firmware screen or a device
-result. All names, counts and durations are sample content. No support or panel
-claim follows from this mockup.
+toolchain. The firmware uses the exact 4×3 geometry, the pre-rendered Benguiat
+headers and the 46 px art area; counts, captions and positions are drawn with
+the 3×5 fallback font until the Plex atlas (T-042/T-057). The search mark is
+present but has no action yet. The PNGs are design artifacts; the firmware
+previews are host renders, not device results. All names, counts and durations
+are sample content. No support or panel claim follows from this mockup.

@@ -2,7 +2,7 @@
 
 > Purpose: the on-disk music catalog, its builder contract and the firmware reader.
 > Status: format v1 implemented; reference builder and reader host-tested on a
-> 100-song macOS corpus; functional embedded-catalog Music browser image built
+> 100-song macOS corpus; functional embedded-catalog Music hub/wall image built
 > and host-verified; production builder belongs to the companion (T-066);
 > device run pending.
 > Owner: database/host
@@ -275,29 +275,32 @@ record: uid u64, event u8, position_ms u32, timestamp u32, rating_delta i8, crc1
 
 Until the VFS/ATA handoff is solved, a signed test image can embed an HDB in
 `.rodata`. The loader verifies and loads the whole image; the firmware's Music
-browser reads the catalog from DRAM and never touches storage. This is the
+section reads the catalog from DRAM and never touches storage. This is the
 functional library test, not the production path.
 
 Build with the contiguous 100-song sample (6 artists, 10 albums, 10 covers)
 and the diagnostic launcher:
 
 ```sh
-make -C firmware BOARD=6g VERSION=11 BOOTSTATE_STATE=good UI=1 \
+make -C firmware BOARD=6g VERSION=12 BOOTSTATE_STATE=good UI=1 \
   HDB=../build/helikondb/first100/music.hdb \
   EXTRA_CFLAGS='-DHELIKON_DIAG_LAUNCHER' \
   BUILD=../build/firmware/6g-music image
 ```
 
-Artifact: 303,944 bytes, SHA-256 `dc9c86d4…`; manifest `0e0a81c3…`; bootstate
-`04d9650a…`. The loader is `7f13e7e5…` (106,184 bytes). The host loader core
+Artifact: 474,252 bytes, SHA-256 `de6491a9…`; manifest `0c372717…`; bootstate
+`2f1e3e7c…`. The loader is `7f13e7e5…` (106,184 bytes). The host loader core
 and `tests/ui` previews pass.
 
-Controls: launcher → Music → Artists / Albums / Songs; wheel or left/right
-scrolls, SELECT opens, MENU returns. Album and artist pages show the 96×96
-artwork; the track page states that playback is next. The 3×5 fallback font is
-used in this build; the first-party Plex atlas remains T-042/T-057. Playback
-(F5/T-058) and reading `/.helikon/music.hdb` from the real VFS are not part of
-this test.
+Controls: launcher → Music opens a launcher-style hub (Albums / Artists /
+Tracks). Albums and Artists use the 4×3 wall from the album-wall mockup; the
+wheel or left/right moves, SELECT opens and MENU returns one level. Album,
+artist and track pages use the same header strip and show 96×96 artwork, year,
+ratings and biography/profile picture when present. Artist entries without a
+profile picture use a monogram. The 3×5 fallback font is used for dynamic text
+in this build; the first-party Plex atlas remains T-042/T-057. The search mark
+has no action yet. Playback (F5/T-058) and reading `/.helikon/music.hdb` from
+the real VFS are not part of this test.
 
 ## 7. Open items
 
