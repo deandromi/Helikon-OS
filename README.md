@@ -23,14 +23,13 @@ A new bootloader and firmware for the iPod Classic 6th and 7th Generation create
 - [ ] Improved DAC support
 - [X] Improved read/write speeds (if possible)
 - [ ] (Custom) application support
-- [ ] Improved podcast support
+- [ ] Improved podcast support (Soon)
 - [X] A companion desktop app for:
-  - [ ] File tagging
-  - [ ] Metadata fetching (w
-  - [ ] Album descriptions and ratings
-  - [ ] Last.fm scrobbling
-  - [ ] Easy installation
-  - [ ] Improved read/write capabilities
+  - [ ] File tagging (Soon)
+  - [ ] Metadata fetching (Soon)
+  - [ ] Album descriptions and ratings (Soon)
+  - [ ] Last.fm scrobbling 
+  - [ ] Easy installation (Soon)
   - [ ] App, game and skin installations
 - [X] Improved album view
 - [X] Improved artist view
