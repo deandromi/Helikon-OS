@@ -5,7 +5,7 @@
 > Status: living document; research and plan, not implementation or device
 > evidence
 > Owner: audio lead; firmware lead
-> Last updated: 2026-11-05
+> Last updated: 2026-11-06
 > Source: Rockbox iPod Classic manual `0d5c2b0604-261105`, Appendix B.1–B.2
 > and §4.3.3, §7.21–§7.22, §13.5.8; Rockbox codec performance page, iPod
 > Classic run `b320bba`, 2014-12-12; Apple iPod classic technical
@@ -604,3 +604,72 @@ superseded: Tier 2 is a hard v1.x parity requirement, not an optional study.
 - Rockbox `firmware/export/config/ipod6g.h` (CPU, codec buffer, plugin buffer)
 - The Apple Wiki, *iPod classic* and *S5L8702* (CPU core, RAM, CS42L55)
 - Cirrus Logic CS42L55 datasheet metadata (24-bit codec, 48 kHz class)
+
+## 11. Functional four-codec player — next implementation plan
+
+> Status: proposed implementation sequence. No audio HAL, player, decoder or
+> storage-backed library exists yet. The Alpha 2.0.0 Music images are
+> storage-free UI demos.
+
+### 11.1 First release scope
+
+The first functional player targets the four requested codecs with explicit
+profiles. It is a subset of Tier 1; WAV, AIFF, Vorbis and Opus follow before the
+full Tier 1 gate.
+
+| Format | First functional profile | Later |
+|---|---|---|
+| MP3 | MPEG-1/2/2.5 Layer III, CBR/VBR, 32–320 kbps, 32/44.1/48 kHz, mono/stereo | MP1/MP2 (Tier 2) |
+| AAC | AAC-LC in ADTS and MP4/M4A, 44.1/48 kHz, mono/stereo | HE-AAC v1/v2 (216 MHz), multichannel |
+| FLAC | Native FLAC, 16/24-bit, mono/stereo, 44.1/48 native; 88.2/96/192 downsampled | Multichannel, 24-bit output after T-098 |
+| ALAC | M4A, 16/24-bit, mono/stereo, 44.1/48 native; higher rates downsampled | Multichannel, 24-bit output after T-098 |
+
+Output is 16-bit/44.1 or 48 kHz until T-098 measures the CS42L55 path. Native
+>48 kHz output and native DSD are not claimed. The UI must show source and
+output rates separately.
+
+### 11.2 Milestones
+
+1. **Audio bench (T-058 first slice).** CS42L55 init over I2C, I2S clocks, DMA
+   output, volume, headphone and line-out. Play an embedded PCM WAV; no codec
+   and no storage. Exit: first sound on a 6G and a sane line-out/headphone
+   level.
+2. **Player core and FLAC (T-097/T-058).** Bounded read/seek callbacks, codec
+   descriptor registry, read-ahead and PCM rings, the playback state machine
+   (`IDLE → OPENING → BUFFERING → PLAYING → PAUSED → SEEKING → DRAINING`),
+   DMA playback clock, underrun handling and a minimal now-playing screen.
+   Play an embedded FLAC file.
+3. **Four codecs (T-068 subset).** MP3, ALAC and AAC-LC, with the MP4/M4A
+   demuxer for AAC/ALAC. Each decoder declares profiles, workspace, stack and
+   minimum clock; no `malloc`; stay inside the 512 KiB codec budget.
+4. **Read-only storage (T-056).** Mount HFS+ read-only through the ATA read
+   HAL, add bounded file handles (`read`/`seek`/`size`), and read the HDB and
+   audio files from the iPod. The blocked F2/T-055 write path is not required.
+   The volume hash must stay unchanged.
+5. **Functional gate (T-100/T-101).** Per-codec seek, pause, next/previous,
+   corrupt-file errors, 30-minute runs, CPU/battery measurements, line-out and
+   headphone checks, and a recorded device matrix row.
+
+### 11.3 Decoder order and provenance
+
+Implement in this order: **WAV → FLAC → MP3 → ALAC → AAC-LC**. WAV proves the
+output path; FLAC is the cheapest real decoder; MP3 is the most common; ALAC
+and AAC bring the MP4 container. Prefer Rockbox fixed-point decoders where they
+fit; use maintained upstream libraries only after the T-096 provenance and
+D-49 licence/patent review. AAC release requires an explicit licensing
+decision.
+
+### 11.4 Acceptance
+
+A codec is not supported until it: probes by header, decodes for 30 minutes
+without underrun at its declared clock, seeks within 250 ms where supported,
+pauses/resumes, handles next/previous, returns a specific error on a malformed
+file, works through headphone and line-out, performs no filesystem write during
+playback, and has a recorded 6G run with image hash, adapter and battery state.
+
+### 11.5 Not in the first player
+
+HE-AAC v1/v2, native >48 kHz output, 24-bit output before T-098, native DSD,
+multichannel downmix, gapless across all formats, ReplayGain/EQ and transactional
+resume. Gapless and resume are hardening gates, not prerequisites for first
+sound.

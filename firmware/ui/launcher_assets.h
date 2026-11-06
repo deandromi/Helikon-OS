@@ -26,4 +26,12 @@ extern const struct helikon_launcher_bitmap helikon_music_hub_icons[HELIKON_MUSI
 extern const uint16_t helikon_music_hub_plinths[HELIKON_MUSIC_HUB_CELLS];
 extern const struct helikon_launcher_bitmap helikon_music_headers[HELIKON_MUSIC_HEADER_COUNT];
 
+#define HELIKON_ARTIST_TABBAR_COUNT 3u
+extern const struct helikon_launcher_bitmap helikon_artist_header;
+extern const struct helikon_launcher_bitmap helikon_artist_hero;
+extern const struct helikon_launcher_bitmap helikon_artist_play;
+extern const struct helikon_launcher_bitmap helikon_artist_tabs[HELIKON_ARTIST_TABBAR_COUNT];
+extern const uint16_t helikon_artist_tab_x[HELIKON_ARTIST_TABBAR_COUNT];
+extern const uint16_t helikon_artist_tab_width[HELIKON_ARTIST_TABBAR_COUNT];
+
 #endif

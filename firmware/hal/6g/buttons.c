@@ -38,21 +38,24 @@ int helikon_buttons_init(struct helikon_buttons *buttons,
 
     clickwheel_init();
 
+    /*
+     * The controller can return the last WHEELTX command echo until its first
+     * real event arrives. A cold boot with no button held therefore never
+     * reported 0x8000001a and the launcher treated a healthy wheel as a fatal
+     * input failure. Wait briefly for a clean status, but treat configuration
+     * as success: poll() validates every later sample and the UI keeps polling
+     * until the first button or wheel event.
+     */
+    uint32_t settle_ms = timeout_ms < 20u ? timeout_ms : 20u;
     uint64_t start = helikon_clock_now_us(clock);
-    for (;;) {
+    while (!helikon_clock_expired(clock, start, settle_ms)) {
         uint32_t status = S5L_WHEELRX;
-        /*
-         * 0x8000023a is the WHEELTX command value, not a button status.
-         * Accepting it made init return before the controller reported real
-         * buttons, so the poll loop never saw SELECT or the wheel.
-         */
-        if ((status & 0x800000ffu) == 0x8000001au) {
-            buttons->initialized = 1;
-            return HELIKON_OK;
-        }
-        if (helikon_clock_expired(clock, start, timeout_ms))
-            return HELIKON_ERR_IO;
+        if ((status & 0x800000ffu) == 0x8000001au)
+            break;
+        helikon_clock_delay_us(clock, 1000u);
     }
+    buttons->initialized = 1;
+    return HELIKON_OK;
 }
 
 int helikon_buttons_poll(struct helikon_buttons *buttons, uint32_t *events,

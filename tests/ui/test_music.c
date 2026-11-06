@@ -149,9 +149,41 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    draw_artist_page(0u);
+    draw_artist_page(0u, 0u, 0u, 0u);
     snprintf(path, sizeof(path), "%s-artist.ppm", prefix);
     (void)write_ppm(path);
+    if (framebuffer[40u * HELIKON_SCREEN_WIDTH + 10u] == MUSIC_PAPER) {
+        fprintf(stderr, "artist portrait band is missing\n");
+        return 1;
+    }
+    if (framebuffer[170u * HELIKON_SCREEN_WIDTH + 16u] != MUSIC_INK) {
+        fprintf(stderr, "artist overview tab is not selected\n");
+        return 1;
+    }
+
+    draw_artist_page(0u, 1u, 0u, 0u);
+    snprintf(path, sizeof(path), "%s-artist-albums.ppm", prefix);
+    (void)write_ppm(path);
+    if (framebuffer[170u * HELIKON_SCREEN_WIDTH + 92u] != MUSIC_INK) {
+        fprintf(stderr, "artist albums tab is not selected\n");
+        return 1;
+    }
+    if (framebuffer[180u * HELIKON_SCREEN_WIDTH + 20u] == MUSIC_PAPER) {
+        fprintf(stderr, "artist albums tab has no cover\n");
+        return 1;
+    }
+
+    draw_artist_page(0u, 2u, 0u, 0u);
+    snprintf(path, sizeof(path), "%s-artist-tracks.ppm", prefix);
+    (void)write_ppm(path);
+    if (framebuffer[170u * HELIKON_SCREEN_WIDTH + 150u] != MUSIC_INK) {
+        fprintf(stderr, "artist tracks tab is not selected\n");
+        return 1;
+    }
+    if (framebuffer[180u * HELIKON_SCREEN_WIDTH + 18u] != MUSIC_INK) {
+        fprintf(stderr, "artist tracks tab has no selected row\n");
+        return 1;
+    }
 
     draw_album_page(0u);
     snprintf(path, sizeof(path), "%s-album.ppm", prefix);

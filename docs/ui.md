@@ -224,7 +224,7 @@ The build uses the 3×5 fallback font for dynamic text until the Plex atlas
 For the pre-VFS test, the signed image embeds a 100-song HelikonDB:
 
 ```sh
-make -C firmware BOARD=6g VERSION=12 BOOTSTATE_STATE=good UI=1 \
+make -C firmware BOARD=6g VERSION=13 BOOTSTATE_STATE=good UI=1 \
   HDB=../build/helikondb/first100/music.hdb \
   EXTRA_CFLAGS='-DHELIKON_DIAG_LAUNCHER' \
   BUILD=../build/firmware/6g-music image
@@ -232,9 +232,10 @@ make -C firmware BOARD=6g VERSION=12 BOOTSTATE_STATE=good UI=1 \
 
 It touches no storage and no ATA. `make -C tests/ui preview` renders
 `build/ui/music-hub.png`, `music-albums.png`, `music-artists.png`,
-`music-tracks.png`, `music-artist.png`, `music-album.png` and
-`music-track.png` from the fixture catalog. Playback is F5/T-058; the
-storage-backed catalog is T-056/T-067.
+`music-tracks.png`, `music-artist.png`, `music-artist-albums.png`,
+`music-artist-tracks.png`, `music-album.png` and `music-track.png` from the
+fixture catalog. Playback is F5/T-058; the storage-backed catalog is
+T-056/T-067.
 
 ### 5.3 Concept B — neoclassical index
 
@@ -474,6 +475,19 @@ size.
 - Open: exact tab set, rating presentation, long-title wrapping, biography
   length, albums/tracks tab density, and whether the artist band should use a
   real image or remain a provenance-safe placeholder.
+
+#### Artist view renderer (implemented on host)
+
+`firmware/ui/music.c` now renders the artist view: compact `ARTIST` top bar,
+320×68 plum portrait band with the generated cameo (or a 60×60 inset when the
+catalog has an artist image), name, genre line, ink `PLAY` plate, the
+`OVERVIEW / ALBUMS / TRACKS` tabs with a 2 px selection underline and the
+overview biography/facts. Left/right switch tabs; the wheel moves album or
+track selection within a tab; SELECT opens the focused album/track or the full
+artist track list from Overview; MENU returns to the artist wall. Dynamic text
+uses the 3×5 fallback until the Plex/Benguiat atlas. `tests/ui` renders
+`music-artist.png`, `music-artist-albums.png` and `music-artist-tracks.png`.
+No 6G panel run yet.
 
 ## 7. Not specified yet
 
