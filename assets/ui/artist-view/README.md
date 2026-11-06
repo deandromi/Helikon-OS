@@ -1,7 +1,8 @@
 # Artist view mockup
 
 > Purpose: host-rendered 320×240 artist detail page.
-> Status: proposed design; no firmware screen and no device panel run.
+> Status: implemented in `firmware/ui/music.c` with host previews; no device
+> panel run yet.
 > Owner: UI lead
 > Last updated: 2026-11-06
 
@@ -52,7 +53,11 @@ button cluster or player bar.
 
 ## Limits
 
-The mockup is a host artifact. It does not prove a firmware renderer, scrolling,
-focus model or 6G panel result. The Benguiat font is owner-supplied, proprietary
-and not committed; the header face remains provisional. All names, dates and
-counts are sample content.
+The mockup is a host artifact. The firmware renders the layout from generated
+top-bar, portrait-band, play and tab tiles; dynamic names, genre, biography and
+facts use the 3×5 fallback until the Plex/Benguiat atlas (T-042/T-057). The
+left/right buttons switch tabs, the wheel moves album/track selection, SELECT
+opens the focused item and MENU returns. It does not prove 6G panel contrast or
+frame time. The Benguiat font is owner-supplied, proprietary and not committed;
+the header face remains provisional. All names, dates and counts are sample
+content.

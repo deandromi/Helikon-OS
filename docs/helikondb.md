@@ -283,25 +283,29 @@ Build with the contiguous 100-song sample (6 artists, 10 albums, 10 covers)
 and the diagnostic launcher:
 
 ```sh
-make -C firmware BOARD=6g VERSION=12 BOOTSTATE_STATE=good UI=1 \
+make -C firmware BOARD=6g VERSION=13 BOOTSTATE_STATE=good UI=1 \
   HDB=../build/helikondb/first100/music.hdb \
   EXTRA_CFLAGS='-DHELIKON_DIAG_LAUNCHER' \
   BUILD=../build/firmware/6g-music image
 ```
 
-Artifact: 474,252 bytes, SHA-256 `de6491a9…`; manifest `5fb5676f…`; bootstate
-`2f1e3e7c…`. The loader is `7f13e7e5…` (106,184 bytes). The host loader core
+Artifact: 583,820 bytes, SHA-256 `372e1412…`; manifest `7b50ab0a…`; bootstate
+`7501068c…`. The loader is `7f13e7e5…` (106,184 bytes). The host loader core
 and `tests/ui` previews pass.
 
 Controls: launcher → Music opens a launcher-style hub (Albums / Artists /
 Tracks). Albums and Artists use the 4×3 wall from the album-wall mockup; the
-wheel or left/right moves, SELECT opens and MENU returns one level. Album,
-artist and track pages use the same header strip and show 96×96 artwork, year,
-ratings and biography/profile picture when present. Artist entries without a
-profile picture use a monogram. The 3×5 fallback font is used for dynamic text
-in this build; the first-party Plex atlas remains T-042/T-057. The search mark
-has no action yet. Playback (F5/T-058) and reading `/.helikon/music.hdb` from
-the real VFS are not part of this test.
+wheel or left/right moves, SELECT opens and MENU returns one level. The artist
+page implements the `assets/ui/artist-view` layout: portrait band, name,
+genre/facts, PLAY plate, OVERVIEW / ALBUMS / TRACKS tabs, biography and facts.
+Left/right switches tabs; the wheel moves album/track selection; SELECT opens
+the focused item; MENU returns. Album, artist and track pages show 96×96
+artwork, year and ratings; artist entries without a profile picture use a
+monogram. The 3×5 fallback font is used for dynamic text in this build; the
+first-party Plex atlas remains T-042/T-057. The search mark has no action yet.
+The launcher input init no longer fails when no button is pressed during boot.
+Playback (F5/T-058) and reading `/.helikon/music.hdb` from the real VFS are not
+part of this test.
 
 ## 7. Open items
 

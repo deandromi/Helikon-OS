@@ -1,10 +1,10 @@
 # UI mockups
 
 > Purpose: host-rendered 320×240 UI mockups for the first-party UI.
-> Status: host artifacts; launcher and three walls committed; index alternate;
-> album/artist views proposed; no firmware UI or device panel run.
+> Status: host artifacts; launcher, three walls and artist view implemented on
+> host; index alternate; album view proposed; no device panel run.
 > Owner: UI lead
-> Last updated: 2026-11-05
+> Last updated: 2026-11-06
 
 | File | Content |
 |---|---|
@@ -30,7 +30,8 @@ background and white selected row are a neutral typography proof, not the
 selected palette. The concept screens are full-colour RGB because the proposed
 off-white, warm-grey and ink palette cannot be expressed as a neutral grayscale
 proof. The launcher is the chosen home concept; the index remains an alternate;
-the three walls are browsers, and the album and artist views are detail screens.
+the three walls are browsers, the artist view is a detail screen implemented on
+host, and the album view is a proposed detail screen.
 Each folder has its own README. None is a settled theme until a 6G panel check
 records contrast and clipping.
 
