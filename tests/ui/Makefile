@@ -23,7 +23,7 @@ preview: test_launcher $(MUSIC_TEST) $(FIXTURE)
 	python3 -c "from PIL import Image; \
 [Image.open('$(OUT)/launcher.ppm').save('$(OUT)/launcher.png'), \
  *[Image.open('$(OUT)/music-%s.ppm' % n).save('$(OUT)/music-%s.png' % n) \
-   for n in ('hub','albums','artists','tracks','artist','album','track')]]"
+   for n in ('hub','albums','artists','tracks','artist','artist-albums','artist-tracks','album','track')]]"
 	@echo "previews: $(OUT)/launcher.png and $(OUT)/music-*.png"
 
 test_launcher: test_launcher.c ../../firmware/ui/launcher.c \

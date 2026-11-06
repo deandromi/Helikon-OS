@@ -34,6 +34,12 @@
 #define MUSIC_CELL_STEP_Y 60u
 #define MUSIC_CAPTION_Y 221u
 
+/* Artist detail page, from assets/ui/artist-view. */
+#define ARTIST_BODY_X 16u
+#define ARTIST_BODY_Y 176u
+#define ARTIST_ALBUM_CELLS 4u
+#define ARTIST_TRACK_ROWS 3u
+
 /* Generated header order in launcher_assets.c. */
 #define MUSIC_HEADER_ALBUMS 0u
 #define MUSIC_HEADER_ARTISTS 1u
@@ -64,6 +70,7 @@ enum list_kind {
     LIST_ALBUMS,
     LIST_SONGS,
     LIST_ARTIST_ALBUMS,
+    LIST_ARTIST_TRACKS,
     LIST_ALBUM_TRACKS
 };
 
@@ -460,6 +467,126 @@ static int wall_item(enum wall_kind kind, uint32_t index,
     return HELIKON_OK;
 }
 
+static uint32_t artist_track_count(uint32_t artist_id)
+{
+    struct hdb_artist artist;
+    if (hdb_artist(&db, artist_id, &artist) != HELIKON_OK)
+        return 0u;
+    return artist.track_count;
+}
+
+static void artist_genre(uint32_t artist_id, char *buffer, uint32_t capacity)
+{
+    if (buffer == NULL || capacity == 0u)
+        return;
+    buffer[0] = '\0';
+    struct hdb_artist artist;
+    if (hdb_artist(&db, artist_id, &artist) != HELIKON_OK)
+        return;
+    for (uint32_t index = 0u; index < artist.album_count; ++index) {
+        struct hdb_album album;
+        if (hdb_album(&db, artist.first_album + index, &album) != HELIKON_OK)
+            continue;
+        read_str(album.genre_off, buffer, capacity);
+        if (buffer[0] != '\0')
+            return;
+    }
+}
+
+static void format_counts(char *buffer, uint32_t capacity, uint32_t albums,
+                          uint32_t tracks)
+{
+    copy_text(buffer, capacity, "");
+    append_u32(buffer, capacity, albums);
+    append_text(buffer, capacity, albums == 1u ? " ALBUM - " : " ALBUMS - ");
+    append_u32(buffer, capacity, tracks);
+    append_text(buffer, capacity, tracks == 1u ? " TRACK" : " TRACKS");
+}
+
+static int artist_album_at(uint32_t artist_id, uint32_t index,
+                           uint32_t *album_id)
+{
+    if (album_id == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    struct hdb_artist artist;
+    if (hdb_artist(&db, artist_id, &artist) != HELIKON_OK ||
+        index >= artist.album_count)
+        return HELIKON_ERR_NOT_FOUND;
+    uint32_t value = artist.first_album + index;
+    struct hdb_album album;
+    if (hdb_album(&db, value, &album) != HELIKON_OK ||
+        album.artist_id != artist_id)
+        return HELIKON_ERR_NOT_FOUND;
+    *album_id = value;
+    return HELIKON_OK;
+}
+
+static int artist_track_at(uint32_t artist_id, uint32_t index,
+                           uint32_t *track_id)
+{
+    if (track_id == NULL)
+        return HELIKON_ERR_ARGUMENT;
+
+    struct hdb_artist artist;
+    if (hdb_artist(&db, artist_id, &artist) != HELIKON_OK)
+        return HELIKON_ERR_NOT_FOUND;
+
+    /*
+     * HDB sorts albums by artist and tracks by album, so one artist's tracks
+     * are contiguous. Use that path first; the scan is a safety fallback for
+     * an externally built catalog with a different order.
+     */
+    uint32_t total = 0u;
+    uint32_t candidate = HDB_NO_ID;
+    for (uint32_t album_index = 0u; album_index < artist.album_count;
+         ++album_index) {
+        struct hdb_album album;
+        if (hdb_album(&db, artist.first_album + album_index, &album) !=
+            HELIKON_OK)
+            continue;
+        if (album.artist_id != artist_id)
+            continue;
+        if (index >= total && index < total + album.track_count) {
+            candidate = album.first_track + (index - total);
+            break;
+        }
+        total += album.track_count;
+    }
+    if (candidate != HDB_NO_ID) {
+        struct hdb_track track;
+        if (hdb_track(&db, candidate, &track) == HELIKON_OK &&
+            track.artist_id == artist_id) {
+            *track_id = candidate;
+            return HELIKON_OK;
+        }
+    }
+
+    uint32_t seen = 0u;
+    for (uint32_t track = 0u; track < db.track_count; ++track) {
+        struct hdb_track item;
+        if (hdb_track(&db, track, &item) != HELIKON_OK)
+            continue;
+        if (item.artist_id != artist_id)
+            continue;
+        if (seen == index) {
+            *track_id = track;
+            return HELIKON_OK;
+        }
+        ++seen;
+    }
+    return HELIKON_ERR_NOT_FOUND;
+}
+
+static void blit_bitmap(struct helikon_screen *target,
+                        const struct helikon_launcher_bitmap *bitmap)
+{
+    if (target == NULL || bitmap == NULL)
+        return;
+    helikon_screen_bitmap(target, (uint32_t)bitmap->x, (uint32_t)bitmap->y,
+                          bitmap->width, bitmap->height, bitmap->pixels,
+                          bitmap->width);
+}
+
 static void blit_header(struct helikon_screen *target, uint32_t header)
 {
     const struct helikon_launcher_bitmap *strip =
@@ -640,6 +767,8 @@ static uint32_t list_count(const struct list_spec *spec)
             return 0u;
         return artist.album_count;
     }
+    case LIST_ARTIST_TRACKS:
+        return artist_track_count(spec->parent);
     case LIST_ALBUM_TRACKS: {
         struct hdb_album album;
         if (hdb_album(&db, spec->parent, &album) != HELIKON_OK)
@@ -706,6 +835,27 @@ static int list_item(const struct list_spec *spec, uint32_t index,
         *id = album_id;
         return HELIKON_OK;
     }
+    case LIST_ARTIST_TRACKS: {
+        uint32_t track_id = 0u;
+        if (artist_track_at(spec->parent, index, &track_id) != HELIKON_OK)
+            return HELIKON_ERR_NOT_FOUND;
+        struct hdb_track track;
+        if (hdb_track(&db, track_id, &track) != HELIKON_OK)
+            return HELIKON_ERR_NOT_FOUND;
+        read_str(track.title_off, scratch, sizeof(scratch));
+        if (track.track_no != 0u) {
+            char prefix[8];
+            copy_text(prefix, sizeof(prefix), "");
+            append_u32(prefix, sizeof(prefix), track.track_no);
+            append_text(prefix, sizeof(prefix), "  ");
+            copy_text(label, capacity, prefix);
+            append_text(label, capacity, scratch);
+        } else {
+            copy_text(label, capacity, scratch);
+        }
+        *id = track_id;
+        return HELIKON_OK;
+    }
     case LIST_ALBUM_TRACKS: {
         struct hdb_album album;
         if (hdb_album(&db, spec->parent, &album) != HELIKON_OK ||
@@ -762,6 +912,11 @@ static void list_title(const struct list_spec *spec, uint32_t count,
         }
         break;
     }
+    case LIST_ARTIST_TRACKS:
+        copy_text(title, capacity, "TRACKS (");
+        append_u32(title, capacity, count);
+        append_text(title, capacity, ")");
+        break;
     case LIST_ALBUM_TRACKS: {
         struct hdb_album album;
         if (hdb_album(&db, spec->parent, &album) == HELIKON_OK)
@@ -960,7 +1115,165 @@ static void format_duration(uint32_t duration_ms, char *buffer,
     append_u32(buffer, capacity, rest);
 }
 
-static void draw_artist_page(uint32_t artist_id)
+static void draw_artist_facts(struct helikon_screen *target,
+                              uint32_t artist_id,
+                              const struct hdb_artist *artist, uint32_t tab,
+                              uint32_t album_selected,
+                              uint32_t track_selected)
+{
+    char facts[96];
+    facts[0] = '\0';
+
+    if (tab == 1u) {
+        uint32_t album_id = 0u;
+        if (artist_album_at(artist_id, album_selected, &album_id) ==
+            HELIKON_OK) {
+            struct hdb_album album;
+            if (hdb_album(&db, album_id, &album) == HELIKON_OK)
+                read_str(album.title_off, facts, sizeof(facts));
+        }
+    } else if (tab == 2u) {
+        uint32_t track_id = 0u;
+        if (artist_track_at(artist_id, track_selected, &track_id) ==
+            HELIKON_OK) {
+            struct hdb_track track;
+            if (hdb_track(&db, track_id, &track) == HELIKON_OK) {
+                struct hdb_album album;
+                if (hdb_album(&db, track.album_id, &album) == HELIKON_OK)
+                    read_str(album.title_off, facts, sizeof(facts));
+            }
+        }
+    }
+
+    if (facts[0] == '\0' && tab == 0u)
+        artist_genre(artist_id, facts, sizeof(facts));
+    if (facts[0] == '\0')
+        format_counts(facts, sizeof(facts), artist->album_count,
+                      artist->track_count);
+    helikon_screen_set_foreground(target, MUSIC_MUTED);
+    draw_text(target, ARTIST_BODY_X, 132u, 2u, facts, 36u);
+    helikon_screen_set_foreground(target, MUSIC_INK);
+}
+
+static void draw_artist_overview(struct helikon_screen *target,
+                                 uint32_t artist_id,
+                                 const struct hdb_artist *artist)
+{
+    char bio[192];
+    read_str(artist->bio_off, bio, sizeof(bio));
+    if (bio[0] != '\0') {
+        draw_wrapped(target, ARTIST_BODY_X, ARTIST_BODY_Y, 2u, bio, 34u, 2u);
+    } else {
+        helikon_screen_set_foreground(target, MUSIC_MUTED);
+        helikon_screen_text(target, ARTIST_BODY_X, ARTIST_BODY_Y, 2u,
+                            "NO BIOGRAPHY");
+        helikon_screen_set_foreground(target, MUSIC_INK);
+    }
+
+    char facts[96];
+    facts[0] = '\0';
+    uint32_t album_id = 0u;
+    if (artist_album_at(artist_id, 0u, &album_id) == HELIKON_OK) {
+        struct hdb_album album;
+        if (hdb_album(&db, album_id, &album) == HELIKON_OK) {
+            read_str(album.title_off, facts, sizeof(facts));
+            if (album.year != 0u) {
+                append_text(facts, sizeof(facts), " - ");
+                append_u32(facts, sizeof(facts), album.year);
+            }
+        }
+    }
+    if (facts[0] == '\0')
+        format_counts(facts, sizeof(facts), artist->album_count,
+                      artist->track_count);
+    helikon_screen_set_foreground(target, MUSIC_MUTED);
+    draw_text(target, ARTIST_BODY_X, 216u, 2u, facts, 34u);
+    helikon_screen_set_foreground(target, MUSIC_INK);
+}
+
+static void draw_artist_albums(struct helikon_screen *target,
+                               uint32_t artist_id, uint32_t selected,
+                               uint32_t count)
+{
+    if (count == 0u) {
+        helikon_screen_set_foreground(target, MUSIC_MUTED);
+        helikon_screen_text(target, ARTIST_BODY_X, ARTIST_BODY_Y, 2u,
+                            "NO ALBUMS");
+        helikon_screen_set_foreground(target, MUSIC_INK);
+        return;
+    }
+    if (selected >= count)
+        selected = count - 1u;
+
+    uint32_t page = selected / ARTIST_ALBUM_CELLS;
+    for (uint32_t slot = 0u; slot < ARTIST_ALBUM_CELLS; ++slot) {
+        uint32_t index = page * ARTIST_ALBUM_CELLS + slot;
+        if (index >= count)
+            break;
+        uint32_t album_id = 0u;
+        if (artist_album_at(artist_id, index, &album_id) != HELIKON_OK)
+            continue;
+        struct hdb_album album;
+        if (hdb_album(&db, album_id, &album) != HELIKON_OK)
+            continue;
+
+        struct wall_item item;
+        item.id = album_id;
+        item.artwork_id = album.artwork_id;
+        item.subtitle[0] = '\0';
+        read_str(album.title_off, item.title, sizeof(item.title));
+        uint32_t x = ARTIST_BODY_X + slot * 68u;
+        draw_wall_cell(target, x, ARTIST_BODY_Y, index == selected, &item);
+    }
+}
+
+static void draw_artist_tracks(struct helikon_screen *target,
+                               uint32_t artist_id, uint32_t selected)
+{
+    uint32_t count = artist_track_count(artist_id);
+    if (count == 0u) {
+        helikon_screen_set_foreground(target, MUSIC_MUTED);
+        helikon_screen_text(target, ARTIST_BODY_X, ARTIST_BODY_Y, 2u,
+                            "NO TRACKS");
+        helikon_screen_set_foreground(target, MUSIC_INK);
+        return;
+    }
+    if (selected >= count)
+        selected = count - 1u;
+
+    uint32_t page = selected / ARTIST_TRACK_ROWS;
+    for (uint32_t row = 0u; row < ARTIST_TRACK_ROWS; ++row) {
+        uint32_t index = page * ARTIST_TRACK_ROWS + row;
+        if (index >= count)
+            break;
+        uint32_t track_id = 0u;
+        if (artist_track_at(artist_id, index, &track_id) != HELIKON_OK)
+            continue;
+        struct hdb_track track;
+        if (hdb_track(&db, track_id, &track) != HELIKON_OK)
+            continue;
+
+        char title[128];
+        read_str(track.title_off, title, sizeof(title));
+        uint32_t y = ARTIST_BODY_Y + row * 17u;
+        if (index == selected) {
+            helikon_screen_fill_rect(target, ARTIST_BODY_X, y - 1u, 288u, 16u,
+                                     MUSIC_INK);
+            helikon_screen_set_foreground(target, MUSIC_PAPER);
+        } else {
+            helikon_screen_set_foreground(target, MUSIC_INK);
+        }
+        draw_text(target, ARTIST_BODY_X + 4u, y, 2u, title, 29u);
+        char duration[16];
+        format_duration(track.duration_ms, duration, sizeof(duration));
+        draw_text_right(target, 304u, y + 5u, 1u, duration, 8u);
+        helikon_screen_set_foreground(target, MUSIC_INK);
+    }
+}
+
+static void draw_artist_page(uint32_t artist_id, uint32_t tab,
+                             uint32_t album_selected,
+                             uint32_t track_selected)
 {
     struct hdb_artist artist;
     if (hdb_artist(&db, artist_id, &artist) != HELIKON_OK) {
@@ -969,35 +1282,54 @@ static void draw_artist_page(uint32_t artist_id)
         (void)helikon_screen_present_all(screen);
         return;
     }
+    if (tab >= HELIKON_ARTIST_TABBAR_COUNT)
+        tab = 0u;
+    if (album_selected >= artist.album_count && artist.album_count != 0u)
+        album_selected = artist.album_count - 1u;
 
-    draw_detail_header(screen, MUSIC_HEADER_ARTIST);
+    helikon_screen_fill_rect(screen, 0u, 0u, screen->width, screen->height,
+                             MUSIC_PAPER);
+    blit_bitmap(screen, &helikon_artist_header);
+    blit_bitmap(screen, &helikon_artist_hero);
+
     int has_art = load_art(artist.image_id);
-    uint32_t x = 14u;
     if (has_art) {
-        helikon_screen_bitmap(screen, 12u, 44u, MUSIC_ART_SIZE,
-                              MUSIC_ART_SIZE, art_pixels, MUSIC_ART_SIZE);
-        x = 124u;
+        helikon_screen_fill_rect(screen, 240u, 28u, 68u, 64u, MUSIC_PAPER);
+        helikon_screen_fill_rect(screen, 240u, 28u, 64u, 1u, MUSIC_INK);
+        helikon_screen_fill_rect(screen, 240u, 91u, 64u, 1u, MUSIC_INK);
+        helikon_screen_fill_rect(screen, 240u, 28u, 1u, 64u, MUSIC_INK);
+        helikon_screen_fill_rect(screen, 303u, 28u, 1u, 64u, MUSIC_INK);
+        draw_scaled_art(screen, 242u, 30u, 60u, MUSIC_ART_SIZE);
     }
+
     char name[128];
     read_str(artist.name_off, name, sizeof(name));
-    draw_text(screen, x, 46u, 2u, name, has_art ? 24u : 46u);
+    draw_text(screen, ARTIST_BODY_X, 106u, 3u, name, 18u);
 
-    char bio[192];
-    read_str(artist.bio_off, bio, sizeof(bio));
-    if (bio[0] != '\0') {
-        draw_wrapped(screen, x, 70u, 1u, bio, has_art ? 42u : 70u, 6u);
-    }
+    draw_artist_facts(screen, artist_id, &artist, tab, album_selected,
+                      track_selected);
+    blit_bitmap(screen, &helikon_artist_play);
 
-    char info[64];
-    copy_text(info, sizeof(info), "");
-    append_u32(info, sizeof(info), artist.album_count);
-    append_text(info, sizeof(info), " ALBUMS   ");
-    append_u32(info, sizeof(info), artist.track_count);
-    append_text(info, sizeof(info), " TRACKS");
+    blit_bitmap(screen, &helikon_artist_tabs[tab]);
+    char albums[16];
+    copy_text(albums, sizeof(albums), "");
+    append_u32(albums, sizeof(albums), artist.album_count);
+    append_text(albums, sizeof(albums),
+                artist.album_count == 1u ? " ALBUM" : " ALBUMS");
+    helikon_screen_set_foreground(screen, MUSIC_MUTED);
+    draw_text_right(screen, 304u, 156u, 2u, albums, 12u);
     helikon_screen_set_foreground(screen, MUSIC_INK);
-    helikon_screen_text(screen, 14u, 186u, 2u, info);
-    if (artist.album_count != 0u)
-        draw_footer_select(screen, "SELECT: ALBUMS");
+    helikon_screen_fill_rect(screen, helikon_artist_tab_x[tab], 170u,
+                             helikon_artist_tab_width[tab], 2u, MUSIC_INK);
+
+    if (tab == 1u) {
+        draw_artist_albums(screen, artist_id, album_selected,
+                           artist.album_count);
+    } else if (tab == 2u) {
+        draw_artist_tracks(screen, artist_id, track_selected);
+    } else {
+        draw_artist_overview(screen, artist_id, &artist);
+    }
     (void)helikon_screen_present_all(screen);
 }
 
@@ -1109,8 +1441,16 @@ static void run_album(uint32_t album_id);
 
 static void run_artist(uint32_t artist_id)
 {
-    uint32_t selected = 0u;
-    draw_artist_page(artist_id);
+    struct hdb_artist artist;
+    if (hdb_artist(&db, artist_id, &artist) != HELIKON_OK) {
+        draw_artist_page(artist_id, 0u, 0u, 0u);
+        return;
+    }
+
+    uint32_t tab = 0u;
+    uint32_t album_selected = 0u;
+    uint32_t track_selected = 0u;
+    draw_artist_page(artist_id, tab, album_selected, track_selected);
     struct nav_state nav;
     nav_reset(&nav);
     uint64_t idle = helikon_clock_now_us(clock);
@@ -1120,26 +1460,81 @@ static void run_artist(uint32_t artist_id)
         int hold = 0;
         if (helikon_buttons_poll(buttons, &events, &wheel, &hold, 20u) ==
             HELIKON_OK) {
+            uint64_t now = helikon_clock_now_us(clock);
             uint32_t pressed = events & ~nav.previous_events;
             nav.previous_events = events;
             if (hold)
                 return;
             if ((pressed & HELIKON_BUTTON_MENU) != 0u)
                 return;
-            if ((pressed & (HELIKON_BUTTON_SELECT | HELIKON_BUTTON_PLAY)) !=
-                0u) {
-                struct list_spec spec = { .kind = LIST_ARTIST_ALBUMS,
-                                          .parent = artist_id };
-                int album_id = run_list(&spec, &selected);
-                nav_reset(&nav);
-                draw_artist_page(artist_id);
-                idle = helikon_clock_now_us(clock);
-                if (album_id >= 0) {
-                    run_album((uint32_t)album_id);
-                    nav_reset(&nav);
-                    draw_artist_page(artist_id);
-                    idle = helikon_clock_now_us(clock);
+
+            int redraw = 0;
+            if ((pressed & HELIKON_BUTTON_LEFT) != 0u) {
+                tab = tab == 0u ? HELIKON_ARTIST_TABBAR_COUNT - 1u : tab - 1u;
+                nav.wheel_accumulator = 0;
+                redraw = 1;
+            } else if ((pressed & HELIKON_BUTTON_RIGHT) != 0u) {
+                tab = tab + 1u == HELIKON_ARTIST_TABBAR_COUNT ? 0u : tab + 1u;
+                nav.wheel_accumulator = 0;
+                redraw = 1;
+            } else if ((pressed & (HELIKON_BUTTON_SELECT |
+                                   HELIKON_BUTTON_PLAY)) != 0u) {
+                if (tab == 0u) {
+                    struct list_spec spec = { .kind = LIST_ARTIST_TRACKS,
+                                              .parent = artist_id };
+                    int track_id = run_list(&spec, NULL);
+                    if (track_id >= 0)
+                        run_track_page((uint32_t)track_id);
+                } else if (tab == 1u) {
+                    uint32_t album_id = 0u;
+                    if (artist_album_at(artist_id, album_selected,
+                                        &album_id) == HELIKON_OK)
+                        run_album(album_id);
+                } else {
+                    uint32_t track_id = 0u;
+                    if (artist_track_at(artist_id, track_selected,
+                                        &track_id) == HELIKON_OK)
+                        run_track_page(track_id);
                 }
+                nav_reset(&nav);
+                redraw = 1;
+            } else {
+                int delta = nav_delta(
+                    &nav,
+                    pressed & ~(HELIKON_BUTTON_LEFT | HELIKON_BUTTON_RIGHT),
+                    wheel, now);
+                if (delta != 0) {
+                    if (tab == 0u) {
+                        tab = delta < 0
+                                  ? (tab == 0u ? HELIKON_ARTIST_TABBAR_COUNT - 1u
+                                               : tab - 1u)
+                                  : (tab + 1u == HELIKON_ARTIST_TABBAR_COUNT
+                                         ? 0u
+                                         : tab + 1u);
+                        nav.wheel_accumulator = 0;
+                        redraw = 1;
+                    } else if (tab == 1u && artist.album_count != 0u) {
+                        if (delta < 0 && album_selected > 0u)
+                            --album_selected;
+                        else if (delta > 0 &&
+                                 album_selected + 1u < artist.album_count)
+                            ++album_selected;
+                        redraw = 1;
+                    } else if (tab == 2u) {
+                        uint32_t tracks = artist_track_count(artist_id);
+                        if (delta < 0 && track_selected > 0u)
+                            --track_selected;
+                        else if (delta > 0 && track_selected + 1u < tracks)
+                            ++track_selected;
+                        redraw = 1;
+                    }
+                }
+            }
+
+            if (redraw) {
+                draw_artist_page(artist_id, tab, album_selected,
+                                 track_selected);
+                idle = now;
             }
         }
         if (helikon_clock_expired(clock, idle, MUSIC_IDLE_MS))
