@@ -20,8 +20,10 @@ T-049's test image is owner-reported working on `3979de6f…` and `6bc6927c…`
 rejected as an explicit no-A/B decision. **T-054/F1 is done**: the source and
 signed development image build, the host tests pass, the loader host core
 verifies the manifest/bootstate, and the owner reports the F1 6G device run
-complete on 2026-11-04. The active P0 line is **T-055/F2** (first firmware
-write), followed by T-051 (production firmware handoff). The P1 line is T-029
+complete on 2026-11-04. The P0 line is **T-055/F2** (first firmware write), but
+it is blocked by a currently unfixable bug and is not part of Alpha 2.0.0.
+T-051 (production firmware handoff) depends on T-055 and is blocked with it.
+The P1 line is T-029
 (read-only diagnostic finish), T-045 (final splash, now device-checked) and T-053
 (release-key certificate). D-27/D-28 (firmware memory map and entry ABI) are
 accepted; T-059 fills the boot-info page in the loader. T-056 and T-058 are P1;
@@ -41,26 +43,27 @@ only when the owner accepts D-29 and the relevant decision; H2 and H3 tasks
 remain v1.x/v2. The status of every row is `planned`.
 
 **Alpha 2.0.0 release, 2026-11-06.** `alpha-2.0.0` publishes the loader, the
-launcher/Music-hub/F2 firmware sets and a universal companion DMG as a
-development alpha. T-055 and T-057 are included; neither is a full release gate.
-The owner reports 6G testing complete, but the per-image photos, timings and
-`fsck_hfs` remain to be attached. See
+launcher/Music-hub firmware sets and a universal companion DMG as a development
+alpha. T-057 is included; T-055 is **not** included and remains blocked and
+unconfirmed due to a currently unfixable bug. The owner reports 6G testing
+complete for the release set, but the per-image photos, timings and `fsck_hfs`
+remain to be attached. See
 [`releases/alpha-2.0.0/RELEASE_NOTES.md`](releases/alpha-2.0.0/RELEASE_NOTES.md).
 
 ## Now
 
-The first firmware write and production handoff. F1/T-054 produced the real
-signed development image and its owner-reported 6G run is accepted. F2/T-055 is
-implemented, host-verified and included in Alpha 2.0.0: ATA write/flush,
-bootstate promotion, in-place HFS+ overwrite and the `WRITE` stage. The owner
-reports the 6G run is complete; the per-image evidence still needs to be
-attached. Next is T-051, which needs a real signed firmware image. T-006 and
-T-049 are done.
+The first firmware write and production handoff are blocked. F1/T-054 produced
+the real signed development image and its owner-reported 6G run is accepted.
+F2/T-055 is implemented and host-verified (ATA write/flush, bootstate promotion,
+in-place HFS+ overwrite and the `WRITE` stage), but it is unfinished and
+unconfirmed due to a currently unfixable bug. It is **not** an Alpha 2.0.0
+asset. T-051 depends on T-055 and is blocked with it; T-051 also needs a real
+signed firmware image. T-006 and T-049 are done.
 
 | ID | Task | Priority | Dependencies | Acceptance criteria | Status | Owner | Links |
 |---|---|---|---|---|---|---|---|
 | T-051 | Build the production firmware handoff. | P0 | T-049, D-01, D-02, D-20, T-054, T-055, T-059, a real signed firmware image | Production bootloader verifies a real signed firmware image and jumps without returning; no test payload, no unsigned image and no in-bootloader OF/recovery menu (D-26; native Menu+Play and DFU cover recovery). End-to-end device validation requires a real signed firmware build; host tests can cover the handoff/failure paths earlier. | `planned` | boot lead | [architecture.md](architecture.md), [release.md](release.md), [LOADER.md](../bootloader/LOADER.md) |
-| T-055 | Promote `/.helikon/bootstate` to `GOOD` from the firmware through the transaction engine (F2). | P0 | T-054, D-02 | Firmware re-reads bootstate through HFS+ (the minimal F2 path; the full VFS is F3/T-056), validates both slots, stages `GOOD` with a higher sequence, commits through `hfs_txn`, flushes and reads back; the loader sees `GOOD`; `fsck_hfs -fn` clean; a power cut during promotion recovers to a consistent state. No other file is written. **Current evidence:** ATA PIO write/flush, firmware bootstate parser/promoter, in-place `hfs_catalog_overwrite_file` through `hfs_txn`, `WRITE` stage; F2 image 76,080 bytes `1d6d4c92…` with `TRYING` sequence 1; F2 adopts the loader's live ATA controller, which avoids a second IDENTIFY; 10 host test groups sanitizer-clean; `tools/check-f2-artifact.sh` promotes to `GOOD`, `fsck_hfs` clean, loader sees `GOOD`; overwrite crash matrix covers 22 write cuts plus flush/partial modes. Alpha 2.0.0 includes the set; the owner reports the 6G run is complete. **Remaining:** attach the promotion photo/timing and post-run `fsck_hfs`, record the second-boot `ALREADY GOOD` result, and run a device power-cut during promotion. Runbook: [f2-bootstate-test.md](f2-bootstate-test.md). | `in progress` | firmware/HFS+ | [firmware-architecture.md](firmware-architecture.md), [f2-bootstate-test.md](f2-bootstate-test.md), [build-firmware prompt](prompts/build-firmware.md), [LOADER.md](../bootloader/LOADER.md), [hfsplus-write-engine.md](hfsplus-write-engine.md) |
+| T-055 | Promote `/.helikon/bootstate` to `GOOD` from the firmware through the transaction engine (F2). | P0 | T-054, D-02 | Firmware re-reads bootstate through HFS+ (the minimal F2 path; the full VFS is F3/T-056), validates both slots, stages `GOOD` with a higher sequence, commits through `hfs_txn`, flushes and reads back; the loader sees `GOOD`; `fsck_hfs -fn` clean; a power cut during promotion recovers to a consistent state. No other file is written. **Current evidence:** ATA PIO write/flush, firmware bootstate parser/promoter, in-place `hfs_catalog_overwrite_file` through `hfs_txn`, `WRITE` stage; F2 image 76,080 bytes `1d6d4c92…` with `TRYING` sequence 1; F2 adopts the loader's live ATA controller, which avoids a second IDENTIFY; 10 host test groups sanitizer-clean; `tools/check-f2-artifact.sh` promotes to `GOOD`, `fsck_hfs` clean, loader sees `GOOD`; overwrite crash matrix covers 22 write cuts plus flush/partial modes. **Blocked:** the write gate is unfinished and unconfirmed due to a currently unfixable bug; the image is **not** an Alpha 2.0.0 asset and there is no confirmed 6G result. **Remaining:** resolve or re-scope the bug, then attach the promotion photo/timing and post-run `fsck_hfs`, record the second-boot `ALREADY GOOD` result, and run a device power-cut during promotion. Runbook: [f2-bootstate-test.md](f2-bootstate-test.md). | `in progress` | firmware/HFS+ | [firmware-architecture.md](firmware-architecture.md), [f2-bootstate-test.md](f2-bootstate-test.md), [build-firmware prompt](prompts/build-firmware.md), [LOADER.md](../bootloader/LOADER.md), [hfsplus-write-engine.md](hfsplus-write-engine.md) |
 
 ## Next
 

@@ -18,18 +18,20 @@ pre-phase 0 and has an Alpha 2.0.0 development release; it is not a production o
 supported firmware release.
 
 - **Current release:** Alpha 2.0.0 “Launchers and Interfaces” (`alpha-2.0.0`)
-  ships the loader test image, launcher and Music-hub firmware sets, the F2
-  bootstate image and a universal macOS companion shell DMG. The firmware uses
-  a build-local test key; the companion is ad-hoc signed and not notarized. The
-  owner reports 6G testing complete; the per-image evidence was not attached at
-  cut time. This is a development release, not a support claim.
+  ships the loader test image, the storage-free launcher and Music-hub firmware
+  sets, and a universal macOS companion shell DMG. It does not include a
+  firmware-owned filesystem write. The firmware uses a build-local test key; the
+  companion is ad-hoc signed and not notarized. The owner reports 6G testing
+  complete for the release set; the per-image evidence was not attached at cut
+  time. This is a development release, not a support claim.
 - **What exists:** a host HFS+ read/write core, an F1 read-only firmware tree,
-  F2 bootstate promotion, the launcher and Music-hub UI images, HelikonDB v1, a
-  read-only diagnostic bootloader image, an inner-image write diagnostic and an
-  outer-volume write diagnostic. F1 has one owner-reported 6G run. The F2 path
-  is included in Alpha 2.0.0 and host-verified: ATA write/flush, bootstate
-  promotion, in-place HFS+ overwrite and the `WRITE` stage. There is no
-  production firmware-loading bootloader, installer, signed update path or
+  the launcher and Music-hub UI images, HelikonDB v1, a read-only diagnostic
+  bootloader image, an inner-image write diagnostic and an outer-volume write
+  diagnostic. F1 has one owner-reported 6G run. An F2/T-055 firmware write path
+  exists and is host-verified (ATA write/flush, bootstate promotion, in-place
+  HFS+ overwrite and the `WRITE` stage), but it is unfinished and unconfirmed
+  due to a currently unfixable bug; it is **not** part of Alpha 2.0.0. There is
+  no production firmware-loading bootloader, installer, signed update path or
   working companion. A separate DFU-only loader test image verifies a signed
   manifest/image and loads the development images. The read-only diagnostic
   image has two owner-reported 6G runs; the inner-image write image has one
@@ -150,8 +152,9 @@ docs/prompts/             reusable task prompts
 `docs/file-map.md` is the authoritative map, including donor files referenced by
 the paper. A directory shown as planned does not exist yet.
 ## 6. Build and test commands
-**The F1 read-only firmware skeleton and the F2 bootstate write path can be
-built and host-tested. F1 has one owner-reported 6G run; F2 has no device run.
+**The F1 read-only firmware skeleton and the F2 bootstate write candidate can be
+built and host-tested. F1 has one owner-reported 6G run; F2 is blocked and
+unconfirmed due to a currently unfixable bug and is not part of Alpha 2.0.0.
 F3–F5, the production firmware handoff and a release firmware image cannot.**
 The
 read-only diagnostic bootloader and the separate DFU-only loader test image can

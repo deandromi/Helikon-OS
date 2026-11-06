@@ -3,10 +3,10 @@
 > Purpose: a self-contained execution prompt for an agent that will create the
 > first Helikon-OS firmware for the iPod Classic 6G.
 > Status: living — full-procedure prompt; F1/T-054 complete with an owner-reported
-> 6G run (2026-11-04); F2/T-055 is implemented and host-verified, with its 6G
-> run next.
+> 6G run (2026-11-04); F2/T-055 is host-verified but blocked and unconfirmed
+> due to a currently unfixable bug. It is not part of Alpha 2.0.0.
 > Owner: firmware lead; docs lead
-> Last updated: 2026-11-04
+> Last updated: 2026-11-06
 > Source: `agents.md`, `docs/firmware-architecture.md`, ADR-0003, ADR-0004,
 > `bootloader/LOADER.md`, `docs/tasks.md`, `docs/invariants.md`
 
@@ -66,11 +66,11 @@ It must:
 10. record a device run with a screen photo and `fsck_hfs -fn` clean.
 
 **Status 2026-11-06: F1/T-054 is complete.** The owner reports the 6G device run
-accepted; the image is `d7916411…` (39,108 bytes). **F2/T-055 is implemented,
-host-verified and included in Alpha 2.0.0** (76,080 bytes, `1d6d4c92…`,
-`TRYING` sequence 1); the owner reports the release-set 6G test is complete,
-but the per-image result and the device power-cut check are still to attach.
-See [`../f2-bootstate-test.md`](../f2-bootstate-test.md).
+accepted; the image is `d7916411…` (39,108 bytes). **F2/T-055 is implemented and
+host-verified** (76,080 bytes, `1d6d4c92…`, `TRYING` sequence 1), but it is
+unfinished and unconfirmed due to a currently unfixable bug. It is **not** part
+of Alpha 2.0.0 and has no confirmed 6G result. See
+[`../f2-bootstate-test.md`](../f2-bootstate-test.md).
 
 Do not start F2 until F1 has a recorded device run and the owner (or the next
 explicit session instruction) says continue.

@@ -6,9 +6,10 @@
 > cut time. Back up the iPod before installing anything.
 
 This is the first Helikon-OS alpha that ships the firmware-loading bootloader,
-firmware images and the macOS companion together. It adds the launcher home, the
-Music hub with album and artist walls, the native HelikonDB catalog, the first
-firmware-owned filesystem write, and a universal macOS companion shell.
+storage-free firmware images and the macOS companion together. It adds the
+launcher home, the Music hub with album and artist walls, the native HelikonDB
+catalog, and a universal macOS companion shell. It does **not** add a
+firmware-owned filesystem write.
 
 ## Release metadata
 
@@ -19,10 +20,10 @@ firmware-owned filesystem write, and a universal macOS companion shell.
 | Type | Normal GitHub release; development alpha |
 | Update type | Firmware + bootloader + companion preview; manual install |
 | Channel | Development / Alpha |
-| Base | `main` at `f5f8bfb` plus the release-preparation PR |
+| Base | `main` at the `alpha-2.0.0` tag |
 | Build host | macOS 27.0, Xcode 27.2, Swift 6.4.2, arm64 |
 | Target | iPod Classic 6G |
-| Device evidence | Owner-reported 6G testing; recorded older runs listed below |
+| Device evidence | Owner reports 6G testing complete; recorded older runs listed below |
 | Firmware signing | Build-local Ed25519 test key `0x48454c01`; **not a release key** |
 | Companion signing | Ad-hoc; **not notarized** |
 | Validation | Host test suites pass; see the validation table |
@@ -67,27 +68,15 @@ firmware-owned filesystem write, and a universal macOS companion shell.
 - The production builder (T-066), on-device journal (T-067) and VFS-backed
   library (T-056) are not in this release.
 
-### F2 bootstate promotion
-
-- Reads `/.helikon/bootstate` through native HFS+, validates both slots and
-  promotes the running image's `TRYING` slot to `GOOD` with a higher sequence.
-- The write goes through `hfs_txn`; the journal must be clean, the write gate
-  must open, and the file is flushed and read back.
-- Only `/.helikon/bootstate` is written. No library file is touched, no journal
-  is deleted and no metadata is repaired.
-- Host evidence: 10 firmware test groups, disposable-image promotion, clean
-  `fsck_hfs`, loader selection of `GOOD`, and the overwrite crash matrix
-  (22 write cuts plus flush and partial modes).
-
 ### Bootloader
 
 - Newest loader `7f13e7e5…` (106,184 bytes): Ed25519 verification before any
   image byte, SHA-256/board/version/load/size checks, direct DRAM read, ATA left
   active for the firmware handoff, no confirmation screens, immediate jump.
-- Host-verified with `tools/check-loader-artifact.sh` and the F2 promotion check.
+- Host-verified with `tools/check-loader-artifact.sh`.
 - The last device-tested loader is `6bc6927c…` from Alpha 1.0.1: one 6G/iFlash
-  SD, 6.5 seconds startup, clean `fsck_hfs -fn`. That image predates the F2
-  handoff work and is not included here; use Alpha 1.0.1 if you need it.
+  SD, 6.5 seconds startup, clean `fsck_hfs -fn`. That image predates the current
+  loader work and is not included here; use Alpha 1.0.1 if you need it.
 
 ### Companion preview
 
@@ -103,6 +92,8 @@ firmware-owned filesystem write, and a universal macOS companion shell.
 
 ## What this release is not
 
+- **No firmware-owned filesystem write.** The firmware images are storage-free
+  UI demos; the loader does not write the filesystem.
 - **No audio playback.** No codec, audio HAL, I2S/DMA output or now-playing
   screen.
 - **No VFS or storage-backed library.** The music image uses an embedded demo
@@ -121,7 +112,7 @@ firmware-owned filesystem write, and a universal macOS companion shell.
 
 The owner reports the 6G test programme is complete. The repository records the
 earlier diagnostic, loader, F1 and outer-volume runs; per-image timings, photos
-and `fsck_hfs` output for the new launcher/music-hub images were not attached at
+and `fsck_hfs` output for the new launcher/Music-hub images were not attached at
 cut time. This table separates recorded evidence from the owner report.
 
 | Component | Image | Evidence | Status |
@@ -129,7 +120,6 @@ cut time. This table separates recorded evidence from the owner report.
 | F1 firmware | `d7916411…` | owner-reported 6G, 2026-11-04 | pass (older) |
 | Loader, last device-tested | `6bc6927c…` | one 6G/iFlash SD, 6.5 s, fsck clean | pass (older, Alpha 1.0.1) |
 | Loader, this release | `7f13e7e5…` | owner-reported 6G test; host artifact checks | owner-reported; detail pending |
-| F2 bootstate | `1d6d4c92…` | owner-reported 6G test; host promotion + fsck | owner-reported; detail pending |
 | Launcher | `b3218ccd…` | owner-reported 6G test; host preview + loader check | owner-reported; detail pending |
 | Music hub/walls | `de6491a9…` | owner-reported 6G test; host preview + loader check | owner-reported; detail pending |
 | Companion shell | 0.1.0 | universal build, DMG mount, launch/quit | host only |
@@ -158,17 +148,14 @@ copy.
 |---|---|---|---|---|
 | `helikon-alpha2-launcher.zip` | 10 | GOOD | Launcher UI; Music opens the Music hub | none |
 | `helikon-alpha2-music-hub.zip` | 12 | GOOD | Launcher + Music hub + album/artist walls + 100-song demo | none |
-| `helikon-alpha2-f2-bootstate.zip` | 2 | TRYING seq 1 | F2 bootstate promotion; first firmware write | `/.helikon/bootstate` only |
+
+Both images are storage-free. They do not write the filesystem.
 
 ### Expected screens
 
-- **Launcher / music hub:** loader splash and progress, then the launcher frame.
+- **Launcher / Music hub:** loader splash and progress, then the launcher frame.
   Music opens the Music hub; Albums or Artists open the walls; Tracks opens the
   title list; MENU returns; 60 seconds idle powers off.
-- **F2:** loader splash, F2 stage screen, `PRESS ANY BUTTON`; press a button;
-  the `WRITE` stage runs; `PASS` shows `PROMOTED` and `BOOTSTATE GOOD SEQ 2`.
-  Power off, run `fsck_hfs -fn` from macOS, boot again and confirm the PASS
-  screen shows `ALREADY GOOD`.
 
 ### Companion preview
 
@@ -182,11 +169,9 @@ copy.
 
 ## Known issues
 
-- The detailed per-image 6G results for the new launcher, music-hub and F2
-  images were not attached at cut time. Treat the owner report as the release
-  evidence and add the logs when available.
-- The loader→F2 ATA handoff is the least-tested path. If the screen stops at
-  the ATA stage, record the exact stage and power off; do not retry writes.
+- The detailed per-image 6G results for the new launcher and Music-hub images
+  were not attached at cut time. Treat the owner report as the release evidence
+  and add the logs when available.
 - The music demo is a 100-song sample from the owner's library and does not play
   audio. It is demonstration content, not a library import.
 - The companion is an empty shell with no tests.
@@ -204,8 +189,7 @@ copy.
 | MusicDB reader suite | pass |
 | UI previews | pass: launcher, Music hub, walls, tracks and detail pages |
 | Disposable-image writer test | pass: create/append/rename/truncate/delete/Unicode, `fsck_hfs` clean |
-| F2 artifact promotion + `fsck_hfs` | pass on a disposable image |
-| Loader artifact check | pass for launcher and music-hub sets; F2 promotion check passes |
+| Loader artifact check | pass for the launcher and Music-hub sets |
 | 346 host crash cuts | documented; not rerun in this cut |
 | Owner-reported 6G run | reported complete; details not attached |
 | Device power-cut matrix | **not run** |
@@ -231,7 +215,6 @@ copy.
 - `bootloader-ipod6g-uninstall.dfu` — recovery uninstaller.
 - `helikon-alpha2-launcher.zip` — launcher firmware set.
 - `helikon-alpha2-music-hub.zip` — Music hub/walls + 100-song demo set.
-- `helikon-alpha2-f2-bootstate.zip` — F2 bootstate firmware set.
 - `Helikon-Companion-0.1.0-alpha2.dmg` — universal companion shell preview.
 - `test-public-key.txt` — public test key, key ID `0x48454c01`.
 - `QUICKSTART.md` — full install, expected screens and recovery.
@@ -239,13 +222,14 @@ copy.
 
 ### SHA-256
 
+The authoritative list is in `SHA256SUMS`. Key hashes:
+
 ```text
 7f13e7e5320239e204722d4c3cad1bd3a377906002158e7cd66344291fcedb21  bootloader-ipod6g-loader-test.ipod
 7188fe9b4d3be7352d3aaa5a320e3e6a4b3b9c654b990a09730e9cfccaccbbde  loader-test.dfu
 203e836412b71d3a16b3b57a5bf7ef034a0f5dcae1ca193685b8bfee33868a3a  bootloader-ipod6g-uninstall.dfu
 856a4b70ed40ee29d6667aa69390a3644c217e01fcd97bf12115aaa09268c547  helikon-alpha2-launcher.zip
 817a37583b87635e0d39762bec4477f2ebf22d5fcf4782107b3cbad19b30c3a2  helikon-alpha2-music-hub.zip
-2cdbe13c24aebef152bb7f4f6486656dd46125c8b780f0772a31c1260d642c15  helikon-alpha2-f2-bootstate.zip
 d4b033b5a68bcedf66b8659decb3fd407cd7692abdf47fe4bb2c88d2d0dfeb6f  Helikon-Companion-0.1.0-alpha2.dmg
 b7b1341bff7770159bb7f6987643fce37f59dcd2912ff806c390351791e0c053  test-public-key.txt
 ```
@@ -256,7 +240,6 @@ Firmware image, manifest and bootstate hashes are in each zip's `SHA256SUMS`:
 |---|---|---|---|
 | Launcher | `b3218ccda3ce9a0e5ce273086ca204cb10259651bdabb1816b5c8a3041f30c6c` | `4ec21a4dd60acc6d454a7b2145b9671499cb6faa333fbd49b4f8807a4d7c781f` | `dc70b497adff80b9337bc867d890bbdde4362b9c4e5a1871c6d3b6e9a87e42a3` |
 | Music hub | `de6491a9647ff26ff07da4c721307a2c38c641ce5070b2e62e1dc8cf88b8a420` | `5fb5676ffd28d33810a32d81e3b8f508645a355a85c715c8298ff0cec5933da2` | `2f1e3e7c71453012e8803a44d938089956e1e284b10e71c56657c076bcd00508` |
-| F2 bootstate | `1d6d4c92a0488e33d33e3b14016ec8e0a5d7cd3575b890365a7db1f2bbb101cb` | `95749cd4d2edd9484abf0c253d4a66f2b6af39ed44dd86ed5f7e6e8223df4484` | `e4838bdfd1a92b1dbfd3aefccfe95c003ac202e5e81a4f9ffd112aaea0b3e5db` |
 
 Test key: key ID `0x48454c01`, public key
 `2e0753454e5f37e2cd0bba40c1aa964d77771adabb36be66a000b09349bc8635`.
@@ -279,7 +262,7 @@ GPL-2.0-or-later. Source: this repository at tag `alpha-2.0.0`. The firmware
 uses a build-local Ed25519 test key; it is not a release key and no release
 signing is claimed. D-20/ADR-0002 defines the future offline root and certified
 release-key policy. The companion is an ad-hoc signed, non-notarized development
-build. The music-hub image embeds an owner-supplied demonstration catalog and
+build. The Music-hub image embeds an owner-supplied demonstration catalog and
 artwork; the owner has approved its use for this alpha. No private key, device
 backup or disk image is included; the demonstration catalog is the only
 library-derived content in the release.

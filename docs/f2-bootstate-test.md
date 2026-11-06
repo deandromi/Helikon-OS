@@ -2,8 +2,8 @@
 
 > Purpose: build, verify and run the T-055/F2 image that promotes
 > `/.helikon/bootstate` from `TRYING` to `GOOD`.
-> Status: host-verified; owner reports the Alpha 2.0.0 release-set 6G test
-> complete, with per-image detail still to attach.
+> Status: host-verified; unfinished and unconfirmed due to a currently unfixable
+> bug. **Not part of Alpha 2.0.0; no confirmed 6G result.**
 > Owner: firmware lead; test lead for the device run.
 > Last updated: 2026-11-06
 > Source: T-055, D-02, `docs/firmware-architecture.md` §7.4,
@@ -12,6 +12,10 @@
 This is the first firmware write. It writes **only** `/.helikon/bootstate`.
 There is no library write, no journal replay, no settings write and no VFS in
 this phase.
+
+> Internal runbook only. T-055/F2 is unfinished and unconfirmed due to a
+> currently unfixable bug; it is not an Alpha 2.0.0 asset and must not be
+> described as a released write capability.
 
 ## 1. What the image does
 

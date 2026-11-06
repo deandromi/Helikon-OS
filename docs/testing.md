@@ -309,10 +309,10 @@ partition scan, HFS+ probe, read one known file, input, bootstate promotion,
 browser, first UI, first audio. A rung is not skipped because a host test
 passes. The F1 image `d7916411…` is built and host-verified and has one
 owner-reported 6G device run (2026-11-04), accepted as the T-054 gate. The F2
-image `1d6d4c92…` (76,080 bytes) is host-verified and is part of Alpha
-2.0.0; the owner reports the release-set 6G test is complete, but the per-image
-result is not attached. [`f2-bootstate-test.md`](f2-bootstate-test.md) is its
-runbook.
+image `1d6d4c92…` (76,080 bytes) is host-verified, but the write gate is
+unfinished and unconfirmed due to a currently unfixable bug. It is **not** part
+of Alpha 2.0.0 and has no confirmed 6G result.
+[`f2-bootstate-test.md`](f2-bootstate-test.md) is its runbook.
 
 ## 6. Device tests
 

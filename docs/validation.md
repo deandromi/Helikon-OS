@@ -72,7 +72,7 @@ coverage is **346 cuts**:
 | Truncate | 25 | 4 | 25 | `implemented`, fsck clean |
 | Delete | 25 | 4 | 25 | `implemented`, fsck clean |
 | Rename | 21 | 4 | 21 | `implemented`, fsck clean |
-| Overwrite | 22 | 22 | 22 | `implemented`, fsck clean; F2 bootstate template |
+| Overwrite | 22 | 22 | 22 | `implemented`, fsck clean |
 
 This is host evidence, not the device power-cut matrix above. Power-loss timing
 and the remaining operations (close, mkdir, settings, database, artwork) are

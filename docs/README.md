@@ -115,7 +115,7 @@ status.
 | [`hfsplus-write-engine.md`](hfsplus-write-engine.md) | Native writer, journal and crash-consistency deep dive. | living |
 | [`release.md`](release.md) | Channels, signing, staging, rollback, support window and release history. | living |
 | [`releases/README.md`](releases/README.md) | Archive index for published release notes and quick starts. | living |
-| [`releases/alpha-2.0.0/RELEASE_NOTES.md`](releases/alpha-2.0.0/RELEASE_NOTES.md) | Alpha 2.0.0 release notes: launcher, Music hub, F2, loader, companion shell and limits. | living |
+| [`releases/alpha-2.0.0/RELEASE_NOTES.md`](releases/alpha-2.0.0/RELEASE_NOTES.md) | Alpha 2.0.0 release notes: launcher, Music hub, loader, companion shell and limits. | living |
 | [`security.md`](security.md) | Agent security rules and destructive-operation policy. | living |
 | [`faq.md`](faq.md) | User-facing questions from Appendix G. | living |
 | [`design-paper.md`](design-paper.md) | Full donor design paper copy with provenance; Appendix I is a marked Helikon-OS addendum. | source |

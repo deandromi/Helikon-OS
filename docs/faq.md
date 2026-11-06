@@ -10,13 +10,13 @@
 ## Can I build Helikon-OS today?
 
 Alpha 2.0.0 “Launchers and Interfaces” is a development release, not a
-production firmware release. It includes the loader test image, launcher and
-Music-hub/F2 engineering firmware images, and a companion shell DMG. There is
-no production firmware, kernel, installer, audio playback or working companion,
-and the release is not a support claim. Diagnostic bootloader images and the
-F1/F2 development firmware sources also exist. You can build and test the donor
-project today in a separate checkout and follow the paper's assembly plan; that
-is not Helikon-OS firmware.
+production firmware release. It includes the loader test image, storage-free
+launcher and Music-hub firmware images, and a companion shell DMG. It does not
+include a firmware-owned filesystem write. There is no production firmware,
+kernel, installer, audio playback or working companion, and the release is not
+a support claim. Diagnostic bootloader images and the F1 development firmware
+sources also exist. You can build and test the donor project today in a separate
+checkout and follow the paper's assembly plan; that is not Helikon-OS firmware.
 
 ## Do I need to be a programmer?
 

@@ -36,9 +36,10 @@ lanes below are a cross-phase view, not a second phase table.
 | 12 | Multi-device ports + release train/community | 7G and documented ports pass their matrix; public CI/docs/signed releases; support window | Phase 0–11; D-13; D-20 | `planned` |
 
 Phase 0 is `partial`: the loader test and the F1 read-only firmware have
-owner-reported 6G runs, and the F2 bootstate write path is host-verified, but
-the F2 6G run, volume-hash comparison, production handoff and release-key path
-remain.
+owner-reported 6G runs, and Alpha 2.0.0 ships storage-free launcher and Music-hub
+images. The F2/T-055 write path is host-verified but blocked and unconfirmed
+due to a currently unfixable bug; it is not part of Alpha 2.0.0. Volume-hash
+comparison, production handoff and the release-key path remain.
 
 ## Competitive baseline (2026-11-05)
 

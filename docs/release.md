@@ -32,15 +32,15 @@ companion or a device support matrix. The full notes are archived in
 | Date | 2026-11-06 |
 | Type | Normal GitHub release; development alpha |
 | Update type | Firmware + bootloader + companion preview; manual copy and DFU |
-| Firmware | Launcher v10 `b3218ccd…`; Music hub v12 `de6491a9…`; F2 bootstate v2 `1d6d4c92…` |
+| Firmware | Launcher v10 `b3218ccd…`; Music hub v12 `de6491a9…` |
 | Bootloader | `7f13e7e5…` (106,184 bytes); last device-tested remains `6bc6927c…` |
 | Companion | `Helikon-Companion-0.1.0-alpha2.dmg`; universal, ad-hoc signed, not notarized |
 | Signing | Build-local Ed25519 test key `0x48454c01`; no release key |
 | Device evidence | Owner reports 6G testing complete; per-image details not attached; older 6G/iFlash SD runs recorded |
-| Not included | Audio playback, VFS, storage-backed library, settings, USB, update client, installer, app runtime, working companion |
-| Open evidence | Device power-cut matrix, per-image timings/photos/`fsck_hfs`, other adapters/devices, release key |
+| Not included | Firmware-owned filesystem write, audio playback, VFS, storage-backed library, settings, USB, update client, installer, app runtime, working companion |
+| Open evidence | Per-image timings/photos/`fsck_hfs`, other adapters/devices, release key |
 
-The assets are one matched set: loader, DFU installer, uninstaller, three
+The assets are one matched set: loader, DFU installer, uninstaller, two
 firmware zips, companion DMG, test public key, quick start, release notes,
 license, notice and `SHA256SUMS`. The build-local test key is not a release key.
 Use each firmware zip as one set; never mix its image, manifest and bootstate
@@ -76,9 +76,8 @@ installer, uninstaller and `QUICKSTART.md`.
 Channel names are design labels. The cadence is not chosen. "Regular updates"
 means a release train that can support a monthly or quarterly cadence without a
 new installer design, not a promise of a specific date. Alpha 2.0.0 is a
-development-channel release. Its F2 image writes only `/.helikon/bootstate` and
-follows [`f2-bootstate-test.md`](f2-bootstate-test.md); no library or settings
-write is included.
+development-channel release with storage-free UI images. It does not include a
+firmware-owned filesystem write, a library write or a settings write.
 
 ## 2. Signed manifests
 
@@ -207,8 +206,8 @@ release is not described as supported. Alpha 2.0.0 does that.
 - **DONE (docs lead):** release notes are archived under
   [`releases/`](releases/README.md); use the Alpha 2.0.0 notes as the template.
 - **TODO (release lead):** attach the per-image 6G run details (screen photos,
-  timings and `fsck_hfs`) for the launcher, Music hub and F2 images when the
-  owner provides them.
+  timings and `fsck_hfs`) for the launcher and Music hub images when the owner
+  provides them.
 
 ## 10. Related
 

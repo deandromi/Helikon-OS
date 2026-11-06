@@ -18,31 +18,38 @@ file grows. Do not rely on chat history for current state.
 - Published Alpha 2.0.0 “Launchers and Interfaces” as a normal GitHub release
   at tag `alpha-2.0.0`, from a clean `release/alpha-2.0.0` branch based on
   `main` at `f5f8bfb`.
-- The release set is the newest existing firmware: loader `7f13e7e5…`, F2
-  `1d6d4c92…`, launcher `b3218ccd…`, Music hub `de6491a9…`, plus the
-  uninstaller, test public key and a universal `Helikon-Companion-0.1.0-alpha2.dmg`.
+- **Correction:** T-055/F2 was removed from the Alpha 2.0.0 release. The write
+  gate is unfinished and unconfirmed due to a currently unfixable bug. The
+  published release body, release notes, quick start and `SHA256SUMS` were
+  corrected, and the F2 firmware zip was removed from the release assets. The
+  source tag remains immutable; the live release no longer covers F2.
+- The release set is loader `7f13e7e5…`, launcher `b3218ccd…`, Music hub
+  `de6491a9…`, plus the uninstaller, test public key and a universal
+  `Helikon-Companion-0.1.0-alpha2.dmg`. The firmware images are storage-free.
 - Added the DMG tooling (`tools/desktop/scripts/build-dmg.sh`, universal support
   in `build-app.sh`) and the archive at `docs/releases/alpha-2.0.0/`.
 - Host evidence: 105 HFS+ tests, 31 bootloader tests, 10 firmware groups,
-  MusicDB reader, UI previews, disposable-image writer test, F2 promotion and
-  loader artifact checks. The 346-cut crash matrix is documented but was not
-  rerun in this cut.
+  MusicDB reader, UI previews, disposable-image writer test and loader artifact
+  checks. The 346-cut crash matrix is documented but was not rerun in this cut.
 - The owner reports the release-set 6G test is complete; per-image photos,
   timings and `fsck_hfs` were not attached. The companion DMG was mounted,
   launched and quit on the build host.
 
 ## What is next
 
-1. Attach the per-image 6G screen photos, timings and post-run `fsck_hfs` to
-   `device-matrix.md`.
-2. Record the F2 second-boot `ALREADY GOOD` result and a device power-cut
-   during promotion.
-3. T-051 production handoff and T-053 release-key certificate verifier.
-4. Fix the state/docs drift: the release notes describe the owner report, not a
-   support claim.
+1. Attach the launcher and Music-hub 6G screen photos, timings and post-run
+   `fsck_hfs` to `device-matrix.md`.
+2. T-055/F2 remains blocked and unconfirmed; T-051 production handoff is
+   blocked with it. The owner must resolve or re-scope T-055 before either can
+   proceed.
+3. T-053 release-key certificate verifier.
+4. Keep Alpha 2.0.0 described as a storage-free alpha with no firmware-owned
+   filesystem write.
 
 ## Do not claim
 
+- That Alpha 2.0.0 includes a firmware write or T-055/F2.
+- That T-055/F2 has a confirmed 6G result.
 - That the release is stable, supported or production firmware.
 - That the firmware is signed by a release key, or that the companion is
   notarized.
