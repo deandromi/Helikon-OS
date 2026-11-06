@@ -3,7 +3,7 @@
 > Purpose: define the test pyramid and the evidence each layer produces.
 > Status: living document
 > Owner: test lead
-> Last updated: 2026-11-04
+> Last updated: 2026-11-06
 > Source: design paper §17, §24, §26, §28; `docs/verification.md`
 
 **Helikon-OS has a host test tree.** It covers the HFS+ read/write core, the
@@ -35,7 +35,7 @@ Helikon-OS validation.
 | Battery/RAM | Runtime, sleep drain, peak RAM, soak | Device/rig | `not run` | Goal 1/4, D-12 |
 | Skin corpus | 20 skins, tags, frame/memory caps, fallback | Device | `not run` | Goal 3, D-10 |
 | App sandbox | Permissions, quotas, escape, crash isolation | Device | `not run` | Goals 15/18, D-08 |
-| Desktop app | Import/tag/rate/scrobble/install/backup, failed transfer | macOS first | `in progress` — 21 host core tests and release build pass; full macOS task matrix not run | Goal 20, D-09 |
+| Desktop app | Import/tag/rate/scrobble/install/backup, failed transfer | macOS first | `not run` — app reset to a shell on 2026-11-06; no test target or device matrix | Goal 20, D-09 |
 | Car/receiver | Line-out, charging, resume, ignition, Tier 2 controls | Device + receiver | `not run` | Goal 23, D-14 |
 | Update/rollback | Bad image rejection, staging cut, rollback, version/hash | Device | `not run` | Goal 9, D-01/D-16/D-20 |
 

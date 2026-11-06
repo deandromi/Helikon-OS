@@ -1,4 +1,3 @@
-import CompanionCore
 import SwiftUI
 
 struct RootView: View {
@@ -10,258 +9,92 @@ struct RootView: View {
                 SplashView()
                     .transition(.opacity)
             } else {
-                mainContent
+                CompanionShell()
                     .transition(.opacity)
             }
         }
         .background(HColor.paper)
-        .sheet(item: $model.metadataSearch) { context in
-            MetadataResultsSheet(contextID: context.id)
-                .environmentObject(model)
-        }
-        .alert(item: $model.alert) { alert in
-            Alert(
-                title: Text(alert.title),
-                message: Text(alert.message),
-                dismissButton: .default(Text("OK"))
-            )
-        }
-        .overlay(alignment: .bottom) {
-            if let status = model.statusMessage {
-                Text(status)
-                    .font(HFont.body(12, weight: .medium))
-                    .foregroundStyle(HColor.paperLight)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .background(HColor.ink)
-                    .clipShape(Capsule())
-                    .shadow(color: HColor.ink.opacity(0.14), radius: 12, y: 4)
-                    .padding(.bottom, 22)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .onChange(of: model.settings) { _, _ in
-            model.saveSettings()
-        }
-        .animation(.easeInOut(duration: 0.18), value: model.statusMessage)
         .animation(.easeInOut(duration: 0.28), value: model.isShowingSplash)
-    }
-
-    private var mainContent: some View {
-        HStack(spacing: 0) {
-            SidebarView()
-                .frame(width: 248)
-            VerticalHairline()
-            content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(HColor.paper)
-        }
-        .background(HColor.paper)
-    }
-
-    @ViewBuilder
-    private var content: some View {
-        switch model.section {
-        case .overview: DashboardView()
-        case .library: LibraryView()
-        case .transfer: TransferView()
-        case .metadata: MetadataView()
-        case .podcasts: PodcastsView()
-        case .audiobooks: AudiobooksView()
-        case .scrobbler: ScrobblerView()
-        case .install: InstallView()
-        case .settings: SettingsView()
-        }
     }
 }
 
-// MARK: - Sidebar
-
-struct SidebarView: View {
+private struct CompanionShell: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
+        HStack(spacing: 0) {
+            SidebarShell()
+                .frame(width: 248)
+            VerticalHairline()
+            VStack(alignment: .leading, spacing: 20) {
+                EyebrowLabel(text: "Helikon-OS companion")
+                Text("A clean slate.")
+                    .font(HFont.display(38))
+                    .foregroundStyle(HColor.ink)
+                Text("The previous feature set has been removed. The library, transfer, metadata, podcast, audiobook, scrobbler and installer surfaces are gone; this shell is ready for the capabilities Helikon-OS actually has.")
+                    .font(HFont.body(13.5))
+                    .foregroundStyle(HColor.muted)
+                    .lineSpacing(3)
+                    .frame(maxWidth: 620, alignment: .leading)
+                Hairline()
+                    .frame(maxWidth: 620)
+                Text("No features are wired in this build.")
+                    .font(HFont.body(11))
+                    .foregroundStyle(HColor.faint)
+                Button("Show welcome screen") {
+                    model.showSplash()
+                }
+                .buttonStyle(SecondaryButtonStyle())
+            }
+            .padding(.horizontal, 36)
+            .padding(.top, 38)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(HColor.paper)
+        }
+        .background(HColor.paper)
+    }
+}
+
+private struct SidebarShell: View {
+    var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            brand
-                .padding(.horizontal, 22)
-                .padding(.top, 38)
-
-            deviceCard
-                .padding(.horizontal, 18)
-                .padding(.top, 24)
-
-            VStack(spacing: 2) {
-                ForEach(CompanionSection.allCases.filter(\.primaryNavigation)) { section in
-                    SidebarRow(section: section, selected: model.section == section) {
-                        model.section = section
-                    }
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 10) {
+                    MountainMark()
+                        .frame(width: 30, height: 19)
+                    Text("Helikon")
+                        .font(HFont.display(23, weight: .semibold))
+                        .tracking(0.2)
+                        .foregroundStyle(HColor.ink)
                 }
+                Text("Companion")
+                    .font(HFont.display(12))
+                    .tracking(0.7)
+                    .foregroundStyle(HColor.muted)
+                    .padding(.leading, 40)
             }
-            .padding(.horizontal, 12)
-            .padding(.top, 26)
+            .padding(.horizontal, 22)
+            .padding(.top, 38)
 
-            Spacer(minLength: 20)
+            Spacer()
 
-            VStack(spacing: 2) {
-                SidebarRow(section: .settings, selected: model.section == .settings) {
-                    model.section = .settings
-                }
+            VStack(alignment: .leading, spacing: 7) {
+                Hairline()
+                    .padding(.bottom, 5)
+                Text("Pre-release · \(AppModel.version)")
+                    .font(HFont.body(9.5, weight: .medium))
+                    .foregroundStyle(HColor.muted)
+                Text("No feature modules are present in this build.")
+                    .font(HFont.body(9.5))
+                    .foregroundStyle(HColor.faint)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.horizontal, 12)
-
-            footer
-                .padding(.horizontal, 22)
-                .padding(.bottom, 20)
-                .padding(.top, 16)
+            .padding(.horizontal, 22)
+            .padding(.bottom, 20)
         }
         .background(HColor.paperDeep)
-        .overlay(alignment: .trailing) { VerticalHairline() }
-    }
-
-    private var brand: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 10) {
-                MountainMark()
-                    .frame(width: 30, height: 19)
-                Text("Helikon")
-                    .font(HFont.display(23, weight: .semibold))
-                    .tracking(0.2)
-                    .foregroundStyle(HColor.ink)
-            }
-            Text("Companion")
-                .font(HFont.display(12, weight: .regular))
-                .tracking(0.7)
-                .foregroundStyle(HColor.muted)
-                .padding(.leading, 40)
-        }
-    }
-
-    private var deviceCard: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack {
-                EyebrowLabel(text: "Volume")
-                Spacer()
-                if model.demoMode {
-                    Text("Sample")
-                        .font(HFont.label(9, weight: .medium))
-                        .foregroundStyle(HColor.ochre)
-                }
-            }
-            if let device = model.selectedDevice {
-                HStack(spacing: 8) {
-                    StatusDot(color: HColor.live, size: 6)
-                    Text(device.name)
-                        .font(HFont.body(12.5, weight: .medium))
-                        .foregroundStyle(HColor.ink)
-                        .lineLimit(1)
-                }
-                Text("\(device.kindLabel) · \(device.filesystem)")
-                    .font(HFont.body(10.5))
-                    .foregroundStyle(HColor.muted)
-                HProgressBar(value: device.usedFraction, tint: HColor.inkSoft, height: 3)
-                HStack {
-                    Text(device.capacityText)
-                        .font(HFont.mono(9.5))
-                        .foregroundStyle(HColor.muted)
-                    Spacer()
-                    Button {
-                        Task { await model.refreshDevices() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(HColor.muted)
-                    }
-                    .buttonStyle(.plain)
-                }
-            } else {
-                Text("No HFS+ volume")
-                    .font(HFont.body(12.5, weight: .medium))
-                    .foregroundStyle(HColor.ink)
-                Text("Mount the iPod in Disk Mode, or use a test image.")
-                    .font(HFont.body(10.5))
-                    .foregroundStyle(HColor.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button {
-                    Task { await model.refreshDevices() }
-                } label: {
-                    Text("Refresh volumes")
-                        .font(HFont.body(10.5, weight: .medium))
-                        .foregroundStyle(HColor.ink)
-                }
-                .buttonStyle(QuietButtonStyle())
-            }
-        }
-        .padding(12)
-        .background(HColor.paperLight.opacity(0.7))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(HColor.rule, lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-
-    private var footer: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Hairline()
-                .padding(.bottom, 5)
-            Text("Pre-release · \(AppModel.version)")
-                .font(HFont.body(9.5, weight: .medium))
-                .foregroundStyle(HColor.muted)
-            Text("The installer is not available in this build.")
-                .font(HFont.body(9.5))
-                .foregroundStyle(HColor.faint)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-}
-
-struct SidebarRow: View {
-    let section: CompanionSection
-    let selected: Bool
-    let action: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 11) {
-                Image(systemName: section.icon)
-                    .font(.system(size: 12, weight: .regular))
-                    .frame(width: 16)
-                Text(section.title)
-                    .font(HFont.body(12.5, weight: selected ? .medium : .regular))
-                Spacer(minLength: 0)
-            }
-            .foregroundStyle(selected ? HColor.paperLight : HColor.inkSoft)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(
-                selected
-                    ? HColor.ink
-                    : (hovering ? HColor.paperLight.opacity(0.55) : Color.clear)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-    }
-}
-
-struct MountainMark: View {
-    var color: Color = HColor.ink
-
-    var body: some View {
-        Canvas { context, size in
-            let w = size.width
-            let h = size.height
-            var mountains = Path()
-            mountains.move(to: CGPoint(x: 0, y: h))
-            mountains.addLine(to: CGPoint(x: w * 0.28, y: h * 0.38))
-            mountains.addLine(to: CGPoint(x: w * 0.43, y: h * 0.68))
-            mountains.addLine(to: CGPoint(x: w * 0.63, y: h * 0.18))
-            mountains.addLine(to: CGPoint(x: w, y: h))
-            context.stroke(mountains, with: .color(color), lineWidth: 1.3)
-            let sun = Path(ellipseIn: CGRect(x: w * 0.68, y: h * 0.04, width: h * 0.22, height: h * 0.22))
-            context.fill(sun, with: .color(color))
+        .overlay(alignment: .trailing) {
+            VerticalHairline()
         }
     }
 }

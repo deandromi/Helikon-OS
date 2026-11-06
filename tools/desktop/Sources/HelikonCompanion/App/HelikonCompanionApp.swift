@@ -20,16 +20,6 @@ struct HelikonCompanionApp: App {
                     model.showSplash()
                 }
             }
-            CommandMenu("Device") {
-                Button("Refresh Volumes") {
-                    Task { await model.refreshDevices() }
-                }
-                .keyboardShortcut("r", modifiers: [.command, .shift])
-                Button("Back Up a Folder…") {
-                    model.backupFolder()
-                }
-                .keyboardShortcut("b", modifiers: [.command, .shift])
-            }
         }
     }
 }
@@ -42,7 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 window.isMovableByWindowBackground = true
                 window.titlebarAppearsTransparent = true
                 window.titleVisibility = .hidden
-                window.backgroundColor = NSColor(calibratedRed: 0.95, green: 0.94, blue: 0.90, alpha: 1)
+                window.backgroundColor = NSColor(calibratedRed: 0.94, green: 0.93, blue: 0.90, alpha: 1)
             }
         }
     }

@@ -3,7 +3,7 @@
 > Purpose: documentation index and reading order.
 > Status: living document
 > Owner: docs lead
-> Last updated: 2026-11-05
+> Last updated: 2026-11-06
 > Source: `agents.md`, root `README.md`, design paper, Rockbox iPod Classic
 > manual `0d5c2b0604-261105`
 
@@ -109,7 +109,7 @@ status.
 | [`roadmap.md`](roadmap.md) | Phases 0–12, horizon lanes, dependencies, exit criteria. | living |
 | [`competitive-roadmap.md`](competitive-roadmap.md) | Rockbox parity matrix, manual section audit, differentiation bets, horizon lanes and explicit declines. | living |
 | [`audio-formats.md`](audio-formats.md) | Rockbox audio-format inventory, 6G hardware ceiling, tiers, decoder architecture and test corpus. | living |
-| [`companion-app.md`](companion-app.md) | macOS companion app scope, screen map, transport boundary, metadata/podcast/audiobook/scrobble status and open questions. | living |
+| [`companion-app.md`](companion-app.md) | Companion app reset record: what was removed, what shell remains and the boundary for rebuilding against the current firmware. | living |
 | [`hfsplus-write-engine.md`](hfsplus-write-engine.md) | Native writer, journal and crash-consistency deep dive. | living |
 | [`release.md`](release.md) | Channels, signing, staging, rollback, support window. | stub |
 | [`security.md`](security.md) | Agent security rules and destructive-operation policy. | living |
