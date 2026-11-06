@@ -16,6 +16,7 @@ VERSION ?= 1
 BOOTSTATE_STATE ?= good
 EXTRA_CFLAGS ?=
 UI ?= 0
+HDB ?=
 CROSS ?= arm-elf-eabi-
 CC := $(CROSS)gcc
 OBJCOPY := $(CROSS)objcopy
@@ -60,13 +61,21 @@ HFS_SRC := hfs/hfs_volume.c hfs/hfs_btree.c hfs/hfs_catalog.c \
            hfs/hfs_extents_write.c hfs/hfs_catalog_write.c
 
 UI_SRC := $(if $(filter 1,$(UI)),ui/launcher.c ui/launcher_run.c \
-          ui/launcher_assets.c,)
+          ui/launcher_assets.c ui/music.c,)
 LIBRARY_SRC := db/hdb.c
 
 ALL_SRC := $(BOOT_SRC) $(LIB_SRC) $(BOARD_SRC) $(HAL_SRC) $(BLOCK_SRC) \
            $(DIAG_SRC) $(HFS_ADAPTER_SRC) $(HFS_SRC) $(UI_SRC) \
            $(LIBRARY_SRC)
 OBJS := $(patsubst %.c,$(BUILD)/%.o,$(patsubst %.S,$(BUILD)/%.o,$(ALL_SRC)))
+
+ifneq ($(HDB),)
+CFLAGS += -DHELIKON_HDB_EMBEDDED
+HDB_BLOB_SRC := $(BUILD)/hdb_blob.S
+HDB_BLOB_OBJ := $(BUILD)/hdb_blob.o
+OBJS += $(HDB_BLOB_OBJ)
+endif
+
 ELF := $(BUILD)/firmware.elf
 RAW := $(BUILD)/firmware.raw
 CONFIG_STAMP := $(BUILD)/config-$(BOARD)-v$(VERSION)
@@ -86,6 +95,15 @@ $(BUILD)/%.o: %.c $(CONFIG_STAMP)
 $(BUILD)/%.o: %.S $(CONFIG_STAMP)
 	@mkdir -p $(dir $@)
 	$(CC) $(ARCH) $(CFLAGS) -c $< -o $@
+
+ifneq ($(HDB),)
+$(HDB_BLOB_SRC): $(HDB)
+	@mkdir -p $(BUILD)
+	@printf '.section .rodata, "a", %%progbits\n.balign 4\n.global helikon_hdb_start\nhelikon_hdb_start:\n.incbin "%s"\n.global helikon_hdb_end\nhelikon_hdb_end:\n.balign 4\n' "$(abspath $(HDB))" > $@
+
+$(HDB_BLOB_OBJ): $(HDB_BLOB_SRC)
+	$(CC) $(ARCH) -c $< -o $@
+endif
 
 $(ELF): $(OBJS) boot/firmware.ld
 	@mkdir -p $(BUILD)

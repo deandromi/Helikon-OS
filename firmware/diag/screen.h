@@ -62,6 +62,11 @@ void helikon_screen_fill_rect(struct helikon_screen *screen, uint32_t x,
 void helikon_screen_text(struct helikon_screen *screen, uint32_t x, uint32_t y,
                          uint32_t scale, const char *text);
 
+/* Copy an RGB565 rectangle, clipping to the screen. */
+void helikon_screen_bitmap(struct helikon_screen *screen, uint32_t x,
+                           uint32_t y, uint32_t width, uint32_t height,
+                           const uint16_t *pixels, uint32_t stride);
+
 int helikon_screen_present(struct helikon_screen *screen, uint32_t x,
                            uint32_t y, uint32_t width, uint32_t height);
 int helikon_screen_present_all(struct helikon_screen *screen);
