@@ -3,7 +3,7 @@
 > Purpose: map “I need to change X” to the owning file or module.
 > Status: living document
 > Owner: architecture; each module owner
-> Last updated: 2026-11-05
+> Last updated: 2026-11-06
 > Source: repository inspection; design paper §3, §8–§19, Appendices A/B;
 > [`competitive-roadmap.md`](competitive-roadmap.md)
 
@@ -152,6 +152,10 @@ Helikon-OS/
       test_loader.c         manifest, SHA-256, bootstate and loader tests
       test_loader_hfs.c     HFS+ file-read adapter tests
       test_ed25519.c        RFC 8032, 192-byte and key-table tests
+  tests/musicdb/
+    Makefile                HelikonDB fixture and reader test
+    test_hdb.c              fixture + optional real-library checks
+  tools/hdb_build.py        HelikonDB reference builder and inspector
   tools/desktop/            macOS companion app (SwiftPM, host only, in progress)
     Sources/CompanionCore/   testable device, library, metadata, transfer and scrobble services
     Sources/HelikonCompanion/ SwiftUI app shell, screens and welcome splash
@@ -163,6 +167,7 @@ Helikon-OS/
     state.md                current phase and blockers
     invariants.md           safety invariants
     decisions.md            decisions and open decisions
+    helikondb.md            HelikonDB format, builder contract and reader
     tasks.md                task queue
     verification.md         proof checklist
     file-map.md             this file
@@ -298,7 +303,7 @@ is created; do not let it drift.
 | `firmware/hfs/hfs_catalog_write.c`, `hfs_btree_tree.c`, `hfs_bitmap.c`, `hfs_extents_write.c` | Catalog/bitmap/extents mutation | HFS+ lead | `docs/hfsplus-write-engine.md`, invariants I-03–I-15 | model/property/crash tests, `fsck_hfs` | No journal format, UI or boot policy; no direct writes outside a transaction |
 | `firmware/hfs/hfs_journal.c`, `hfs_txn.c` | Journal append/commit/replay, bounded transaction engine | journal lead | paper §9.3–§9.4, `docs/hfsplus-write-engine.md` | crash injection, idempotent replay | No product policy/UI; never delete/disable/zero the journal |
 | `firmware/vfs/` | Lookup, handles, capabilities, path rules | VFS lead | paper §10, `docs/architecture.md` | path/name tests, capability tests | No hardware registers; no overlay branch; no errno guessing |
-| `firmware/db/` | Immutable metadata/index reader | database lead | paper §12, D-07 | 10k-track browse, stale-entry fallback | No playback state; database is a cache, not truth |
+| `firmware/db/` | HelikonDB v1 read-only catalog reader: header validation, fixed track/album/artist records, strings, indices, artwork, CRC | database lead | paper §12, D-07, D-33, D-53, `docs/helikondb.md` | `tests/musicdb` fixture + 100-song corpus | No iTunesDB, tagcache or device scan; caller owns buffers; catalog is a derived cache |
 | `firmware/player/` | Buffer/decode/output state machine | audio lead | paper §13, §28.3.8 | audio matrix, gapless, seek | No filesystem internals; no unmeasured audiophile claims |
 | `firmware/ui/` | Screens, input, rendering | UI lead | paper §14, §28.3.3, `docs/ui.md` | task tests, frame trace, typography mockup | No storage policy; default UI must survive skin failure |
 | `firmware/input/` | Click wheel/button events, debounce, focus | UI lead | `docs/firmware-architecture.md` §9.7 | event/acceleration tests | No storage or playback policy |
