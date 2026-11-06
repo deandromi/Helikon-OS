@@ -232,6 +232,17 @@ make -C tests/ui preview
 It renders the real firmware framebuffer to `build/ui/launcher.png` and checks
 the focus marks, icon presence and framebuffer bounds.
 
+The HelikonDB reader is tested against a generated fixture, with an optional
+real corpus:
+
+```sh
+make -C tests/musicdb test
+make -C tests/musicdb real REAL=/path/to/music.hdb
+```
+
+The reference builder is:
+`python3 tools/hdb_build.py build MUSIC_DIR --out music.hdb --sample 100`.
+
 The groups are:
 
 - `test_lib` — mem/string/endian/CRC-32/fixed-point/bounded format;
