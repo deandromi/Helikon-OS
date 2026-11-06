@@ -3,19 +3,24 @@
 > Purpose: define the evidence required before a release or a goal claim.
 > Status: living document
 > Owner: release lead; test lead
-> Last updated: 2026-11-05
+> Last updated: 2026-11-06
 > Source: design paper §24, §26.12, §28.6; `docs/verification.md`;
 > [`competitive-roadmap.md`](competitive-roadmap.md);
 > [`audio-formats.md`](audio-formats.md)
 
-**No Helikon-OS release exists and no validation gate has been run.** Every
-status below is `not run` or `unproven`. A green table is not evidence; a
-recorded device run with logs and hashes is.
+**Alpha 2.0.0 “Launchers and Interfaces” is a development release, not a
+validation pass.** It ships engineering firmware images, the loader test image
+and a companion shell preview. The host suites and disposable-image checks pass;
+the owner reports 6G testing is complete, but the per-image details were not
+attached at cut time. Every gate below remains `not run` unless a row says
+otherwise. A green table is not evidence; a recorded device run with logs and
+hashes is.
 
 ## 1. Release blocker gates
 
 A stable release requires all P0 gates. A beta may omit a feature, but may not
-hide an unexecuted safety gate.
+hide an unexecuted safety gate. Alpha 2.0.0 does not claim any gate as passed and
+lists its unexecuted gates in the release notes.
 
 | ID | Gate | Threshold | Evidence | Status |
 |---|---|---|---|---|

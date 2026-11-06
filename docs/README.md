@@ -7,14 +7,16 @@
 > Source: `agents.md`, root `README.md`, design paper, Rockbox iPod Classic
 > manual `0d5c2b0604-261105`
 
-Helikon-OS is a **design-stage** project to build a native-HFS+ bootloader and
+Helikon-OS is a **pre-phase 0** project to build a native-HFS+ bootloader and
 firmware for the iPod Classic 6G (reference target) and 7G (next named port,
-after a board audit). It is not a working firmware release: the repository
-contains the owner-authored product README, this documentation, the host HFS+
-read/write core, the read-only diagnostic and loader-test bootloaders, and the
-host tests. There is no firmware image. The separate V3.2 donor release is
-overlay-based and is not Helikon-OS. The defining promise is a native, writable,
-journaled HFS+ volume with no overlay and no FAT mount.
+after a board audit). The repository contains the owner-authored product README,
+this documentation, the host HFS+ read/write core, the loader-test bootloader,
+the launcher and Music-hub firmware images, and the host tests. **Alpha 2.0.0
+“Launchers and Interfaces”** is a development release, not a support release:
+it ships engineering firmware images, a bootloader test image and a companion
+shell preview. The separate V3.2 donor release is overlay-based and is not
+Helikon-OS. The defining promise is a native, writable, journaled HFS+ volume
+with no overlay and no FAT mount.
 
 ## Start here if you are an agent
 
@@ -111,7 +113,9 @@ status.
 | [`audio-formats.md`](audio-formats.md) | Rockbox audio-format inventory, 6G hardware ceiling, tiers, decoder architecture and test corpus. | living |
 | [`companion-app.md`](companion-app.md) | Companion app reset record: what was removed, what shell remains and the boundary for rebuilding against the current firmware. | living |
 | [`hfsplus-write-engine.md`](hfsplus-write-engine.md) | Native writer, journal and crash-consistency deep dive. | living |
-| [`release.md`](release.md) | Channels, signing, staging, rollback, support window. | stub |
+| [`release.md`](release.md) | Channels, signing, staging, rollback, support window and release history. | living |
+| [`releases/README.md`](releases/README.md) | Archive index for published release notes and quick starts. | living |
+| [`releases/alpha-2.0.0/RELEASE_NOTES.md`](releases/alpha-2.0.0/RELEASE_NOTES.md) | Alpha 2.0.0 release notes: launcher, Music hub, F2, loader, companion shell and limits. | living |
 | [`security.md`](security.md) | Agent security rules and destructive-operation policy. | living |
 | [`faq.md`](faq.md) | User-facing questions from Appendix G. | living |
 | [`design-paper.md`](design-paper.md) | Full donor design paper copy with provenance; Appendix I is a marked Helikon-OS addendum. | source |
@@ -130,6 +134,7 @@ status.
 | [`log/2026-11-03.md`](log/2026-11-03.md) | Documentation setup and first diagnostic/write sessions. | living |
 | [`log/2026-11-04.md`](log/2026-11-04.md) | Metadata timestamps and the current write-diagnostic image. | living |
 | [`log/2026-11-05.md`](log/2026-11-05.md) | Competitive-roadmap planning and the Rockbox manual review. | living |
+| [`log/2026-11-06.md`](log/2026-11-06.md) | Launcher, HelikonDB, Music hub, companion reset and Alpha 2.0.0 release preparation. | living |
 | [`adr/README.md`](adr/README.md) | When to create a long-form ADR. | living |
 | [`adr/0001-template.md`](adr/0001-template.md) | ADR template. | template |
 | [`prompts/README.md`](prompts/README.md) | Scope and rules for reusable prompts. | living |
@@ -147,12 +152,12 @@ Key entry points: [`design-paper.md`](design-paper.md),
 
 ## What this documentation is not
 
-- It is not firmware code, a production firmware-loading bootloader, an
-  installer, CI, a release, or a hardware validation report. A read-only
-  diagnostic image, a separate inner-image write diagnostic and a separate
-  outer-volume write diagnostic exist; the loader test image verifies a signed
-  test payload. All are diagnostic devices, not a firmware release or a support
-  claim.
+- It is not a production firmware-loading bootloader, an installer, CI or a
+  hardware validation report. Alpha 2.0.0 is a development release with
+  engineering firmware images and a companion shell; it is not a support claim.
+  A read-only diagnostic image, a separate inner-image write diagnostic and a
+  separate outer-volume write diagnostic also exist. The loader test image
+  verifies a signed manifest and image before jumping.
 - It is not a signing policy or a release approval. The license is
   GPL-2.0-or-later (`LICENSE`); no code of conduct is currently adopted (D-19
   rejected); signing-key ownership is accepted in

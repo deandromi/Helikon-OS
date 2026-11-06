@@ -2,9 +2,10 @@
 
 > Purpose: build, verify and run the T-055/F2 image that promotes
 > `/.helikon/bootstate` from `TRYING` to `GOOD`.
-> Status: host-verified; no F2 device run.
+> Status: host-verified; owner reports the Alpha 2.0.0 release-set 6G test
+> complete, with per-image detail still to attach.
 > Owner: firmware lead; test lead for the device run.
-> Last updated: 2026-11-04
+> Last updated: 2026-11-06
 > Source: T-055, D-02, `docs/firmware-architecture.md` §7.4,
 > `bootloader/LOADER.md` §3, `docs/hfsplus-write-engine.md` §10.
 
@@ -186,11 +187,11 @@ replaced by the matching F2 set after the test.
 
 ## 11. Current evidence
 
-- F2 image: 76,160 bytes, SHA-256 `f33f2791…`, BSS `0x08890000`–`0x08922e60`,
-  The current tree rebuilds to `f33f2791…`; an earlier build produced a
-  76,160-byte artifact with SHA-256 `9f21f490…`, which is not reproduced by the
-  merged source.
-  bootstate `TRYING` sequence 1. The PMU interrupt-latch clear is best-effort;
+- F2 image: 76,080 bytes, SHA-256 `1d6d4c92…`, manifest `95749cd4…`,
+  bootstate `TRYING` sequence 1, SHA-256 `e4838bdf…`, BSS
+  `0x08890000`–`0x08922e60`. Alpha 2.0.0 uses this set. The older `f33f2791…`
+  and `9f21f490…` artifacts are historical and are not release assets.
+- The PMU interrupt-latch clear is best-effort;
   a failed latch read does not block backlight init. The ATA write-cache hint
   (`SET FEATURES 0x02`) and the redundant PMU HDD-enable write are best-effort;
   ATA identify decides whether storage is available, and a flush is still

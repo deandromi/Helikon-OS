@@ -20,12 +20,22 @@ cd tools/desktop
 # Build the app bundle in tools/desktop/dist/
 ./scripts/build-app.sh
 
+# Build a universal arm64 + x86_64 app bundle
+./scripts/build-app.sh --universal
+
+# Build the drag-to-Applications DMG (universal)
+./scripts/build-dmg.sh --universal
+
 # Debug build, open immediately
 ./scripts/build-app.sh --debug --open
 
 # Open directly to the empty shell, skipping the welcome screen
 open "dist/Helikon Companion.app" --args --skip-splash
 ```
+
+The DMG is written to `dist/Helikon-Companion-0.1.0-alpha2.dmg`; the script
+verifies the ad-hoc signature, checks both architectures, verifies the DMG and
+prints its SHA-256. It is not notarized.
 
 Requirements: macOS 14 or newer, Xcode command-line tools with Swift 6. The app
 has no third-party package dependencies. `scripts/make-icon.py` regenerates the
@@ -43,8 +53,9 @@ source icon and needs Pillow; a committed 1024 px PNG is enough for normal build
 | Network | none | No network client remains |
 | Installer | none | No install action exists |
 
-There is no code signing identity, notarization, sandbox entitlement, update feed
-or support matrix.
+There is no Developer ID, notarization, sandbox entitlement, update feed or
+support matrix. The Alpha 2.0.0 DMG is ad-hoc signed only; first launch needs
+the standard Gatekeeper right-click-to-open path.
 
 ### Interface
 

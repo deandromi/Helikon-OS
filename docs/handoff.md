@@ -11,6 +11,47 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-06 (Alpha 2.0.0 release)
+
+## What happened
+
+- Published Alpha 2.0.0 “Launchers and Interfaces” as a normal GitHub release
+  at tag `alpha-2.0.0`, from a clean `release/alpha-2.0.0` branch based on
+  `main` at `f5f8bfb`.
+- The release set is the newest existing firmware: loader `7f13e7e5…`, F2
+  `1d6d4c92…`, launcher `b3218ccd…`, Music hub `de6491a9…`, plus the
+  uninstaller, test public key and a universal `Helikon-Companion-0.1.0-alpha2.dmg`.
+- Added the DMG tooling (`tools/desktop/scripts/build-dmg.sh`, universal support
+  in `build-app.sh`) and the archive at `docs/releases/alpha-2.0.0/`.
+- Host evidence: 105 HFS+ tests, 31 bootloader tests, 10 firmware groups,
+  MusicDB reader, UI previews, disposable-image writer test, F2 promotion and
+  loader artifact checks. The 346-cut crash matrix is documented but was not
+  rerun in this cut.
+- The owner reports the release-set 6G test is complete; per-image photos,
+  timings and `fsck_hfs` were not attached. The companion DMG was mounted,
+  launched and quit on the build host.
+
+## What is next
+
+1. Attach the per-image 6G screen photos, timings and post-run `fsck_hfs` to
+   `device-matrix.md`.
+2. Record the F2 second-boot `ALREADY GOOD` result and a device power-cut
+   during promotion.
+3. T-051 production handoff and T-053 release-key certificate verifier.
+4. Fix the state/docs drift: the release notes describe the owner report, not a
+   support claim.
+
+## Do not claim
+
+- That the release is stable, supported or production firmware.
+- That the firmware is signed by a release key, or that the companion is
+  notarized.
+- That the music image reads the user's library or plays audio.
+- That the companion has library, transfer, metadata, podcast, audiobook,
+  scrobble or install functionality.
+
+---
+
 # Handoff — 2026-11-06 (companion app reset)
 
 ## What happened
