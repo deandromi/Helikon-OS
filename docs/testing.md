@@ -223,14 +223,15 @@ make -C tests/firmware test
 make -C tests/firmware sanitize
 ```
 
-The launcher renderer has its own host preview and checks:
+The launcher and music browser have host previews and checks:
 
 ```sh
 make -C tests/ui preview
 ```
 
-It renders the real firmware framebuffer to `build/ui/launcher.png` and checks
-the focus marks, icon presence and framebuffer bounds.
+It renders the real firmware framebuffer to `build/ui/launcher.png` and
+`build/ui/music-*.png` (root, artists, artist, album, track), and checks the
+launcher focus marks, icon presence and framebuffer bounds.
 
 The HelikonDB reader is tested against a generated fixture, with an optional
 real corpus:
@@ -242,6 +243,19 @@ make -C tests/musicdb real REAL=/path/to/music.hdb
 
 The reference builder is:
 `python3 tools/hdb_build.py build MUSIC_DIR --out music.hdb --sample 100`.
+
+The functional library image embeds an HDB in the signed firmware and is
+checked without a device:
+
+```sh
+make -C firmware BOARD=6g VERSION=11 BOOTSTATE_STATE=good UI=1 \
+  HDB=../build/helikondb/first100/music.hdb \
+  EXTRA_CFLAGS='-DHELIKON_DIAG_LAUNCHER' \
+  BUILD=../build/firmware/6g-music image
+./tools/check-loader-artifact.sh build/firmware/6g-music/out
+```
+
+It does not touch storage; the device run remains the acceptance gate.
 
 The groups are:
 
