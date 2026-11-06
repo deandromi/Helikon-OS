@@ -172,6 +172,10 @@ PODCAST_WALL = OUT / "podcast-wall" / "helikon-os-podcast-wall-320x240.png"
 PODCAST_WALL_PREVIEW = OUT / "podcast-wall" / "helikon-os-podcast-wall-320x240@2x.png"
 AUDIOBOOK_WALL = OUT / "audiobook-wall" / "helikon-os-audiobook-wall-320x240.png"
 AUDIOBOOK_WALL_PREVIEW = OUT / "audiobook-wall" / "helikon-os-audiobook-wall-320x240@2x.png"
+ALBUM_VIEW = OUT / "album-view" / "helikon-os-album-view-320x240.png"
+ALBUM_VIEW_PREVIEW = OUT / "album-view" / "helikon-os-album-view-320x240@2x.png"
+ARTIST_VIEW = OUT / "artist-view" / "helikon-os-artist-view-320x240.png"
+ARTIST_VIEW_PREVIEW = OUT / "artist-view" / "helikon-os-artist-view-320x240@2x.png"
 
 
 def benguiat_font(size, weight):
@@ -737,6 +741,185 @@ def audiobook_wall_mockup():
         "1 / 48", kinds, set(), AUDIOBOOK_WALL, AUDIOBOOK_WALL_PREVIEW)
 
 
+def diamond_outline(draw, cx, cy, radius, colour):
+    draw.polygon(
+        [(cx, cy - radius), (cx + radius, cy),
+         (cx, cy + radius), (cx - radius, cy)],
+        outline=colour,
+    )
+
+
+def album_sleeve(size=96):
+    """Generated album sleeve; terracotta field, cream engraving."""
+    scale = 4
+    canvas = size * scale
+    art = Image.new("RGB", (canvas, canvas), (156, 63, 44))
+    draw = ImageDraw.Draw(art)
+    ink = (245, 243, 235)
+    faint = (226, 209, 199)
+    width = scale
+    c = canvas
+
+    draw.ellipse((c * 0.62, c * 0.14, c * 0.80, c * 0.32),
+                 outline=ink, width=width)
+    draw.line((0, c * 0.62, c * 0.26, c * 0.32,
+               c * 0.50, c * 0.62), fill=ink, width=width, joint="curve")
+    draw.line((c * 0.30, c * 0.62, c * 0.56, c * 0.40,
+               c * 0.88, c * 0.62), fill=faint, width=width, joint="curve")
+    draw.line((0, c * 0.64, c, c * 0.64), fill=ink, width=width)
+    for line in range(1, 6):
+        yy = c * 0.64 + line * c * 0.06
+        draw.line((c * 0.06, yy, c * 0.94, yy), fill=faint, width=width)
+    draw.line((c * 0.08, c * 0.08, c * 0.92, c * 0.08),
+              fill=faint, width=width)
+    draw.line((c * 0.08, c * 0.90, c * 0.92, c * 0.90),
+              fill=faint, width=width)
+    return art.resize((size, size), Image.Resampling.LANCZOS)
+
+
+def artist_hero(width=320, height=70):
+    """Generated plum portrait band with a cream cameo bust."""
+    scale = 2
+    canvas_w = width * scale
+    canvas_h = height * scale
+    art = Image.new("RGB", (canvas_w, canvas_h), (100, 54, 76))
+    draw = ImageDraw.Draw(art)
+    cream = (239, 237, 229)
+    faint = (190, 158, 171)
+    dark = (48, 34, 44)
+    width_px = scale * 2
+
+    oval = (canvas_w * 0.76, canvas_h * 0.10,
+            canvas_w * 0.96, canvas_h * 0.90)
+    draw.ellipse(oval, fill=cream, outline=faint, width=width_px)
+    # Generic classical profile; not a likeness.
+    ox = canvas_w * 0.76
+    oy = canvas_h * 0.10
+    ow = canvas_w * 0.20
+    oh = canvas_h * 0.80
+    profile = (
+        (0.58, 0.10), (0.44, 0.14), (0.40, 0.22), (0.36, 0.28),
+        (0.28, 0.36), (0.38, 0.40), (0.35, 0.45), (0.38, 0.50),
+        (0.46, 0.56), (0.42, 0.62), (0.28, 0.72), (0.18, 0.92),
+        (0.88, 0.92), (0.78, 0.68), (0.80, 0.44), (0.74, 0.18),
+        (0.68, 0.10),
+    )
+    draw.polygon([(ox + px * ow, oy + py * oh) for px, py in profile],
+                 fill=dark)
+    draw.arc((ox + ow * 0.06, oy + oh * 0.12,
+              ox + ow * 0.90, oy + oh * 0.60),
+             200, 340, fill=faint, width=scale)
+    return art.resize((width, height), Image.Resampling.LANCZOS)
+
+
+def play_button(draw, x, y, width=64, height=20, label="PLAY"):
+    draw.rectangle((x, y, x + width - 1, y + height - 1), fill=HOME_INK)
+    draw.polygon(
+        [(x + 8, y + 6), (x + 8, y + 14), (x + 14, y + 10)],
+        fill=HOME_PAPER)
+    draw_tracked(draw, (x + 19, y + 14), label, ui_font(11, 500),
+                 HOME_PAPER, 1.0)
+
+
+def album_view_mockup():
+    image = Image.new("RGB", (WIDTH, HEIGHT), HOME_PAPER)
+    draw = ImageDraw.Draw(image)
+    system = ui_font(11, 400)
+    meta = ui_font(12, 400)
+    title = benguiat_font(22, "Book")
+
+    draw_tracked(draw, (20, 20), "ALBUM", system, HOME_MUTED, 1.2)
+    draw_right_tracked(draw, (274, 20), "12:34", system, HOME_MUTED)
+    battery(draw, 282, 11, 18, 9, 0.7, HOME_INK)
+    draw.line((20, 30, 300, 30), fill=HOME_RULE)
+
+    image.paste(album_sleeve(92), (20, 38))
+    draw.rectangle((20, 38, 111, 129), outline=HOME_INK)
+
+    draw.text((124, 46), "1975", font=system, fill=HOME_MUTED, anchor="ls")
+    for index in range(5):
+        cx = 276 + index * 6
+        if index < 4:
+            diamond(draw, cx, 42, 2, HOME_INK)
+        else:
+            diamond_outline(draw, cx, 42, 2, HOME_RULE)
+
+    draw.text((124, 68), "Nocturnes", font=title, fill=HOME_INK,
+              anchor="ls")
+    draw.text((124, 88), "Meridian Ensemble", font=meta, fill=HOME_INK,
+              anchor="ls")
+    draw.text((124, 104), "CHAMBER · 43 MIN", font=system, fill=HOME_MUTED,
+              anchor="ls")
+    play_button(draw, 124, 112)
+
+    draw_tracked(draw, (20, 150), "TRACKS", ui_font(11, 500), HOME_INK, 0.8)
+    draw_tracked(draw, (78, 150), "NOTES", system, HOME_MUTED, 0.8)
+    draw_tracked(draw, (130, 150), "CREDITS", system, HOME_MUTED, 0.8)
+    draw_right_tracked(draw, (300, 150), "10 TRACKS", system, HOME_MUTED)
+    draw.line((20, 156, 300, 156), fill=HOME_FAINT)
+    draw.line((20, 157, 62, 157), fill=HOME_INK, width=2)
+
+    tracks = (
+        ("01", "Nocturne I", "3:42"),
+        ("02", "Nocturne II", "4:18"),
+    )
+    for index, (number, name, duration) in enumerate(tracks):
+        top = 162 + index * 26
+        selected = index == 0
+        if selected:
+            draw.rectangle((20, top, 21, top + 19), fill=HOME_INK)
+        draw.text((38, top + 14), number, font=system,
+                  fill=HOME_INK if selected else HOME_MUTED, anchor="rs")
+        draw.text((48, top + 14), name,
+                  font=ui_font(14, 500 if selected else 400),
+                  fill=HOME_INK, anchor="ls")
+        draw_right_tracked(draw, (300, top + 14), duration, system,
+                           HOME_INK if selected else HOME_MUTED)
+        if index == 0:
+            draw.line((20, top + 22, 300, top + 22), fill=HOME_FAINT)
+
+    return save_pair(image, ALBUM_VIEW, ALBUM_VIEW_PREVIEW)
+
+
+def artist_view_mockup():
+    image = Image.new("RGB", (WIDTH, HEIGHT), HOME_PAPER)
+    draw = ImageDraw.Draw(image)
+    system = ui_font(11, 400)
+    title = benguiat_font(22, "Book")
+
+    draw_tracked(draw, (16, 18), "ARTIST", system, HOME_MUTED, 1.2)
+    draw_right_tracked(draw, (280, 18), "12:34", system, HOME_MUTED)
+    battery(draw, 288, 9, 18, 9, 0.7, HOME_INK)
+    draw.line((16, 26, 304, 26), fill=HOME_RULE)
+
+    image.paste(artist_hero(height=68), (0, 26))
+
+    draw.text((16, 124), "Meridian Ensemble", font=title, fill=HOME_INK,
+              anchor="ls")
+    draw.text((16, 142), "CHAMBER · CONTEMPORARY · FORMED 1975",
+              font=system, fill=HOME_MUTED, anchor="ls")
+    play_button(draw, 244, 108, width=60)
+
+    draw_tracked(draw, (16, 164), "OVERVIEW", ui_font(11, 500), HOME_INK, 0.8)
+    draw_tracked(draw, (92, 164), "ALBUMS", system, HOME_MUTED, 0.8)
+    draw_tracked(draw, (150, 164), "TRACKS", system, HOME_MUTED, 0.8)
+    draw_right_tracked(draw, (304, 164), "4 ALBUMS", system, HOME_MUTED)
+    draw.line((16, 169, 304, 169), fill=HOME_FAINT)
+    draw.line((16, 170, 72, 170), fill=HOME_INK, width=2)
+
+    bio = (
+        "A chamber ensemble known for slow, engraved readings",
+        "of twentieth-century works.",
+    )
+    for index, line in enumerate(bio):
+        draw.text((16, 188 + index * 14), line, font=system,
+                  fill=HOME_INK, anchor="ls")
+    draw.text((16, 220), "FORMED 1975 · MINNEAPOLIS · 4 ALBUMS",
+              font=system, fill=HOME_MUTED, anchor="ls")
+
+    return save_pair(image, ARTIST_VIEW, ARTIST_VIEW_PREVIEW)
+
+
 if __name__ == "__main__":
     ui = menu_mockup()
     proof = proof_mockup()
@@ -745,5 +928,8 @@ if __name__ == "__main__":
     wall = album_wall_mockup()
     podcasts = podcast_wall_mockup()
     audiobooks = audiobook_wall_mockup()
-    for path in (ui, proof, *launcher, *index, *wall, *podcasts, *audiobooks):
+    album = album_view_mockup()
+    artist = artist_view_mockup()
+    for path in (ui, proof, *launcher, *index, *wall, *podcasts, *audiobooks,
+                 *album, *artist):
         print(path)
