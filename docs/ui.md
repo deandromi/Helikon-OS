@@ -3,7 +3,7 @@
 > Purpose: the first-party Helikon-OS UI look and the default typography scale.
 > Status: living document; typography owner-settled, font subsets and host mockups implemented, launcher renderer implemented on host, 6G panel run pending.
 > Owner: project owner; UI lead
-> Last updated: 2026-11-05
+> Last updated: 2026-11-06
 > Source: owner-supplied typography table, 2026-11-03; owner home-screen brief,
 > 2026-11-05; design paper §14, §28.3.4; D-10, D-15, D-23
 
@@ -202,6 +202,30 @@ The image stops after the LCD stage and does not touch storage.
 `make -C tests/ui preview` renders the real firmware buffer to
 `build/ui/launcher.png` and checks the focus marks, icon presence and
 framebuffer bounds. No 6G panel run yet.
+
+#### Music library browser (functional test)
+
+`firmware/ui/music.c` is the first functional library screen. The launcher's
+Music cell opens Artists / Albums / Songs, using the HelikonDB tables and the
+title/recent/genre indices; the wheel or left/right scrolls, SELECT opens and
+MENU returns. Album and artist pages show 96×96 artwork, year and ratings;
+the artist page shows the biography and profile picture when the catalog has
+them. The build uses the 3×5 fallback font until the Plex atlas (T-042/T-057);
+the track page states that playback is next.
+
+For the pre-VFS test, the signed image embeds a 100-song HelikonDB:
+
+```sh
+make -C firmware BOARD=6g VERSION=11 BOOTSTATE_STATE=good UI=1 \
+  HDB=../build/helikondb/first100/music.hdb \
+  EXTRA_CFLAGS='-DHELIKON_DIAG_LAUNCHER' \
+  BUILD=../build/firmware/6g-music image
+```
+
+It touches no storage and no ATA. `make -C tests/ui preview` also renders
+`build/ui/music-root.png`, `music-artists.png`, `music-artist.png`,
+`music-album.png` and `music-track.png` from the fixture catalog. Playback is
+F5/T-058; the storage-backed catalog is T-056/T-067.
 
 ### 5.3 Concept B — neoclassical index
 

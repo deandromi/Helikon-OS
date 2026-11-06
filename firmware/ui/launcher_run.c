@@ -3,6 +3,7 @@
 
 #include "error.h"
 #include "launcher.h"
+#include "music.h"
 
 static const char *const app_names[HELIKON_LAUNCHER_CELLS] = {
     "MUSIC", "PODCASTS", "AUDIOBOOKS", "PLAYLISTS", "GAMES", "SETTINGS",
@@ -111,9 +112,22 @@ int helikon_launcher_run(struct helikon_screen *screen,
             } else {
                 if ((pressed & (HELIKON_BUTTON_SELECT |
                                 HELIKON_BUTTON_PLAY)) != 0u) {
+#ifdef HELIKON_HDB_EMBEDDED
+                    if (selected == 0u) {
+                        (void)helikon_music_run(screen, buttons, clock);
+                        previous_events = HELIKON_BUTTON_ANY;
+                        helikon_launcher_draw(screen, selected);
+                        idle_start = helikon_clock_now_us(clock);
+                    } else {
+                        app_open = 1;
+                        draw_app_screen(screen, selected);
+                        idle_start = now;
+                    }
+#else
                     app_open = 1;
                     draw_app_screen(screen, selected);
                     idle_start = now;
+#endif
                 } else if ((pressed & HELIKON_BUTTON_MENU) != 0u) {
                     return (int)selected;
                 } else if (delta != 0) {

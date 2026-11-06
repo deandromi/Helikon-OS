@@ -155,6 +155,10 @@ Helikon-OS/
   tests/musicdb/
     Makefile                HelikonDB fixture and reader test
     test_hdb.c              fixture + optional real-library checks
+  tests/ui/
+    Makefile                launcher and music-browser host previews
+    test_launcher.c         launcher render and checks
+    test_music.c            music-browser render against the fixture HDB
   tools/hdb_build.py        HelikonDB reference builder and inspector
   tools/desktop/            macOS companion app (SwiftPM, host only, in progress)
     Sources/CompanionCore/   testable device, library, metadata, transfer and scrobble services
@@ -305,7 +309,7 @@ is created; do not let it drift.
 | `firmware/vfs/` | Lookup, handles, capabilities, path rules | VFS lead | paper §10, `docs/architecture.md` | path/name tests, capability tests | No hardware registers; no overlay branch; no errno guessing |
 | `firmware/db/` | HelikonDB v1 read-only catalog reader: header validation, fixed track/album/artist records, strings, indices, artwork, CRC | database lead | paper §12, D-07, D-33, D-53, `docs/helikondb.md` | `tests/musicdb` fixture + 100-song corpus | No iTunesDB, tagcache or device scan; caller owns buffers; catalog is a derived cache |
 | `firmware/player/` | Buffer/decode/output state machine | audio lead | paper §13, §28.3.8 | audio matrix, gapless, seek | No filesystem internals; no unmeasured audiophile claims |
-| `firmware/ui/` | Screens, input, rendering | UI lead | paper §14, §28.3.3, `docs/ui.md` | task tests, frame trace, typography mockup | No storage policy; default UI must survive skin failure |
+| `firmware/ui/` | Launcher renderer and the functional Music library browser (`music.c`, embedded HDB), screens, input and focus | UI lead | paper §14, `docs/ui.md`, `docs/helikondb.md` | `tests/ui` previews, frame trace, typography mockup | No storage policy; embedded catalog only in the pre-VFS test; default UI must survive skin failure |
 | `firmware/input/` | Click wheel/button events, debounce, focus | UI lead | `docs/firmware-architecture.md` §9.7 | event/acceleration tests | No storage or playback policy |
 | `firmware/skin/` | Documented WPS subset | UI lead | paper §28.3.4, D-10/D-15 | 20-skin corpus, hostile skin tests | No raw storage/playback policy; no full WPS engine; no unlicensed assets |
 | `firmware/sandbox/` | App/game runtime, quotas, host API | runtime lead | paper §15, §28.3.9–10, D-08 | escape/quota/crash tests | No raw block/NOR/PMU/GPIO; no legacy plugin binary compatibility |

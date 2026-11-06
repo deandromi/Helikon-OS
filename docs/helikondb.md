@@ -2,8 +2,9 @@
 
 > Purpose: the on-disk music catalog, its builder contract and the firmware reader.
 > Status: format v1 implemented; reference builder and reader host-tested on a
-> 100-song macOS corpus; production builder belongs to the companion (T-066);
-> no device Music screen yet.
+> 100-song macOS corpus; functional embedded-catalog Music browser image built
+> and host-verified; production builder belongs to the companion (T-066);
+> device run pending.
 > Owner: database/host
 > Last updated: 2026-11-06
 > Source: D-07, D-33, D-53; [`tasks.md`](tasks.md) T-066/T-067
@@ -270,11 +271,39 @@ record: uid u64, event u8, position_ms u32, timestamp u32, rating_delta i8, crc1
 - No per-song catalog write and no Apple database write.
 - A corrupt tail is discarded; the catalog is never affected.
 
-## 6. Open items
+## 6. Functional device demo (embedded catalog)
+
+Until the VFS/ATA handoff is solved, a signed test image can embed an HDB in
+`.rodata`. The loader verifies and loads the whole image; the firmware's Music
+browser reads the catalog from DRAM and never touches storage. This is the
+functional library test, not the production path.
+
+Build with the contiguous 100-song sample (6 artists, 10 albums, 10 covers)
+and the diagnostic launcher:
+
+```sh
+make -C firmware BOARD=6g VERSION=11 BOOTSTATE_STATE=good UI=1 \
+  HDB=../build/helikondb/first100/music.hdb \
+  EXTRA_CFLAGS='-DHELIKON_DIAG_LAUNCHER' \
+  BUILD=../build/firmware/6g-music image
+```
+
+Artifact: 303,944 bytes, SHA-256 `dc9c86d4…`; manifest `0e0a81c3…`; bootstate
+`04d9650a…`. The loader is `7f13e7e5…` (106,184 bytes). The host loader core
+and `tests/ui` previews pass.
+
+Controls: launcher → Music → Artists / Albums / Songs; wheel or left/right
+scrolls, SELECT opens, MENU returns. Album and artist pages show the 96×96
+artwork; the track page states that playback is next. The 3×5 fallback font is
+used in this build; the first-party Plex atlas remains T-042/T-057. Playback
+(F5/T-058) and reading `/.helikon/music.hdb` from the real VFS are not part of
+this test.
+
+## 7. Open items
 
 1. Companion port of the builder (T-066) and a Swift/ObjC reader for its tests.
-2. Firmware Music screen: artist list from the artist table, album slices,
-   track slices and the title/recent/genre indexes (T-056/T-088).
+2. Production firmware Music screens from the VFS-backed HDB (T-056/T-088);
+   the embedded-catalog browser is the current test harness.
 3. Play journal writer/reader and host merge (T-067).
 4. Artwork cache policy on device: one thumbnail at a time, RGB565, LRU.
 5. Full-library scale run (10k tracks) and device timing once the Music screen
