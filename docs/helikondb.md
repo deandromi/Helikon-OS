@@ -288,7 +288,7 @@ make -C firmware BOARD=6g VERSION=12 BOOTSTATE_STATE=good UI=1 \
   BUILD=../build/firmware/6g-music image
 ```
 
-Artifact: 474,252 bytes, SHA-256 `de6491a9…`; manifest `0c372717…`; bootstate
+Artifact: 474,252 bytes, SHA-256 `de6491a9…`; manifest `5fb5676f…`; bootstate
 `2f1e3e7c…`. The loader is `7f13e7e5…` (106,184 bytes). The host loader core
 and `tests/ui` previews pass.
 
