@@ -1,9 +1,9 @@
 # Helikon-OS Alpha 2.0.0 — Quick Start
 
 This is a **development alpha**, not a support release. It contains the
-firmware-loading bootloader, three firmware sets and a macOS companion shell.
-The owner reports 6G testing is complete; the detailed per-image results were
-not attached to the repository at cut time. Read the full
+firmware-loading bootloader, two storage-free firmware images and a macOS
+companion shell. The owner reports 6G testing is complete; the detailed
+per-image results were not attached to the repository at cut time. Read the full
 [`RELEASE_NOTES.md`](RELEASE_NOTES.md) before installing.
 
 Installing a bootloader is DFU-only and can require an Apple restore, which can
@@ -19,7 +19,6 @@ your restore path before you start.
 | `bootloader-ipod6g-uninstall.dfu` | Recovery uninstaller. |
 | `helikon-alpha2-launcher.zip` | Launcher image: six cells, Music opens the Music hub. No storage access. |
 | `helikon-alpha2-music-hub.zip` | Launcher + Music hub + album/artist walls + 100-song demo. No storage access. |
-| `helikon-alpha2-f2-bootstate.zip` | F2 bootstate promotion. Writes only `/.helikon/bootstate`. |
 | `Helikon-Companion-0.1.0-alpha2.dmg` | Universal macOS companion shell preview. |
 | `test-public-key.txt` | Public development test key, key ID `0x48454c01`. |
 | `SHA256SUMS` | Hashes for every top-level asset. |
@@ -28,6 +27,9 @@ your restore path before you start.
 Use each firmware zip as **one set**. Do not mix `firmware.img`,
 `firmware.manifest` or `bootstate` from different sets: the manifest and
 bootstate are bound to that image.
+
+The firmware images are storage-free UI demos. **This release does not include a
+firmware-owned filesystem write.**
 
 ## 2. Verify the download
 
@@ -51,10 +53,8 @@ No private key is included.
 |---|---|---|---|
 | `helikon-alpha2-launcher.zip` | 10 | GOOD | Launcher only; Music opens the hub. |
 | `helikon-alpha2-music-hub.zip` | 12 | GOOD | Launcher + Music hub + walls + 100-song demo. |
-| `helikon-alpha2-f2-bootstate.zip` | 2 | TRYING seq 1 | Promotes bootstate to GOOD; first firmware write. |
 
-The launcher and Music hub images do **not** touch ATA or storage. The F2 image
-writes only `/.helikon/bootstate`; it does not write the library.
+Both images are storage-free. They do not touch ATA or the filesystem.
 
 The Music hub image embeds a 100-song demonstration catalog from the owner's
 library, including 10 album covers. It is demonstration content only and does
@@ -154,23 +154,6 @@ MENU returns
 There is no playback, no storage access and no library write in this image.
 The demo catalog is owner-supplied demonstration content.
 
-### F2 bootstate
-
-```text
-Loader splash
-F2 stages
-PRESS ANY BUTTON
-(write stage)
-PASS  WRITE ... PROMOTED
-BOOTSTATE GOOD SEQ 2
-```
-
-After the PASS screen powers off, run `fsck_hfs -fn` from macOS and boot again.
-The second PASS screen should show `ALREADY GOOD`.
-
-If the screen stops at an ATA stage, record the exact stage and power off. Do
-not retry writes. Preserve the screen and report it.
-
 ## 9. Companion preview
 
 1. Open `Helikon-Companion-0.1.0-alpha2.dmg`.
@@ -207,6 +190,7 @@ or:
 
 ## 11. Limits
 
+- No firmware-owned filesystem write.
 - No audio playback, VFS, storage-backed library, settings, USB, update client,
   installer or app/game runtime.
 - No working companion: shell only.
