@@ -6,6 +6,7 @@ section header. Set BENGUIAT_DIR to that folder; the fonts are not committed.
 """
 import math
 import os
+import sys
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -33,13 +34,37 @@ def logo_font(size, weight=700):
     return font
 
 
-def require_fit(draw, text, font, x, y, width, label):
-    box = draw.textbbox((x, y), text, font=font)
+CLIP_REPORT = []
+
+
+def clip_entry(label, detail):
+    CLIP_REPORT.append(f"{label}: {detail}")
+
+
+def require_fit(draw, text, font, x, y, width, label, anchor=None, report=False):
+    box = draw.textbbox((x, y), text, font=font, anchor=anchor)
     if box[0] < 0 or box[1] < 0 or box[2] > WIDTH or box[3] > HEIGHT:
         raise SystemExit(f"{label}: text outside canvas: {box}")
     if box[2] - x > width:
         raise SystemExit(f"{label}: text clips its {width}px column: {box}")
+    if report:
+        clip_entry(label, f"box={box} fits {width}px")
     return box
+
+
+def require_rect(x, y, width, height, label, report=True):
+    if x < 0 or y < 0 or x + width > WIDTH or y + height > HEIGHT:
+        raise SystemExit(f"{label}: rect outside canvas: {(x, y, width, height)}")
+    if report:
+        clip_entry(label, f"rect={(x, y, width, height)} inside 320x240")
+
+
+def require_points(points, label, report=True):
+    for px, py in points:
+        if px < 0 or py < 0 or px > WIDTH or py > HEIGHT:
+            raise SystemExit(f"{label}: point outside canvas: {(px, py)}")
+    if report:
+        clip_entry(label, f"{len(points)} points inside 320x240")
 
 
 def menu_mockup():
@@ -148,6 +173,7 @@ HOME_MUTED = (107, 102, 92)
 HOME_RULE = (179, 173, 158)
 HOME_FAINT = (220, 215, 202)
 HOME_GREEN = (0, 191, 99)
+HOME_ERROR = (254, 49, 49)
 
 LAUNCHER_ACCENTS = {
     "Music": (156, 63, 44),
@@ -176,6 +202,17 @@ ALBUM_VIEW = OUT / "album-view" / "helikon-os-album-view-320x240.png"
 ALBUM_VIEW_PREVIEW = OUT / "album-view" / "helikon-os-album-view-320x240@2x.png"
 ARTIST_VIEW = OUT / "artist-view" / "helikon-os-artist-view-320x240.png"
 ARTIST_VIEW_PREVIEW = OUT / "artist-view" / "helikon-os-artist-view-320x240@2x.png"
+NOW_PLAYING = OUT / "now-playing"
+NOW_PLAYING_STATES = (
+    "playing",
+    "paused",
+    "opening",
+    "error-retry",
+    "error-terminal",
+    "finished",
+    "missing-art",
+    "long-metadata",
+)
 
 
 def benguiat_font(size, weight):
@@ -792,6 +829,419 @@ def album_sleeve(size=96):
     return art.resize((size, size), Image.Resampling.LANCZOS)
 
 
+def text_width(draw, text, font):
+    return draw.textlength(text, font=font)
+
+
+def fit_line(draw, text, font, limit, label, report=True):
+    """Return one line that fits, with a visible ellipsis when cut."""
+    text = " ".join(text.split())
+    if text_width(draw, text, font) <= limit:
+        if report:
+            clip_entry(label, f"fits {limit}px ({text_width(draw, text, font):.1f}px)")
+        return text, False
+    ellipsis = "\u2026"
+    words = text.split(" ")
+    candidate = ""
+    while words:
+        trial = " ".join(words).strip()
+        if trial and text_width(draw, trial + ellipsis, font) <= limit:
+            candidate = trial
+            break
+        words.pop()
+    if not candidate:
+        candidate = text
+        while candidate and text_width(draw, candidate + ellipsis, font) > limit:
+            candidate = candidate[:-1]
+        candidate = candidate.rstrip()
+    result = (candidate + ellipsis) if candidate else ellipsis
+    if text_width(draw, result, font) > limit:
+        raise SystemExit(f"{label}: ellipsis still clips {limit}px")
+    if report:
+        clip_entry(
+            label,
+            f"truncated with U+2026 to {text_width(draw, result, font):.1f}px",
+        )
+    return result, True
+
+
+def split_word(draw, word, font, limit):
+    head = word
+    while head and text_width(draw, head, font) > limit:
+        head = head[:-1]
+    if not head:
+        head = word[:1]
+    return head, word[len(head):]
+
+
+def wrap_title(draw, text, font, limit, max_lines, label):
+    """Word-wrap to at most max_lines; the last line gets U+2026 if cut."""
+    text = " ".join(text.split())
+    words = text.split(" ")
+    lines = []
+    cursor = 0
+    while cursor < len(words) and len(lines) < max_lines:
+        if len(lines) == max_lines - 1:
+            line, _ = fit_line(draw, " ".join(words[cursor:]), font, limit,
+                               f"{label} line {len(lines) + 1}")
+            lines.append(line)
+            cursor = len(words)
+            break
+        line = words[cursor]
+        cursor += 1
+        if text_width(draw, line, font) > limit:
+            line, tail = split_word(draw, line, font, limit)
+            if tail:
+                words.insert(cursor, tail)
+        while cursor < len(words):
+            trial = f"{line} {words[cursor]}"
+            if text_width(draw, trial, font) <= limit:
+                line = trial
+                cursor += 1
+            else:
+                break
+        lines.append(line)
+    if cursor < len(words) and lines:
+        line, _ = fit_line(draw, " ".join(words[cursor:]), font, limit,
+                           f"{label} line {len(lines)}")
+        lines[-1] = line
+    if not lines:
+        lines = [text]
+    for index, line in enumerate(lines):
+        if text_width(draw, line, font) > limit:
+            raise SystemExit(f"{label} line {index + 1}: clips {limit}px")
+    return lines
+
+
+def sleeve_placeholder(size=96):
+    """Generated no-artwork mark: quiet geometry, never a broken-image icon."""
+    scale = 4
+    canvas = size * scale
+    art = Image.new("RGB", (canvas, canvas), HOME_PAPER_LIGHT)
+    draw = ImageDraw.Draw(art)
+    ink = HOME_MUTED
+    width = scale
+    c = canvas
+
+    draw.ellipse((c * 0.64, c * 0.16, c * 0.80, c * 0.32),
+                 outline=ink, width=width)
+    draw.line((c * 0.08, c * 0.62, c * 0.34, c * 0.34,
+               c * 0.58, c * 0.62), fill=ink, width=width, joint="curve")
+    draw.line((0, c * 0.64, c, c * 0.64), fill=ink, width=width)
+    return art.resize((size, size), Image.Resampling.LANCZOS)
+
+
+def format_time(milliseconds):
+    seconds = max(0, int(milliseconds) // 1000)
+    hours, remainder = divmod(seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    if hours:
+        return f"{hours}:{minutes:02d}:{seconds:02d}"
+    return f"{minutes}:{seconds:02d}"
+
+
+def now_playing_context(track, total, disc, disc_total):
+    parts = []
+    if disc and disc_total and disc_total > 1:
+        parts.append(f"DISC {disc} OF {disc_total}")
+    if track and total:
+        parts.append(f"TRACK {track} OF {total}")
+    elif track:
+        parts.append(f"TRACK {track}")
+    return " \u00b7 ".join(parts)
+
+
+def draw_now_footer(draw, actions, arrows, label):
+    font = ui_font(11, 400)
+    text = "  ".join(actions)
+    start = 40 if arrows else 20
+    require_fit(draw, text, font, start, 230, 300 - start, f"{label} text",
+                anchor="ls", report=True)
+    if arrows:
+        left = [(25, 222), (25, 229), (20, 226)]
+        right = [(30, 222), (30, 229), (35, 226)]
+        require_points(left + right, f"{label} arrows")
+        draw.polygon(left, fill=HOME_MUTED)
+        draw.polygon(right, fill=HOME_MUTED)
+    draw.text((start, 230), text, font=font, fill=HOME_MUTED, anchor="ls")
+    return text_width(draw, text, font) + (start - 20)
+
+
+def draw_top_bar(draw, label="NOW PLAYING"):
+    system = ui_font(11, 400)
+    require_width(label, system, 1.2, 150, "top label width")
+    label_width = tracked_width(label, system, 1.2)
+    draw_tracked(draw, (20, 20), label, system, HOME_MUTED, 1.2)
+    require_width("12:34", system, 0.0, 60, "top time width")
+    time_width = tracked_width("12:34", system, 0.0)
+    if 20 + label_width > 274 - time_width:
+        raise SystemExit("top bar: label and time collide")
+    clip_entry("top label", f"{label_width:.1f}px, clear of time")
+    clip_entry("top time", f"{time_width:.1f}px, right edge 274")
+    draw_right_tracked(draw, (274, 20), "12:34", system, HOME_MUTED)
+    require_rect(282, 11, 18, 9, "battery glyph")
+    battery(draw, 282, 11, 18, 9, 0.7, HOME_INK)
+    require_rect(20, 30, 280, 1, "top rule")
+    draw.line((20, 30, 300, 30), fill=HOME_RULE)
+
+
+def draw_now_metadata(draw, spec):
+    title_font = ui_font(17, 600)
+    meta_font = ui_font(12, 400)
+    system = ui_font(11, 400)
+
+    lines = wrap_title(draw, spec["title"], title_font, 168, 3, "title")
+    for index, line in enumerate(lines):
+        baseline = 58 + index * 20
+        require_fit(draw, line, title_font, 132, baseline, 168,
+                    f"title line {index + 1}", anchor="ls", report=True)
+        draw.text((132, baseline), line, font=title_font, fill=HOME_INK,
+                  anchor="ls")
+
+    artist_baseline = 58 + len(lines) * 20 + 6
+    artist, _ = fit_line(draw, spec["artist"], meta_font, 168, "artist")
+    require_fit(draw, artist, meta_font, 132, artist_baseline, 168, "artist",
+                anchor="ls", report=True)
+    draw.text((132, artist_baseline), artist, font=meta_font, fill=HOME_INK,
+              anchor="ls")
+
+    album_baseline = artist_baseline + 16
+    album, _ = fit_line(draw, spec["album"], meta_font, 168, "album")
+    require_fit(draw, album, meta_font, 132, album_baseline, 168, "album",
+                anchor="ls", report=True)
+    draw.text((132, album_baseline), album, font=meta_font, fill=HOME_MUTED,
+              anchor="ls")
+
+    context = now_playing_context(spec.get("track"), spec.get("total"),
+                                  spec.get("disc"), spec.get("disc_total"))
+    if context:
+        require_fit(draw, context, system, 20, 208, 280, "track context",
+                    anchor="ls", report=True)
+        draw.text((20, 208), context, font=system, fill=HOME_MUTED,
+                  anchor="ls")
+    else:
+        clip_entry("track context", "omitted: no track or disc facts")
+
+
+def draw_progress(draw, position, duration):
+    require_rect(20, 152, 280, 4, "progress track")
+    draw.rectangle((20, 152, 299, 155), fill=HOME_RULE)
+    if duration > 0 and position > 0:
+        width = max(1, round(280 * min(position, duration) / duration))
+        require_rect(20, 152, width, 4, "progress fill")
+        draw.rectangle((20, 152, 19 + width, 155), fill=HOME_INK)
+    else:
+        clip_entry("progress fill", "empty at zero or unknown duration")
+
+    system = ui_font(11, 400)
+    elapsed = format_time(position)
+    total = format_time(duration) if duration > 0 else "--:--"
+    combined = f"{elapsed} / {total}"
+    require_fit(draw, combined, system, 20, 170, 150, "elapsed / total",
+                anchor="ls", report=True)
+    draw.text((20, 170), elapsed, font=system, fill=HOME_INK, anchor="ls")
+    split = 20 + text_width(draw, elapsed, system)
+    draw.text((split, 170), f" / {total}", font=system, fill=HOME_MUTED,
+              anchor="ls")
+
+
+def draw_state(draw, state):
+    label = {
+        "playing": "PLAYING",
+        "paused": "PAUSED",
+        "opening": "OPENING",
+        "finished": "FINISHED",
+    }[state]
+    font = ui_font(14, 500)
+    x = 20
+    if state == "playing":
+        points = [(20, 181), (20, 191), (28, 186)]
+        require_points(points, "playing icon")
+        draw.polygon(points, fill=HOME_INK)
+        x = 36
+    elif state == "paused":
+        require_rect(20, 181, 3, 10, "paused icon left")
+        require_rect(26, 181, 3, 10, "paused icon right")
+        draw.rectangle((20, 181, 22, 190), fill=HOME_INK)
+        draw.rectangle((26, 181, 28, 190), fill=HOME_INK)
+        x = 36
+    elif state == "finished":
+        require_rect(21, 182, 8, 8, "finished icon")
+        draw.rectangle((21, 182, 28, 189), fill=HOME_INK)
+        x = 36
+    require_fit(draw, label, font, x, 190, 200, "state label", anchor="ls",
+                report=True)
+    draw.text((x, 190), label, font=font, fill=HOME_INK, anchor="ls")
+
+
+def draw_error(draw, spec):
+    system = ui_font(11, 400)
+    meta = ui_font(12, 400)
+    headline = ui_font(17, 600)
+
+    reason = spec["reason"]
+    if len(reason) > 44:
+        raise SystemExit(f"error reason: {len(reason)} chars exceeds 44")
+    clip_entry("error reason length", f"{len(reason)} chars <= 44")
+
+    require_rect(20, 44, 280, 2, "error status rule")
+    draw.rectangle((20, 44, 299, 45), fill=HOME_ERROR)
+
+    title = "AUDIO PLAYBACK FAILED"
+    require_fit(draw, title, headline, 20, 70, 280, "error headline",
+                anchor="ls", report=True)
+    draw.text((20, 70), title, font=headline, fill=HOME_INK, anchor="ls")
+
+    reason, _ = fit_line(draw, reason, meta, 280, "error reason")
+    require_fit(draw, reason, meta, 20, 94, 280, "error reason",
+                anchor="ls", report=True)
+    draw.text((20, 94), reason, font=meta, fill=HOME_INK, anchor="ls")
+
+    guidance, _ = fit_line(draw, spec["guidance"], meta, 280, "error guidance")
+    require_fit(draw, guidance, meta, 20, 116, 280, "error guidance",
+                anchor="ls", report=True)
+    draw.text((20, 116), guidance, font=meta, fill=HOME_MUTED, anchor="ls")
+
+    identity, _ = fit_line(draw, spec["identity"], system, 280,
+                           "error track identity")
+    require_fit(draw, identity, system, 20, 142, 280, "error track identity",
+                anchor="ls", report=True)
+    draw.text((20, 142), identity, font=system, fill=HOME_MUTED, anchor="ls")
+
+
+def now_playing_mockup(name, spec):
+    image = Image.new("RGB", (WIDTH, HEIGHT), HOME_PAPER)
+    draw = ImageDraw.Draw(image)
+
+    draw_top_bar(draw)
+
+    if spec["state"].startswith("error"):
+        draw_error(draw, spec)
+        actions = (["SELECT ALBUM", "MENU BACK"] if spec["terminal"]
+                   else ["SELECT RETRY", "MENU BACK"])
+        draw_now_footer(draw, actions, False, f"{name} footer")
+    else:
+        require_rect(20, 40, 96, 96, "sleeve frame")
+        if spec.get("art", True):
+            image.paste(album_sleeve(96), (20, 40))
+            frame = HOME_INK
+        else:
+            image.paste(sleeve_placeholder(96), (20, 40))
+            frame = HOME_RULE
+        draw.rectangle((20, 40, 115, 135), outline=frame)
+
+        draw_now_metadata(draw, spec)
+
+        if spec["state"] == "opening":
+            draw_progress(draw, 0, spec["duration"])
+        else:
+            draw_progress(draw, spec["position"], spec["duration"])
+        draw_state(draw, spec["state"])
+
+        if spec["state"] == "opening":
+            actions = ["MENU CANCEL"]
+        elif spec["state"] == "finished":
+            actions = ["SELECT ALBUM", "PLAY AGAIN", "MENU BACK"]
+        else:
+            actions = ["TRACK", "SELECT ALBUM",
+                       "PLAY PAUSE" if spec["state"] == "playing"
+                       else "PLAY RESUME", "MENU BACK"]
+        draw_now_footer(draw, actions,
+                        spec["state"] in ("playing", "paused"),
+                        f"{name} footer")
+
+    require_rect(20, 216, 280, 1, "footer rule")
+    draw.line((20, 216, 300, 216), fill=HOME_FAINT)
+
+    path = NOW_PLAYING / f"helikon-os-now-playing-{name}-320x240.png"
+    preview = NOW_PLAYING / f"helikon-os-now-playing-{name}-320x240@2x.png"
+    return save_pair(image, path, preview)
+
+
+def now_playing_mockups():
+    base = {
+        "title": "Nocturne I",
+        "artist": "Meridian Ensemble",
+        "album": "Nocturnes",
+        "track": 1,
+        "total": 10,
+        "disc": 1,
+        "disc_total": 1,
+        "duration": 238000,
+    }
+    states = {
+        "playing": dict(base, state="playing", position=102000),
+        "paused": dict(base, state="paused", position=102000),
+        "opening": dict(base, state="opening", position=0),
+        "finished": dict(base, state="finished", position=238000,
+                         track=10),
+        "missing-art": dict(base, state="playing", position=37000,
+                            title="Nocturne II", track=2, total=5,
+                            disc=1, disc_total=2, art=False),
+        "long-metadata": dict(
+            base, state="playing", position=126000, duration=301000,
+            track=7, total=12,
+            title="The Long Night of the Meridian Ensemble, Part One: "
+                  "A Winter Sequence",
+            artist="The Meridian Chamber Ensemble of the Upper Midwest",
+            album="Collected Nocturnes for a Long Winter",
+        ),
+        "error-retry": dict(
+            base, state="error-retry", reason="THE AUDIO DEVICE DID NOT START",
+            guidance="Retry, or return and choose another track.",
+            identity="Nocturne I \u2014 Meridian Ensemble", terminal=False,
+        ),
+        "error-terminal": dict(
+            base, state="error-terminal", reason="UNSUPPORTED WAV FORMAT",
+            guidance="Choose another track, or return to the library.",
+            identity="Nocturne IV \u2014 Meridian Ensemble", terminal=True,
+        ),
+    }
+    paths = []
+    for name in NOW_PLAYING_STATES:
+        paths.extend(now_playing_mockup(name, states[name]))
+
+    # Width checks for footers that do not get their own PNG.
+    scratch = ImageDraw.Draw(Image.new("RGB", (WIDTH, HEIGHT), HOME_PAPER))
+    variants = (
+        (["TRACK", "SELECT ALBUM", "PLAY PAUSE", "MENU BACK"], True,
+         "footer variant playing+prev/next"),
+        (["TRACK", "SELECT ALBUM", "PLAY RESUME", "MENU BACK"], True,
+         "footer variant paused+prev/next"),
+        (["SELECT ALBUM", "PLAY PAUSE", "MENU BACK"], False,
+         "footer variant single-track"),
+        (["PLAY PAUSE", "MENU BACK"], False,
+         "footer variant single-track no album"),
+        (["TRACK", "PLAY PAUSE", "MENU BACK"], True,
+         "footer variant playing no album"),
+        (["TRACK", "PLAY RESUME", "MENU BACK"], True,
+         "footer variant paused no album"),
+        (["MENU CANCEL"], False, "footer variant opening"),
+        (["SELECT ALBUM", "PLAY AGAIN", "MENU BACK"], False,
+         "footer variant finished"),
+        (["PLAY AGAIN", "MENU BACK"], False,
+         "footer variant finished no album"),
+        (["SELECT RETRY", "MENU BACK"], False, "footer variant error retry"),
+        (["SELECT ALBUM", "MENU BACK"], False,
+         "footer variant error terminal"),
+        (["MENU BACK"], False, "footer variant error terminal no album"),
+    )
+    for actions, arrows, label in variants:
+        draw_now_footer(scratch, actions, arrows, label)
+
+    context_font = ui_font(11, 400)
+    context_variants = (
+        ("DISC 1 OF 2 \u00b7 TRACK 3 OF 10", "context variant multi-disc"),
+        ("DISC 2 OF 2 \u00b7 TRACK 10 OF 10", "context variant last disc"),
+        ("TRACK 3", "context variant track only"),
+        ("DISC 1 OF 2", "context variant disc only"),
+    )
+    for text, label in context_variants:
+        require_fit(scratch, text, context_font, 20, 208, 280, label,
+                    anchor="ls", report=True)
+    return paths
+
+
 def artist_hero(width=320, height=70):
     """Generated plum portrait band with a cream cameo bust."""
     scale = 2
@@ -936,6 +1386,17 @@ def artist_view_mockup():
 
 
 if __name__ == "__main__":
+    now_playing_only = "--now-playing-only" in sys.argv[1:]
+    if now_playing_only:
+        now_playing = now_playing_mockups()
+        for path in now_playing:
+            print(path.relative_to(ROOT))
+        print(f"CLIP CHECK: {len(CLIP_REPORT)} Now Playing text/geometry checks")
+        for line in CLIP_REPORT:
+            print(f"  PASS  {line}")
+        print("CLIP SUMMARY: all checks passed")
+        raise SystemExit(0)
+
     ui = menu_mockup()
     proof = proof_mockup()
     launcher = launcher_mockup()
@@ -945,6 +1406,11 @@ if __name__ == "__main__":
     audiobooks = audiobook_wall_mockup()
     album = album_view_mockup()
     artist = artist_view_mockup()
+    now_playing = now_playing_mockups()
     for path in (ui, proof, *launcher, *index, *wall, *podcasts, *audiobooks,
-                 *album, *artist):
-        print(path)
+                 *album, *artist, *now_playing):
+        print(path.relative_to(ROOT))
+    print(f"CLIP CHECK: {len(CLIP_REPORT)} Now Playing text/geometry checks")
+    for line in CLIP_REPORT:
+        print(f"  PASS  {line}")
+    print("CLIP SUMMARY: all checks passed")

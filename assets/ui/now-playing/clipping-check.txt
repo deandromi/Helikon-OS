@@ -1,0 +1,178 @@
+# Now Playing clipping check — host evidence
+# Command: python3 tools/render-ui-mockup.py --now-playing-only
+# Date: 2026-11-07
+# Base commit: cf78410
+# Python: 3.14.4
+# Pillow: 12.3.0
+# Scope: eight Now Playing states, 1x and 2x, 320x240 canvas
+# This proves host-side text/geometry bounds only. It does not prove 6G panel
+# contrast, anti-aliased glyph quality, 1-bit fallback readability, frame time
+# or memory use.
+
+CLIP CHECK: 165 Now Playing text/geometry checks
+  PASS  top label: 88.0px, clear of time
+  PASS  top time: 31.0px, right edge 274
+  PASS  battery glyph: rect=(282, 11, 18, 9) inside 320x240
+  PASS  top rule: rect=(20, 30, 280, 1) inside 320x240
+  PASS  sleeve frame: rect=(20, 40, 96, 96) inside 320x240
+  PASS  title line 1: box=(132, 46, 216, 58) fits 168px
+  PASS  artist: fits 168px (104.0px)
+  PASS  artist: box=(132, 75, 236, 84) fits 168px
+  PASS  album: fits 168px (56.0px)
+  PASS  album: box=(132, 92, 188, 100) fits 168px
+  PASS  track context: box=(20, 200, 98, 208) fits 280px
+  PASS  progress track: rect=(20, 152, 280, 4) inside 320x240
+  PASS  progress fill: rect=(20, 152, 120, 4) inside 320x240
+  PASS  elapsed / total: box=(20, 162, 78, 172) fits 150px
+  PASS  playing icon: 3 points inside 320x240
+  PASS  state label: box=(36, 180, 96, 190) fits 200px
+  PASS  playing footer text: box=(40, 222, 292, 230) fits 260px
+  PASS  playing footer arrows: 6 points inside 320x240
+  PASS  footer rule: rect=(20, 216, 280, 1) inside 320x240
+  PASS  top label: 88.0px, clear of time
+  PASS  top time: 31.0px, right edge 274
+  PASS  battery glyph: rect=(282, 11, 18, 9) inside 320x240
+  PASS  top rule: rect=(20, 30, 280, 1) inside 320x240
+  PASS  sleeve frame: rect=(20, 40, 96, 96) inside 320x240
+  PASS  title line 1: box=(132, 46, 216, 58) fits 168px
+  PASS  artist: fits 168px (104.0px)
+  PASS  artist: box=(132, 75, 236, 84) fits 168px
+  PASS  album: fits 168px (56.0px)
+  PASS  album: box=(132, 92, 188, 100) fits 168px
+  PASS  track context: box=(20, 200, 98, 208) fits 280px
+  PASS  progress track: rect=(20, 152, 280, 4) inside 320x240
+  PASS  progress fill: rect=(20, 152, 120, 4) inside 320x240
+  PASS  elapsed / total: box=(20, 162, 78, 172) fits 150px
+  PASS  paused icon left: rect=(20, 181, 3, 10) inside 320x240
+  PASS  paused icon right: rect=(26, 181, 3, 10) inside 320x240
+  PASS  state label: box=(36, 180, 90, 190) fits 200px
+  PASS  paused footer text: box=(40, 222, 300, 230) fits 260px
+  PASS  paused footer arrows: 6 points inside 320x240
+  PASS  footer rule: rect=(20, 216, 280, 1) inside 320x240
+  PASS  top label: 88.0px, clear of time
+  PASS  top time: 31.0px, right edge 274
+  PASS  battery glyph: rect=(282, 11, 18, 9) inside 320x240
+  PASS  top rule: rect=(20, 30, 280, 1) inside 320x240
+  PASS  sleeve frame: rect=(20, 40, 96, 96) inside 320x240
+  PASS  title line 1: box=(132, 46, 216, 58) fits 168px
+  PASS  artist: fits 168px (104.0px)
+  PASS  artist: box=(132, 75, 236, 84) fits 168px
+  PASS  album: fits 168px (56.0px)
+  PASS  album: box=(132, 92, 188, 100) fits 168px
+  PASS  track context: box=(20, 200, 98, 208) fits 280px
+  PASS  progress track: rect=(20, 152, 280, 4) inside 320x240
+  PASS  progress fill: empty at zero or unknown duration
+  PASS  elapsed / total: box=(20, 162, 78, 172) fits 150px
+  PASS  state label: box=(20, 180, 83, 190) fits 200px
+  PASS  opening footer text: box=(20, 222, 94, 230) fits 280px
+  PASS  footer rule: rect=(20, 216, 280, 1) inside 320x240
+  PASS  top label: 88.0px, clear of time
+  PASS  top time: 31.0px, right edge 274
+  PASS  battery glyph: rect=(282, 11, 18, 9) inside 320x240
+  PASS  top rule: rect=(20, 30, 280, 1) inside 320x240
+  PASS  error reason length: 30 chars <= 44
+  PASS  error status rule: rect=(20, 44, 280, 2) inside 320x240
+  PASS  error headline: box=(20, 58, 228, 70) fits 280px
+  PASS  error reason: fits 280px (198.0px)
+  PASS  error reason: box=(20, 86, 218, 94) fits 280px
+  PASS  error guidance: fits 280px (225.0px)
+  PASS  error guidance: box=(20, 107, 245, 118) fits 280px
+  PASS  error track identity: fits 280px (162.0px)
+  PASS  error track identity: box=(20, 134, 182, 142) fits 280px
+  PASS  error-retry footer text: box=(20, 222, 160, 230) fits 280px
+  PASS  footer rule: rect=(20, 216, 280, 1) inside 320x240
+  PASS  top label: 88.0px, clear of time
+  PASS  top time: 31.0px, right edge 274
+  PASS  battery glyph: rect=(282, 11, 18, 9) inside 320x240
+  PASS  top rule: rect=(20, 30, 280, 1) inside 320x240
+  PASS  error reason length: 22 chars <= 44
+  PASS  error status rule: rect=(20, 44, 280, 2) inside 320x240
+  PASS  error headline: box=(20, 58, 228, 70) fits 280px
+  PASS  error reason: fits 280px (165.0px)
+  PASS  error reason: box=(20, 86, 185, 94) fits 280px
+  PASS  error guidance: fits 280px (242.0px)
+  PASS  error guidance: box=(20, 107, 262, 118) fits 280px
+  PASS  error track identity: fits 280px (169.0px)
+  PASS  error track identity: box=(20, 134, 189, 142) fits 280px
+  PASS  error-terminal footer text: box=(20, 222, 163, 230) fits 280px
+  PASS  footer rule: rect=(20, 216, 280, 1) inside 320x240
+  PASS  top label: 88.0px, clear of time
+  PASS  top time: 31.0px, right edge 274
+  PASS  battery glyph: rect=(282, 11, 18, 9) inside 320x240
+  PASS  top rule: rect=(20, 30, 280, 1) inside 320x240
+  PASS  sleeve frame: rect=(20, 40, 96, 96) inside 320x240
+  PASS  title line 1: box=(132, 46, 216, 58) fits 168px
+  PASS  artist: fits 168px (104.0px)
+  PASS  artist: box=(132, 75, 236, 84) fits 168px
+  PASS  album: fits 168px (56.0px)
+  PASS  album: box=(132, 92, 188, 100) fits 168px
+  PASS  track context: box=(20, 200, 105, 208) fits 280px
+  PASS  progress track: rect=(20, 152, 280, 4) inside 320x240
+  PASS  progress fill: rect=(20, 152, 280, 4) inside 320x240
+  PASS  elapsed / total: box=(20, 162, 78, 172) fits 150px
+  PASS  finished icon: rect=(21, 182, 8, 8) inside 320x240
+  PASS  state label: box=(36, 180, 102, 190) fits 200px
+  PASS  finished footer text: box=(20, 222, 233, 230) fits 280px
+  PASS  footer rule: rect=(20, 216, 280, 1) inside 320x240
+  PASS  top label: 88.0px, clear of time
+  PASS  top time: 31.0px, right edge 274
+  PASS  battery glyph: rect=(282, 11, 18, 9) inside 320x240
+  PASS  top rule: rect=(20, 30, 280, 1) inside 320x240
+  PASS  sleeve frame: rect=(20, 40, 96, 96) inside 320x240
+  PASS  title line 1: box=(132, 46, 223, 58) fits 168px
+  PASS  artist: fits 168px (104.0px)
+  PASS  artist: box=(132, 75, 236, 84) fits 168px
+  PASS  album: fits 168px (56.0px)
+  PASS  album: box=(132, 92, 188, 100) fits 168px
+  PASS  track context: box=(20, 200, 162, 208) fits 280px
+  PASS  progress track: rect=(20, 152, 280, 4) inside 320x240
+  PASS  progress fill: rect=(20, 152, 44, 4) inside 320x240
+  PASS  elapsed / total: box=(20, 162, 78, 172) fits 150px
+  PASS  playing icon: 3 points inside 320x240
+  PASS  state label: box=(36, 180, 96, 190) fits 200px
+  PASS  missing-art footer text: box=(40, 222, 292, 230) fits 260px
+  PASS  missing-art footer arrows: 6 points inside 320x240
+  PASS  footer rule: rect=(20, 216, 280, 1) inside 320x240
+  PASS  top label: 88.0px, clear of time
+  PASS  top time: 31.0px, right edge 274
+  PASS  battery glyph: rect=(282, 11, 18, 9) inside 320x240
+  PASS  top rule: rect=(20, 30, 280, 1) inside 320x240
+  PASS  sleeve frame: rect=(20, 40, 96, 96) inside 320x240
+  PASS  title line 3: truncated with U+2026 to 161.0px
+  PASS  title line 1: box=(132, 45, 298, 61) fits 168px
+  PASS  title line 2: box=(132, 65, 287, 81) fits 168px
+  PASS  title line 3: box=(132, 85, 293, 98) fits 168px
+  PASS  artist: truncated with U+2026 to 132.0px
+  PASS  artist: box=(132, 115, 264, 124) fits 168px
+  PASS  album: truncated with U+2026 to 147.0px
+  PASS  album: box=(132, 131, 279, 140) fits 168px
+  PASS  track context: box=(20, 200, 98, 208) fits 280px
+  PASS  progress track: rect=(20, 152, 280, 4) inside 320x240
+  PASS  progress fill: rect=(20, 152, 117, 4) inside 320x240
+  PASS  elapsed / total: box=(20, 162, 78, 172) fits 150px
+  PASS  playing icon: 3 points inside 320x240
+  PASS  state label: box=(36, 180, 96, 190) fits 200px
+  PASS  long-metadata footer text: box=(40, 222, 292, 230) fits 260px
+  PASS  long-metadata footer arrows: 6 points inside 320x240
+  PASS  footer rule: rect=(20, 216, 280, 1) inside 320x240
+  PASS  footer variant playing+prev/next text: box=(40, 222, 292, 230) fits 260px
+  PASS  footer variant playing+prev/next arrows: 6 points inside 320x240
+  PASS  footer variant paused+prev/next text: box=(40, 222, 300, 230) fits 260px
+  PASS  footer variant paused+prev/next arrows: 6 points inside 320x240
+  PASS  footer variant single-track text: box=(20, 222, 232, 230) fits 280px
+  PASS  footer variant single-track no album text: box=(20, 222, 150, 230) fits 280px
+  PASS  footer variant playing no album text: box=(40, 222, 210, 230) fits 260px
+  PASS  footer variant playing no album arrows: 6 points inside 320x240
+  PASS  footer variant paused no album text: box=(40, 222, 218, 230) fits 260px
+  PASS  footer variant paused no album arrows: 6 points inside 320x240
+  PASS  footer variant opening text: box=(20, 222, 94, 230) fits 280px
+  PASS  footer variant finished text: box=(20, 222, 233, 230) fits 280px
+  PASS  footer variant finished no album text: box=(20, 222, 151, 230) fits 280px
+  PASS  footer variant error retry text: box=(20, 222, 160, 230) fits 280px
+  PASS  footer variant error terminal text: box=(20, 222, 163, 230) fits 280px
+  PASS  footer variant error terminal no album text: box=(20, 222, 81, 230) fits 280px
+  PASS  context variant multi-disc: box=(20, 200, 169, 208) fits 280px
+  PASS  context variant last disc: box=(20, 200, 176, 208) fits 280px
+  PASS  context variant track only: box=(20, 200, 64, 208) fits 280px
+  PASS  context variant disc only: box=(20, 200, 81, 208) fits 280px
+CLIP SUMMARY: all checks passed

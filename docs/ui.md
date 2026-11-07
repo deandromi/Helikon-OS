@@ -1,11 +1,12 @@
 # UI design — default theme and typography
 
 > Purpose: the first-party Helikon-OS UI look and the default typography scale.
-> Status: living document; typography owner-settled, font subsets and host mockups implemented, launcher renderer implemented on host, 6G panel run pending.
+> Status: living document; typography owner-settled, font subsets and host mockups implemented, launcher renderer implemented on host, Now Playing design and host mockups added, 6G panel run pending.
 > Owner: project owner; UI lead
-> Last updated: 2026-11-06
+> Last updated: 2026-11-07
 > Source: owner-supplied typography table, 2026-11-03; owner home-screen brief,
-> 2026-11-05; design paper §14, §28.3.4; D-10, D-15, D-23
+> 2026-11-05; design paper §14, §28.3.4; D-10, D-15, D-23, D-24; artist-view
+> design-gate audit, 2026-11-06; `main` cf78410
 
 This is the default first-party UI. It is not a skin format and not a promise
 that a Rockbox WPS theme will render identically. Skins follow D-10 and D-15;
@@ -500,13 +501,494 @@ uses the 3×5 fallback until the Plex/Benguiat atlas. `tests/ui` renders
 `music-artist.png`, `music-artist-albums.png` and `music-artist-tracks.png`.
 No 6G panel run yet.
 
-## 7. Not specified yet
+## 7. Now Playing (binding design, host mockups)
+
+> Status: binding design specification for the first T-058/F5 Now Playing
+> implementation and the corresponding T-057 renderer slice. Host mockups
+> only: no 6G panel run, no firmware implementation and no playback claim. The
+> progress view in `firmware/ui/music.c` is an earlier placeholder, not this
+> design.
+> Owner: UI lead. Last updated: 2026-11-07.
+> Source: D-23, D-24, D-15; artist-view design-gate audit, 2026-11-06;
+> `main` cf78410; [`audio-formats.md`](audio-formats.md) §11.
+
+**Binding** means an implementation PR must match this section or record an
+owner-approved deviation in `docs/decisions.md`. It does not make a device,
+format-support or playback claim. Items marked **proposed** are not settled
+product decisions.
+
+D-52 is proposed and scoped to home headers. Now Playing uses IBM Plex Sans
+only, so the unresolved ITC Benguiat licensing question does not block this
+screen.
+
+The artist-view design-gate audit found five defects: 3×5 fallback text, a dead
+`PLAY` plate, fabricated facts, silent truncation and missing evidence. This
+screen answers each directly: the D-23 sizes with a conforming fallback, only
+working actions, no invented metadata, visible U+2026 truncation, and the host
+evidence recorded in §7.12.
+
+### 7.1 Screen map
+
+Now Playing is a transport surface, not a home screen. It is entered when a
+playable track starts, and it is a view over the player rather than the owner of
+the stream.
+
+| From | Trigger | To |
+|---|---|---|
+| Track page, album row or track row | PLAY or SELECT on a playable track | `OPENING` |
+| `OPENING` | First audio frame is ready | `PLAYING` |
+| `OPENING` | Open, format or device error | `ERROR` |
+| `PLAYING` | PLAY | `PAUSED` |
+| `PAUSED` | PLAY | `PLAYING` |
+| `PLAYING` | End of track, next track exists | `OPENING`/`PLAYING` on the next track |
+| `PLAYING` | End of track, no next track | `FINISHED` |
+| `FINISHED` | PLAY | `OPENING`/`PLAYING` (replay from 0:00) |
+| `ERROR`, retryable | SELECT | `OPENING` (retry) |
+| `ERROR`, terminal | SELECT | Album page, or the previous screen if no album |
+| Any state | MENU | Previous screen |
+| `PLAYING`/`PAUSED` | LEFT/RIGHT | Previous/next track in the play context |
+
+`OPENING` is a real state, not a modal. It must not be skipped by drawing a
+`PLAYING` frame before audio exists.
+
+### 7.2 Frame map
+
+The canvas is 320×240, paper `#EFEDE5`, with 20 px side margins and a 280 px
+content column.
+
+| Region | Frame (x, y, w, h) | Rule |
+|---|---|---|
+| Top bar | 20, 10, 280, 20 | `NOW PLAYING` left; `HH:MM` right-aligned to 274; battery at 282, 11, 18, 9 |
+| Top rule | 20, 30, 280, 1 | `#B3AD9E` |
+| Sleeve | 20, 40, 96, 96 | 1 px frame; art or placeholder; no card, no shadow |
+| Title column | 132, 40, 168, 104 | 17 px Semibold, 1–3 lines, top-aligned |
+| Progress track | 20, 152, 280, 4 | `#B3AD9E`; fill `#24231F` |
+| Elapsed / total | 20, 159, 150, 14 | 11 px; baseline 170 |
+| Transport state | 20, 178, 200, 14 | icon plus 14 px Medium; baseline 190 |
+| Track context | 20, 198, 280, 14 | 11 px; baseline 208 |
+| Footer rule | 20, 216, 280, 1 | `#DCD7CA` |
+| Footer | 20, 220, 280, 14 | 11 px; baseline 230; arrows, when shown, use x=20–35 and text starts at 40 |
+
+Text uses baselines, not box tops:
+
+| Text | x | Baseline | Max width | Type |
+|---|---:|---:|---:|---|
+| `NOW PLAYING` | 20 | 20 | 150 | 11 px Regular, tracked +1.2 |
+| Time | right edge 274 | 20 | 60 | 11 px Regular |
+| Track title line 1 | 132 | 58 | 168 | 17 px Semibold |
+| Track title line n | 132 | 58 + 20(n−1) | 168 | 17 px Semibold, max 3 lines |
+| Artist | 132 | 58 + 20N + 6 | 168 | 12 px Regular |
+| Album | 132 | 58 + 20N + 22 | 168 | 12 px Regular, muted |
+| Elapsed / total | 20 | 170 | 150 | 11 px Regular |
+| State label | 36 when an icon is present, otherwise 20 | 190 | 200 | 14 px Medium |
+| Track context | 20 | 208 | 280 | 11 px Regular |
+| Footer | 40 with arrows, otherwise 20 | 230 | 260 or 280 | 11 px Regular |
+| Error headline | 20 | 70 | 280 | 17 px Semibold |
+| Error reason | 20 | 94 | 280 | 12 px Regular |
+| Error guidance | 20 | 116 | 280 | 12 px Regular, muted |
+| Error track identity | 20 | 142 | 280 | 11 px Regular, muted |
+
+`N` is the number of title lines (1–3). With one title line the artist baseline
+is 84 and the album baseline is 100; with two it is 104/120; with three it is
+124/140. The album descender stays above the progress bar at y = 152.
+
+### 7.3 Typography
+
+| Role | Face | Size / weight | Line height | Tracking |
+|---|---|---|---:|---:|
+| Top bar label | IBM Plex Sans | 11 px / 400 | 14 | +1.2 px |
+| Track title | IBM Plex Sans | 17 px / 600 | 20 | 0 |
+| Artist | IBM Plex Sans | 12 px / 400 | 16 | 0 |
+| Album | IBM Plex Sans | 12 px / 400 | 16 | 0 |
+| Transport state | IBM Plex Sans | 14 px / 500 | 18 | 0 |
+| Time, context, footer | IBM Plex Sans | 11 px / 400 | 14 | 0 |
+| Error headline | IBM Plex Sans | 17 px / 600 | 20 | 0 |
+| Error reason / guidance | IBM Plex Sans | 12 px / 400 | 18 | 0 |
+| Error identity | IBM Plex Sans | 11 px / 400 | 14 | 0 |
+
+Rules:
+
+- These are the D-23 sizes and weights. No other size is used on this screen.
+  11 px is the floor. There is no 10 px text and no 3×5 fallback.
+- Do not synthesise bold. Use the 600 weight. Do not shrink the font to fit and
+  do not scroll horizontally.
+- Body text preserves source case. Only labels and state words are uppercase:
+  `NOW PLAYING`, `PLAYING`, `PAUSED`, `OPENING`, `FINISHED`,
+  `AUDIO PLAYBACK FAILED`, `TRACK n OF m`, `DISC n OF m`.
+- Line-height values above are this screen's binding values. They do not settle
+  line height for other screens.
+- If the font atlas or glyph is missing, use a conforming 1-bit fallback at the
+  same size and report the substitution. Do not silently use 3×5 text, and do
+  not ship the screen if no conforming fallback exists.
+- Truncation is always visible as U+2026 (`…`), at a word boundary where one
+  exists. A title is never silently cut. A word longer than the column is broken
+  on the last line and ends with the ellipsis.
+
+### 7.4 Colour
+
+| Token | Value | Use on Now Playing |
+|---|---|---|
+| Paper | `#EFEDE5` | page ground |
+| Paper light | `#F5F3EB` | missing-art ground |
+| Ink | `#24231F` | title, artist, primary text, progress fill, sleeve frame, transport icon |
+| Muted | `#6B665C` | album, time, context, footer, placeholder mark, error guidance and identity |
+| Rule | `#B3AD9E` | top rule, progress track, missing-art frame |
+| Faint | `#DCD7CA` | footer rule |
+| Error red | `#FE3131` | the 2 px error status rule only; never text |
+| Splash green | `#00BF63` | not used; playing is not a system-status claim |
+| Sleeve terracotta | `#9C3F2C` | generated sleeve field only; cream `#EFEDE5` engraving |
+
+Contrast on paper: ink 13.4:1, muted 4.9:1. Error red on paper is 3.1:1, which
+is sufficient for the non-text 2 px rule but not for text, so the headline and
+reason stay ink. Cream on terracotta is 5.7:1.
+
+No gradients, shadows, rounded cards, washes, sidebar, player bar, button
+cluster or filled button. The only filled areas are the sleeve art, the progress
+fill, the small transport icons and the error rule.
+
+### 7.5 Sleeve and missing art
+
+The sleeve is exactly 96×96 at (20, 40), with a 1 px frame. It consumes the
+catalog's 96×96 RGB565 artwork; conversion belongs to the library builder, not
+this screen. Do not distort or upscale square art.
+
+Missing or corrupt artwork uses a generated placeholder: `#F5F3EB` ground, a
+1 px `#B3AD9E` frame and a centred muted mountain-and-sun line mark. It has no
+text, no broken-image icon and no error sentence. Missing art is not a playback
+error and must not block playback. The mockups use the same placeholder.
+
+The mockup sleeve is project-owned generated geometry: a terracotta field with
+cream line engraving. It is not real album artwork and is not copied from a
+release.
+
+### 7.6 States
+
+| State | Visual signature | Progress / time | State line | Footer |
+|---|---|---|---|---|
+| `OPENING` | sleeve and metadata as soon as known | empty track; `0:00 / total`, total `--:--` if unknown | `OPENING` at x=20, no icon | `MENU CANCEL` |
+| `PLAYING` | normal sleeve and metadata | fill at position; `elapsed / total` | play triangle + `PLAYING` | `TRACK SELECT ALBUM PLAY PAUSE MENU BACK` (dynamic; arrows and `SELECT ALBUM` appear only when those actions exist) |
+| `PAUSED` | normal sleeve and metadata; no dimming | fill and time frozen at pause | pause bars + `PAUSED` | `TRACK SELECT ALBUM PLAY RESUME MENU BACK` (same dynamic rule) |
+| `FINISHED` | normal sleeve and metadata | full bar; elapsed equals total | finish square + `FINISHED` | `SELECT ALBUM PLAY AGAIN MENU BACK`; omit `SELECT ALBUM` if there is no album |
+| `ERROR` retryable | no playback sleeve, progress or playback time; top-bar clock remains | — | `AUDIO PLAYBACK FAILED` headline, reason, guidance, identity | `SELECT RETRY MENU BACK` |
+| `ERROR` terminal | no playback sleeve, progress or playback time; top-bar clock remains | — | same error block | `SELECT ALBUM MENU BACK`, or `MENU BACK` if no album |
+| Missing art | any normal state with placeholder | as that state | as that state | as that state |
+| Long metadata | any normal state with truncation | as that state | as that state | as that state |
+
+State rules:
+
+- **Opening.** `OPENING` is shown until the first audio frame is ready. There is
+  no spinner and no fake progress. If opening has not produced audio within 2 s
+  (proposed; the current player already uses a 2000 ms open timeout), transition
+  to `ERROR` with `AUDIO DEVICE DID NOT START`. MENU cancels the open, releases
+  the stream and returns without showing an error. PLAY, SELECT and left/right
+  are disabled and omitted from the footer during opening.
+- **Playing.** The state label and progress are redrawn at most once per second,
+  or on a state change. The progress fill uses the playback clock, not the UI
+  tick. PLAY pauses at the exact position. SELECT opens the album page when the
+  track has a resolvable album; otherwise SELECT is omitted.
+- **Paused.** The frame does not dim, the progress does not move and the elapsed
+  time is frozen. PLAY resumes from the same position. LEFT/RIGHT may change
+  track but stay paused at 0:00 of the new track; they never start audio from a
+  paused state.
+- **Finished.** This frame appears only when the play context has no next track.
+  If a next track exists, the player advances without showing `FINISHED` (a
+  brief `OPENING` is allowed if the next stream must open). At `FINISHED`, PLAY
+  starts replay at 0:00; show `OPENING` if the stream must be reopened, otherwise
+  go directly to `PLAYING`. SELECT opens the album; MENU returns. LEFT/RIGHT are
+  disabled and omitted.
+- **Error.** `AUDIO PLAYBACK FAILED` is the exact headline. The reason line is
+  supplied by firmware, one line, at most 44 characters, and must be specific:
+  no raw code alone and no invented cause. The guidance line says what to do.
+  The track identity remains visible below the guidance. There is no progress
+  bar, time or sleeve in the error frame. A retryable error offers `SELECT
+  RETRY`; a terminal error offers `SELECT ALBUM` (or only `MENU BACK`). A failed
+  retry stays in `ERROR` with an updated reason and never loops automatically.
+- **Missing art.** Use the placeholder. Do not show an error, badge or a second
+  failure line.
+- **Long metadata.** The title wraps to at most three lines; the artist and album
+  are one line each. The title gets a visible ellipsis on the last line if it
+  does not fit. The artist and album get a visible ellipsis. Full values remain
+  in the library; this screen does not add a details destination just to recover
+  truncated text. SELECT opens the album when that record exists.
+
+### 7.7 Error copy and reason slot
+
+The error block is:
+
+1. a 2 px `#FE3131` rule at (20, 44, 280, 2);
+2. `AUDIO PLAYBACK FAILED` at 17 px Semibold, baseline 70;
+3. the reason at 12 px Regular, baseline 94, one line, at most 44 characters;
+4. guidance at 12 px Regular muted, baseline 116;
+5. `Title — Artist` at 11 px Regular muted, baseline 142.
+
+The reason is a UI slot, not a fixed sentence. Firmware fills it from the player
+error. The following strings are **proposed examples**, not a frozen taxonomy:
+
+| Condition | Reason line | Retryable | SELECT |
+|---|---|---|---|
+| Audio device or codec init fails | `AUDIO DEVICE DID NOT START` | yes | `RETRY` |
+| Unsupported container or codec | `UNSUPPORTED WAV FORMAT` | no | `ALBUM` |
+| File unreadable or truncated | `FILE COULD NOT BE READ` | no | `ALBUM` |
+| DMA or decode stall | `PLAYBACK STALLED` | yes | `RETRY` |
+| Track data or file missing | `TRACK DATA IS MISSING` | no | `ALBUM` |
+
+F5 owns the final error-code mapping. The screen only fixes the slot: one short,
+specific line that fits 44 characters at 12 px; longer text is cut with `…`, not
+allowed to overlap or wrap into the guidance. Do not invent a reason when the
+player has no error; if the code is unknown, use `PLAYBACK STOPPED` rather than a
+false cause.
+
+### 7.8 Focus and input
+
+There is no focus ring and no focusable row on Now Playing. The click wheel
+rotation is deliberately unbound: no seek, no volume and no hidden gesture. The
+hardware buttons act directly: MENU, PLAY, LEFT and RIGHT around the wheel, with
+SELECT at the centre. This is a transport surface, not a list; drawing a false
+focus mark would be a defect.
+
+| Input | PLAYING | PAUSED | OPENING | ERROR retryable | ERROR terminal | FINISHED |
+|---|---|---|---|---|---|---|
+| MENU | back; playback continues | back; stays paused | cancel open; back | back | back | back |
+| PLAY | pause | resume | disabled | disabled | disabled | play again |
+| SELECT | open album | open album | disabled | retry | open album | open album |
+| LEFT | previous, or restart current | previous, or restart current; stays paused | disabled | disabled | disabled | disabled |
+| RIGHT | next, or `END OF ALBUM` | next, or `END OF ALBUM`; stays paused | disabled | disabled | disabled | disabled |
+| Wheel rotation | inert | inert | inert | inert | inert | inert |
+
+`disabled` means the control is not shown in the footer and has no action in that
+state. It is a state-gated hardware button, not a dead on-screen control.
+
+Previous/next semantics:
+
+- The play context is the album or list from which playback started. It is not a
+  queue, and this screen does not show or imply a queue.
+- RIGHT moves to the next track in context order. At the end it does not wrap;
+  the context line shows `END OF ALBUM` (or `END OF LIST`) for 1.5 s, then
+  reverts. The transport state does not change.
+- LEFT moves to the previous track. At the start, if the position is greater
+  than 0:00, it restarts the current track at 0:00; if the position is 0:00 it
+  shows `FIRST TRACK` for 1.5 s. It does not wrap.
+- If the context has fewer than two tracks, the arrows and `TRACK` are omitted
+  from the footer and LEFT/RIGHT show `NO OTHER TRACKS` for 1.5 s.
+- If the target track cannot be opened, show the error state for that target;
+  never skip it silently.
+- There is no shuffle, repeat, queue, crossfade or gapless control or claim on
+  this screen. Do not draw placeholder icons for them.
+
+SELECT and MENU:
+
+- SELECT always means one real destination: `ALBUM` when the current track has a
+  resolvable album record, `RETRY` in a retryable error, and nothing (omitted)
+  when neither exists. It never opens a dead plate.
+- MENU always returns one level and never discards the play position. In
+  `PLAYING`, playback continues while the previous screen is shown; in `PAUSED`
+  it stays paused; in `OPENING` it cancels; in `ERROR` and `FINISHED` there is no
+  stream to preserve. The screen is a view, not the player owner. The first F5
+  integration must keep the player alive outside this screen; if it cannot, it
+  must record that gap rather than silently stopping playback on MENU.
+- Long-press, double-tap and hidden gestures are not part of this screen. HOLD
+  belongs to the input layer and must not be overloaded here.
+
+Transient feedback:
+
+- The 1.5 s messages `FIRST TRACK`, `END OF ALBUM`, `END OF LIST` and `NO OTHER
+  TRACKS` replace the track-context line in the same slot, at 11 px Regular ink.
+  They do not move the layout, open a toast/card, or change the state machine.
+  When they expire, the factual context returns or the line is left empty.
+- The 1.5 s duration is **proposed**; it is not a player timing.
+
+### 7.9 Missing-data behaviour
+
+| Missing fact | Behaviour |
+|---|---|
+| Artwork | generated placeholder; playback continues; no error |
+| Artwork record corrupt | placeholder; playback continues; no error |
+| Title empty | `UNTITLED` in ink; not copied into metadata |
+| Artist empty | `UNKNOWN ARTIST` in ink |
+| Album empty | `NO ALBUM` in muted; omit `SELECT ALBUM` |
+| Track number or total unknown | omit that part; if both are unknown, omit the context line |
+| Disc number/total unknown, or total is 1 | omit the disc part; never print `DISC 1 OF 1` |
+| Duration unknown or zero | total `--:--`; empty progress fill; no indeterminate animation |
+| Position greater than duration | clamp the fill to 280 px; time shows the clamped position |
+| Clock not set | top time `--:--` |
+| Battery level unknown | outline battery with no fill; never imply 100% or charging |
+| Album record missing | omit `SELECT ALBUM`; MENU remains |
+| Play context has one track | omit arrows/`TRACK`; boundary feedback only |
+| Font or glyph missing | conforming 1-bit fallback and a visible report; never 3×5 on this screen |
+| Reason longer than the slot | cut with U+2026 at 44 characters; never overlap guidance |
+
+These are UI fallbacks, not fabricated metadata. The screen must not invent a
+duration, track count, album, artist, battery level or error cause.
+
+### 7.10 Copy inventory
+
+| Element | Copy |
+|---|---|
+| Top bar | `NOW PLAYING` |
+| Time | `HH:MM`, 24-hour; system clock |
+| Playing | `PLAYING` |
+| Paused | `PAUSED` |
+| Opening | `OPENING` |
+| Finished | `FINISHED` |
+| Error headline | `AUDIO PLAYBACK FAILED` |
+| Context | `TRACK n OF m`, `DISC n OF m · TRACK n OF m` (disc only when total > 1) |
+| Playing footer | `TRACK  SELECT ALBUM  PLAY PAUSE  MENU BACK` |
+| Paused footer | `TRACK  SELECT ALBUM  PLAY RESUME  MENU BACK` |
+| Opening footer | `MENU CANCEL` |
+| Finished footer | `SELECT ALBUM  PLAY AGAIN  MENU BACK` |
+| Retryable error footer | `SELECT RETRY  MENU BACK` |
+| Terminal error footer | `SELECT ALBUM  MENU BACK` |
+| Fallbacks | `UNTITLED`, `UNKNOWN ARTIST`, `NO ALBUM` |
+
+`TRACK` in the footer is prefixed by the two small left/right triangles drawn as
+5×8 px vector marks at x=20–35. The footer text starts at x=40 so the marks and
+the word do not touch. All footer text is 11 px Regular muted; it is a help
+legend, not a button bar.
+
+### 7.11 Mockups
+
+Host artifacts, 320×240, RGB. The `@2x` files are nearest-neighbour viewing
+previews, not device assets. All names, durations, track counts, times and the
+battery level are sample content. The sleeve is generated geometry.
+
+| State | 1× | 2× |
+|---|---|---|
+| Playing | [`playing-320x240.png`](../assets/ui/now-playing/helikon-os-now-playing-playing-320x240.png) | [`@2x`](../assets/ui/now-playing/helikon-os-now-playing-playing-320x240@2x.png) |
+| Paused | [`paused-320x240.png`](../assets/ui/now-playing/helikon-os-now-playing-paused-320x240.png) | [`@2x`](../assets/ui/now-playing/helikon-os-now-playing-paused-320x240@2x.png) |
+| Opening | [`opening-320x240.png`](../assets/ui/now-playing/helikon-os-now-playing-opening-320x240.png) | [`@2x`](../assets/ui/now-playing/helikon-os-now-playing-opening-320x240@2x.png) |
+| Error, retryable | [`error-retry-320x240.png`](../assets/ui/now-playing/helikon-os-now-playing-error-retry-320x240.png) | [`@2x`](../assets/ui/now-playing/helikon-os-now-playing-error-retry-320x240@2x.png) |
+| Error, terminal | [`error-terminal-320x240.png`](../assets/ui/now-playing/helikon-os-now-playing-error-terminal-320x240.png) | [`@2x`](../assets/ui/now-playing/helikon-os-now-playing-error-terminal-320x240@2x.png) |
+| Finished | [`finished-320x240.png`](../assets/ui/now-playing/helikon-os-now-playing-finished-320x240.png) | [`@2x`](../assets/ui/now-playing/helikon-os-now-playing-finished-320x240@2x.png) |
+| Missing art | [`missing-art-320x240.png`](../assets/ui/now-playing/helikon-os-now-playing-missing-art-320x240.png) | [`@2x`](../assets/ui/now-playing/helikon-os-now-playing-missing-art-320x240@2x.png) |
+| Long metadata | [`long-metadata-320x240.png`](../assets/ui/now-playing/helikon-os-now-playing-long-metadata-320x240.png) | [`@2x`](../assets/ui/now-playing/helikon-os-now-playing-long-metadata-320x240@2x.png) |
+
+![Now Playing, playing](../assets/ui/now-playing/helikon-os-now-playing-playing-320x240@2x.png)
+
+![Now Playing, retryable error](../assets/ui/now-playing/helikon-os-now-playing-error-retry-320x240@2x.png)
+
+The long-metadata frame deliberately uses a title that wraps to three lines and
+ends in `…`, and an artist and album that end in `…`. The missing-art frame uses
+the neutral placeholder, not a broken image. The error frames show the exact
+headline, a sample reason line and the two different recovery paths.
+
+### 7.12 Clipping check and evidence
+
+The renderer is
+[`tools/render-ui-mockup.py`](../tools/render-ui-mockup.py). The Now Playing
+frames can be rendered without the owner-supplied Benguiat font:
+
+```sh
+python3 tools/render-ui-mockup.py --now-playing-only
+```
+
+The command rendered eight states at 1× and 2× and reported **165 text/geometry
+checks passed**. The full report is
+[`assets/ui/now-playing/clipping-check.txt`](../assets/ui/now-playing/clipping-check.txt).
+It checks text bounding boxes against the canvas and their columns, title
+wrapping, visible ellipsis when truncated, footer variants, sleeve and rule
+bounds, and progress-fill bounds. It does not prove 6G panel contrast, clipping,
+glyph quality or frame time.
+
+### 7.13 Design-gate checklist
+
+This is the gate for the implementation PR. `PASS (host)` means the design
+artifacts were checked; it does not mean the firmware screen exists.
+
+| Gate | Status | Evidence |
+|---|---|---|
+| Exact D-23 sizes and weights only; 11 px floor | PASS (host) | §7.3; script uses 11/12/14/17 px and 400/500/600 |
+| No 3×5 text; no Benguiat dependency | PASS (host) | §7.3; Now Playing is Plex-only; `--now-playing-only` does not need `BENGUIAT_DIR` |
+| No silent truncation; U+2026 at a word boundary | PASS (host) | long-metadata frame; script asserts ellipsis |
+| No font shrinking, overlap or horizontal scrolling | PASS (host) | 165 checks; title 3-line cap; artist/album one line |
+| 20 px margins, 96×96 sleeve, 1 px rules | PASS (host) | §7.2; §7.5 |
+| No cards, shadows, gradients, sidebar, player bar or button cluster | PASS (design) | §7.4; frames use rules and type only |
+| Palette and contrast recorded | PASS (design) | §7.4; red is non-text only |
+| Playing, paused, opening, both error paths, finished, missing art, long metadata | PASS (host) | eight state mockups |
+| Every footer action works in its state; no dead plate | PASS (design) | §7.8; dynamic footer |
+| MENU back path and SELECT semantics | PASS (design) | §7.8 |
+| LEFT/RIGHT semantics defined, with boundaries and no wrap | PASS (design) | §7.8 |
+| Error headline, reason slot, retry and terminal paths | PASS (host) | §7.7; two error frames |
+| Missing-data rules, no invented facts | PASS (design) | §7.9 |
+| No shuffle, repeat or queue implication | PASS (design) | §7.8; no icons or copy |
+| No device or playback claim | PASS | §7.14 |
+| 6G panel contrast, clipping and frame time | NOT PROVEN | no device run |
+| Firmware renderer and player integration | NOT PROVEN | no implementation in this task |
+| Plex atlas and 1-bit fallback metrics | NOT PROVEN | T-042/T-057 still open |
+
+### 7.14 What is not proven
+
+- No 6G panel run. Contrast, anti-aliasing, 11 px legibility and clipping on the
+  actual panel are unproven.
+- No frame-time or memory measurement.
+- No firmware implementation. The existing `firmware/ui/music.c` progress view
+  uses the 3×5 fallback and is not this design.
+- No Plex glyph atlas, no 1-bit fallback metrics, no measured glyph cache.
+- No player error taxonomy; the reason strings are proposed examples.
+- No background-playback implementation; MENU continuing playback is a design
+  requirement, not a result.
+- No real metadata or artwork was used. The sleeve and placeholder are generated
+  geometry; sample values are not device data.
+- No claim that any codec beyond the current bounded WAV path plays, or that
+  audio output works on a 6G.
+- Large-text and high-contrast Now Playing layouts are not designed.
+- D-52 remains proposed; this screen deliberately does not depend on it.
+
+### 7.15 Open questions
+
+- Owner: should MENU return with playback continuing (this spec) or pause before
+  returning for the first F5 integration? The former is the product behaviour;
+  the latter is a smaller implementation.
+- Owner: is `SELECT ALBUM` the right destination, or should SELECT open a track
+  details surface instead? This spec chooses the album because it already
+  exists and is not a dead plate.
+- Owner: are the 1.5 s transient feedback and 2 s opening timeout acceptable?
+- Owner: should a later system volume overlay be allowed over Now Playing? It is
+  out of scope here and must not be implied by the wheel.
+- Owner: how should the title, artist and album reflow in a large-text mode? This
+  spec does not design it.
+- Implementation: final retryable/terminal error codes and reason strings; the
+  slot is fixed, the strings are not.
+- Owner: confirm that Now Playing stays Plex-only and is not part of the D-52
+  display-face exception.
+
+### 7.16 Binding and proposed items
+
+**Binding for the implementation PR**
+
+- the 320×240 frame map, 20 px margins, 96×96 sleeve and 1 px rule language;
+- the D-23 sizes/weights and the 11 px floor; no 3×5 and no Benguiat;
+- the palette and the non-text use of error red; no green, cards, shadows,
+  gradients, sidebar, player bar or button cluster;
+- the eight-state set, state transitions, exact `AUDIO PLAYBACK FAILED`
+  headline and the firmware-filled reason slot;
+- `PLAY` pause/resume/replay, `MENU` back, `SELECT` album/retry, `LEFT/RIGHT`
+  previous/next with boundaries, and inert wheel rotation;
+- visible ellipsis truncation, missing-art placeholder and missing-data
+  fallbacks; no invented facts;
+- no shuffle, repeat or queue controls or implications;
+- every displayed action has a working binding; no dead plate.
+
+**Proposed, pending owner or implementation confirmation**
+
+- the sample titles, artists, albums, durations, times, battery level and track
+  counts in the mockups;
+- the generated terracotta sleeve and placeholder geometry as the project-owned
+  stand-ins;
+- the reason strings in §7.7 and the retryable/terminal mapping;
+- the 2 s opening timeout and 1.5 s transient-message duration;
+- background playback across MENU (the interaction requirement is binding; the
+  implementation mechanism is not yet proven);
+- large-text and high-contrast versions.
+
+## 8. Not specified yet
 
 These are open questions, not implied values. Do not invent and record them as
 settled:
 
-- line height and baseline spacing beyond the proposed home concepts;
-- colour palette and selected-item treatment beyond the proposed home, wall and detail screens;
+- line height and baseline spacing beyond the proposed home concepts and the
+  binding Now Playing values in §7; Now Playing does not settle other screens;
+- colour palette and selected-item treatment beyond the proposed home, wall and
+  detail screens; the Now Playing palette use is specific to §7;
 - list row height, separators and status-bar layout outside the proposed screens;
 - whether 11 px is comfortable on the 6G panel or needs a larger default;
 - large-text mode and high-contrast mode;
@@ -523,10 +1005,11 @@ The earlier dark menu mockup uses provisional values (24 px menu row pitch,
 the type scale, not the selected palette. The concepts in §5 propose the
 off-white launcher, the neoclassical index and the album wall, all with the
 Benguiat header treatment; none is a settled theme until the owner chooses a
-home concept and a panel check records the result. List screens, the main menu
-and the theme format remain open.
+home concept and a panel check records the result. List screens, the main menu,
+the theme format and the Now Playing implementation remain open; its design is
+in §7.
 
-## 8. Verification
+## 9. Verification
 
 Before firmware UI code depends on this table:
 
@@ -556,11 +1039,18 @@ Before firmware UI code depends on this table:
    [`../assets/ui/artist-view/helikon-os-artist-view-320x240.png`](../assets/ui/artist-view/helikon-os-artist-view-320x240.png),
    each with a `@2x` viewing preview. The sleeve and cameo are generated
    placeholders; no real artwork is used.
-7. Resolve D-52 (scope and font licence) before firmware headers depend on
+7. Render and check Now Playing at 320×240. Done for eight states:
+   [`../assets/ui/now-playing/`](../assets/ui/now-playing/) contains 1× frames
+   and `@2x` previews, with provenance in its README. The check is host-only:
+   `python3 tools/render-ui-mockup.py --now-playing-only` records
+   [`../assets/ui/now-playing/clipping-check.txt`](../assets/ui/now-playing/clipping-check.txt).
+   It does not prove panel contrast or frame time.
+8. Resolve D-52 (scope and font licence) before firmware headers depend on
    Benguiat; record the fallback if the font cannot ship.
-8. Only then implement the renderer and theme (T-042).
-9. Compare anti-aliased and 1-bit fallback glyphs on the 6G panel, including the
-   11 px descriptions/captions, 13 px launcher labels and 20 px index names.
+9. Only then implement the renderer and theme (T-042).
+10. Compare anti-aliased and 1-bit fallback glyphs on the 6G panel, including the
+   11 px descriptions/captions, 13 px launcher labels, 20 px index names and the
+   Now Playing 11 px time/context/footer.
 
 The mockups are host artifacts, not device runs. A device run must still record
 the panel result in `docs/device-matrix.md`.
