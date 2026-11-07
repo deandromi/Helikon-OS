@@ -897,7 +897,7 @@ artifacts were checked; it does not mean the firmware screen exists.
 | Gate | Status | Evidence |
 |---|---|---|
 | Exact D-23 sizes and weights only; 11 px floor | PASS (host) | §7.3; script uses 11/12/14/17 px and 400/500/600 |
-| No 3×5 text; no Benguiat dependency | PASS (design) | §7.3; Now Playing is Plex-only; D-52 not used |
+| No 3×5 text; no Benguiat dependency | PASS (host) | §7.3; Now Playing is Plex-only; `--now-playing-only` does not need `BENGUIAT_DIR` |
 | No silent truncation; U+2026 at a word boundary | PASS (host) | long-metadata frame; script asserts ellipsis |
 | No font shrinking, overlap or horizontal scrolling | PASS (host) | 165 checks; title 3-line cap; artist/album one line |
 | 20 px margins, 96×96 sleeve, 1 px rules | PASS (host) | §7.2; §7.5 |
