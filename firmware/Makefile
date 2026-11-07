@@ -17,6 +17,8 @@ BOOTSTATE_STATE ?= good
 EXTRA_CFLAGS ?=
 UI ?= 0
 HDB ?=
+AUDIO ?=
+AUDIO_TRACK ?= 0
 CROSS ?= arm-elf-eabi-
 CC := $(CROSS)gcc
 OBJCOPY := $(CROSS)objcopy
@@ -32,7 +34,7 @@ ARCH := -mcpu=arm926ej-s -marm -mno-thumb-interwork -mfloat-abi=soft
 CFLAGS := -std=c99 -O2 -g -ffreestanding -fno-builtin -nostdinc \
           -isystem $(GCC_INCLUDE) -DHELIKON_IMAGE_VERSION=$(VERSION) \
           -Ilib -Iboot -Iboard/$(BOARD) -Ihal/$(BOARD) -Iblock -Idiag -Ihfs \
-          -Iui -Idb \
+          -Iui -Idb -Iplayer \
           -Wall -Wextra -Werror -Wconversion -Wshadow -Wundef \
           -Wpointer-arith -ffunction-sections -fdata-sections -fno-common \
           -fno-stack-protector -fno-unwind-tables \
@@ -62,11 +64,15 @@ HFS_SRC := hfs/hfs_volume.c hfs/hfs_btree.c hfs/hfs_catalog.c \
 
 UI_SRC := $(if $(filter 1,$(UI)),ui/launcher.c ui/launcher_run.c \
           ui/launcher_assets.c ui/music.c,)
+PLAYER_SRC :=
+ifneq ($(AUDIO),)
+PLAYER_SRC := player/player.c player/wav.c hal/$(BOARD)/audio.c
+endif
 LIBRARY_SRC := db/hdb.c
 
 ALL_SRC := $(BOOT_SRC) $(LIB_SRC) $(BOARD_SRC) $(HAL_SRC) $(BLOCK_SRC) \
            $(DIAG_SRC) $(HFS_ADAPTER_SRC) $(HFS_SRC) $(UI_SRC) \
-           $(LIBRARY_SRC)
+           $(PLAYER_SRC) $(LIBRARY_SRC)
 OBJS := $(patsubst %.c,$(BUILD)/%.o,$(patsubst %.S,$(BUILD)/%.o,$(ALL_SRC)))
 
 ifneq ($(HDB),)
@@ -102,6 +108,20 @@ $(HDB_BLOB_SRC): $(HDB)
 	@printf '.section .rodata, "a", %%progbits\n.balign 4\n.global helikon_hdb_start\nhelikon_hdb_start:\n.incbin "%s"\n.global helikon_hdb_end\nhelikon_hdb_end:\n.balign 4\n' "$(abspath $(HDB))" > $@
 
 $(HDB_BLOB_OBJ): $(HDB_BLOB_SRC)
+	$(CC) $(ARCH) -c $< -o $@
+endif
+
+ifneq ($(AUDIO),)
+CFLAGS += -DHELIKON_AUDIO_EMBEDDED -DHELIKON_AUDIO_TRACK=$(AUDIO_TRACK)
+AUDIO_BLOB_SRC := $(BUILD)/audio_blob.S
+AUDIO_BLOB_OBJ := $(BUILD)/audio_blob.o
+OBJS += $(AUDIO_BLOB_OBJ)
+
+$(AUDIO_BLOB_SRC): $(AUDIO)
+	@mkdir -p $(BUILD)
+	@printf '.section .rodata, "a", %%progbits\n.balign 4\n.global helikon_audio_start\nhelikon_audio_start:\n.incbin "%s"\n.global helikon_audio_end\nhelikon_audio_end:\n.balign 4\n' "$(abspath $(AUDIO))" > $@
+
+$(AUDIO_BLOB_OBJ): $(AUDIO_BLOB_SRC)
 	$(CC) $(ARCH) -c $< -o $@
 endif
 

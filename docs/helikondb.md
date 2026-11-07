@@ -283,14 +283,14 @@ Build with the contiguous 100-song sample (6 artists, 10 albums, 10 covers)
 and the diagnostic launcher:
 
 ```sh
-make -C firmware BOARD=6g VERSION=13 BOOTSTATE_STATE=good UI=1 \
+make -C firmware BOARD=6g VERSION=14 BOOTSTATE_STATE=good UI=1 \
   HDB=../build/helikondb/first100/music.hdb \
   EXTRA_CFLAGS='-DHELIKON_DIAG_LAUNCHER' \
   BUILD=../build/firmware/6g-music image
 ```
 
-Artifact: 583,820 bytes, SHA-256 `372e1412…`; manifest `7b50ab0a…`; bootstate
-`7501068c…`. The loader is `7f13e7e5…` (106,184 bytes). The host loader core
+Artifact: 583,820 bytes, SHA-256 `b5425283…`; manifest `514eba7b…`; bootstate
+`1ac24a1c…`. The loader is `7f13e7e5…` (106,184 bytes). The host loader core
 and `tests/ui` previews pass.
 
 Controls: launcher → Music opens a launcher-style hub (Albums / Artists /

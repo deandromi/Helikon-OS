@@ -30,6 +30,19 @@ void helikon_cpu_data_sync(void)
     __asm__ volatile("mcr p15, 0, %0, c7, c10, 4" : : "r"(zero) : "memory");
 }
 
+void helikon_cpu_clean_dcache_range(const void *address, size_t length)
+{
+    uintptr_t start = (uintptr_t)address & ~(uintptr_t)31u;
+    uintptr_t end = ((uintptr_t)address + length + 31u) & ~(uintptr_t)31u;
+    for (uintptr_t line = start; line < end; line += 32u) {
+        __asm__ volatile("mcr p15, 0, %0, c7, c14, 1"
+                         :
+                         : "r"(line)
+                         : "memory");
+    }
+    helikon_cpu_data_sync();
+}
+
 void helikon_cpu_idle(void)
 {
     uint32_t zero = 0;
