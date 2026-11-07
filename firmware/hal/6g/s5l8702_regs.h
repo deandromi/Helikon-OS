@@ -24,6 +24,7 @@
 #define S5L_PLLMODE_OSCSEL (1u << 8)
 #define S5L_PWRCON(index) \
     HELIKON_REG32(S5L_CLK_BASE + ((index) == 0u ? 0x48u : 0x4cu))
+#define S5L_CLKCON3 (HELIKON_REG32(S5L_CLK_BASE + 0x10u))
 #define S5L_CG16_RTIME (HELIKON_REG16(S5L_CLK_BASE + 0x12u))
 
 #define S5L_CLOCKGATE_TIMER 37u
@@ -70,6 +71,33 @@
     HELIKON_REG32(S5L_IIC_BASE + 0x18u + 0x300000u * (uint32_t)(bus))
 #define S5L_IICSTA2(bus) \
     HELIKON_REG32(S5L_IIC_BASE + 0x20u + 0x300000u * (uint32_t)(bus))
+
+/* I2S controller and PL080 DMA (donor pcm-s5l8702.c / pl080.c). */
+#define S5L_I2S_BASE 0x3ca00000u
+#define S5L_I2SCLKCON (HELIKON_REG32(S5L_I2S_BASE + 0x00u))
+#define S5L_I2STXCON (HELIKON_REG32(S5L_I2S_BASE + 0x04u))
+#define S5L_I2STXCOM (HELIKON_REG32(S5L_I2S_BASE + 0x08u))
+#define S5L_I2STXDB (HELIKON_REG32(S5L_I2S_BASE + 0x10u))
+#define S5L_I2SCLKDIV (HELIKON_REG32(S5L_I2S_BASE + 0x40u))
+
+#define S5L_DMA0_BASE 0x38200000u
+#define S5L_DMAC_CHANNEL(channel) \
+    (S5L_DMA0_BASE + 0x100u + ((uint32_t)(channel) << 5))
+#define S5L_DMAC_INTTCSTS (HELIKON_REG32(S5L_DMA0_BASE + 0x04u))
+#define S5L_DMAC_INTTCCLR (HELIKON_REG32(S5L_DMA0_BASE + 0x08u))
+#define S5L_DMAC_INTERRCLR (HELIKON_REG32(S5L_DMA0_BASE + 0x10u))
+#define S5L_DMAC_RAWINTTCSTS (HELIKON_REG32(S5L_DMA0_BASE + 0x14u))
+#define S5L_DMAC_CONFIG (HELIKON_REG32(S5L_DMA0_BASE + 0x30u))
+#define S5L_DMAC_CH_SRC(channel) \
+    HELIKON_REG32(S5L_DMAC_CHANNEL(channel) + 0x00u)
+#define S5L_DMAC_CH_DST(channel) \
+    HELIKON_REG32(S5L_DMAC_CHANNEL(channel) + 0x04u)
+#define S5L_DMAC_CH_LLI(channel) \
+    HELIKON_REG32(S5L_DMAC_CHANNEL(channel) + 0x08u)
+#define S5L_DMAC_CH_CONTROL(channel) \
+    HELIKON_REG32(S5L_DMAC_CHANNEL(channel) + 0x0cu)
+#define S5L_DMAC_CH_CONFIG(channel) \
+    HELIKON_REG32(S5L_DMAC_CHANNEL(channel) + 0x10u)
 
 /* LCD interface controller (donor lcd-s5l8702.c / lcd-6g.c). */
 #define S5L_LCD_BASE 0x38300000u

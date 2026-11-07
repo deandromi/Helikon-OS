@@ -10,12 +10,14 @@
 #ifndef HELIKON_HAL_6G_CPU_H
 #define HELIKON_HAL_6G_CPU_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 uint32_t helikon_cpu_control(void);
 uint32_t helikon_cpu_mode(void);
 void helikon_cpu_disable_interrupts(void);
 void helikon_cpu_data_sync(void);
+void helikon_cpu_clean_dcache_range(const void *address, size_t length);
 void helikon_cpu_idle(void);
 
 #endif

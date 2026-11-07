@@ -11,6 +11,13 @@
 #include "launcher_assets.h"
 #include "mem.h"
 
+#ifdef HELIKON_AUDIO_EMBEDDED
+#include "player.h"
+extern const uint8_t helikon_audio_start[];
+extern const uint8_t helikon_audio_end[];
+static struct helikon_player player;
+#endif
+
 #define MUSIC_PAPER 0xef7cu
 #define MUSIC_PAPER_LIGHT 0xf79du
 #define MUSIC_INK 0x2103u
@@ -1369,44 +1376,94 @@ static void draw_album_page(uint32_t album_id)
     (void)helikon_screen_present_all(screen);
 }
 
-static void draw_track_page(uint32_t track_id)
+static int track_has_audio(uint32_t track_id)
+{
+#ifdef HELIKON_AUDIO_EMBEDDED
+    return track_id == (uint32_t)HELIKON_AUDIO_TRACK;
+#else
+    (void)track_id;
+    return 0;
+#endif
+}
+
+static void draw_track_page_view(struct helikon_screen *target,
+                                 uint32_t track_id, int audio_ready,
+                                 int playing, int paused,
+                                 uint32_t position_ms, uint32_t duration_ms)
 {
     struct hdb_track track;
     if (hdb_track(&db, track_id, &track) != HELIKON_OK) {
-        draw_detail_header(screen, MUSIC_HEADER_TRACK);
-        helikon_screen_text(screen, 14u, 60u, 2u, "MISSING TRACK");
-        (void)helikon_screen_present_all(screen);
+        draw_detail_header(target, MUSIC_HEADER_TRACK);
+        helikon_screen_text(target, 14u, 60u, 2u, "MISSING TRACK");
+        (void)helikon_screen_present_all(target);
         return;
     }
 
-    draw_detail_header(screen, MUSIC_HEADER_TRACK);
+    draw_detail_header(target, MUSIC_HEADER_TRACK);
     char title[192];
     read_str(track.title_off, title, sizeof(title));
-    draw_wrapped(screen, 14u, 46u, 2u, title, 44u, 3u);
+    draw_wrapped(target, 14u, 46u, 2u, title, 44u, 3u);
 
     struct hdb_artist artist;
     struct hdb_album album;
     char name[128];
     if (hdb_artist(&db, track.artist_id, &artist) == HELIKON_OK) {
         read_str(artist.name_off, name, sizeof(name));
-        draw_text(screen, 14u, 106u, 2u, name, 46u);
+        draw_text(target, 14u, 106u, 2u, name, 46u);
     }
     if (hdb_album(&db, track.album_id, &album) == HELIKON_OK) {
         read_str(album.title_off, name, sizeof(name));
-        draw_text(screen, 14u, 126u, 2u, name, 46u);
+        draw_text(target, 14u, 126u, 2u, name, 46u);
     }
     char info[64];
     format_duration(track.duration_ms, info, sizeof(info));
     append_text(info, sizeof(info), "   RATING ");
     append_u32(info, sizeof(info), track.rating);
-    helikon_screen_text(screen, 14u, 150u, 2u, info);
+    helikon_screen_text(target, 14u, 150u, 2u, info);
 
-    helikon_screen_set_foreground(screen, MUSIC_MUTED);
-    helikon_screen_text(screen, 14u, 184u, 2u, "PLAYBACK COMING NEXT");
-    helikon_screen_set_foreground(screen, MUSIC_INK);
-    (void)helikon_screen_present_all(screen);
+    if (playing) {
+        if (duration_ms == 0u)
+            duration_ms = track.duration_ms;
+        if (duration_ms == 0u)
+            duration_ms = 1u;
+        if (position_ms > duration_ms)
+            position_ms = duration_ms;
+        uint32_t width = (uint32_t)(((uint64_t)position_ms * 292u) /
+                                    duration_ms);
+        helikon_screen_fill_rect(target, 14u, 176u, 292u, 4u, MUSIC_RULE);
+        helikon_screen_fill_rect(target, 14u, 176u, width, 4u, MUSIC_INK);
+
+        char time[48];
+        char duration[24];
+        format_duration(position_ms, time, sizeof(time));
+        append_text(time, sizeof(time), " / ");
+        format_duration(duration_ms, duration, sizeof(duration));
+        append_text(time, sizeof(time), duration);
+        helikon_screen_set_foreground(target, MUSIC_MUTED);
+        helikon_screen_text(target, 14u, 184u, 1u, time);
+        helikon_screen_text(target, 14u, 196u, 2u,
+                            paused ? "PAUSED" : "PLAYING");
+        helikon_screen_fill_rect(target, 0u, 216u, 320u, 24u, MUSIC_PAPER);
+        helikon_screen_text(target, 14u, 222u, 1u,
+                            "PLAY: PAUSE   MENU: STOP");
+        helikon_screen_set_foreground(target, MUSIC_INK);
+    } else {
+        helikon_screen_set_foreground(target, MUSIC_MUTED);
+        helikon_screen_text(target, 14u, 184u, 2u,
+                            audio_ready ? "SELECT: PLAY"
+                                        : "PLAYBACK COMING NEXT");
+        helikon_screen_set_foreground(target, MUSIC_INK);
+    }
+    (void)helikon_screen_present_all(target);
 }
 
+static void draw_track_page(uint32_t track_id)
+{
+    draw_track_page_view(screen, track_id, track_has_audio(track_id), 0, 0, 0u,
+                         0u);
+}
+
+#ifdef HELIKON_AUDIO_EMBEDDED
 static void wait_back(void)
 {
     struct nav_state nav;
@@ -1430,11 +1487,130 @@ static void wait_back(void)
         helikon_clock_delay_us(clock, 20000u);
     }
 }
+#endif
+
+#ifdef HELIKON_AUDIO_EMBEDDED
+static void draw_audio_error(const char *message)
+{
+    draw_detail_header(screen, MUSIC_HEADER_TRACK);
+    helikon_screen_text(screen, 14u, 60u, 2u, message);
+    helikon_screen_text(screen, 14u, 92u, 1u, "MENU: BACK");
+    (void)helikon_screen_present_all(screen);
+}
+
+static void run_now_playing(uint32_t track_id)
+{
+    size_t audio_size = (size_t)(helikon_audio_end - helikon_audio_start);
+    int rc = helikon_player_open(&player, helikon_audio_start, audio_size,
+                                 buttons->pmu, clock, 2000u);
+    if (rc != HELIKON_OK) {
+        draw_audio_error("AUDIO INIT FAILED");
+        wait_back();
+        return;
+    }
+
+    int paused = 0;
+    draw_track_page_view(screen, track_id, 1, 1, paused, 0u,
+                         helikon_player_duration_ms(&player));
+
+    struct nav_state nav;
+    nav_reset(&nav);
+    uint64_t last_draw = helikon_clock_now_us(clock);
+    for (;;) {
+        if (!paused) {
+            int frames = helikon_player_play_chunk(&player, 2047u);
+            if (frames < 0) {
+                draw_audio_error("AUDIO PLAYBACK FAILED");
+                wait_back();
+                break;
+            }
+            if (frames == 0) {
+                helikon_clock_delay_us(clock, 100000u);
+                break;
+            }
+        }
+
+        uint32_t events = 0u;
+        int32_t wheel = 0;
+        int hold = 0;
+        if (helikon_buttons_poll(buttons, &events, &wheel, &hold, 10u) ==
+            HELIKON_OK) {
+            uint32_t pressed = events & ~nav.previous_events;
+            nav.previous_events = events;
+            if (hold || (pressed & HELIKON_BUTTON_MENU) != 0u)
+                break;
+            if ((pressed & HELIKON_BUTTON_SELECT) != 0u)
+                break;
+            if ((pressed & HELIKON_BUTTON_PLAY) != 0u) {
+                if (paused) {
+                    (void)helikon_player_resume(&player);
+                    paused = 0;
+                } else {
+                    (void)helikon_player_pause(&player);
+                    paused = 1;
+                }
+                draw_track_page_view(screen, track_id, 1, 1, paused,
+                                     helikon_player_position_ms(&player),
+                                     helikon_player_duration_ms(&player));
+                last_draw = helikon_clock_now_us(clock);
+                continue;
+            }
+        }
+
+        if (helikon_player_finished(&player)) {
+            helikon_clock_delay_us(clock, 100000u);
+            break;
+        }
+        uint64_t now = helikon_clock_now_us(clock);
+        if (now - last_draw >= 500000u) {
+            draw_track_page_view(screen, track_id, 1, 1, paused,
+                                 helikon_player_position_ms(&player),
+                                 helikon_player_duration_ms(&player));
+            last_draw = now;
+        }
+        if (paused)
+            helikon_clock_delay_us(clock, 20000u);
+    }
+    helikon_player_stop(&player);
+}
+#endif
 
 static void run_track_page(uint32_t track_id)
 {
     draw_track_page(track_id);
-    wait_back();
+    struct nav_state nav;
+    nav_reset(&nav);
+    uint64_t idle = helikon_clock_now_us(clock);
+    for (;;) {
+        uint32_t events = 0u;
+        int32_t wheel = 0;
+        int hold = 0;
+        if (helikon_buttons_poll(buttons, &events, &wheel, &hold, 20u) ==
+            HELIKON_OK) {
+            uint32_t pressed = events & ~nav.previous_events;
+            nav.previous_events = events;
+            if (hold)
+                return;
+            if ((pressed & HELIKON_BUTTON_MENU) != 0u)
+                return;
+            if ((pressed & (HELIKON_BUTTON_SELECT | HELIKON_BUTTON_PLAY)) !=
+                0u) {
+#ifdef HELIKON_AUDIO_EMBEDDED
+                if (track_has_audio(track_id)) {
+                    run_now_playing(track_id);
+                    nav_reset(&nav);
+                    draw_track_page(track_id);
+                    idle = helikon_clock_now_us(clock);
+                    continue;
+                }
+#endif
+                return;
+            }
+        }
+        if (helikon_clock_expired(clock, idle, MUSIC_IDLE_MS))
+            return;
+        helikon_clock_delay_us(clock, 20000u);
+    }
 }
 
 static void run_album(uint32_t album_id);
