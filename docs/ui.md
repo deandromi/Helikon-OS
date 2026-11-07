@@ -219,12 +219,13 @@ track pages reuse the same header language. Artwork is 96×96 RGB565 scaled
 but has no action yet.
 
 The build uses the 3×5 fallback font for dynamic text until the Plex atlas
-(T-042/T-057); the track page states that playback is next.
+(T-042/T-057). The first audio build adds a Now Playing progress view for the
+embedded WAV track; other tracks state that playback is next.
 
 For the pre-VFS test, the signed image embeds a 100-song HelikonDB:
 
 ```sh
-make -C firmware BOARD=6g VERSION=13 BOOTSTATE_STATE=good UI=1 \
+make -C firmware BOARD=6g VERSION=14 BOOTSTATE_STATE=good UI=1 \
   HDB=../build/helikondb/first100/music.hdb \
   EXTRA_CFLAGS='-DHELIKON_DIAG_LAUNCHER' \
   BUILD=../build/firmware/6g-music image
@@ -234,8 +235,18 @@ It touches no storage and no ATA. `make -C tests/ui preview` renders
 `build/ui/music-hub.png`, `music-albums.png`, `music-artists.png`,
 `music-tracks.png`, `music-artist.png`, `music-artist-albums.png`,
 `music-artist-tracks.png`, `music-album.png` and `music-track.png` from the
-fixture catalog. Playback is F5/T-058; the storage-backed catalog is
-T-056/T-067.
+fixture catalog.
+
+#### First audio path (implemented on host, device pending)
+
+`firmware/hal/6g/audio.c` initializes the CS42L55, I2S and PL080 DMA;
+`firmware/player/` parses 16-bit PCM WAV at 44.1/48 kHz and plays bounded
+chunks. The track page for `AUDIO_TRACK` opens a Now Playing view with a
+progress bar, `PLAYING`/`PAUSED`, time, and PLAY pause/MENU stop controls.
+Other tracks retain the “playback coming next” state. The WAV is local, not
+committed; see [`audio-formats.md`](audio-formats.md) §11 for the build command.
+`tests/ui` renders `audio-now-playing.png` and `audio-paused.png`; the WAV
+parser and player state are in `tests/player`. No 6G audio run yet.
 
 ### 5.3 Concept B — neoclassical index
 

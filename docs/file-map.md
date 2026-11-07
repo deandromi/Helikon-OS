@@ -62,9 +62,10 @@ Helikon-OS/
     boot/                 _start, vectors, linker script, boot-info, bootstate, panic, stack
     lib/                  freestanding mem/string/CRC/SHA-256/endian/ring/pool/fixed/format
     board/6g/             BSP constants, board description, runtime wiring, write gate
-    hal/6g/               clock, PMU, backlight, LCD, ATA read/write/flush, buttons, CPU
+    hal/6g/               clock, PMU, backlight, LCD, ATA read/write/flush, buttons, CPU, CS42L55/I2S/DMA
     block/                block device with read-only gate, bounce, APM/MBR/raw scan
     diag/                 stage machine, RAM trace, crash record, RGB565 screen
+    player/               bounded WAV parser and PCM playback state
     hfs/hfs_block_adapter.c/.h  hfs read/write/flush over the block device
     hfs/hfs_file.c/.h     one-file read helper (lookup + inline/overflow)
     inner_image.c/.h      outer-file extent mapping + metadata guard
@@ -156,9 +157,13 @@ Helikon-OS/
     Makefile                HelikonDB fixture and reader test
     test_hdb.c              fixture + optional real-library checks
   tests/ui/
-    Makefile                launcher, Music hub and wall host previews
+    Makefile                launcher, Music, artist and audio host previews
     test_launcher.c         launcher render and checks
     test_music.c            hub/walls/browser render against the fixture HDB
+    test_audio.c            Now Playing render and WAV player state
+  tests/player/
+    Makefile                WAV container/parser host test
+    test_wav.c              RIFF/WAVE validation and profile rejection
   tools/hdb_build.py        HelikonDB reference builder and inspector
   tools/desktop/            macOS companion shell (SwiftPM, no feature modules)
     Sources/HelikonCompanion/App/       app entry, splash state and empty shell
@@ -302,14 +307,14 @@ is created; do not let it drift.
 | `firmware/boot/` | Entry, vectors, linker script, boot-info parser, bootstate parser/promoter, panic | boot lead | `docs/firmware-architecture.md` §3, ADR-0004, `docs/f2-bootstate-test.md` | boot-info, bootstate and fault tests | No C before stacks/BSS; entry never returns; the bootstate write is the only F2 filesystem write |
 | `firmware/lib/` | Freestanding mem/string/CRC/SHA-256/ring/pool helpers | firmware lead | `docs/firmware-architecture.md` §8.9 | host unit tests; no hosted symbols | No `malloc`, `stdio` or locale |
 | `firmware/board/6g/` | BSP constants, init sequence, memory map | hardware lead | ADR-0003, paper §6 | map assertions, board audit | No target `#ifdef` in shared core |
-| `firmware/hal/6g/` | S5L8702 clocks, GPIO, PMU, ATA read/write/flush, LCD, codec | hardware lead | paper §6–§7, `docs/architecture.md` | register-level bring-up, sleep/wake, PIO write/flush | No filesystem, UI or policy; no unmeasured overclock/undervolt |
+| `firmware/hal/6g/` | S5L8702 clocks, GPIO, PMU, ATA read/write/flush, LCD, CS42L55 codec, I2S and DMA | hardware lead | paper §6–§7, `docs/architecture.md` | register-level bring-up, sleep/wake, PIO write/flush, first PCM output | No filesystem, UI or policy; no unmeasured overclock/undervolt |
 | `firmware/block/` | Sector I/O, flush, power state | storage lead | paper §7, `docs/architecture.md` | read/write/flush, 512/4096, error injection | No paths/files/caches; a flush error must propagate |
 | `firmware/hfs/` | HFS+ read core and writer: volume, B-tree, catalog, Unicode, extents, journal, txn, in-place overwrite | HFS+ lead | paper §8, §10.4, `docs/hfsplus-write-engine.md` | 104 host tests; overwrite and crash tests; fuzz/malformed/macOS differential planned | Writes only through `hfs_txn`; never hide unsupported entries |
 | `firmware/hfs/hfs_catalog_write.c`, `hfs_btree_tree.c`, `hfs_bitmap.c`, `hfs_extents_write.c` | Catalog/bitmap/extents mutation | HFS+ lead | `docs/hfsplus-write-engine.md`, invariants I-03–I-15 | model/property/crash tests, `fsck_hfs` | No journal format, UI or boot policy; no direct writes outside a transaction |
 | `firmware/hfs/hfs_journal.c`, `hfs_txn.c` | Journal append/commit/replay, bounded transaction engine | journal lead | paper §9.3–§9.4, `docs/hfsplus-write-engine.md` | crash injection, idempotent replay | No product policy/UI; never delete/disable/zero the journal |
 | `firmware/vfs/` | Lookup, handles, capabilities, path rules | VFS lead | paper §10, `docs/architecture.md` | path/name tests, capability tests | No hardware registers; no overlay branch; no errno guessing |
 | `firmware/db/` | HelikonDB v1 read-only catalog reader: header validation, fixed track/album/artist records, strings, indices, artwork, CRC | database lead | paper §12, D-07, D-33, D-53, `docs/helikondb.md` | `tests/musicdb` fixture + 100-song corpus | No iTunesDB, tagcache or device scan; caller owns buffers; catalog is a derived cache |
-| `firmware/player/` | Buffer/decode/output state machine | audio lead | paper §13, §28.3.8 | audio matrix, gapless, seek | No filesystem internals; no unmeasured audiophile claims |
+| `firmware/player/` | First bounded PCM/WAV player (`wav.c`, `player.c`); buffer/decode/output state machine to grow into the codec registry | audio lead | paper §13, §28.3.8, `docs/audio-formats.md` §11 | WAV parser/player host tests, audio previews, device audio run | No filesystem internals; no unmeasured audiophile claims; only documented WAV profiles |
 | `firmware/ui/` | Launcher renderer and the functional Music section (`music.c`: launcher-style hub, album/artist walls, lists and detail pages over an embedded HDB), screens, input and focus | UI lead | paper §14, `docs/ui.md`, `docs/helikondb.md` | `tests/ui` previews, frame trace, typography mockup | No storage policy; embedded catalog only in the pre-VFS test; default UI must survive skin failure |
 | `firmware/input/` | Click wheel/button events, debounce, focus | UI lead | `docs/firmware-architecture.md` §9.7 | event/acceleration tests | No storage or playback policy |
 | `firmware/skin/` | Documented WPS subset | UI lead | paper §28.3.4, D-10/D-15 | 20-skin corpus, hostile skin tests | No raw storage/playback policy; no full WPS engine; no unlicensed assets |

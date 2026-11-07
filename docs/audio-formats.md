@@ -2,10 +2,10 @@
 
 > Purpose: list every audio format Rockbox documents for the iPod Classic 6G,
 > define what Helikon-OS must support, and record the 6G hardware/CPU ceiling.
-> Status: living document; research and plan, not implementation or device
-> evidence
+> Status: living document; Tier plan plus a first 16-bit PCM/WAV playback
+> path; no compressed decoder and no device run.
 > Owner: audio lead; firmware lead
-> Last updated: 2026-11-06
+> Last updated: 2026-11-07
 > Source: Rockbox iPod Classic manual `0d5c2b0604-261105`, Appendix B.1–B.2
 > and §4.3.3, §7.21–§7.22, §13.5.8; Rockbox codec performance page, iPod
 > Classic run `b320bba`, 2014-12-12; Apple iPod classic technical
@@ -607,9 +607,9 @@ superseded: Tier 2 is a hard v1.x parity requirement, not an optional study.
 
 ## 11. Functional four-codec player — next implementation plan
 
-> Status: proposed implementation sequence. No audio HAL, player, decoder or
-> storage-backed library exists yet. The Alpha 2.0.0 Music images are
-> storage-free UI demos.
+> Status: first PCM/WAV path implemented (CS42L55 + I2S + DMA + bounded WAV
+> player + Now Playing). No compressed decoder and no storage-backed playback;
+> device run pending. The Alpha 2.0.0 Music images are storage-free UI demos.
 
 ### 11.1 First release scope
 
@@ -633,7 +633,9 @@ output rates separately.
 1. **Audio bench (T-058 first slice).** CS42L55 init over I2C, I2S clocks, DMA
    output, volume, headphone and line-out. Play an embedded PCM WAV; no codec
    and no storage. Exit: first sound on a 6G and a sane line-out/headphone
-   level.
+   level. **Implemented**: `firmware/hal/6g/audio.c` and `firmware/player/`
+   provide 16-bit stereo/mono WAV at 44.1/48 kHz, bounded DMA chunks, pause and
+   a Now Playing screen. Device audio run pending.
 2. **Player core and FLAC (T-097/T-058).** Bounded read/seek callbacks, codec
    descriptor registry, read-ahead and PCM rings, the playback state machine
    (`IDLE → OPENING → BUFFERING → PLAYING → PAUSED → SEEKING → DRAINING`),
@@ -649,6 +651,25 @@ output rates separately.
 5. **Functional gate (T-100/T-101).** Per-codec seek, pause, next/previous,
    corrupt-file errors, 30-minute runs, CPU/battery measurements, line-out and
    headphone checks, and a recorded device matrix row.
+
+The first slice builds as a single-track embedded preview. The WAV is local and
+is not committed:
+
+```sh
+afconvert -f WAVE -d LEI16@44100 -c 2 input.m4a /tmp/track.wav
+# or: ffmpeg -i input.m4a -t 20 -ar 44100 -ac 2 -sample_fmt s16 /tmp/track.wav
+
+make -C firmware BOARD=6g VERSION=14 BOOTSTATE_STATE=good UI=1 \
+  HDB=../build/helikondb/first100/music.hdb \
+  AUDIO=/tmp/track.wav AUDIO_TRACK=0 \
+  EXTRA_CFLAGS='-DHELIKON_DIAG_LAUNCHER' \
+  BUILD=../build/firmware/6g-music-audio image
+```
+
+`AUDIO_TRACK` is the HDB track-table index that owns the embedded excerpt;
+other tracks keep the "playback coming next" state. This is a hardware/output
+gate, not the four-codec player. The 20 s 44.1 kHz stereo excerpt used for the
+2026-11-07 image makes the signed image about 4.1 MiB.
 
 ### 11.3 Decoder order and provenance
 
