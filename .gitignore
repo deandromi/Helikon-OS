@@ -48,3 +48,5 @@ tools/desktop/.swiftpm/
 tools/desktop/dist/
 tests/ui/test_launcher
 tests/ui/*.dSYM/
+tests/player/test_wav
+tests/player/*.dSYM/
