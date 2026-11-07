@@ -16,10 +16,10 @@ static uint32_t audio_frames;
 int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
                        struct helikon_clock *clock_arg, uint32_t timeout_ms)
 {
-    (void)audio;
     (void)pmu;
     (void)clock_arg;
     (void)timeout_ms;
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
     audio_frames = 0u;
     return HELIKON_OK;
 }

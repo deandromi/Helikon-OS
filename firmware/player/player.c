@@ -19,15 +19,25 @@ int helikon_player_open(struct helikon_player *player, const uint8_t *data,
 
     player->opened = 0;
     player->offset = 0u;
+    player->last_error = HELIKON_OK;
+    player->last_stage = HELIKON_AUDIO_STAGE_NONE;
+    player->audio.stage = HELIKON_AUDIO_STAGE_NONE;
     int rc = helikon_wav_parse(data, size, &player->wav);
-    if (rc != HELIKON_OK)
+    if (rc != HELIKON_OK) {
+        player->last_error = rc;
         return rc;
+    }
 
     rc = helikon_audio_init(&player->audio, pmu, clock, timeout_ms);
-    if (rc != HELIKON_OK)
+    if (rc != HELIKON_OK) {
+        player->last_error = rc;
+        player->last_stage = player->audio.stage;
         return rc;
+    }
     rc = helikon_audio_set_rate(&player->audio, player->wav.sample_rate);
     if (rc != HELIKON_OK) {
+        player->last_error = rc;
+        player->last_stage = player->audio.stage;
         (void)helikon_audio_stop(&player->audio);
         return rc;
     }
@@ -72,9 +82,14 @@ int helikon_player_play_chunk(struct helikon_player *player,
         }
         rc = helikon_audio_play(&player->audio, mono_buffer, frames);
     }
-    if (rc != HELIKON_OK)
+    if (rc != HELIKON_OK) {
+        player->last_error = rc;
+        player->last_stage = player->audio.stage;
         return rc;
+    }
 
+    player->last_error = HELIKON_OK;
+    player->last_stage = HELIKON_AUDIO_STAGE_NONE;
     player->offset += (size_t)frames * player->wav.channels * 2u;
     return (int)frames;
 }
@@ -121,4 +136,49 @@ uint32_t helikon_player_duration_ms(const struct helikon_player *player)
 int helikon_player_finished(const struct helikon_player *player)
 {
     return player == NULL || remaining_frames(player) == 0u;
+}
+
+const char *helikon_player_error_text(const struct helikon_player *player)
+{
+    if (player == NULL)
+        return "PLAYER";
+
+    switch (player->last_stage) {
+    case HELIKON_AUDIO_STAGE_CODEC:
+        return "CODEC/I2C";
+    case HELIKON_AUDIO_STAGE_RATE:
+        return "CODEC RATE";
+    case HELIKON_AUDIO_STAGE_I2S:
+        return "I2S/CLOCK";
+    case HELIKON_AUDIO_STAGE_DMA_SETUP:
+        return "DMA SETUP";
+    case HELIKON_AUDIO_STAGE_DMA_WAIT:
+        return player->last_error == HELIKON_ERR_IO ? "DMA ERROR"
+                                                    : "DMA TIMEOUT";
+    case HELIKON_AUDIO_STAGE_DMA_ACTIVE:
+        return "DMA ACTIVE";
+    case HELIKON_AUDIO_STAGE_CACHE:
+        return "CACHE";
+    case HELIKON_AUDIO_STAGE_BUFFER:
+        return "BUFFER";
+    case HELIKON_AUDIO_STAGE_NONE:
+    default:
+        break;
+    }
+
+    switch (player->last_error) {
+    case HELIKON_ERR_UNSUPPORTED:
+        return "WAV PROFILE";
+    case HELIKON_ERR_FORMAT:
+        return "WAV FORMAT";
+    case HELIKON_ERR_ARGUMENT:
+    case HELIKON_ERR_BUFFER:
+        return "BUFFER";
+    case HELIKON_ERR_BUSY:
+        return "DMA TIMEOUT";
+    case HELIKON_ERR_IO:
+        return "AUDIO I/O";
+    default:
+        return "PLAYBACK";
+    }
 }

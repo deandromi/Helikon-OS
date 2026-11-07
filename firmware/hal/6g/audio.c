@@ -4,6 +4,7 @@
 
 #include <stddef.h>
 
+#include "audio_dma.h"
 #include "cpu.h"
 #include "error.h"
 #include "s5l8702_regs.h"
@@ -168,6 +169,7 @@ static void codec_reset(void)
 
 static int codec_init(struct helikon_audio *audio)
 {
+    audio->stage = HELIKON_AUDIO_STAGE_CODEC;
     static const uint8_t sequence[] = {
         CS42L55_HIDDENCTL, CS42L55_HIDDENCTL_UNLOCK,
         0x2e, 0x30,
@@ -234,19 +236,25 @@ static int codec_init(struct helikon_audio *audio)
 static int dma_chunk(struct helikon_audio *audio, const int16_t *pcm,
                      size_t frames)
 {
-    if (frames == 0u || frames > AUDIO_DMA_FRAMES)
-        return HELIKON_ERR_ARGUMENT;
+    if (frames == 0u || frames > AUDIO_DMA_FRAMES) {
+        audio->stage = HELIKON_AUDIO_STAGE_BUFFER;
+        return HELIKON_ERR_BUFFER;
+    }
 
+    audio->stage = HELIKON_AUDIO_STAGE_BUFFER;
     size_t samples = frames * 2u;
     for (size_t index = 0u; index < samples; ++index)
         dma_buffer[index] = pcm[index];
+
+    audio->stage = HELIKON_AUDIO_STAGE_CACHE;
     helikon_cpu_clean_dcache_range(dma_buffer, samples * sizeof(int16_t));
 
+    audio->stage = HELIKON_AUDIO_STAGE_DMA_SETUP;
     S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) = 0u;
     uint64_t start = helikon_clock_now_us(audio->clock);
     while ((S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) & (1u << 17)) != 0u) {
         if (helikon_clock_expired(audio->clock, start, audio->timeout_ms))
-            return HELIKON_ERR_IO;
+            return HELIKON_ERR_BUSY;
     }
     S5L_DMAC_INTTCCLR = 1u << AUDIO_DMA_CHANNEL;
     S5L_DMAC_INTERRCLR = 1u << AUDIO_DMA_CHANNEL;
@@ -256,24 +264,30 @@ static int dma_chunk(struct helikon_audio *audio, const int16_t *pcm,
     S5L_DMAC_CH_DST(AUDIO_DMA_CHANNEL) = S5L_I2S_BASE + 0x10u;
     S5L_DMAC_CH_LLI(AUDIO_DMA_CHANNEL) = 0u;
     S5L_DMAC_CH_CONTROL(AUDIO_DMA_CHANNEL) =
-        (7u << 28) | (1u << 26) | (1u << 18) | (1u << 21) |
-        (2u << 12) | (1u << 15) | (uint32_t)samples;
-    S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) =
-        1u | (0x0au << 6) | (1u << 11);
+        helikon_audio_dma_control((uint32_t)samples);
+    S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) = helikon_audio_dma_config();
 
+    audio->stage = HELIKON_AUDIO_STAGE_DMA_WAIT;
     start = helikon_clock_now_us(audio->clock);
     while ((S5L_DMAC_RAWINTTCSTS & (1u << AUDIO_DMA_CHANNEL)) == 0u) {
-        if (helikon_clock_expired(audio->clock, start, audio->timeout_ms)) {
+        if ((S5L_DMAC_RAWINTERRSTS & (1u << AUDIO_DMA_CHANNEL)) != 0u) {
+            S5L_DMAC_INTERRCLR = 1u << AUDIO_DMA_CHANNEL;
             S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) = 0u;
             return HELIKON_ERR_IO;
         }
+        if (helikon_clock_expired(audio->clock, start, audio->timeout_ms)) {
+            S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) = 0u;
+            return HELIKON_ERR_BUSY;
+        }
     }
     S5L_DMAC_INTTCCLR = 1u << AUDIO_DMA_CHANNEL;
+    audio->stage = HELIKON_AUDIO_STAGE_DMA_ACTIVE;
     start = helikon_clock_now_us(audio->clock);
     while ((S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) & (1u << 17)) != 0u) {
         if (helikon_clock_expired(audio->clock, start, audio->timeout_ms))
-            return HELIKON_ERR_IO;
+            return HELIKON_ERR_BUSY;
     }
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
     return HELIKON_OK;
 }
 
@@ -298,12 +312,14 @@ int helikon_audio_set_rate(struct helikon_audio *audio, uint32_t sample_rate)
     if (sample_rate != 44100u && sample_rate != 48000u)
         return HELIKON_ERR_UNSUPPORTED;
 
+    audio->stage = HELIKON_AUDIO_STAGE_RATE;
     int rc = codec_write(audio, CS42L55_CLKCTL2,
                          sample_rate == 44100u ? 0x0bu : 0x09u);
     if (rc != HELIKON_OK)
         return rc;
     S5L_I2SCLKDIV = AUDIO_MCLK_HZ / sample_rate;
     audio->sample_rate = sample_rate;
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
     return HELIKON_OK;
 }
 
@@ -317,6 +333,7 @@ int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
     audio->clock = clock;
     audio->sample_rate = 44100u;
     audio->timeout_ms = timeout_ms;
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
     audio->initialized = 0;
     audio->running = 0;
 
@@ -324,6 +341,7 @@ int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
     if (rc != HELIKON_OK)
         return rc;
 
+    audio->stage = HELIKON_AUDIO_STAGE_I2S;
     audio->initialized = 1;
     S5L_PWRCON(1) &= ~(1u << 7);
     S5L_I2STXCON = 0xb100019u;
@@ -336,19 +354,25 @@ int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
     S5L_I2STXCOM = 0x0au;
     S5L_I2SCLKCON = 0u;
     S5L_PWRCON(1) |= 1u << 7;
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
     return HELIKON_OK;
 }
 
 int helikon_audio_play(struct helikon_audio *audio, const int16_t *pcm,
                        size_t frames)
 {
-    if (audio == NULL || !audio->initialized || pcm == NULL)
+    if (audio == NULL || !audio->initialized || pcm == NULL) {
+        if (audio != NULL)
+            audio->stage = HELIKON_AUDIO_STAGE_BUFFER;
         return HELIKON_ERR_ARGUMENT;
+    }
 
     if (!audio->running) {
+        audio->stage = HELIKON_AUDIO_STAGE_CODEC;
         int rc = codec_mute(audio, 0);
         if (rc != HELIKON_OK)
             return rc;
+        audio->stage = HELIKON_AUDIO_STAGE_I2S;
         i2s_start();
         audio->running = 1;
     }
@@ -361,6 +385,7 @@ int helikon_audio_play(struct helikon_audio *audio, const int16_t *pcm,
         pcm += chunk * 2u;
         frames -= chunk;
     }
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
     return HELIKON_OK;
 }
 
@@ -369,13 +394,18 @@ int helikon_audio_pause(struct helikon_audio *audio)
     if (audio == NULL || !audio->initialized)
         return HELIKON_ERR_ARGUMENT;
     if (audio->running) {
+        audio->stage = HELIKON_AUDIO_STAGE_CODEC;
         int rc = codec_mute(audio, 1);
         S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) = 0u;
+        audio->stage = HELIKON_AUDIO_STAGE_I2S;
         i2s_stop();
         audio->running = 0;
-        if (rc != HELIKON_OK)
+        if (rc != HELIKON_OK) {
+            audio->stage = HELIKON_AUDIO_STAGE_CODEC;
             return rc;
+        }
     }
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
     return HELIKON_OK;
 }
 
@@ -384,12 +414,15 @@ int helikon_audio_resume(struct helikon_audio *audio)
     if (audio == NULL || !audio->initialized)
         return HELIKON_ERR_ARGUMENT;
     if (!audio->running) {
+        audio->stage = HELIKON_AUDIO_STAGE_CODEC;
         int rc = codec_mute(audio, 0);
         if (rc != HELIKON_OK)
             return rc;
+        audio->stage = HELIKON_AUDIO_STAGE_I2S;
         i2s_start();
         audio->running = 1;
     }
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
     return HELIKON_OK;
 }
 
@@ -397,9 +430,16 @@ int helikon_audio_stop(struct helikon_audio *audio)
 {
     if (audio == NULL || !audio->initialized)
         return HELIKON_ERR_ARGUMENT;
+    audio->stage = HELIKON_AUDIO_STAGE_CODEC;
     int rc = codec_mute(audio, 1);
     S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) = 0u;
+    audio->stage = HELIKON_AUDIO_STAGE_I2S;
     i2s_stop();
     audio->running = 0;
-    return rc;
+    if (rc != HELIKON_OK) {
+        audio->stage = HELIKON_AUDIO_STAGE_CODEC;
+        return rc;
+    }
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
+    return HELIKON_OK;
 }
