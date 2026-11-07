@@ -19,6 +19,8 @@ struct helikon_player {
     struct helikon_wav wav;
     struct helikon_audio audio;
     size_t offset;
+    int last_error;
+    uint32_t last_stage;
     int opened;
 };
 
@@ -33,5 +35,6 @@ void helikon_player_stop(struct helikon_player *player);
 uint32_t helikon_player_position_ms(const struct helikon_player *player);
 uint32_t helikon_player_duration_ms(const struct helikon_player *player);
 int helikon_player_finished(const struct helikon_player *player);
+const char *helikon_player_error_text(const struct helikon_player *player);
 
 #endif

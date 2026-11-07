@@ -17,11 +17,29 @@
 #include "clock.h"
 #include "pmu.h"
 
+/*
+ * Stage codes are retained on the audio object after a failure so the UI can
+ * name the failing path instead of collapsing every error into one message.
+ * They are diagnostic labels, not a second error taxonomy.
+ */
+enum helikon_audio_stage {
+    HELIKON_AUDIO_STAGE_NONE = 0,
+    HELIKON_AUDIO_STAGE_CODEC = 1,
+    HELIKON_AUDIO_STAGE_RATE = 2,
+    HELIKON_AUDIO_STAGE_I2S = 3,
+    HELIKON_AUDIO_STAGE_DMA_SETUP = 4,
+    HELIKON_AUDIO_STAGE_DMA_WAIT = 5,
+    HELIKON_AUDIO_STAGE_DMA_ACTIVE = 6,
+    HELIKON_AUDIO_STAGE_CACHE = 7,
+    HELIKON_AUDIO_STAGE_BUFFER = 8
+};
+
 struct helikon_audio {
     struct helikon_pmu *pmu;
     struct helikon_clock *clock;
     uint32_t sample_rate;
     uint32_t timeout_ms;
+    uint32_t stage;
     int initialized;
     int running;
 };

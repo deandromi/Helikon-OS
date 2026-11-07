@@ -1490,10 +1490,13 @@ static void wait_back(void)
 #endif
 
 #ifdef HELIKON_AUDIO_EMBEDDED
-static void draw_audio_error(const char *message)
+static void draw_audio_error(const char *detail)
 {
+    char line[48];
+    copy_text(line, sizeof(line), "AUDIO ");
+    append_text(line, sizeof(line), detail);
     draw_detail_header(screen, MUSIC_HEADER_TRACK);
-    helikon_screen_text(screen, 14u, 60u, 2u, message);
+    helikon_screen_text(screen, 14u, 60u, 2u, line);
     helikon_screen_text(screen, 14u, 92u, 1u, "MENU: BACK");
     (void)helikon_screen_present_all(screen);
 }
@@ -1504,7 +1507,7 @@ static void run_now_playing(uint32_t track_id)
     int rc = helikon_player_open(&player, helikon_audio_start, audio_size,
                                  buttons->pmu, clock, 2000u);
     if (rc != HELIKON_OK) {
-        draw_audio_error("AUDIO INIT FAILED");
+        draw_audio_error(helikon_player_error_text(&player));
         wait_back();
         return;
     }
@@ -1520,7 +1523,7 @@ static void run_now_playing(uint32_t track_id)
         if (!paused) {
             int frames = helikon_player_play_chunk(&player, 2047u);
             if (frames < 0) {
-                draw_audio_error("AUDIO PLAYBACK FAILED");
+                draw_audio_error(helikon_player_error_text(&player));
                 wait_back();
                 break;
             }
