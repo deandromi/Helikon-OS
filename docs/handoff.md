@@ -3,11 +3,52 @@
 > Purpose: the latest session handoff and the reusable template.
 > Status: living document
 > Owner: session author; next agent reads this first
-> Last updated: 2026-11-06
+> Last updated: 2026-11-08
 > Source: `docs/state.md`, `docs/tasks.md`, repository history
 
 Keep the newest handoff at the top. Move older entries to `docs/log/` when this
 file grows. Do not rely on chat history for current state.
+
+---
+
+# Handoff — 2026-11-08 (codec framework, FLAC and Music-flow device runs)
+
+## What happened
+
+- PR #17 (four-buffer WAV ring fix) merged as `2420c64` after the owner's 6G run
+  on image `18f5fe39…` reported clean audio with working pause/resume.
+- PR #20 (binding Music-flow and Now Playing design in `docs/ui.md` §6) merged
+  as `5fa0510`; PR #18 was closed as superseded.
+- PR #19 (codec registry and native FLAC decoder) merged as `e9f6ad6` after the
+  owner's 6G run on image `6a2328ae…`: FLAC audio clean, pause/resume works.
+  The branch was rebuilt after merging `main` `5fa0510` and produced the
+  identical SHA-256, so the tested image matches the merged tree. Host decode is
+  bit-exact over 879,952 frames with a 65,608-byte workspace.
+- PR #21 (cleaned Music flow and Now Playing UI) is open and device-blocked.
+  On image `5292c8ed…` the device stalls for almost 20 s when an artist is
+  selected; repeated presses are then processed and eventually start a song.
+  Do not merge it.
+- Host suites pass on both branches: codec, player, UI, firmware and image
+  checks.
+
+## What is next
+
+1. Diagnose the Artist-open stall on `firmware/T-088-music-flow` (blocking work
+   before the first frame and queued input reaching the player), fix it, rebuild
+   and device-test the fixed image before merge.
+2. Build the combined FLAC + UI image only after PR #21 merges.
+3. Start MP3 on a fresh branch after the FLAC tranche; ALAC and AAC remain
+   behind the provenance/licence review.
+4. Attach the 2026-11-08 screen photos and `fsck_hfs` output when available.
+
+## Do not claim
+
+- That PR #21, the cleaned Music flow or the new Now Playing screen is
+  device-proven.
+- That the UI meets the T-088 page-open or 30 fps target.
+- That 24-bit output, >48 kHz, seek timing, storage/VFS playback, next/previous,
+  gapless, MP3, ALAC or AAC exist.
+- That the 2026-11-08 runs are a support matrix; one 6G/iFlash SD only.
 
 ---
 

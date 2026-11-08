@@ -4,7 +4,7 @@
 > recorded run.
 > Status: owner-reported Alpha 2.0.0 release-set run on one 6G; per-image detail pending
 > Owner: test lead; device owners
-> Last updated: 2026-11-06
+> Last updated: 2026-11-08
 > Source: design paper §1, §24, §28.2.4, §28.4.5; `docs/verification.md`
 
 **Owner status 2026-11-06:** the owner reports the Alpha 2.0.0 release-set 6G
@@ -67,6 +67,9 @@ images, backups or serial numbers to the repository.
 | iPod Classic 6G (reference) | `open question` | iFlash SD | Music hub/wall image `de6491a9…` (474,252 bytes) | embedded 100-song HDB; launcher → Music hub → Albums/Artists walls or Tracks; covers, monograms, ratings, detail pages | `partial` | Owner report 2026-11-06: Alpha 2.0.0 release-set 6G testing completed; screen photo/timing not attached. Host: `check-loader-artifact.sh` passes; `tests/ui` renders the launcher, hub, both walls, tracks and three detail screens. No ATA/storage; playback is F5 | firmware/UI |
 | iPod Classic 6G (reference) | `open question` | iFlash SD | Artist-view/input image `b5425283…` (583,820 bytes) | `assets/ui/artist-view` layout, portrait band, OVERVIEW/ALBUMS/TRACKS tabs; cold-boot input init no longer fails without a button press | `not run` | Host: `check-loader-artifact.sh` passes; `tests/ui` renders artist overview/albums/tracks and checks tab/selection markers. No ATA/storage; playback is F5. Device run pending | firmware/UI |
 | iPod Classic 6G (reference) | `open question` | iFlash SD | First PCM audio image `3dbbfd5a…` (4,109,284 bytes, version 14) | CS42L55/I2S/PL080 DMA; 20 s embedded 44.1 kHz stereo WAV at `AUDIO_TRACK=0`; Now Playing progress, PLAY pause, MENU stop | `not run` | Host: loader check passes; `tests/ui` renders now-playing/paused; `tests/player` WAV parser/state pass. No ATA/storage; compressed codecs and VFS remain. Device audio run pending | firmware/audio |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | WAV ring image `18f5fe39…` (4,111,124 bytes) | four-buffer PL080 LLI ring; embedded 44.1 kHz stereo WAV; pause/resume | `pass` | Owner report 2026-11-08: audio clean; stutter, pops and channel loss no longer observed; pause/resume works. PR #17 merged as `2420c64`. Screen photo and `fsck_hfs` not attached. One 6G/iFlash SD only | owner/firmware |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | FLAC player image `6a2328ae…` (2,560,056 bytes, version 15) | embedded native FLAC, 16-bit stereo 44.1 kHz; registry probe, decode into the four-buffer ring; pause/resume | `pass` | Owner report 2026-11-08: FLAC audio clean; pause/resume works. Rebuilt after merging `main` `5fa0510`: identical SHA-256, so the tested image matches the branch. Host codec/player/UI/firmware tests pass; 879,952 frames bit-exact. Screen photo and `fsck_hfs` not attached. One 6G/iFlash SD only | owner/firmware |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | Cleaned Music-flow image `5292c8ed…` (4,195,680 bytes, version 15) | IBM Plex atlas; Artists → Artist (`ALBUMS` default) → single-page Album → Now Playing | `fail` | Owner report 2026-11-08: selecting an artist stalls for almost 20 s; repeated presses eventually start a song. T-088 device gate not passed; PR #21 open and unmerged. Screen photo and `fsck_hfs` not attached. Host `tests/ui` passes; one 6G/iFlash SD only | owner/firmware/UI |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | journal replay | `not run` | none | journal lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | sleep/wake 100 cycles | `not run` | none | test lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | USB read-only | `not run` | none | USB lead |

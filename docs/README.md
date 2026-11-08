@@ -3,7 +3,7 @@
 > Purpose: documentation index and reading order.
 > Status: living document
 > Owner: docs lead
-> Last updated: 2026-11-06
+> Last updated: 2026-11-08
 > Source: `agents.md`, root `README.md`, design paper, Rockbox iPod Classic
 > manual `0d5c2b0604-261105`
 
@@ -135,6 +135,7 @@ status.
 | [`log/2026-11-04.md`](log/2026-11-04.md) | Metadata timestamps and the current write-diagnostic image. | living |
 | [`log/2026-11-05.md`](log/2026-11-05.md) | Competitive-roadmap planning and the Rockbox manual review. | living |
 | [`log/2026-11-06.md`](log/2026-11-06.md) | Launcher, HelikonDB, Music hub, companion reset and Alpha 2.0.0 release preparation. | living |
+| [`log/2026-11-08.md`](log/2026-11-08.md) | Codec framework/FLAC, cleaned Music flow and the WAV/FLAC/UI device runs. | living |
 | [`adr/README.md`](adr/README.md) | When to create a long-form ADR. | living |
 | [`adr/0001-template.md`](adr/0001-template.md) | ADR template. | template |
 | [`prompts/README.md`](prompts/README.md) | Scope and rules for reusable prompts. | living |
