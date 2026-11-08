@@ -24,13 +24,20 @@
 #define S5L_PLLMODE_OSCSEL (1u << 8)
 #define S5L_PWRCON(index) \
     HELIKON_REG32(S5L_CLK_BASE + ((index) == 0u ? 0x48u : 0x4cu))
-#define S5L_CLKCON3 (HELIKON_REG32(S5L_CLK_BASE + 0x10u))
+/*
+ * On S5L8702 CLKCON3 is at 0x0c and its low half is CG16_AUD0, the audio
+ * clock gate used by cscodec_clock(). CLKCON4 at 0x10 is a different gate
+ * (CG16_AUD2); writing it does not enable the codec MCLK.
+ */
+#define S5L_CLKCON3_ADDRESS (S5L_CLK_BASE + 0x0cu)
+#define S5L_CLKCON3 (HELIKON_REG32(S5L_CLKCON3_ADDRESS))
 #define S5L_CG16_RTIME (HELIKON_REG16(S5L_CLK_BASE + 0x12u))
 
 #define S5L_CLOCKGATE_TIMER 37u
 #define S5L_CLOCKGATE_I2C0 36u
 #define S5L_CLOCKGATE_LCD 1u
 #define S5L_CLOCKGATE_ATA 5u
+#define S5L_CLOCKGATE_DMAC0 25u
 #define S5L_CLOCKGATE_CWHEEL 33u
 
 /* 16/32-bit timer; timer E is the free-running microsecond counter. */
@@ -87,6 +94,7 @@
 #define S5L_DMAC_INTTCCLR (HELIKON_REG32(S5L_DMA0_BASE + 0x08u))
 #define S5L_DMAC_INTERRCLR (HELIKON_REG32(S5L_DMA0_BASE + 0x10u))
 #define S5L_DMAC_RAWINTTCSTS (HELIKON_REG32(S5L_DMA0_BASE + 0x14u))
+#define S5L_DMAC_RAWINTERRSTS (HELIKON_REG32(S5L_DMA0_BASE + 0x18u))
 #define S5L_DMAC_CONFIG (HELIKON_REG32(S5L_DMA0_BASE + 0x30u))
 #define S5L_DMAC_CH_SRC(channel) \
     HELIKON_REG32(S5L_DMAC_CHANNEL(channel) + 0x00u)

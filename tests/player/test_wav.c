@@ -47,6 +47,36 @@ static size_t make_wav(uint8_t *data, uint16_t channels, uint32_t rate,
     return 44u + data_bytes;
 }
 
+/* Match the embedded preview: fmt, a LIST chunk, then data. */
+static size_t make_wav_with_list(uint8_t *data, size_t frames)
+{
+    const size_t list_bytes = 126u;
+    size_t data_bytes = frames * 4u;
+    size_t riff_size = 4u + 24u + 8u + list_bytes + 8u + data_bytes;
+    memcpy(data, "RIFF", 4u);
+    put32(data, 4u, (uint32_t)riff_size);
+    memcpy(data + 8u, "WAVE", 4u);
+    memcpy(data + 12u, "fmt ", 4u);
+    put32(data, 16u, 16u);
+    put16(data, 20u, 1u);
+    put16(data, 22u, 2u);
+    put32(data, 24u, 44100u);
+    put32(data, 28u, 44100u * 4u);
+    put16(data, 32u, 4u);
+    put16(data, 34u, 16u);
+    memcpy(data + 36u, "LIST", 4u);
+    put32(data, 40u, (uint32_t)list_bytes);
+    for (size_t index = 0u; index < list_bytes; ++index)
+        data[44u + index] = (uint8_t)index;
+    size_t data_offset = 44u + list_bytes;
+    memcpy(data + data_offset, "data", 4u);
+    put32(data, (uint32_t)(data_offset + 4u), (uint32_t)data_bytes);
+    for (size_t index = 0u; index < frames * 2u; ++index)
+        put16(data, (uint32_t)(data_offset + 8u + index * 2u),
+              (uint16_t)index);
+    return data_offset + 8u + data_bytes;
+}
+
 int main(void)
 {
     uint8_t data[32768];
@@ -72,6 +102,19 @@ int main(void)
     if (helikon_wav_parse(data, size, &wav) != HELIKON_OK ||
         wav.duration_ms != 100u) {
         fprintf(stderr, "48 kHz duration incorrect\n");
+        return 1;
+    }
+
+    size = make_wav_with_list(data, 4410u);
+    if (helikon_wav_parse(data, size, &wav) != HELIKON_OK ||
+        wav.channels != 2u || wav.bytes != 4410u * 4u ||
+        wav.duration_ms != 100u) {
+        fprintf(stderr, "LIST-prefixed WAV rejected\n");
+        return 1;
+    }
+    if (((const uint16_t *)wav.pcm)[0] != 0u ||
+        ((const uint16_t *)wav.pcm)[1] != 1u) {
+        fprintf(stderr, "LIST-prefixed WAV PCM data incorrect\n");
         return 1;
     }
 

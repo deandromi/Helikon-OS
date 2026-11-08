@@ -14,25 +14,70 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "audio_stream.h"
 #include "clock.h"
 #include "pmu.h"
+
+/*
+ * Stage codes are retained on the audio object after a failure so the UI can
+ * name the failing path instead of collapsing every error into one message.
+ * They are diagnostic labels, not a second error taxonomy.
+ */
+enum helikon_audio_stage {
+    HELIKON_AUDIO_STAGE_NONE = 0,
+    HELIKON_AUDIO_STAGE_CODEC = 1,
+    HELIKON_AUDIO_STAGE_RATE = 2,
+    HELIKON_AUDIO_STAGE_I2S = 3,
+    HELIKON_AUDIO_STAGE_DMA_SETUP = 4,
+    HELIKON_AUDIO_STAGE_DMA_WAIT = 5,
+    HELIKON_AUDIO_STAGE_DMA_ACTIVE = 6,
+    HELIKON_AUDIO_STAGE_CACHE = 7,
+    HELIKON_AUDIO_STAGE_BUFFER = 8,
+    HELIKON_AUDIO_STAGE_DMA_CLOCK = 9,
+    HELIKON_AUDIO_STAGE_DMA_CONFIG = 10,
+    HELIKON_AUDIO_STAGE_I2S_FIFO = 11,
+    HELIKON_AUDIO_STAGE_STREAM_UNDERRUN = 12
+};
 
 struct helikon_audio {
     struct helikon_pmu *pmu;
     struct helikon_clock *clock;
     uint32_t sample_rate;
     uint32_t timeout_ms;
+    uint32_t stage;
     int initialized;
     int running;
+    int paused;
+
+    /*
+     * Streaming ring state. The HAL keeps four linked DMA buffers in flight;
+     * the player only calls service() to refill a completed buffer and to
+     * advance the played position.
+     */
+    const int16_t *stream_pcm;
+    size_t stream_frames;
+    size_t stream_cursor;
+    size_t stream_played;
+    uint32_t stream_channels;
+    uint32_t stream_play;
+    uint32_t stream_buffer_frames[HELIKON_AUDIO_RING_BUFFERS];
+    uint32_t stream_underruns;
+    int stream_started;
 };
 
 int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
                        struct helikon_clock *clock, uint32_t timeout_ms);
 int helikon_audio_set_rate(struct helikon_audio *audio, uint32_t sample_rate);
-int helikon_audio_play(struct helikon_audio *audio, const int16_t *pcm,
-                       size_t frames);
-int helikon_audio_pause(struct helikon_audio *audio);
-int helikon_audio_resume(struct helikon_audio *audio);
-int helikon_audio_stop(struct helikon_audio *audio);
+
+int helikon_audio_stream_start(struct helikon_audio *audio,
+                               const int16_t *pcm, size_t frames,
+                               uint32_t channels);
+int helikon_audio_stream_service(struct helikon_audio *audio);
+int helikon_audio_stream_pause(struct helikon_audio *audio);
+int helikon_audio_stream_resume(struct helikon_audio *audio);
+void helikon_audio_stream_stop(struct helikon_audio *audio);
+int helikon_audio_stream_finished(const struct helikon_audio *audio);
+uint32_t helikon_audio_stream_position_frames(const struct helikon_audio *audio);
+uint32_t helikon_audio_stream_underruns(const struct helikon_audio *audio);
 
 #endif

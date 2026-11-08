@@ -11,16 +11,16 @@
 const uint8_t helikon_audio_start[1] = { 0u };
 const uint8_t helikon_audio_end[1] = { 0u };
 
-static uint32_t audio_frames;
-
 int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
                        struct helikon_clock *clock_arg, uint32_t timeout_ms)
 {
-    (void)audio;
     (void)pmu;
     (void)clock_arg;
     (void)timeout_ms;
-    audio_frames = 0u;
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
+    audio->stream_started = 0;
+    audio->stream_played = 0u;
+    audio->stream_frames = 0u;
     return HELIKON_OK;
 }
 
@@ -32,31 +32,56 @@ int helikon_audio_set_rate(struct helikon_audio *audio, uint32_t sample_rate)
                : HELIKON_ERR_UNSUPPORTED;
 }
 
-int helikon_audio_play(struct helikon_audio *audio, const int16_t *pcm,
-                       size_t frames)
+int helikon_audio_stream_start(struct helikon_audio *audio,
+                               const int16_t *pcm, size_t frames,
+                               uint32_t channels)
 {
-    (void)audio;
     (void)pcm;
-    audio_frames += (uint32_t)frames;
+    (void)channels;
+    audio->stream_started = 1;
+    audio->stream_frames = frames;
+    audio->stream_played = 0u;
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
     return HELIKON_OK;
 }
 
-int helikon_audio_pause(struct helikon_audio *audio)
+int helikon_audio_stream_service(struct helikon_audio *audio)
 {
-    (void)audio;
+    audio->stream_played = audio->stream_frames;
     return HELIKON_OK;
 }
 
-int helikon_audio_resume(struct helikon_audio *audio)
+int helikon_audio_stream_pause(struct helikon_audio *audio)
 {
-    (void)audio;
+    audio->paused = 1;
     return HELIKON_OK;
 }
 
-int helikon_audio_stop(struct helikon_audio *audio)
+int helikon_audio_stream_resume(struct helikon_audio *audio)
+{
+    audio->paused = 0;
+    return HELIKON_OK;
+}
+
+void helikon_audio_stream_stop(struct helikon_audio *audio)
+{
+    audio->stream_started = 0;
+}
+
+int helikon_audio_stream_finished(const struct helikon_audio *audio)
+{
+    return audio->stream_started && audio->stream_played >= audio->stream_frames;
+}
+
+uint32_t helikon_audio_stream_position_frames(const struct helikon_audio *audio)
+{
+    return (uint32_t)audio->stream_played;
+}
+
+uint32_t helikon_audio_stream_underruns(const struct helikon_audio *audio)
 {
     (void)audio;
-    return HELIKON_OK;
+    return 0u;
 }
 
 static int present_stub(void *context, const uint16_t *pixels, uint32_t stride,
@@ -208,15 +233,20 @@ int main(int argc, char **argv)
         fprintf(stderr, "player open failed\n");
         return 1;
     }
-    int frames = helikon_player_play_chunk(&test_player, 1024u);
-    if (frames != 100 || audio_frames != 100u ||
+    if (helikon_player_play_chunk(&test_player, 1024u) != 0 ||
+        helikon_player_position_ms(&test_player) != 0u ||
+        helikon_player_finished(&test_player)) {
+        fprintf(stderr, "player stream start incorrect\n");
+        return 1;
+    }
+    if (helikon_player_play_chunk(&test_player, 1024u) != 0 ||
         helikon_player_position_ms(&test_player) != 2u ||
         !helikon_player_finished(&test_player)) {
-        fprintf(stderr, "player chunk/position incorrect\n");
+        fprintf(stderr, "player stream position incorrect\n");
         return 1;
     }
     if (helikon_player_play_chunk(&test_player, 1024u) != 0) {
-        fprintf(stderr, "player did not finish\n");
+        fprintf(stderr, "player stream did not stay finished\n");
         return 1;
     }
     helikon_player_stop(&test_player);
