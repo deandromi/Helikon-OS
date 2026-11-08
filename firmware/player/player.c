@@ -161,6 +161,12 @@ const char *helikon_player_error_text(const struct helikon_player *player)
         return "CACHE";
     case HELIKON_AUDIO_STAGE_BUFFER:
         return "BUFFER";
+    case HELIKON_AUDIO_STAGE_DMA_CLOCK:
+        return "DMA CLOCK";
+    case HELIKON_AUDIO_STAGE_DMA_CONFIG:
+        return "DMA CONFIG";
+    case HELIKON_AUDIO_STAGE_I2S_FIFO:
+        return "I2S FIFO";
     case HELIKON_AUDIO_STAGE_NONE:
     default:
         break;

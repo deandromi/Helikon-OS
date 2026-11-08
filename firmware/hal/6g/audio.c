@@ -37,6 +37,20 @@
 static int16_t dma_buffer[AUDIO_DMA_FRAMES * 2u]
     __attribute__((aligned(32)));
 
+static uint32_t dma_timeout_stage(uint32_t channel_config);
+
+static int dmac_clock_on(struct helikon_audio *audio)
+{
+    S5L_PWRCON(S5L_CLOCKGATE_DMAC0 >> 5) &=
+        ~(1u << (S5L_CLOCKGATE_DMAC0 & 0x1fu));
+    if ((S5L_PWRCON(S5L_CLOCKGATE_DMAC0 >> 5) &
+         (1u << (S5L_CLOCKGATE_DMAC0 & 0x1fu))) != 0u) {
+        audio->stage = HELIKON_AUDIO_STAGE_DMA_CLOCK;
+        return HELIKON_ERR_IO;
+    }
+    return HELIKON_OK;
+}
+
 static int i2c_wait_ready(struct helikon_audio *audio, uint32_t timeout_ms)
 {
     uint64_t start = helikon_clock_now_us(audio->clock);
@@ -253,8 +267,10 @@ static int dma_chunk(struct helikon_audio *audio, const int16_t *pcm,
     S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) = 0u;
     uint64_t start = helikon_clock_now_us(audio->clock);
     while ((S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) & (1u << 17)) != 0u) {
-        if (helikon_clock_expired(audio->clock, start, audio->timeout_ms))
+        if (helikon_clock_expired(audio->clock, start, audio->timeout_ms)) {
+            audio->stage = HELIKON_AUDIO_STAGE_DMA_CONFIG;
             return HELIKON_ERR_BUSY;
+        }
     }
     S5L_DMAC_INTTCCLR = 1u << AUDIO_DMA_CHANNEL;
     S5L_DMAC_INTERRCLR = 1u << AUDIO_DMA_CHANNEL;
@@ -276,6 +292,8 @@ static int dma_chunk(struct helikon_audio *audio, const int16_t *pcm,
             return HELIKON_ERR_IO;
         }
         if (helikon_clock_expired(audio->clock, start, audio->timeout_ms)) {
+            audio->stage =
+                dma_timeout_stage(S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL));
             S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) = 0u;
             return HELIKON_ERR_BUSY;
         }
@@ -298,11 +316,41 @@ static void i2s_stop(void)
     S5L_PWRCON(1) |= 1u << 7;
 }
 
-static void i2s_start(void)
+static int i2s_start(void)
 {
     S5L_PWRCON(1) &= ~(1u << 7);
     S5L_I2SCLKCON = 1u;
     S5L_I2STXCOM = 0x0eu;
+
+    /*
+     * Read the gates back before queuing DMA. If AUD0 (CLKCON3) or the I2S
+     * gate is still off, the FIFO can never request data and the DMA wait
+     * would otherwise be reported as a generic timeout.
+     */
+    if ((S5L_PWRCON(1) & (1u << 7)) != 0u ||
+        (S5L_I2SCLKCON & 1u) == 0u ||
+        (S5L_CLKCON3 & 0x8000u) != 0u)
+        return HELIKON_ERR_IO;
+    return HELIKON_OK;
+}
+
+static uint32_t dma_timeout_stage(uint32_t channel_config)
+{
+    uint32_t dmac_gate = S5L_PWRCON(S5L_CLOCKGATE_DMAC0 >> 5) &
+                         (1u << (S5L_CLOCKGATE_DMAC0 & 0x1fu));
+    if (dmac_gate != 0u)
+        return HELIKON_AUDIO_STAGE_DMA_CLOCK;
+    if ((channel_config & 1u) == 0u ||
+        ((channel_config >> 6) & 0x0fu) != 0x0au ||
+        ((channel_config >> 11) & 7u) != 1u)
+        return HELIKON_AUDIO_STAGE_DMA_CONFIG;
+    if ((S5L_PWRCON(1) & (1u << 7)) != 0u ||
+        (S5L_I2SCLKCON & 1u) == 0u ||
+        (S5L_CLKCON3 & 0x8000u) != 0u)
+        return HELIKON_AUDIO_STAGE_I2S;
+    if ((channel_config & (1u << 17)) != 0u)
+        return HELIKON_AUDIO_STAGE_I2S_FIFO;
+    return HELIKON_AUDIO_STAGE_DMA_CONFIG;
 }
 
 int helikon_audio_set_rate(struct helikon_audio *audio, uint32_t sample_rate)
@@ -337,7 +385,11 @@ int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
     audio->initialized = 0;
     audio->running = 0;
 
-    int rc = codec_init(audio);
+    int rc = dmac_clock_on(audio);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    rc = codec_init(audio);
     if (rc != HELIKON_OK)
         return rc;
 
@@ -373,7 +425,9 @@ int helikon_audio_play(struct helikon_audio *audio, const int16_t *pcm,
         if (rc != HELIKON_OK)
             return rc;
         audio->stage = HELIKON_AUDIO_STAGE_I2S;
-        i2s_start();
+        rc = i2s_start();
+        if (rc != HELIKON_OK)
+            return rc;
         audio->running = 1;
     }
 
@@ -419,7 +473,9 @@ int helikon_audio_resume(struct helikon_audio *audio)
         if (rc != HELIKON_OK)
             return rc;
         audio->stage = HELIKON_AUDIO_STAGE_I2S;
-        i2s_start();
+        rc = i2s_start();
+        if (rc != HELIKON_OK)
+            return rc;
         audio->running = 1;
     }
     audio->stage = HELIKON_AUDIO_STAGE_NONE;

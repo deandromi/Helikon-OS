@@ -6,6 +6,7 @@
 
 #include "audio_dma.h"
 #include "error.h"
+#include "s5l8702_regs.h"
 
 static int16_t captured[8192];
 static size_t captured_frames;
@@ -233,6 +234,9 @@ int main(void)
     if (expect(((config >> 14) & 3u) == 0u,
                "DMA interrupts stay masked for polling"))
         return 1;
+    if (expect(S5L_CLKCON3_ADDRESS == 0x3c50000cu,
+               "S5L8702 CLKCON3/CG16_AUD0 address"))
+        return 1;
 
     struct helikon_player labels;
     memset(&labels, 0, sizeof(labels));
@@ -247,6 +251,18 @@ int main(void)
     labels.last_stage = HELIKON_AUDIO_STAGE_DMA_WAIT;
     if (expect(strcmp(helikon_player_error_text(&labels), "DMA ERROR") == 0,
                "DMA error label"))
+        return 1;
+    labels.last_stage = HELIKON_AUDIO_STAGE_DMA_CLOCK;
+    if (expect(strcmp(helikon_player_error_text(&labels), "DMA CLOCK") == 0,
+               "DMA clock label"))
+        return 1;
+    labels.last_stage = HELIKON_AUDIO_STAGE_DMA_CONFIG;
+    if (expect(strcmp(helikon_player_error_text(&labels), "DMA CONFIG") == 0,
+               "DMA config label"))
+        return 1;
+    labels.last_stage = HELIKON_AUDIO_STAGE_I2S_FIFO;
+    if (expect(strcmp(helikon_player_error_text(&labels), "I2S FIFO") == 0,
+               "I2S FIFO label"))
         return 1;
     labels.last_error = HELIKON_ERR_UNSUPPORTED;
     labels.last_stage = HELIKON_AUDIO_STAGE_NONE;
