@@ -17,6 +17,9 @@ static int service_error;
 static uint32_t service_stage;
 static unsigned int pause_calls;
 static unsigned int resume_calls;
+static helikon_audio_pcm_source started_source;
+static void *started_source_context;
+static size_t started_source_frames;
 
 int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
                        struct helikon_clock *clock, uint32_t timeout_ms)
@@ -54,6 +57,27 @@ int helikon_audio_stream_start(struct helikon_audio *audio,
     start_calls += 1u;
     start_frames = frames;
     start_channels = channels;
+    return HELIKON_OK;
+}
+
+int helikon_audio_stream_start_source(struct helikon_audio *audio,
+                                      helikon_audio_pcm_source source,
+                                      void *context, size_t frames)
+{
+    audio->stream_pcm = NULL;
+    audio->stream_source = source;
+    audio->stream_source_context = context;
+    audio->stream_frames = frames;
+    audio->stream_channels = 2u;
+    audio->stream_started = 1;
+    audio->running = 1;
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
+    start_calls += 1u;
+    start_frames = frames;
+    start_channels = 2u;
+    started_source = source;
+    started_source_context = context;
+    started_source_frames = frames;
     return HELIKON_OK;
 }
 
@@ -145,6 +169,79 @@ static size_t make_wav(uint8_t *data, uint16_t channels, size_t frames)
                   (uint16_t)(index + channel));
     }
     return 44u + data_bytes;
+}
+
+static int expect(int condition, const char *message);
+
+static size_t load_file(const char *path, uint8_t *buffer, size_t capacity)
+{
+    FILE *file = fopen(path, "rb");
+    if (file == NULL)
+        return 0u;
+    size_t size = fread(buffer, 1u, capacity, file);
+    (void)fclose(file);
+    return size;
+}
+
+static int check_flac_player(void)
+{
+    static uint8_t flac_data[65536];
+    static uint8_t raw_data[65536];
+    size_t flac_size = load_file("../codec/fixtures/stereo16.flac", flac_data,
+                                 sizeof(flac_data));
+    size_t raw_size = load_file("../codec/fixtures/stereo16.pcm", raw_data,
+                                sizeof(raw_data));
+    if (expect(flac_size > 0u && raw_size == 2048u * 4u, "FLAC fixture load"))
+        return 1;
+
+    struct helikon_player flac_player;
+    struct helikon_pmu flac_pmu;
+    struct helikon_clock flac_clock;
+    if (expect(helikon_player_open(&flac_player, flac_data, flac_size,
+                                   &flac_pmu, &flac_clock, 1000u) ==
+                   HELIKON_OK,
+               "FLAC player open"))
+        return 1;
+    if (expect(flac_player.compressed &&
+                   flac_player.wav.sample_rate == 44100u &&
+                   flac_player.wav.channels == 2u &&
+                   flac_player.wav.duration_ms == 46u,
+               "FLAC player info"))
+        return 1;
+
+    start_calls = 0u;
+    started_source = NULL;
+    started_source_context = NULL;
+    started_source_frames = 0u;
+    if (expect(helikon_player_play_chunk(&flac_player, 2047u) == 0 &&
+                   start_calls == 1u && start_frames == 2048u &&
+                   started_source != NULL &&
+                   started_source_context == &flac_player &&
+                   started_source_frames == 2048u,
+               "FLAC player source start"))
+        return 1;
+
+    int16_t chunk[200];
+    size_t got = 0u;
+    if (expect(started_source(started_source_context, chunk, 100u, &got) ==
+                   HELIKON_OK &&
+                   got == 100u,
+               "FLAC player source read"))
+        return 1;
+    for (size_t frame = 0u; frame < 100u; ++frame) {
+        int16_t left =
+            (int16_t)(raw_data[frame * 4u] |
+                      ((uint16_t)raw_data[frame * 4u + 1u] << 8));
+        int16_t right =
+            (int16_t)(raw_data[frame * 4u + 2u] |
+                      ((uint16_t)raw_data[frame * 4u + 3u] << 8));
+        if (expect(chunk[frame * 2u] == left &&
+                       chunk[frame * 2u + 1u] == right,
+                   "FLAC player source data"))
+            return 1;
+    }
+    helikon_player_stop(&flac_player);
+    return 0;
 }
 
 static int expect(int condition, const char *message)
@@ -382,6 +479,9 @@ int main(void)
     labels.last_error = HELIKON_ERR_FORMAT;
     if (expect(strcmp(helikon_player_error_text(&labels), "WAV FORMAT") == 0,
                "WAV format label"))
+        return 1;
+
+    if (check_flac_player())
         return 1;
 
     printf("PASS player\n");

@@ -5,7 +5,8 @@ CC ?= cc
 CFLAGS := -O2 -g -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow \
           -Wundef -Wpointer-arith \
           -I../../firmware/ui -I../../firmware/diag -I../../firmware/lib \
-          -I../../firmware/db -I../../firmware/hal/6g -I../../firmware/player
+          -I../../firmware/db -I../../firmware/hal/6g -I../../firmware/player \
+          -I../../firmware/codec -I../../firmware/codec/flac
 OUT := ../../build/ui
 FIXTURE := ../../build/musicdb/fixture.hdb
 BLOB_SRC := $(OUT)/fixture_blob.S
@@ -64,6 +65,9 @@ $(AUDIO_TEST): test_audio.c ../../firmware/ui/music.c \
                ../../firmware/ui/music.h ../../firmware/player/player.c \
                ../../firmware/player/player.h ../../firmware/player/wav.c \
                ../../firmware/player/wav.h ../../firmware/hal/6g/audio.h \
+               ../../firmware/codec/codec.c \
+               ../../firmware/codec/flac/flac_codec.c \
+               ../../firmware/codec/flac/flac_decoder.c \
                ../../firmware/ui/launcher_assets.c \
                ../../firmware/ui/launcher_assets.h \
                ../../firmware/db/hdb.c ../../firmware/db/hdb.h \
@@ -72,6 +76,9 @@ $(AUDIO_TEST): test_audio.c ../../firmware/ui/music.c \
                $(BLOB_OBJ)
 	$(CC) $(CFLAGS) -o $@ test_audio.c \
 	      ../../firmware/player/player.c ../../firmware/player/wav.c \
+	      ../../firmware/codec/codec.c \
+	      ../../firmware/codec/flac/flac_codec.c \
+	      ../../firmware/codec/flac/flac_decoder.c \
 	      ../../firmware/ui/launcher_assets.c \
 	      ../../firmware/db/hdb.c ../../firmware/diag/screen.c \
 	      ../../firmware/lib/crc32.c ../../firmware/lib/mem.c \

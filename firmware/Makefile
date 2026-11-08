@@ -34,7 +34,7 @@ ARCH := -mcpu=arm926ej-s -marm -mno-thumb-interwork -mfloat-abi=soft
 CFLAGS := -std=c99 -O2 -g -ffreestanding -fno-builtin -nostdinc \
           -isystem $(GCC_INCLUDE) -DHELIKON_IMAGE_VERSION=$(VERSION) \
           -Ilib -Iboot -Iboard/$(BOARD) -Ihal/$(BOARD) -Iblock -Idiag -Ihfs \
-          -Iui -Idb -Iplayer \
+          -Iui -Idb -Iplayer -Icodec \
           -Wall -Wextra -Werror -Wconversion -Wshadow -Wundef \
           -Wpointer-arith -ffunction-sections -fdata-sections -fno-common \
           -fno-stack-protector -fno-unwind-tables \
@@ -66,7 +66,9 @@ UI_SRC := $(if $(filter 1,$(UI)),ui/launcher.c ui/launcher_run.c \
           ui/launcher_assets.c ui/music.c,)
 PLAYER_SRC :=
 ifneq ($(AUDIO),)
-PLAYER_SRC := player/player.c player/wav.c hal/$(BOARD)/audio.c
+PLAYER_SRC := player/player.c player/wav.c \
+              codec/codec.c codec/flac/flac_codec.c \
+              codec/flac/flac_decoder.c hal/$(BOARD)/audio.c
 endif
 LIBRARY_SRC := db/hdb.c
 

@@ -45,6 +45,19 @@ int helikon_audio_stream_start(struct helikon_audio *audio,
     return HELIKON_OK;
 }
 
+int helikon_audio_stream_start_source(struct helikon_audio *audio,
+                                      helikon_audio_pcm_source source,
+                                      void *context, size_t frames)
+{
+    (void)source;
+    (void)context;
+    audio->stream_started = 1;
+    audio->stream_frames = frames;
+    audio->stream_played = 0u;
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
+    return HELIKON_OK;
+}
+
 int helikon_audio_stream_service(struct helikon_audio *audio)
 {
     audio->stream_played = audio->stream_frames;
