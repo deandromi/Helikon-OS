@@ -1,0 +1,372 @@
+Helikon-OS Music flow — host clipping and geometry check
+Date: 2026-11-08
+Renderer: tools/render-ui-mockup.py --only music-flow
+Canvas: 320x240 RGB
+Plex subset: assets/fonts/HelikonUI-Sans.ttf sha256=865c929cb8c51f612168c17077bcb65d813bcc9d2cb291afc22f3cf134bde39f
+Benguiat: not used for this group
+
+MUSIC top: tracked width 37.8px inside (16, 8, 200, 14)
+MUSIC time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+MUSIC battery: rect (282, 11, 18, 9) inside 320x240
+MUSIC top rule: rect (16, 30, 288, 1) inside 320x240
+artists title: text (16, 38, 85, 50) inside (16, 34, 200, 22)
+artists count: fits 90px (59.0px)
+artists count: text (245, 42, 304, 50) inside (214, 36, 90, 18)
+artists title rule: rect (16, 58, 288, 1) inside 320x240
+artists section letter: text (16, 64, 24, 72) inside (16, 60, 20, 14)
+artists sort: fits 100px (63.0px)
+artists sort: text (241, 64, 304, 72) inside (204, 60, 100, 14)
+artist row 1 focus bar: rect (16, 78, 2, 34) inside 320x240
+artist row 1 art: rect (24, 81, 28, 28) inside 320x240
+artist row 1 name: fits 244px (91.0px)
+artist row 1 name: text (60, 82, 151, 95) inside (60, 79, 244, 16)
+artist row 1 counts: fits 244px (133.0px)
+artist row 1 counts: text (60, 98, 193, 106) inside (60, 93, 244, 14)
+artist row 2 art: rect (24, 117, 28, 28) inside 320x240
+artist row 2 name: fits 244px (105.0px)
+artist row 2 name: text (60, 118, 165, 128) inside (60, 115, 244, 16)
+artist row 2 counts: fits 244px (119.0px)
+artist row 2 counts: text (60, 134, 179, 142) inside (60, 129, 244, 14)
+artist row 3 art: rect (24, 153, 28, 28) inside 320x240
+artist row 3 name: fits 244px (79.0px)
+artist row 3 name: text (60, 154, 139, 164) inside (60, 151, 244, 16)
+artist row 3 counts: fits 244px (61.0px)
+artist row 3 counts: text (60, 170, 121, 178) inside (60, 165, 244, 14)
+artist row 4 art: rect (24, 189, 28, 28) inside 320x240
+artist row 4 name: fits 244px (124.0px)
+artist row 4 name: text (60, 190, 184, 200) inside (60, 187, 244, 16)
+artist row 4 counts: fits 244px (119.0px)
+artist row 4 counts: text (60, 206, 179, 214) inside (60, 201, 244, 14)
+artists footer rule: rect (16, 226, 288, 1) inside 320x240
+artists footer left: text (16, 228, 95, 236) inside (16, 228, 120, 12)
+artists footer position: fits 80px (44.0px)
+artists footer position: text (260, 228, 304, 238) inside (224, 228, 80, 12)
+MUSIC top: tracked width 37.8px inside (16, 8, 200, 14)
+MUSIC time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+MUSIC battery: rect (282, 11, 18, 9) inside 320x240
+MUSIC top rule: rect (16, 30, 288, 1) inside 320x240
+artists title: text (16, 38, 85, 50) inside (16, 34, 200, 22)
+artists count: fits 90px (59.0px)
+artists count: text (245, 42, 304, 50) inside (214, 36, 90, 18)
+artists title rule: rect (16, 58, 288, 1) inside 320x240
+artists section letter: text (16, 64, 24, 72) inside (16, 60, 20, 14)
+artists sort: fits 100px (63.0px)
+artists sort: text (241, 64, 304, 72) inside (204, 60, 100, 14)
+artist row 1 focus bar: rect (16, 78, 2, 34) inside 320x240
+artist row 1 art: rect (24, 81, 28, 28) inside 320x240
+artist row 1 name: truncated with U+2026 to 238.0px
+artist row 1 name: text (60, 82, 298, 95) inside (60, 79, 244, 16)
+artist row 1 counts: fits 244px (61.0px)
+artist row 1 counts: text (60, 98, 121, 106) inside (60, 93, 244, 14)
+artist row 2 art: rect (24, 117, 28, 28) inside 320x240
+artist row 2 name: truncated with U+2026 to 235.0px
+artist row 2 name: text (60, 118, 295, 131) inside (60, 115, 244, 16)
+artist row 2 counts: fits 244px (117.0px)
+artist row 2 counts: text (60, 134, 177, 142) inside (60, 129, 244, 14)
+artist row 3 art: rect (24, 153, 28, 28) inside 320x240
+artist row 3 name: fits 244px (79.0px)
+artist row 3 name: text (60, 154, 139, 164) inside (60, 151, 244, 16)
+artist row 3 counts: fits 244px (61.0px)
+artist row 3 counts: text (60, 170, 121, 178) inside (60, 165, 244, 14)
+artist row 4 art: rect (24, 189, 28, 28) inside 320x240
+artist row 4 name: fits 244px (124.0px)
+artist row 4 name: text (60, 190, 184, 200) inside (60, 187, 244, 16)
+artist row 4 counts: fits 244px (119.0px)
+artist row 4 counts: text (60, 206, 179, 214) inside (60, 201, 244, 14)
+artists footer rule: rect (16, 226, 288, 1) inside 320x240
+artists footer left: text (16, 228, 95, 236) inside (16, 228, 120, 12)
+artists footer position: fits 80px (44.0px)
+artists footer position: text (260, 228, 304, 238) inside (224, 228, 80, 12)
+ARTISTS top: tracked width 49.2px inside (16, 8, 200, 14)
+ARTISTS time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+ARTISTS battery: rect (282, 11, 18, 9) inside 320x240
+ARTISTS top rule: rect (16, 30, 288, 1) inside 320x240
+artist name: fits 228px (114.0px)
+artist name: text (16, 35, 130, 51) inside (16, 32, 228, 20)
+artist genre: fits 228px (161.0px)
+artist genre: text (16, 56, 177, 64) inside (16, 48, 228, 18)
+artist counts: fits 228px (119.0px)
+artist counts: text (16, 70, 135, 78) inside (16, 64, 228, 16)
+artist portrait: rect (256, 32, 44, 44) inside 320x240
+artist identity rule: rect (16, 84, 288, 1) inside 320x240
+artist tab ALBUMS: tracked width 48.0px inside (16, 86, 76, 14)
+artist tab OVERVIEW: tracked width 60.6px inside (84, 86, 76, 14)
+artist tab TRACKS: tracked width 44.0px inside (168, 86, 76, 14)
+artist tab count: fits 90px (52.0px)
+artist tab count: text (252, 90, 304, 98) inside (214, 86, 90, 14)
+artist tab rule: rect (16, 101, 288, 1) inside 320x240
+artist tab underline: rect (16, 102, 48, 2) inside 320x240
+artist album position: fits 80px (37.0px)
+artist album position: text (267, 104, 304, 114) inside (224, 104, 80, 12)
+album cell Nocturnes: rect (16, 118, 72, 72) inside 320x240
+cell Nocturnes line 1: text (16, 196, 74, 204) inside (16, 190, 72, 34)
+cell Nocturnes year: text (16, 224, 44, 232) inside (16, 216, 72, 20)
+album cell The Long Now: rect (124, 118, 72, 72) inside 320x240
+cell The Long Now title line 2: fits 72px (24.0px)
+cell The Long Now line 1: text (124, 195, 175, 206) inside (124, 190, 72, 34)
+cell The Long Now line 2: text (124, 210, 148, 218) inside (124, 190, 72, 34)
+cell The Long Now year: text (124, 224, 152, 232) inside (124, 216, 72, 20)
+album cell The Extraordinarily Long Album Title: rect (232, 118, 72, 72) inside 320x240
+cell The Extraordinarily Long Album Title title line 2: truncated with U+2026 to 71.0px
+cell The Extraordinarily Long Album Title line 1: text (232, 195, 253, 204) inside (232, 190, 72, 34)
+cell The Extraordinarily Long Album Title line 2: text (232, 209, 303, 218) inside (232, 190, 72, 34)
+cell The Extraordinarily Long Album Title year: text (232, 224, 260, 232) inside (232, 216, 72, 20)
+ARTISTS top: tracked width 49.2px inside (16, 8, 200, 14)
+ARTISTS time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+ARTISTS battery: rect (282, 11, 18, 9) inside 320x240
+ARTISTS top rule: rect (16, 30, 288, 1) inside 320x240
+artist name: fits 228px (114.0px)
+artist name: text (16, 35, 130, 51) inside (16, 32, 228, 20)
+artist genre: fits 228px (161.0px)
+artist genre: text (16, 56, 177, 64) inside (16, 48, 228, 18)
+artist counts: fits 228px (119.0px)
+artist counts: text (16, 70, 135, 78) inside (16, 64, 228, 16)
+artist portrait: rect (256, 32, 44, 44) inside 320x240
+artist identity rule: rect (16, 84, 288, 1) inside 320x240
+artist tab ALBUMS: tracked width 46.0px inside (16, 86, 76, 14)
+artist tab OVERVIEW: tracked width 63.6px inside (84, 86, 76, 14)
+artist tab TRACKS: tracked width 44.0px inside (168, 86, 76, 14)
+artist tab count: fits 90px (52.0px)
+artist tab count: text (252, 90, 304, 98) inside (214, 86, 90, 14)
+artist tab rule: rect (16, 101, 288, 1) inside 320x240
+artist tab underline: rect (84, 102, 64, 2) inside 320x240
+artist bio line 1: text (16, 113, 272, 124) inside (16, 108, 288, 64)
+artist bio line 2: text (16, 129, 280, 140) inside (16, 108, 288, 64)
+artist bio line 3: text (16, 145, 88, 156) inside (16, 108, 288, 64)
+artist overview rule: rect (16, 182, 288, 1) inside 320x240
+artist facts: text (16, 190, 135, 198) inside (16, 184, 288, 16)
+artist first album: fits 288px (122.0px)
+artist first album: text (16, 204, 138, 214) inside (16, 198, 288, 18)
+artist latest album: fits 288px (145.0px)
+artist latest album: text (16, 218, 161, 228) inside (16, 212, 288, 18)
+ARTISTS top: tracked width 49.2px inside (16, 8, 200, 14)
+ARTISTS time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+ARTISTS battery: rect (282, 11, 18, 9) inside 320x240
+ARTISTS top rule: rect (16, 30, 288, 1) inside 320x240
+artist name: fits 228px (114.0px)
+artist name: text (16, 35, 130, 51) inside (16, 32, 228, 20)
+artist genre: fits 228px (161.0px)
+artist genre: text (16, 56, 177, 64) inside (16, 48, 228, 18)
+artist counts: fits 228px (119.0px)
+artist counts: text (16, 70, 135, 78) inside (16, 64, 228, 16)
+artist portrait: rect (256, 32, 44, 44) inside 320x240
+artist identity rule: rect (16, 84, 288, 1) inside 320x240
+artist tab ALBUMS: tracked width 46.0px inside (16, 86, 76, 14)
+artist tab OVERVIEW: tracked width 60.6px inside (84, 86, 76, 14)
+artist tab TRACKS: tracked width 45.0px inside (168, 86, 76, 14)
+artist tab count: fits 90px (52.0px)
+artist tab count: text (252, 90, 304, 98) inside (214, 86, 90, 14)
+artist tab rule: rect (16, 101, 288, 1) inside 320x240
+artist tab underline: rect (168, 102, 45, 2) inside 320x240
+artist track position: fits 80px (44.0px)
+artist track position: text (260, 104, 304, 114) inside (224, 104, 80, 12)
+artist track 1 bar: rect (16, 118, 2, 26) inside 320x240
+artist track 1 title: fits 220px (68.0px)
+artist track 1 title: text (24, 120, 92, 130) inside (24, 118, 220, 16)
+artist track 1 album: fits 220px (51.0px)
+artist track 1 album: text (24, 134, 75, 142) inside (24, 130, 220, 14)
+artist track 1 duration: text (280, 122, 304, 130) inside (258, 118, 46, 16)
+artist track 2 title: fits 220px (74.0px)
+artist track 2 title: text (24, 148, 98, 158) inside (24, 146, 220, 16)
+artist track 2 album: fits 220px (51.0px)
+artist track 2 album: text (24, 162, 75, 170) inside (24, 158, 220, 14)
+artist track 2 duration: text (280, 150, 304, 158) inside (258, 146, 46, 16)
+artist track 3 title: fits 220px (83.0px)
+artist track 3 title: text (24, 176, 107, 189) inside (24, 174, 220, 16)
+artist track 3 album: fits 220px (66.0px)
+artist track 3 album: text (24, 190, 90, 200) inside (24, 186, 220, 14)
+artist track 3 duration: text (280, 178, 304, 186) inside (258, 174, 46, 16)
+artist track 4 title: fits 220px (89.0px)
+artist track 4 title: text (24, 204, 113, 217) inside (24, 202, 220, 16)
+artist track 4 album: fits 220px (70.0px)
+artist track 4 album: text (24, 218, 95, 228) inside (24, 214, 220, 14)
+artist track 4 duration: text (280, 206, 304, 214) inside (258, 202, 46, 16)
+ARTISTS top: tracked width 49.2px inside (16, 8, 200, 14)
+ARTISTS time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+ARTISTS battery: rect (282, 11, 18, 9) inside 320x240
+ARTISTS top rule: rect (16, 30, 288, 1) inside 320x240
+artist name: fits 228px (99.0px)
+artist name: text (16, 35, 115, 48) inside (16, 32, 228, 20)
+artist genre: fits 228px (161.0px)
+artist genre: text (16, 56, 177, 64) inside (16, 48, 228, 18)
+artist counts: fits 228px (61.0px)
+artist counts: text (16, 70, 77, 78) inside (16, 64, 228, 16)
+artist portrait: rect (256, 32, 44, 44) inside 320x240
+artist identity rule: rect (16, 84, 288, 1) inside 320x240
+artist tab ALBUMS: tracked width 46.0px inside (16, 86, 76, 14)
+artist tab OVERVIEW: tracked width 63.6px inside (84, 86, 76, 14)
+artist tab TRACKS: tracked width 44.0px inside (168, 86, 76, 14)
+artist tab count: fits 90px (52.0px)
+artist tab count: text (252, 90, 304, 98) inside (214, 86, 90, 14)
+artist tab rule: rect (16, 101, 288, 1) inside 320x240
+artist tab underline: rect (84, 102, 64, 2) inside 320x240
+artist empty bio: text (16, 114, 158, 122) inside (16, 108, 288, 16)
+artist empty facts: text (16, 130, 119, 138) inside (16, 124, 288, 16)
+ALBUM top: tracked width 40.8px inside (16, 8, 200, 14)
+ALBUM time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+ALBUM battery: rect (282, 11, 18, 9) inside 320x240
+ALBUM top rule: rect (16, 30, 288, 1) inside 320x240
+album cover: rect (16, 36, 72, 72) inside 320x240
+PLAY ALBUM plate: rect (16, 114, 72, 18) inside 320x240
+PLAY ALBUM triangle: 3 points inside 320x240
+PLAY ALL label: text (36, 119, 85, 127) inside (34, 116, 52, 16)
+album year: text (100, 40, 128, 48) inside (100, 36, 80, 14)
+rating diamond 1: 4 points inside 320x240
+rating diamond 2: 4 points inside 320x240
+rating diamond 3: 4 points inside 320x240
+rating diamond 4: 4 points inside 320x240
+rating diamond 5: 4 points inside 320x240
+album title line 1: text (100, 56, 181, 68) inside (100, 36, 204, 56)
+album artist: fits 204px (76.0px)
+album artist: text (100, 95, 176, 106) inside (100, 90, 204, 16)
+album genre: fits 204px (99.0px)
+album genre: text (100, 110, 199, 118) inside (100, 104, 204, 14)
+album body rule: rect (16, 138, 288, 1) inside 320x240
+album tracks label: text (16, 142, 57, 150) inside (16, 140, 100, 14)
+album track position: fits 80px (44.0px)
+album track position: text (260, 142, 304, 152) inside (224, 140, 80, 14)
+track 01 focus bar: rect (16, 158, 2, 18) inside 320x240
+track 01 number: text (20, 163, 34, 171) inside (18, 158, 22, 18)
+track 01 title: fits 228px (68.0px)
+track 01 title: text (38, 161, 106, 171) inside (36, 158, 230, 18)
+track 01 duration: text (280, 163, 304, 171) inside (258, 158, 46, 18)
+track 02 number: text (20, 181, 34, 189) inside (18, 176, 22, 18)
+track 02 title: fits 228px (74.0px)
+track 02 title: text (38, 179, 112, 189) inside (36, 176, 230, 18)
+track 02 duration: text (280, 181, 304, 189) inside (258, 176, 46, 18)
+track 03 number: text (20, 199, 34, 207) inside (18, 194, 22, 18)
+track 03 title: fits 228px (80.0px)
+track 03 title: text (38, 197, 118, 207) inside (36, 194, 230, 18)
+track 03 duration: text (280, 199, 304, 207) inside (258, 194, 46, 18)
+album colophon rule: rect (16, 216, 288, 1) inside 320x240
+album notes label: text (16, 218, 52, 226) inside (16, 216, 40, 14)
+album notes excerpt: fits 246px (198.0px)
+album notes excerpt: text (58, 218, 256, 228) inside (56, 216, 248, 14)
+album credits label: text (16, 228, 63, 236) inside (16, 226, 50, 14)
+album credits excerpt: fits 236px (176.0px)
+album credits excerpt: text (68, 228, 244, 238) inside (66, 226, 238, 14)
+ALBUM top: tracked width 40.8px inside (16, 8, 200, 14)
+ALBUM time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+ALBUM battery: rect (282, 11, 18, 9) inside 320x240
+ALBUM top rule: rect (16, 30, 288, 1) inside 320x240
+album cover: rect (16, 36, 72, 72) inside 320x240
+PLAY ALBUM plate: rect (16, 114, 72, 18) inside 320x240
+PLAY ALBUM triangle: 3 points inside 320x240
+PLAY ALL label: text (36, 119, 85, 127) inside (34, 116, 52, 16)
+album year: text (100, 40, 139, 48) inside (100, 36, 80, 14)
+rating diamond 1: 4 points inside 320x240
+rating diamond 2: 4 points inside 320x240
+rating diamond 3: 4 points inside 320x240
+rating diamond 4: 4 points inside 320x240
+rating diamond 5: 4 points inside 320x240
+album title line 2: truncated with U+2026 to 197.0px
+album title line 1: text (100, 55, 296, 71) inside (100, 36, 204, 56)
+album title line 2: text (100, 75, 297, 88) inside (100, 36, 204, 56)
+album artist: fits 204px (196.0px)
+album artist: text (100, 95, 296, 106) inside (100, 90, 204, 16)
+album genre: fits 204px (111.0px)
+album genre: text (100, 110, 211, 118) inside (100, 104, 204, 14)
+album body rule: rect (16, 138, 288, 1) inside 320x240
+album tracks label: text (16, 142, 57, 150) inside (16, 140, 100, 14)
+album track position: fits 80px (44.0px)
+album track position: text (260, 142, 304, 152) inside (224, 140, 80, 14)
+track 01 focus bar: rect (16, 158, 2, 18) inside 320x240
+track 01 number: text (20, 163, 34, 171) inside (18, 158, 22, 18)
+track 01 title: truncated with U+2026 to 199.0px
+track 01 title: text (38, 161, 237, 174) inside (36, 158, 230, 18)
+track 01 duration: text (280, 163, 304, 171) inside (258, 158, 46, 18)
+track 02 number: text (20, 181, 34, 189) inside (18, 176, 22, 18)
+track 02 title: fits 228px (74.0px)
+track 02 title: text (38, 179, 112, 189) inside (36, 176, 230, 18)
+track 02 duration: text (280, 181, 304, 189) inside (258, 176, 46, 18)
+track 03 number: text (20, 199, 34, 207) inside (18, 194, 22, 18)
+track 03 title: fits 228px (80.0px)
+track 03 title: text (38, 197, 118, 207) inside (36, 194, 230, 18)
+track 03 duration: text (280, 199, 304, 207) inside (258, 194, 46, 18)
+album colophon rule: rect (16, 216, 288, 1) inside 320x240
+ALBUM top: tracked width 40.8px inside (16, 8, 200, 14)
+ALBUM time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+ALBUM battery: rect (282, 11, 18, 9) inside 320x240
+ALBUM top rule: rect (16, 30, 288, 1) inside 320x240
+album cover: rect (16, 36, 72, 72) inside 320x240
+album year: text (100, 40, 128, 48) inside (100, 36, 80, 14)
+rating diamond 1: 4 points inside 320x240
+rating diamond 2: 4 points inside 320x240
+rating diamond 3: 4 points inside 320x240
+rating diamond 4: 4 points inside 320x240
+rating diamond 5: 4 points inside 320x240
+album title line 1: text (100, 56, 181, 68) inside (100, 36, 204, 56)
+album artist: fits 204px (76.0px)
+album artist: text (100, 95, 176, 106) inside (100, 90, 204, 16)
+album genre: fits 204px (99.0px)
+album genre: text (100, 110, 199, 118) inside (100, 104, 204, 14)
+album body rule: rect (16, 138, 288, 1) inside 320x240
+album tracks label: text (16, 142, 57, 150) inside (16, 140, 100, 14)
+album track position: fits 80px (24.0px)
+album track position: text (280, 142, 304, 152) inside (224, 140, 80, 14)
+album empty tracks: text (16, 160, 129, 168) inside (16, 156, 288, 16)
+album colophon rule: rect (16, 216, 288, 1) inside 320x240
+album empty credits: text (16, 220, 116, 228) inside (16, 218, 288, 12)
+ALBUM top: tracked width 40.8px inside (16, 8, 200, 14)
+ALBUM time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+ALBUM battery: rect (282, 11, 18, 9) inside 320x240
+ALBUM top rule: rect (16, 30, 288, 1) inside 320x240
+album cover: rect (16, 36, 72, 72) inside 320x240
+PLAY ALBUM plate: rect (16, 114, 72, 18) inside 320x240
+PLAY ALBUM triangle: 3 points inside 320x240
+PLAY ALL label: text (36, 119, 85, 127) inside (34, 116, 52, 16)
+album year: text (100, 40, 128, 48) inside (100, 36, 80, 14)
+rating diamond 1: 4 points inside 320x240
+rating diamond 2: 4 points inside 320x240
+rating diamond 3: 4 points inside 320x240
+rating diamond 4: 4 points inside 320x240
+rating diamond 5: 4 points inside 320x240
+album title line 1: text (100, 56, 181, 68) inside (100, 36, 204, 56)
+album artist: fits 204px (76.0px)
+album artist: text (100, 95, 176, 106) inside (100, 90, 204, 16)
+album genre: fits 204px (99.0px)
+album genre: text (100, 110, 199, 118) inside (100, 104, 204, 14)
+album body rule: rect (16, 138, 288, 1) inside 320x240
+album tracks label: text (16, 142, 57, 150) inside (16, 140, 100, 14)
+album track position: fits 80px (44.0px)
+album track position: text (260, 142, 304, 152) inside (224, 140, 80, 14)
+track 01 focus bar: rect (16, 158, 2, 18) inside 320x240
+track 01 number: text (20, 163, 34, 171) inside (18, 158, 22, 18)
+track 01 title: fits 228px (68.0px)
+track 01 title: text (38, 161, 106, 171) inside (36, 158, 230, 18)
+track 01 duration: text (280, 163, 304, 171) inside (258, 158, 46, 18)
+track — number: text (20, 185, 29, 189) inside (18, 176, 22, 18)
+track — title: fits 228px (144.0px)
+track — title: text (38, 179, 182, 189) inside (36, 176, 230, 18)
+track 03 number: text (20, 199, 34, 207) inside (18, 194, 22, 18)
+track 03 title: fits 228px (80.0px)
+track 03 title: text (38, 197, 118, 207) inside (36, 194, 230, 18)
+track 03 duration: text (280, 199, 304, 207) inside (258, 194, 46, 18)
+album colophon rule: rect (16, 216, 288, 1) inside 320x240
+album corrupt note: text (16, 220, 131, 228) inside (16, 218, 288, 12)
+
+Screens rendered: 20
+Result: PASS — every recorded text box is inside its column and the 320x240 canvas; every frame is inside the canvas.
+Limits: host geometry only. No 6G panel, contrast, frame-time or device claim.
+
+Files:
+assets/ui/music-flow/helikon-os-artists-list-320x240.png
+assets/ui/music-flow/helikon-os-artists-list-320x240@2x.png
+assets/ui/music-flow/helikon-os-artists-long-320x240.png
+assets/ui/music-flow/helikon-os-artists-long-320x240@2x.png
+assets/ui/music-flow/helikon-os-artist-albums-320x240.png
+assets/ui/music-flow/helikon-os-artist-albums-320x240@2x.png
+assets/ui/music-flow/helikon-os-artist-overview-320x240.png
+assets/ui/music-flow/helikon-os-artist-overview-320x240@2x.png
+assets/ui/music-flow/helikon-os-artist-tracks-320x240.png
+assets/ui/music-flow/helikon-os-artist-tracks-320x240@2x.png
+assets/ui/music-flow/helikon-os-artist-overview-empty-320x240.png
+assets/ui/music-flow/helikon-os-artist-overview-empty-320x240@2x.png
+assets/ui/music-flow/helikon-os-album-view-320x240.png
+assets/ui/music-flow/helikon-os-album-view-320x240@2x.png
+assets/ui/music-flow/helikon-os-album-long-320x240.png
+assets/ui/music-flow/helikon-os-album-long-320x240@2x.png
+assets/ui/music-flow/helikon-os-album-empty-320x240.png
+assets/ui/music-flow/helikon-os-album-empty-320x240@2x.png
+assets/ui/music-flow/helikon-os-album-corrupt-320x240.png
+assets/ui/music-flow/helikon-os-album-corrupt-320x240@2x.png

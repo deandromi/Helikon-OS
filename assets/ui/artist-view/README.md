@@ -1,5 +1,10 @@
-# Artist view mockup
+# Artist view mockup (superseded)
 
+> **Superseded:** this is design history. The current Music-flow specification is
+> [`docs/ui.md` §6](../../../docs/ui.md#6-music-flow--artists-artist-album-and-now-playing-binding-design)
+> and [`../music-flow/`](../music-flow/README.md). Do not cite this mockup as the
+> current artist layout.
+>
 > Purpose: host-rendered 320×240 artist detail page.
 > Status: implemented in `firmware/ui/music.c` with host previews; no device
 > panel run yet.

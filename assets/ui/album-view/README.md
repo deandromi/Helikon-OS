@@ -1,5 +1,10 @@
-# Album view mockup
+# Album view mockup (superseded)
 
+> **Superseded:** this is design history. The current Music-flow specification is
+> [`docs/ui.md` §6](../../../docs/ui.md#6-music-flow--artists-artist-album-and-now-playing-binding-design)
+> and [`../music-flow/`](../music-flow/README.md). Do not cite this mockup as the
+> current album layout.
+>
 > Purpose: host-rendered 320×240 album detail page.
 > Status: proposed design; no firmware screen and no device panel run.
 > Owner: UI lead
