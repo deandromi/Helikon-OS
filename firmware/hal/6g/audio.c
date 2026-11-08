@@ -262,6 +262,32 @@ static uint32_t dma_next_index(uint32_t index)
     return helikon_audio_ring_next(index);
 }
 
+static void peak_push(struct helikon_audio *audio, uint8_t level)
+{
+    if (level >= audio->peak_release)
+        audio->peak_release = level;
+    else if (audio->peak_release != 0u)
+        --audio->peak_release;
+    audio->peak_history[audio->peak_head] = level;
+    audio->peak_head = (uint8_t)((audio->peak_head + 1u) %
+                                 HELIKON_AUDIO_PEAK_BARS);
+}
+
+static void peak_push_buffer(struct helikon_audio *audio,
+                             const int16_t *buffer, size_t frames)
+{
+    size_t offset = 0u;
+    while (offset < frames) {
+        size_t window = frames - offset;
+        if (window > HELIKON_AUDIO_PEAK_WINDOW)
+            window = HELIKON_AUDIO_PEAK_WINDOW;
+        peak_push(audio,
+                  helikon_audio_peak_level(buffer + offset * 2u,
+                                           window * 2u));
+        offset += window;
+    }
+}
+
 static uint32_t dma_fill_buffer(struct helikon_audio *audio, uint32_t index)
 {
     int16_t *buffer = dma_buffers[index];
@@ -282,6 +308,7 @@ static uint32_t dma_fill_buffer(struct helikon_audio *audio, uint32_t index)
     }
 
     audio->stream_buffer_frames[index] = (uint32_t)copied;
+    peak_push_buffer(audio, buffer, count_frames);
     helikon_audio_lli_build(
         &dma_lli[index], (uint32_t)(uintptr_t)buffer,
         S5L_I2S_BASE + 0x10u,
@@ -434,6 +461,10 @@ int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
     audio->stream_play = 0u;
     audio->stream_underruns = 0u;
     audio->stream_started = 0;
+    audio->peak_head = 0u;
+    audio->peak_release = 0u;
+    for (uint32_t index = 0u; index < HELIKON_AUDIO_PEAK_BARS; ++index)
+        audio->peak_history[index] = 0u;
     for (uint32_t index = 0u; index < HELIKON_AUDIO_RING_BUFFERS; ++index)
         audio->stream_buffer_frames[index] = 0u;
 
@@ -482,6 +513,10 @@ int helikon_audio_stream_start(struct helikon_audio *audio,
     audio->stream_channels = channels;
     audio->stream_play = 0u;
     audio->stream_underruns = 0u;
+    audio->peak_head = 0u;
+    audio->peak_release = 0u;
+    for (uint32_t index = 0u; index < HELIKON_AUDIO_PEAK_BARS; ++index)
+        audio->peak_history[index] = 0u;
     audio->paused = 0;
     audio->stream_started = 1;
 
@@ -614,6 +649,10 @@ void helikon_audio_stream_stop(struct helikon_audio *audio)
     audio->running = 0;
     audio->paused = 0;
     audio->stream_started = 0;
+    audio->peak_head = 0u;
+    audio->peak_release = 0u;
+    for (uint32_t index = 0u; index < HELIKON_AUDIO_PEAK_BARS; ++index)
+        audio->peak_history[index] = 0u;
     audio->stage = HELIKON_AUDIO_STAGE_NONE;
 }
 
@@ -631,4 +670,25 @@ uint32_t helikon_audio_stream_position_frames(const struct helikon_audio *audio)
 uint32_t helikon_audio_stream_underruns(const struct helikon_audio *audio)
 {
     return audio == NULL ? 0u : audio->stream_underruns;
+}
+
+void helikon_audio_peak_levels(const struct helikon_audio *audio,
+                               uint8_t *levels, uint32_t count)
+{
+    if (levels == NULL || count == 0u)
+        return;
+    if (count > HELIKON_AUDIO_PEAK_BARS)
+        count = HELIKON_AUDIO_PEAK_BARS;
+    if (audio == NULL) {
+        for (uint32_t index = 0u; index < count; ++index)
+            levels[index] = 0u;
+        return;
+    }
+    uint32_t start = (uint32_t)(audio->peak_head + HELIKON_AUDIO_PEAK_BARS -
+                                count) %
+                     HELIKON_AUDIO_PEAK_BARS;
+    for (uint32_t index = 0u; index < count; ++index) {
+        levels[index] =
+            audio->peak_history[(start + index) % HELIKON_AUDIO_PEAK_BARS];
+    }
 }

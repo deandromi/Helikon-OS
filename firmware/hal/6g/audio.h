@@ -18,6 +18,9 @@
 #include "clock.h"
 #include "pmu.h"
 
+#define HELIKON_AUDIO_PEAK_BARS 12u
+#define HELIKON_AUDIO_PEAK_WINDOW 1024u
+
 /*
  * Stage codes are retained on the audio object after a failure so the UI can
  * name the failing path instead of collapsing every error into one message.
@@ -63,6 +66,16 @@ struct helikon_audio {
     uint32_t stream_buffer_frames[HELIKON_AUDIO_RING_BUFFERS];
     uint32_t stream_underruns;
     int stream_started;
+
+    /*
+     * Sample-peak history for the Now Playing visualizer. One byte per
+     * DMA-sized window (1024 frames) plus one release byte; the UI reads this
+     * ring without touching PCM, doing an FFT or allocating. History is
+     * cleared on start/stop and freezes while paused.
+     */
+    uint8_t peak_history[HELIKON_AUDIO_PEAK_BARS];
+    uint8_t peak_head;
+    uint8_t peak_release;
 };
 
 int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
@@ -79,5 +92,12 @@ void helikon_audio_stream_stop(struct helikon_audio *audio);
 int helikon_audio_stream_finished(const struct helikon_audio *audio);
 uint32_t helikon_audio_stream_position_frames(const struct helikon_audio *audio);
 uint32_t helikon_audio_stream_underruns(const struct helikon_audio *audio);
+
+/*
+ * Copy the most recent `count` peak bytes (0..15) in display order, oldest
+ * first. Missing history reads as 0. `count` is clamped to 12.
+ */
+void helikon_audio_peak_levels(const struct helikon_audio *audio,
+                               uint8_t *levels, uint32_t count);
 
 #endif

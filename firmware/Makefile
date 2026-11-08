@@ -63,7 +63,7 @@ HFS_SRC := hfs/hfs_volume.c hfs/hfs_btree.c hfs/hfs_catalog.c \
            hfs/hfs_extents_write.c hfs/hfs_catalog_write.c
 
 UI_SRC := $(if $(filter 1,$(UI)),ui/launcher.c ui/launcher_run.c \
-          ui/launcher_assets.c ui/music.c,)
+          ui/launcher_assets.c ui/ui_text.c ui/font_atlas.c ui/music.c,)
 PLAYER_SRC :=
 ifneq ($(AUDIO),)
 PLAYER_SRC := player/player.c player/wav.c hal/$(BOARD)/audio.c
