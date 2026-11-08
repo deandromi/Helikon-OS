@@ -1520,17 +1520,11 @@ static void run_now_playing(uint32_t track_id)
     nav_reset(&nav);
     uint64_t last_draw = helikon_clock_now_us(clock);
     for (;;) {
-        if (!paused) {
-            int frames = helikon_player_play_chunk(&player, 2047u);
-            if (frames < 0) {
-                draw_audio_error(helikon_player_error_text(&player));
-                wait_back();
-                break;
-            }
-            if (frames == 0) {
-                helikon_clock_delay_us(clock, 100000u);
-                break;
-            }
+        int frames = helikon_player_play_chunk(&player, 2047u);
+        if (frames < 0) {
+            draw_audio_error(helikon_player_error_text(&player));
+            wait_back();
+            break;
         }
 
         uint32_t events = 0u;

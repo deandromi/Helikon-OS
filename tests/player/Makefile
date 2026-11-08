@@ -18,7 +18,8 @@ test_wav: test_wav.c ../../firmware/player/wav.c ../../firmware/player/wav.h
 test_player: test_player.c ../../firmware/player/player.c \
              ../../firmware/player/player.h ../../firmware/player/wav.c \
              ../../firmware/player/wav.h ../../firmware/hal/6g/audio.h \
-             ../../firmware/hal/6g/audio_dma.h
+             ../../firmware/hal/6g/audio_dma.h \
+             ../../firmware/hal/6g/audio_stream.h
 	$(CC) $(CFLAGS) -o $@ test_player.c ../../firmware/player/player.c \
 	      ../../firmware/player/wav.c
 

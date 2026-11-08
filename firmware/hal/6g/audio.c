@@ -5,6 +5,7 @@
 #include <stddef.h>
 
 #include "audio_dma.h"
+#include "audio_stream.h"
 #include "cpu.h"
 #include "error.h"
 #include "s5l8702_regs.h"
@@ -13,7 +14,7 @@
 #define CS42L55_I2C_BUS 0u
 #define AUDIO_MCLK_HZ 12000000u
 #define AUDIO_DMA_CHANNEL 0u
-#define AUDIO_DMA_FRAMES 2047u
+#define AUDIO_DMA_FRAMES HELIKON_AUDIO_RING_FRAMES
 #define AUDIO_VOLUME_MINUS_18DB 0x6eu
 
 /* CS42L55 registers used by the playback path. */
@@ -34,8 +35,18 @@
 #define CS42L55_LINEACTL 0x1cu
 #define CS42L55_LINEBCTL 0x1du
 
-static int16_t dma_buffer[AUDIO_DMA_FRAMES * 2u]
+/*
+ * Four linked DMA buffers form a circular LLI ring. All LLIs are linked
+ * before the channel starts, so the next buffer is already queued when the
+ * current one completes; at 44.1 kHz the ring holds about 185 ms. The UI
+ * service only refills the buffer that has just completed. The next-LLI
+ * register, not the single terminal-count bit, tracks how far the hardware
+ * has advanced.
+ */
+static int16_t dma_buffers[HELIKON_AUDIO_RING_BUFFERS][AUDIO_DMA_FRAMES * 2u]
     __attribute__((aligned(32)));
+static struct helikon_audio_lli dma_lli[HELIKON_AUDIO_RING_BUFFERS]
+    __attribute__((aligned(16)));
 
 static uint32_t dma_timeout_stage(uint32_t channel_config);
 
@@ -199,7 +210,7 @@ static int codec_init(struct helikon_audio *audio)
         0x3e, 0x81,
         0x3f, 0x46,
         CS42L55_HIDDENCTL, CS42L55_HIDDENCTL_LOCK,
-        CS42L55_PWRCTL2, 0xaa, /* line and headphone always on */
+        CS42L55_PWRCTL2, 0xaf, /* line-in always down, headphone on */
         CS42L55_CLKCTL1, 0x2e, /* master, SCLK before MCLK, MCLK/2 */
         CS42L55_CLKCTL2, 0x0b, /* 44.1 kHz */
         CS42L55_MISCCTL, 0x1c,
@@ -242,71 +253,101 @@ static int codec_init(struct helikon_audio *audio)
         rc = codec_write(audio, CS42L55_LINEBCTL, AUDIO_VOLUME_MINUS_18DB);
     if (rc == HELIKON_OK)
         rc = codec_write(audio, CS42L55_CLSHCTL, 0x30);
-    if (rc == HELIKON_OK)
-        rc = codec_write(audio, CS42L55_PLAYCTL, 0x80);
+    /* Stay muted until a stream is started. */
     return rc;
 }
 
-static int dma_chunk(struct helikon_audio *audio, const int16_t *pcm,
-                     size_t frames)
+static uint32_t dma_next_index(uint32_t index)
 {
-    if (frames == 0u || frames > AUDIO_DMA_FRAMES) {
-        audio->stage = HELIKON_AUDIO_STAGE_BUFFER;
-        return HELIKON_ERR_BUFFER;
+    return helikon_audio_ring_next(index);
+}
+
+static uint32_t dma_fill_buffer(struct helikon_audio *audio, uint32_t index)
+{
+    int16_t *buffer = dma_buffers[index];
+    size_t copied = helikon_audio_stream_fill(
+        buffer, AUDIO_DMA_FRAMES, audio->stream_pcm, audio->stream_frames,
+        &audio->stream_cursor, audio->stream_channels);
+    uint32_t count_frames;
+
+    if (copied == 0u) {
+        for (size_t sample = 0u; sample < AUDIO_DMA_FRAMES * 2u; ++sample)
+            buffer[sample] = 0;
+        count_frames = AUDIO_DMA_FRAMES;
+    } else {
+        count_frames = (uint32_t)copied;
+        for (size_t sample = copied * 2u;
+             sample < AUDIO_DMA_FRAMES * 2u; ++sample)
+            buffer[sample] = 0;
     }
 
-    audio->stage = HELIKON_AUDIO_STAGE_BUFFER;
-    size_t samples = frames * 2u;
-    for (size_t index = 0u; index < samples; ++index)
-        dma_buffer[index] = pcm[index];
+    audio->stream_buffer_frames[index] = (uint32_t)copied;
+    helikon_audio_lli_build(
+        &dma_lli[index], (uint32_t)(uintptr_t)buffer,
+        S5L_I2S_BASE + 0x10u,
+        (uint32_t)(uintptr_t)&dma_lli[dma_next_index(index)],
+        count_frames * 2u);
+    helikon_cpu_clean_dcache_range(buffer, sizeof(dma_buffers[index]));
+    helikon_cpu_clean_dcache_range(&dma_lli[index], sizeof(dma_lli[index]));
+    return count_frames;
+}
 
-    audio->stage = HELIKON_AUDIO_STAGE_CACHE;
-    helikon_cpu_clean_dcache_range(dma_buffer, samples * sizeof(int16_t));
-
-    audio->stage = HELIKON_AUDIO_STAGE_DMA_SETUP;
+static int dma_stop_channel(struct helikon_audio *audio)
+{
     S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) = 0u;
     uint64_t start = helikon_clock_now_us(audio->clock);
     while ((S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) & (1u << 17)) != 0u) {
         if (helikon_clock_expired(audio->clock, start, audio->timeout_ms)) {
-            audio->stage = HELIKON_AUDIO_STAGE_DMA_CONFIG;
+            audio->stage =
+                dma_timeout_stage(S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL));
             return HELIKON_ERR_BUSY;
         }
     }
     S5L_DMAC_INTTCCLR = 1u << AUDIO_DMA_CHANNEL;
     S5L_DMAC_INTERRCLR = 1u << AUDIO_DMA_CHANNEL;
-    S5L_DMAC_CONFIG |= 1u;
-
-    S5L_DMAC_CH_SRC(AUDIO_DMA_CHANNEL) = (uint32_t)(uintptr_t)dma_buffer;
-    S5L_DMAC_CH_DST(AUDIO_DMA_CHANNEL) = S5L_I2S_BASE + 0x10u;
-    S5L_DMAC_CH_LLI(AUDIO_DMA_CHANNEL) = 0u;
-    S5L_DMAC_CH_CONTROL(AUDIO_DMA_CHANNEL) =
-        helikon_audio_dma_control((uint32_t)samples);
-    S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) = helikon_audio_dma_config();
-
-    audio->stage = HELIKON_AUDIO_STAGE_DMA_WAIT;
-    start = helikon_clock_now_us(audio->clock);
-    while ((S5L_DMAC_RAWINTTCSTS & (1u << AUDIO_DMA_CHANNEL)) == 0u) {
-        if ((S5L_DMAC_RAWINTERRSTS & (1u << AUDIO_DMA_CHANNEL)) != 0u) {
-            S5L_DMAC_INTERRCLR = 1u << AUDIO_DMA_CHANNEL;
-            S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) = 0u;
-            return HELIKON_ERR_IO;
-        }
-        if (helikon_clock_expired(audio->clock, start, audio->timeout_ms)) {
-            audio->stage =
-                dma_timeout_stage(S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL));
-            S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) = 0u;
-            return HELIKON_ERR_BUSY;
-        }
-    }
-    S5L_DMAC_INTTCCLR = 1u << AUDIO_DMA_CHANNEL;
-    audio->stage = HELIKON_AUDIO_STAGE_DMA_ACTIVE;
-    start = helikon_clock_now_us(audio->clock);
-    while ((S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) & (1u << 17)) != 0u) {
-        if (helikon_clock_expired(audio->clock, start, audio->timeout_ms))
-            return HELIKON_ERR_BUSY;
-    }
-    audio->stage = HELIKON_AUDIO_STAGE_NONE;
     return HELIKON_OK;
+}
+
+static void dma_start_at(uint32_t index)
+{
+    const struct helikon_audio_lli *lli = &dma_lli[index];
+    S5L_DMAC_CONFIG |= 1u;
+    S5L_DMAC_CH_SRC(AUDIO_DMA_CHANNEL) = lli->source;
+    S5L_DMAC_CH_DST(AUDIO_DMA_CHANNEL) = lli->destination;
+    S5L_DMAC_CH_LLI(AUDIO_DMA_CHANNEL) = lli->link;
+    S5L_DMAC_CH_CONTROL(AUDIO_DMA_CHANNEL) = lli->control;
+    S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) = helikon_audio_dma_config();
+}
+
+static int dma_next_lli_index(void)
+{
+    uint32_t first = S5L_DMAC_CH_LLI(AUDIO_DMA_CHANNEL);
+    uint32_t second = S5L_DMAC_CH_LLI(AUDIO_DMA_CHANNEL);
+    if (first != second)
+        second = S5L_DMAC_CH_LLI(AUDIO_DMA_CHANNEL);
+
+    for (uint32_t index = 0u; index < HELIKON_AUDIO_RING_BUFFERS; ++index) {
+        if (second == (uint32_t)(uintptr_t)&dma_lli[index])
+            return (int)index;
+    }
+    return -1;
+}
+
+static void dma_process_completions(struct helikon_audio *audio,
+                                    int next_index)
+{
+    if (next_index < 0)
+        return;
+
+    uint32_t count =
+        helikon_audio_ring_distance(audio->stream_play,
+                                    (uint32_t)next_index);
+    for (uint32_t index = 0u; index < count; ++index) {
+        uint32_t completed = audio->stream_play;
+        audio->stream_played += audio->stream_buffer_frames[completed];
+        audio->stream_play = dma_next_index(completed);
+        (void)dma_fill_buffer(audio, completed);
+    }
 }
 
 static void i2s_stop(void)
@@ -384,6 +425,17 @@ int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
     audio->stage = HELIKON_AUDIO_STAGE_NONE;
     audio->initialized = 0;
     audio->running = 0;
+    audio->paused = 0;
+    audio->stream_pcm = NULL;
+    audio->stream_frames = 0u;
+    audio->stream_cursor = 0u;
+    audio->stream_played = 0u;
+    audio->stream_channels = 0u;
+    audio->stream_play = 0u;
+    audio->stream_underruns = 0u;
+    audio->stream_started = 0;
+    for (uint32_t index = 0u; index < HELIKON_AUDIO_RING_BUFFERS; ++index)
+        audio->stream_buffer_frames[index] = 0u;
 
     int rc = dmac_clock_on(audio);
     if (rc != HELIKON_OK)
@@ -410,92 +462,173 @@ int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
     return HELIKON_OK;
 }
 
-int helikon_audio_play(struct helikon_audio *audio, const int16_t *pcm,
-                       size_t frames)
+int helikon_audio_stream_start(struct helikon_audio *audio,
+                               const int16_t *pcm, size_t frames,
+                               uint32_t channels)
 {
-    if (audio == NULL || !audio->initialized || pcm == NULL) {
+    if (audio == NULL || !audio->initialized || pcm == NULL ||
+        frames == 0u || (channels != 1u && channels != 2u)) {
         if (audio != NULL)
             audio->stage = HELIKON_AUDIO_STAGE_BUFFER;
         return HELIKON_ERR_ARGUMENT;
     }
+    if (audio->stream_started)
+        return HELIKON_ERR_BUSY;
 
-    if (!audio->running) {
-        audio->stage = HELIKON_AUDIO_STAGE_CODEC;
-        int rc = codec_mute(audio, 0);
-        if (rc != HELIKON_OK)
-            return rc;
-        audio->stage = HELIKON_AUDIO_STAGE_I2S;
-        rc = i2s_start();
-        if (rc != HELIKON_OK)
-            return rc;
-        audio->running = 1;
-    }
+    audio->stream_pcm = pcm;
+    audio->stream_frames = frames;
+    audio->stream_cursor = 0u;
+    audio->stream_played = 0u;
+    audio->stream_channels = channels;
+    audio->stream_play = 0u;
+    audio->stream_underruns = 0u;
+    audio->paused = 0;
+    audio->stream_started = 1;
 
-    while (frames != 0u) {
-        size_t chunk = frames > AUDIO_DMA_FRAMES ? AUDIO_DMA_FRAMES : frames;
-        int rc = dma_chunk(audio, pcm, chunk);
-        if (rc != HELIKON_OK)
-            return rc;
-        pcm += chunk * 2u;
-        frames -= chunk;
-    }
-    audio->stage = HELIKON_AUDIO_STAGE_NONE;
-    return HELIKON_OK;
-}
+    audio->stage = HELIKON_AUDIO_STAGE_BUFFER;
+    for (uint32_t index = 0u; index < HELIKON_AUDIO_RING_BUFFERS; ++index)
+        (void)dma_fill_buffer(audio, index);
 
-int helikon_audio_pause(struct helikon_audio *audio)
-{
-    if (audio == NULL || !audio->initialized)
-        return HELIKON_ERR_ARGUMENT;
-    if (audio->running) {
-        audio->stage = HELIKON_AUDIO_STAGE_CODEC;
-        int rc = codec_mute(audio, 1);
-        S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) = 0u;
-        audio->stage = HELIKON_AUDIO_STAGE_I2S;
-        i2s_stop();
-        audio->running = 0;
-        if (rc != HELIKON_OK) {
-            audio->stage = HELIKON_AUDIO_STAGE_CODEC;
-            return rc;
-        }
-    }
-    audio->stage = HELIKON_AUDIO_STAGE_NONE;
-    return HELIKON_OK;
-}
-
-int helikon_audio_resume(struct helikon_audio *audio)
-{
-    if (audio == NULL || !audio->initialized)
-        return HELIKON_ERR_ARGUMENT;
-    if (!audio->running) {
-        audio->stage = HELIKON_AUDIO_STAGE_CODEC;
-        int rc = codec_mute(audio, 0);
-        if (rc != HELIKON_OK)
-            return rc;
-        audio->stage = HELIKON_AUDIO_STAGE_I2S;
-        rc = i2s_start();
-        if (rc != HELIKON_OK)
-            return rc;
-        audio->running = 1;
-    }
-    audio->stage = HELIKON_AUDIO_STAGE_NONE;
-    return HELIKON_OK;
-}
-
-int helikon_audio_stop(struct helikon_audio *audio)
-{
-    if (audio == NULL || !audio->initialized)
-        return HELIKON_ERR_ARGUMENT;
-    audio->stage = HELIKON_AUDIO_STAGE_CODEC;
-    int rc = codec_mute(audio, 1);
-    S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) = 0u;
-    audio->stage = HELIKON_AUDIO_STAGE_I2S;
-    i2s_stop();
-    audio->running = 0;
+    audio->stage = HELIKON_AUDIO_STAGE_DMA_SETUP;
+    int rc = dma_stop_channel(audio);
     if (rc != HELIKON_OK) {
-        audio->stage = HELIKON_AUDIO_STAGE_CODEC;
+        audio->stream_started = 0;
         return rc;
     }
+
+    audio->stage = HELIKON_AUDIO_STAGE_CODEC;
+    rc = codec_mute(audio, 0);
+    if (rc != HELIKON_OK) {
+        audio->stream_started = 0;
+        return rc;
+    }
+
+    audio->stage = HELIKON_AUDIO_STAGE_I2S;
+    rc = i2s_start();
+    if (rc != HELIKON_OK) {
+        audio->stream_started = 0;
+        return rc;
+    }
+
+    dma_start_at(0u);
+    audio->running = 1;
     audio->stage = HELIKON_AUDIO_STAGE_NONE;
     return HELIKON_OK;
+}
+
+int helikon_audio_stream_service(struct helikon_audio *audio)
+{
+    if (audio == NULL || !audio->initialized || !audio->stream_started)
+        return HELIKON_ERR_ARGUMENT;
+    if (!audio->running)
+        return HELIKON_OK;
+
+    if ((S5L_DMAC_RAWINTERRSTS & (1u << AUDIO_DMA_CHANNEL)) != 0u) {
+        S5L_DMAC_INTERRCLR = 1u << AUDIO_DMA_CHANNEL;
+        audio->stage = HELIKON_AUDIO_STAGE_DMA_WAIT;
+        return HELIKON_ERR_IO;
+    }
+
+    uint32_t old_play = audio->stream_play;
+    audio->stage = HELIKON_AUDIO_STAGE_BUFFER;
+    dma_process_completions(audio, dma_next_lli_index());
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
+
+    if (audio->paused) {
+        if (audio->stream_play != old_play) {
+            int rc = dma_stop_channel(audio);
+            i2s_stop();
+            audio->running = 0;
+            if (rc != HELIKON_OK)
+                return rc;
+        } else if ((S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) & 1u) == 0u) {
+            audio->running = 0;
+        }
+        return HELIKON_OK;
+    }
+
+    if ((S5L_DMAC_CH_CONFIG(AUDIO_DMA_CHANNEL) & 1u) == 0u &&
+        audio->stream_played < audio->stream_frames) {
+        audio->stream_underruns++;
+        audio->stage = HELIKON_AUDIO_STAGE_STREAM_UNDERRUN;
+        return HELIKON_ERR_BUSY;
+    }
+    return HELIKON_OK;
+}
+
+int helikon_audio_stream_pause(struct helikon_audio *audio)
+{
+    if (audio == NULL || !audio->initialized || !audio->stream_started)
+        return HELIKON_ERR_ARGUMENT;
+    if (audio->paused)
+        return HELIKON_OK;
+
+    audio->paused = 1;
+    audio->stage = HELIKON_AUDIO_STAGE_CODEC;
+    int rc = codec_mute(audio, 1);
+    if (rc != HELIKON_OK)
+        return rc;
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
+    return HELIKON_OK;
+}
+
+int helikon_audio_stream_resume(struct helikon_audio *audio)
+{
+    if (audio == NULL || !audio->initialized || !audio->stream_started)
+        return HELIKON_ERR_ARGUMENT;
+    if (!audio->paused)
+        return HELIKON_OK;
+
+    audio->paused = 0;
+    audio->stage = HELIKON_AUDIO_STAGE_CODEC;
+    int rc = codec_mute(audio, 0);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    if (!audio->running) {
+        audio->stage = HELIKON_AUDIO_STAGE_I2S;
+        rc = i2s_start();
+        if (rc != HELIKON_OK)
+            return rc;
+        audio->stage = HELIKON_AUDIO_STAGE_DMA_SETUP;
+        rc = dma_stop_channel(audio);
+        if (rc != HELIKON_OK)
+            return rc;
+        dma_start_at(audio->stream_play);
+        audio->running = 1;
+    }
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
+    return HELIKON_OK;
+}
+
+void helikon_audio_stream_stop(struct helikon_audio *audio)
+{
+    if (audio == NULL || !audio->initialized)
+        return;
+
+    audio->stage = HELIKON_AUDIO_STAGE_CODEC;
+    (void)codec_mute(audio, 1);
+    audio->stage = HELIKON_AUDIO_STAGE_I2S;
+    (void)dma_stop_channel(audio);
+    i2s_stop();
+    audio->running = 0;
+    audio->paused = 0;
+    audio->stream_started = 0;
+    audio->stage = HELIKON_AUDIO_STAGE_NONE;
+}
+
+int helikon_audio_stream_finished(const struct helikon_audio *audio)
+{
+    return audio != NULL && audio->stream_started &&
+           audio->stream_played >= audio->stream_frames;
+}
+
+uint32_t helikon_audio_stream_position_frames(const struct helikon_audio *audio)
+{
+    return audio == NULL ? 0u : (uint32_t)audio->stream_played;
+}
+
+uint32_t helikon_audio_stream_underruns(const struct helikon_audio *audio)
+{
+    return audio == NULL ? 0u : audio->stream_underruns;
 }

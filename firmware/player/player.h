@@ -22,6 +22,7 @@ struct helikon_player {
     int last_error;
     uint32_t last_stage;
     int opened;
+    int started;
 };
 
 int helikon_player_open(struct helikon_player *player, const uint8_t *data,
