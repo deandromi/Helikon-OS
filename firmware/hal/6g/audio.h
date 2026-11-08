@@ -36,8 +36,12 @@ enum helikon_audio_stage {
     HELIKON_AUDIO_STAGE_DMA_CLOCK = 9,
     HELIKON_AUDIO_STAGE_DMA_CONFIG = 10,
     HELIKON_AUDIO_STAGE_I2S_FIFO = 11,
-    HELIKON_AUDIO_STAGE_STREAM_UNDERRUN = 12
+    HELIKON_AUDIO_STAGE_STREAM_UNDERRUN = 12,
+    HELIKON_AUDIO_STAGE_CODEC_DATA = 13
 };
+
+typedef int (*helikon_audio_pcm_source)(void *context, int16_t *pcm,
+                                        size_t max_frames, size_t *frames);
 
 struct helikon_audio {
     struct helikon_pmu *pmu;
@@ -55,6 +59,8 @@ struct helikon_audio {
      * advance the played position.
      */
     const int16_t *stream_pcm;
+    helikon_audio_pcm_source stream_source;
+    void *stream_source_context;
     size_t stream_frames;
     size_t stream_cursor;
     size_t stream_played;
@@ -62,6 +68,7 @@ struct helikon_audio {
     uint32_t stream_play;
     uint32_t stream_buffer_frames[HELIKON_AUDIO_RING_BUFFERS];
     uint32_t stream_underruns;
+    int stream_error;
     int stream_started;
 };
 
@@ -72,6 +79,9 @@ int helikon_audio_set_rate(struct helikon_audio *audio, uint32_t sample_rate);
 int helikon_audio_stream_start(struct helikon_audio *audio,
                                const int16_t *pcm, size_t frames,
                                uint32_t channels);
+int helikon_audio_stream_start_source(struct helikon_audio *audio,
+                                      helikon_audio_pcm_source source,
+                                      void *context, size_t frames);
 int helikon_audio_stream_service(struct helikon_audio *audio);
 int helikon_audio_stream_pause(struct helikon_audio *audio);
 int helikon_audio_stream_resume(struct helikon_audio *audio);
