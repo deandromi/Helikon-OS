@@ -1,0 +1,228 @@
+Helikon-OS Now Playing — host clipping and geometry check
+Date: 2026-11-08
+Renderer: tools/render-ui-mockup.py --only music-flow
+Canvas: 320x240 RGB
+Plex subset: assets/fonts/HelikonUI-Sans.ttf sha256=865c929cb8c51f612168c17077bcb65d813bcc9d2cb291afc22f3cf134bde39f
+Benguiat: not used for this group
+
+NOW PLAYING top: tracked width 88.0px inside (16, 8, 200, 14)
+NOW PLAYING time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+NOW PLAYING battery: rect (282, 11, 18, 9) inside 320x240
+NOW PLAYING top rule: rect (16, 30, 288, 1) inside 320x240
+now playing cover: rect (16, 38, 96, 96) inside 320x240
+now playing title 1: text (124, 44, 222, 56) inside (124, 38, 180, 44)
+now playing artist: fits 180px (76.0px)
+now playing artist: text (124, 89, 200, 100) inside (124, 82, 180, 18)
+now playing album: fits 180px (56.0px)
+now playing album: text (124, 106, 180, 114) inside (124, 100, 180, 16)
+now playing track line: fits 180px (112.0px)
+now playing track line: text (124, 122, 236, 130) inside (124, 116, 180, 14)
+playing icon: 3 points inside 320x240
+now playing state: text (136, 136, 196, 146) inside (124, 132, 180, 18)
+visualizer: rect (16, 140, 96, 16) inside 320x240
+visualizer bars: 12 bars in 96x16
+progress track: rect (16, 166, 288, 4) inside 320x240
+progress fill: rect (16, 166, 47, 4) inside 320x240
+now playing time: text (16, 176, 74, 186) inside (16, 172, 150, 14)
+details rule: rect (16, 198, 288, 1) inside 320x240
+now playing source quality: fits 288px (181.0px)
+now playing source quality: text (16, 202, 197, 210) inside (16, 200, 288, 14)
+now playing output quality: fits 288px (183.0px)
+now playing output quality: text (16, 216, 199, 226) inside (16, 214, 288, 14)
+now playing footer: fits 288px (220.0px)
+now playing footer: text (16, 230, 236, 238) inside (16, 226, 288, 14)
+NOW PLAYING top: tracked width 88.0px inside (16, 8, 200, 14)
+NOW PLAYING time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+NOW PLAYING battery: rect (282, 11, 18, 9) inside 320x240
+NOW PLAYING top rule: rect (16, 30, 288, 1) inside 320x240
+now playing cover: rect (16, 38, 96, 96) inside 320x240
+now playing title 1: text (124, 44, 222, 56) inside (124, 38, 180, 44)
+now playing artist: fits 180px (76.0px)
+now playing artist: text (124, 89, 200, 100) inside (124, 82, 180, 18)
+now playing album: fits 180px (56.0px)
+now playing album: text (124, 106, 180, 114) inside (124, 100, 180, 16)
+now playing track line: fits 180px (112.0px)
+now playing track line: text (124, 122, 236, 130) inside (124, 116, 180, 14)
+pause bar left: 3 points inside 320x240
+pause bar right: rect (130, 136, 3, 11) inside 320x240
+now playing state: text (138, 136, 192, 146) inside (124, 132, 180, 18)
+visualizer: rect (16, 140, 96, 16) inside 320x240
+visualizer bars: 12 bars in 96x16
+progress track: rect (16, 166, 288, 4) inside 320x240
+progress fill: rect (16, 166, 94, 4) inside 320x240
+now playing time: text (16, 176, 74, 186) inside (16, 172, 150, 14)
+details rule: rect (16, 198, 288, 1) inside 320x240
+now playing source quality: fits 288px (181.0px)
+now playing source quality: text (16, 202, 197, 210) inside (16, 200, 288, 14)
+now playing output quality: fits 288px (183.0px)
+now playing output quality: text (16, 216, 199, 226) inside (16, 214, 288, 14)
+now playing footer: fits 288px (228.0px)
+now playing footer: text (16, 230, 244, 238) inside (16, 226, 288, 14)
+NOW PLAYING top: tracked width 88.0px inside (16, 8, 200, 14)
+NOW PLAYING time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+NOW PLAYING battery: rect (282, 11, 18, 9) inside 320x240
+NOW PLAYING top rule: rect (16, 30, 288, 1) inside 320x240
+now playing cover: rect (16, 38, 96, 96) inside 320x240
+now playing title 1: text (124, 44, 222, 56) inside (124, 38, 180, 44)
+now playing artist: fits 180px (76.0px)
+now playing artist: text (124, 89, 200, 100) inside (124, 82, 180, 18)
+now playing album: fits 180px (56.0px)
+now playing album: text (124, 106, 180, 114) inside (124, 100, 180, 16)
+now playing track line: fits 180px (78.0px)
+now playing track line: text (124, 122, 202, 130) inside (124, 116, 180, 14)
+now playing state: text (124, 136, 187, 146) inside (124, 132, 180, 18)
+visualizer: rect (16, 140, 96, 16) inside 320x240
+visualizer bars: inactive: baseline only
+progress track: rect (16, 166, 288, 4) inside 320x240
+progress fill: empty at zero or unknown duration
+now playing time: text (16, 176, 69, 186) inside (16, 172, 150, 14)
+details rule: rect (16, 198, 288, 1) inside 320x240
+now playing source quality: fits 288px (32.0px)
+now playing source quality: text (16, 202, 48, 210) inside (16, 200, 288, 14)
+now playing output quality: fits 288px (33.0px)
+now playing output quality: text (16, 216, 49, 224) inside (16, 214, 288, 14)
+now playing footer: fits 288px (68.0px)
+now playing footer: text (16, 230, 85, 238) inside (16, 226, 288, 14)
+NOW PLAYING top: tracked width 88.0px inside (16, 8, 200, 14)
+NOW PLAYING time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+NOW PLAYING battery: rect (282, 11, 18, 9) inside 320x240
+NOW PLAYING top rule: rect (16, 30, 288, 1) inside 320x240
+now playing cover: rect (16, 38, 96, 96) inside 320x240
+now playing title 1: text (124, 44, 222, 56) inside (124, 38, 180, 44)
+now playing artist: fits 180px (76.0px)
+now playing artist: text (124, 89, 200, 100) inside (124, 82, 180, 18)
+now playing album: fits 180px (56.0px)
+now playing album: text (124, 106, 180, 114) inside (124, 100, 180, 16)
+now playing track line: fits 180px (112.0px)
+now playing track line: text (124, 122, 236, 130) inside (124, 116, 180, 14)
+now playing state: text (124, 136, 190, 146) inside (124, 132, 180, 18)
+visualizer: rect (16, 140, 96, 16) inside 320x240
+visualizer bars: inactive: baseline only
+progress track: rect (16, 166, 288, 4) inside 320x240
+progress fill: rect (16, 166, 288, 4) inside 320x240
+now playing time: text (16, 176, 74, 186) inside (16, 172, 150, 14)
+details rule: rect (16, 198, 288, 1) inside 320x240
+now playing source quality: fits 288px (181.0px)
+now playing source quality: text (16, 202, 197, 210) inside (16, 200, 288, 14)
+now playing output quality: fits 288px (183.0px)
+now playing output quality: text (16, 216, 199, 226) inside (16, 214, 288, 14)
+now playing footer: fits 288px (227.0px)
+now playing footer: text (16, 230, 243, 238) inside (16, 226, 288, 14)
+NOW PLAYING top: tracked width 88.0px inside (16, 8, 200, 14)
+NOW PLAYING time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+NOW PLAYING battery: rect (282, 11, 18, 9) inside 320x240
+NOW PLAYING top rule: rect (16, 30, 288, 1) inside 320x240
+error reason length: 14 <= 44 characters
+error status rule: rect (16, 40, 288, 2) inside 320x240
+error headline: fits 288px (208.0px)
+error headline: text (16, 56, 224, 68) inside (16, 42, 288, 30)
+error reason: fits 288px (104.0px)
+error reason: text (16, 84, 120, 92) inside (16, 74, 288, 22)
+error guidance: fits 288px (119.0px)
+error guidance: text (16, 106, 135, 116) inside (16, 96, 288, 22)
+error identity: fits 288px (146.0px)
+error identity: text (16, 130, 162, 140) inside (16, 120, 288, 20)
+error detail rule: rect (16, 150, 288, 1) inside 320x240
+error source quality: fits 288px (202.0px)
+error source quality: text (16, 156, 218, 164) inside (16, 152, 288, 14)
+error output quality: text (16, 170, 164, 178) inside (16, 166, 288, 14)
+error stop position: text (16, 184, 194, 192) inside (16, 180, 288, 14)
+error footer: fits 288px (144.0px)
+error footer: text (16, 224, 160, 232) inside (16, 220, 288, 14)
+NOW PLAYING top: tracked width 88.0px inside (16, 8, 200, 14)
+NOW PLAYING time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+NOW PLAYING battery: rect (282, 11, 18, 9) inside 320x240
+NOW PLAYING top rule: rect (16, 30, 288, 1) inside 320x240
+error reason length: 15 <= 44 characters
+error status rule: rect (16, 40, 288, 2) inside 320x240
+error headline: fits 288px (208.0px)
+error headline: text (16, 56, 224, 68) inside (16, 42, 288, 30)
+error reason: fits 288px (103.0px)
+error reason: text (16, 83, 120, 94) inside (16, 74, 288, 22)
+error guidance: fits 288px (111.0px)
+error guidance: text (16, 105, 127, 114) inside (16, 96, 288, 22)
+error identity: fits 288px (146.0px)
+error identity: text (16, 130, 162, 140) inside (16, 120, 288, 20)
+error detail rule: rect (16, 150, 288, 1) inside 320x240
+error source quality: fits 288px (202.0px)
+error source quality: text (16, 156, 218, 164) inside (16, 152, 288, 14)
+error output quality: text (16, 170, 164, 178) inside (16, 166, 288, 14)
+error stop position: text (16, 184, 194, 192) inside (16, 180, 288, 14)
+error footer: fits 288px (147.0px)
+error footer: text (16, 224, 163, 232) inside (16, 220, 288, 14)
+NOW PLAYING top: tracked width 88.0px inside (16, 8, 200, 14)
+NOW PLAYING time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+NOW PLAYING battery: rect (282, 11, 18, 9) inside 320x240
+NOW PLAYING top rule: rect (16, 30, 288, 1) inside 320x240
+now playing cover: rect (16, 38, 96, 96) inside 320x240
+now playing title 1: text (124, 44, 222, 56) inside (124, 38, 180, 44)
+now playing artist: fits 180px (76.0px)
+now playing artist: text (124, 89, 200, 100) inside (124, 82, 180, 18)
+now playing album: fits 180px (56.0px)
+now playing album: text (124, 106, 180, 114) inside (124, 100, 180, 16)
+now playing track line: fits 180px (112.0px)
+now playing track line: text (124, 122, 236, 130) inside (124, 116, 180, 14)
+playing icon: 3 points inside 320x240
+now playing state: text (136, 136, 196, 146) inside (124, 132, 180, 18)
+visualizer: rect (16, 140, 96, 16) inside 320x240
+visualizer bars: 12 bars in 96x16
+progress track: rect (16, 166, 288, 4) inside 320x240
+progress fill: rect (16, 166, 47, 4) inside 320x240
+now playing time: text (16, 176, 74, 186) inside (16, 172, 150, 14)
+details rule: rect (16, 198, 288, 1) inside 320x240
+now playing source quality: fits 288px (181.0px)
+now playing source quality: text (16, 202, 197, 210) inside (16, 200, 288, 14)
+now playing output quality: fits 288px (183.0px)
+now playing output quality: text (16, 216, 199, 226) inside (16, 214, 288, 14)
+now playing footer: fits 288px (220.0px)
+now playing footer: text (16, 230, 236, 238) inside (16, 226, 288, 14)
+NOW PLAYING top: tracked width 88.0px inside (16, 8, 200, 14)
+NOW PLAYING time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
+NOW PLAYING battery: rect (282, 11, 18, 9) inside 320x240
+NOW PLAYING top rule: rect (16, 30, 288, 1) inside 320x240
+now playing cover: rect (16, 38, 96, 96) inside 320x240
+now playing title line 2: truncated with U+2026 to 142.0px
+now playing title 1: text (124, 43, 269, 59) inside (124, 38, 180, 44)
+now playing title 2: text (124, 63, 266, 79) inside (124, 38, 180, 44)
+now playing artist: truncated with U+2026 to 172.0px
+now playing artist: text (124, 89, 296, 100) inside (124, 82, 180, 18)
+now playing album: truncated with U+2026 to 178.0px
+now playing album: text (124, 105, 302, 116) inside (124, 100, 180, 16)
+now playing track line: fits 180px (112.0px)
+now playing track line: text (124, 122, 236, 130) inside (124, 116, 180, 14)
+playing icon: 3 points inside 320x240
+now playing state: text (136, 136, 196, 146) inside (124, 132, 180, 18)
+visualizer: rect (16, 140, 96, 16) inside 320x240
+visualizer bars: 12 bars in 96x16
+progress track: rect (16, 166, 288, 4) inside 320x240
+progress fill: rect (16, 166, 47, 4) inside 320x240
+now playing time: text (16, 176, 74, 186) inside (16, 172, 150, 14)
+details rule: rect (16, 198, 288, 1) inside 320x240
+now playing source quality: fits 288px (181.0px)
+now playing source quality: text (16, 202, 197, 210) inside (16, 200, 288, 14)
+now playing output quality: fits 288px (183.0px)
+now playing output quality: text (16, 216, 199, 226) inside (16, 214, 288, 14)
+now playing footer: fits 288px (220.0px)
+now playing footer: text (16, 230, 236, 238) inside (16, 226, 288, 14)
+
+Screens rendered: 16
+Result: PASS — every recorded text box is inside its column and the 320x240 canvas; every frame is inside the canvas.
+Limits: host geometry only. No 6G panel, contrast, frame-time or device claim.
+
+Files:
+assets/ui/now-playing/helikon-os-now-playing-playing-320x240.png
+assets/ui/now-playing/helikon-os-now-playing-playing-320x240@2x.png
+assets/ui/now-playing/helikon-os-now-playing-paused-320x240.png
+assets/ui/now-playing/helikon-os-now-playing-paused-320x240@2x.png
+assets/ui/now-playing/helikon-os-now-playing-opening-320x240.png
+assets/ui/now-playing/helikon-os-now-playing-opening-320x240@2x.png
+assets/ui/now-playing/helikon-os-now-playing-finished-320x240.png
+assets/ui/now-playing/helikon-os-now-playing-finished-320x240@2x.png
+assets/ui/now-playing/helikon-os-now-playing-error-retry-320x240.png
+assets/ui/now-playing/helikon-os-now-playing-error-retry-320x240@2x.png
+assets/ui/now-playing/helikon-os-now-playing-error-terminal-320x240.png
+assets/ui/now-playing/helikon-os-now-playing-error-terminal-320x240@2x.png
+assets/ui/now-playing/helikon-os-now-playing-no-art-320x240.png
+assets/ui/now-playing/helikon-os-now-playing-no-art-320x240@2x.png
+assets/ui/now-playing/helikon-os-now-playing-long-text-320x240.png
+assets/ui/now-playing/helikon-os-now-playing-long-text-320x240@2x.png
