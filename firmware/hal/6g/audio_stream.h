@@ -65,6 +65,26 @@ static inline void helikon_audio_lli_build(struct helikon_audio_lli *lli,
 }
 
 /*
+ * Peak magnitude of an interleaved PCM window, quantized to 0..15. This is a
+ * pure sample-peak helper for the Now Playing meter: no FFT, no allocation and
+ * no state. `samples` counts individual int16_t values, not frames.
+ */
+static inline uint8_t helikon_audio_peak_level(const int16_t *pcm,
+                                               size_t samples)
+{
+    uint32_t peak = 0u;
+    for (size_t index = 0u; index < samples; ++index) {
+        int32_t value = pcm[index];
+        uint32_t magnitude = value < 0 ? (uint32_t)(-value)
+                                       : (uint32_t)value;
+        if (magnitude > peak)
+            peak = magnitude;
+    }
+    uint32_t level = peak >> 11;
+    return (uint8_t)(level > 15u ? 15u : level);
+}
+
+/*
  * Copy up to `capacity` frames from an interleaved source into the stereo
  * DMA buffer, duplicating mono samples. `cursor` is the source frame index.
  * Returns the number of frames copied and advances the cursor. A zero return

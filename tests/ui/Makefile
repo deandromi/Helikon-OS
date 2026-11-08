@@ -25,9 +25,14 @@ preview: test_launcher $(MUSIC_TEST) $(AUDIO_TEST) $(FIXTURE)
 	python3 -c "from PIL import Image; \
 [Image.open('$(OUT)/launcher.ppm').save('$(OUT)/launcher.png'), \
  *[Image.open('$(OUT)/music-%s.ppm' % n).save('$(OUT)/music-%s.png' % n) \
-   for n in ('hub','albums','artists','tracks','artist','artist-albums','artist-tracks','album','track')], \
+   for n in ('hub','albums','tracks','artists','artists-long','artists-empty', \
+             'artist-albums','artist-albums-empty','artist-overview', \
+             'artist-overview-empty','artist-tracks','album','album-long', \
+             'album-playall','album-empty','album-corrupt','album-no-art', \
+             'artists-fallback')], \
  *[Image.open('$(OUT)/audio-%s.ppm' % n).save('$(OUT)/audio-%s.png' % n) \
-   for n in ('now-playing','paused')]]"
+   for n in ('now-playing','paused','reduced','viz-off','opening', \
+             'finished','error','error-terminal','no-art','long-text')]]"
 	@echo "previews: $(OUT)/launcher.png, music-*.png and audio-*.png"
 
 test_launcher: test_launcher.c ../../firmware/ui/launcher.c \
@@ -48,6 +53,8 @@ $(BLOB_OBJ): $(BLOB_SRC)
 	$(CC) -c $< -o $@
 
 $(MUSIC_TEST): test_music.c ../../firmware/ui/music.c ../../firmware/ui/music.h \
+               ../../firmware/ui/ui_text.c ../../firmware/ui/ui_text.h \
+               ../../firmware/ui/font_atlas.c ../../firmware/ui/font_atlas.h \
                ../../firmware/ui/launcher_assets.c \
                ../../firmware/ui/launcher_assets.h \
                ../../firmware/db/hdb.c ../../firmware/db/hdb.h \
@@ -55,6 +62,7 @@ $(MUSIC_TEST): test_music.c ../../firmware/ui/music.c ../../firmware/ui/music.h 
                ../../firmware/lib/mem.c ../../firmware/lib/string.c \
                $(BLOB_OBJ)
 	$(CC) $(CFLAGS) -o $@ test_music.c \
+	      ../../firmware/ui/ui_text.c ../../firmware/ui/font_atlas.c \
 	      ../../firmware/ui/launcher_assets.c \
 	      ../../firmware/db/hdb.c ../../firmware/diag/screen.c \
 	      ../../firmware/lib/crc32.c ../../firmware/lib/mem.c \
@@ -72,6 +80,7 @@ $(AUDIO_TEST): test_audio.c ../../firmware/ui/music.c \
                $(BLOB_OBJ)
 	$(CC) $(CFLAGS) -o $@ test_audio.c \
 	      ../../firmware/player/player.c ../../firmware/player/wav.c \
+	      ../../firmware/ui/ui_text.c ../../firmware/ui/font_atlas.c \
 	      ../../firmware/ui/launcher_assets.c \
 	      ../../firmware/db/hdb.c ../../firmware/diag/screen.c \
 	      ../../firmware/lib/crc32.c ../../firmware/lib/mem.c \
