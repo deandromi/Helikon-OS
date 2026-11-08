@@ -33,7 +33,10 @@ static inline uint32_t helikon_audio_ring_next(uint32_t index)
 /*
  * Number of buffers completed when the hardware's next-LLI pointer has
  * advanced from `play` to `next`. A full ring wrap is indistinguishable from
- * no progress with a single pointer; the service treats that as an underrun.
+ * no progress with a single pointer; the four-buffer depth exists so the
+ * service never has to resolve that case during normal UI work. A channel
+ * that actually stops before the source ends is reported as UNDERRUN by the
+ * HAL service.
  */
 static inline uint32_t helikon_audio_ring_distance(uint32_t play,
                                                     uint32_t next)
