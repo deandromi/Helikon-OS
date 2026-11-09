@@ -33,6 +33,10 @@ file grows. Do not rely on chat history for current state.
 
 ## What is next
 
+**Test packaging (owner rule, 2026-11-09):** one combined image per device test.
+Do not ask the owner to test separate images for separate features; split only
+to isolate a specific failure.
+
 1. Diagnose the Artist-open stall on `firmware/T-088-music-flow` (blocking work
    before the first frame and queued input reaching the player), fix it, rebuild
    and device-test the fixed image before merge.

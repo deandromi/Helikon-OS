@@ -27,6 +27,12 @@ claim. Every unrun row below is `planned`, `unproven`, `not run` or `fail`. Do
 not add a device to a supported list because it has the same SoC, because the
 donor ran on it, or because a build links.
 
+**Test packaging (owner rule, 2026-11-09):** one image per device test. Combine
+every pending functional change into one image and ask the owner to install and
+test that single image. Do not ask the owner to test separate images for
+separate features. Split an image only when a specific failure must be isolated,
+and state why in the request and the device-matrix row.
+
 ## 1. Target policy
 
 | Target | Status | Rule |
