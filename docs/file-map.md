@@ -347,7 +347,7 @@ is created; do not let it drift.
 | `docs/adr/` | Long-form decisions | docs lead | `docs/decisions.md` | review | Only for decisions too large for `decisions.md`; do not duplicate |
 | `docs/disk-mode.md` | Canonical Helikon Disk Mode plan: writable-LUN exception, LUN layout, USB stack, LBA48 and capacity migration | firmware/USB lead | D-54, ADR-0005, paper §16.2/§28.4.2 | design review; no code/device claim | Normal USB stays read-only; Disk Mode is exclusive (I-16) |
 | `tests/usb/` | Host SCSI/BOT/descriptor/LUN tests and the USB controller mock (planned) | USB/test lead | `docs/disk-mode.md`, T-110–T-112 | host tests + sanitizers | No device writes; no vendor commands |
-| `tools/collect-ipod-evidence.sh` | Read-only macOS evidence collector for Apple Disk Mode (planned) | boot/test lead | T-110, `docs/disk-mode.md` | dry-run and redaction check | Never writes `/dev/*`; redacts serial numbers |
+| `tools/collect-ipod-evidence.sh` | Read-only macOS evidence collector for Apple Disk Mode (planned) | boot/test lead | T-108, `docs/disk-mode.md` | dry-run and redaction check | Never writes `/dev/*`; redacts serial numbers |
 | `docs/log/` | Dated work logs | docs lead | `docs/log/TEMPLATE.md` | review | One file per active day/session; no secrets |
 | `docs/prompts/` | Reusable task prompts | docs lead | `docs/prompts/README.md` | review | Prompts link to docs; they are not a second spec |
 

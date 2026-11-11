@@ -113,7 +113,7 @@ See I-16 in [`invariants.md`](../invariants.md).
 
 The canonical plan is [`disk-mode.md`](../disk-mode.md). The first tasks are:
 
-- T-110: P0 host evidence in Apple Disk Mode;
+- T-108: P0 host evidence in Apple Disk Mode;
 - T-109: read-only ATA/LBA48/APM probe image;
 - T-110: USB device core and enumeration;
 - T-111: read-only MSC LUN;

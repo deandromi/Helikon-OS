@@ -377,7 +377,7 @@ optionally a Linux host with `usbmon` for packet capture and fuzzing.
 
 | Phase | Task | Deliverable | Gate |
 |---|---|---|---|
-| P0 | T-110 | host evidence runbook and collector | read-only captures from Apple Disk Mode |
+| P0 | T-108 | host evidence runbook and collector | read-only captures from Apple Disk Mode |
 | P1 | T-109 | read-only ATA/LBA48/APM probe image | one 6G run, photo and values |
 | P2 | T-110 | USB device core and enumeration | macOS sees the device |
 | P3 | T-111 | MSC read-only data LUN | macOS mounts and reads |

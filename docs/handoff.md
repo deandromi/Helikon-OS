@@ -32,7 +32,7 @@ file grows. Do not rely on chat history for current state.
 
 1. T-109: build and run the read-only ATA/LBA48/APM probe on the 6G/iFlash SD;
    record IDENTIFY 83/86/100–103/60–61/106/117–118 and the real partition map.
-2. T-110: host evidence collector and USB device-core research; no writable LUN.
+2. T-108: host evidence collector; T-110: USB device-core research; no writable LUN.
 3. Do not start T-112 until T-109/T-111 pass and a verified backup exists.
 
 ## Do not claim
