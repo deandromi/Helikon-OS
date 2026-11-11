@@ -3,8 +3,9 @@
 > Purpose: per-change proof checklist and evidence template.
 > Status: living document
 > Owner: change author; reviewer verifies
-> Last updated: 2026-11-04
-> Source: design paper §24, §26.12, §27, §28.6
+> Last updated: 2026-11-11
+> Source: design paper §24, §26.12, §27, §28.6; [`disk-mode.md`](disk-mode.md);
+> D-54; ADR-0005
 
 **No claim without evidence.** A change is not verified because it compiles,
 boots, "looks right", or passed on another device. Verification is the recorded
@@ -123,6 +124,35 @@ after, `fsck_hfs` full output, recovered tree, adapter/device, screenshots/logs.
 **Rollback:** restore the pre-test image. Do not hand-edit metadata or delete the
 journal. If the test was on a real library, stop and escalate.
 
+## 4.1 Helikon Disk Mode checklist
+
+**Read first:** [`disk-mode.md`](disk-mode.md), D-54, ADR-0005, I-16,
+`docs/device-matrix.md`.
+
+**Checks:**
+
+- normal firmware USB still exposes no writable LUN;
+- Disk Mode is entered only by an explicit user action and never mounts HFS+;
+- the data-volume LUN is the largest HFS+ partition; whole-disk mode is read-only
+  unless the expert restore confirmation was used;
+- LBA48 is runtime-probed; without it the LUN is capped and `LBA28 LIMIT` is
+  visible;
+- the host write path returns correct SCSI sense data and never silently drops
+  data;
+- eject flushes; surprise removal reports unsafe removal; the journal is checked
+  after release;
+- 1 GB host write + SHA-256 read-back passes; `fsck_hfs -fn` reports zero
+  repairs;
+- Apple Disk Mode and DFU remain available after the run.
+
+**Evidence:** image hash, USB descriptors, LUN block size/capacity, host and
+firmware logs, test file SHA-256, `fsck_hfs` full output, device/adapter, screen
+photo, and the `device-matrix.md` row.
+
+**Rollback:** power off, boot Apple Disk Mode or DFU, restore the verified
+backup if the volume is damaged. Do not format or repartition as a first
+response.
+
 ## 5. UI/skin checklist
 
 **Read first:** paper §14 and §28.3.4, D-10/D-15, `docs/device-matrix.md`.
@@ -144,7 +174,8 @@ paper §16 and §28.2.5.
 **Checks:** manifest fields; signature verification; wrong board/version/hash/
 size rejected; power cut during staging leaves the old image bootable; explicit
 install; boot-state record; rollback; version/hash displayed; Apple/DFU recovery
-intact; no writable USB LUN.
+intact; no writable LUN in normal firmware (Disk Mode is the separate D-54
+exception).
 
 **Evidence:** manifest, image hash, device run, update/rollback log, `fsck_hfs`
 output, screenshots.

@@ -3,10 +3,10 @@
 > Purpose: define the evidence required before a release or a goal claim.
 > Status: living document
 > Owner: release lead; test lead
-> Last updated: 2026-11-06
+> Last updated: 2026-11-11
 > Source: design paper §24, §26.12, §28.6; `docs/verification.md`;
 > [`competitive-roadmap.md`](competitive-roadmap.md);
-> [`audio-formats.md`](audio-formats.md)
+> [`audio-formats.md`](audio-formats.md); [`disk-mode.md`](disk-mode.md)
 
 **Alpha 2.0.0 “Launchers and Interfaces” is a development release, not a
 validation pass.** It ships engineering firmware images, the loader test image
@@ -132,6 +132,26 @@ The donor's owner-reported ~2-hour gain is **not** Helikon-OS evidence.
 
 Record exact adapter/card model, firmware, sector sizes and negotiated mode. A
 known-bad card must be reported, not silently used.
+
+### 5.1 Helikon Disk Mode and LBA48
+
+Disk Mode has its own release blockers because it is a host-owned write path.
+The canonical matrix is in [`disk-mode.md`](disk-mode.md) §13. Minimum evidence:
+
+| Area | Gate | Status |
+|---|---|---|
+| P0 host evidence | USB descriptors, LUN block size, APM/MBR, HFS+ geometry, `fsck_hfs -n` from Apple Disk Mode | `not run` |
+| P1 LBA48 probe | IDENTIFY 83/86/100–103/60–61/106/117–118; real capacity; APM/MBR unit; one 6G run | `not run` |
+| P2 enumeration | macOS sees "Helikon Disk Mode"; 100 connect/disconnect | `not run` |
+| P3 read-only | macOS mounts the largest HFS+ partition read-only and reads a file | `not run` |
+| P4 writable | 1 GB write + SHA-256 read-back; `fsck_hfs -fn` zero repairs; safe eject | `not run` |
+| P5 capacity | LBA 2^28−1/2^28/2^28+1 and last LBA; >128 GiB volume or second partition | `not run` |
+| P6 resilience | surprise unplug, journal replay, Apple Disk Mode fallback, Helikon boot after host write | `not run` |
+| P9 hardening | malformed SCSI/BOT fuzz; 100 cycles; throughput/battery | `not run` |
+
+No Disk Mode release claim is possible until P1–P4 pass on one 6G/iFlash SD with
+a recorded image hash and `fsck_hfs` output. A card larger than 128 GiB is
+required for the capacity gate; without it the >128 GiB claim stays open.
 
 ## 6. Skin, app and desktop validation
 

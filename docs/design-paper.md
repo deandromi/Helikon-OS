@@ -22,9 +22,10 @@ plain line breaks so the repository whitespace check passes. No wording changed.
 > source; the Helikon-OS root `README.md` is the owner-authored product intent.
 > Do not edit the donor body. **Appendix I is a marked Helikon-OS addendum**
 > added on 2026-11-05 at the owner's request; it is not part of the donor source
-> commit. If the donor paper is re-copied, preserve or deliberately re-apply
-> Appendix I and record the new commit/hash. Conflicts are recorded in
-> `docs/decisions.md`.
+> commit. **Appendix J is a marked Helikon-OS addendum** added on 2026-11-11 for
+> D-54; it is not part of the donor source commit either. If the donor paper is
+> re-copied, preserve or deliberately re-apply Appendices I and J and record the
+> new commit/hash. Conflicts are recorded in `docs/decisions.md`.
 
 ---
 
@@ -3367,3 +3368,38 @@ database building, anti-corruption, faster I/O, podcasts, car playback, a
 desktop app, sandboxed apps and games, and eventually more devices. They are
 sequenced, measured and allowed to be deferred—but not quietly dropped. A goal
 without recorded evidence is still a wish.
+
+---
+
+## Appendix J — Helikon Disk Mode addendum (2026-11-11)
+
+> Status: marked Helikon-OS addendum, not part of donor source commit
+> `3f220a73d0cceb083b3c057c6fe914d88468800a`.
+> Owner decision: D-54. Canonical plan: [`disk-mode.md`](disk-mode.md).
+> Architecture: [ADR-0005](adr/0005-helikon-disk-mode.md).
+
+This appendix records one deliberate change to the paper's USB conclusion. It
+does not edit the donor body.
+
+**What changes.** The paper rejects a writable USB mass-storage LUN in §16.2 and
+§21. D-54 narrows that rejection: the normal USB profile stays read-only, but an
+explicit, exclusive **Helikon Disk Mode** may expose a writable LUN. In that
+mode the firmware does not mount HFS+, so the host filesystem is the only writer.
+This is the same ownership model as Apple Disk Mode, not a second firmware
+writer.
+
+**What does not change.** There is no writable LUN in normal firmware, no
+bootloader write, no HFS+ write by the firmware while the host owns the LUN, no
+format/erase/repartition action, and no change to the single-image fail-closed
+loader. The transaction engine remains the only firmware metadata writer.
+
+**Why.** The 6G Apple firmware uses LBA28 and is limited to 128 GiB. The owner
+needs a Helikon-owned bulk write path on macOS and a route to LBA48 capacity.
+The canonical plan, safety invariants, LBA48 probe and capacity-migration
+options are in [`disk-mode.md`](disk-mode.md); the invariants are I-16 and the
+existing I-03/I-15.
+
+**Evidence status.** No USB stack, LUN, LBA48 write or Disk Mode device run
+exists. T-109 is the first runtime step: a read-only ATA/LBA48/APM probe. The
+paper's original warning about a host bypassing the transaction engine remains
+the reason the mode is exclusive and never runs with an HFS+ mount.
