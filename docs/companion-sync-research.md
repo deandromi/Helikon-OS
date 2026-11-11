@@ -5,11 +5,18 @@
 > Status: living — research paper; design only, not implemented and not a
 > support claim.
 > Owner: host/product research
-> Last updated: 2026-11-06
+> Last updated: 2026-11-11
 > Source: session-start prompt; design paper §12, §25, §28.3.5–6, §28.4.1–2;
-> D-07, D-09, D-33, D-38, D-43, D-48, D-53; [`helikondb.md`](helikondb.md);
-> [`companion-app.md`](companion-app.md); external sources in §19.
+> D-07, D-09, D-33, D-38, D-43, D-48, D-53, D-54; [`helikondb.md`](helikondb.md);
+> [`companion-app.md`](companion-app.md); [`disk-mode.md`](disk-mode.md);
+> external sources in §19.
 > Base commit: `c576420` (`main`, 2026-11-06).
+
+**Status note (2026-11-11).** D-54 supersedes the blanket "writable LUN
+rejected" conclusion for the explicit, exclusive Helikon Disk Mode. The normal
+USB profile remains read-only. macOS bulk writes can use Disk Mode; the framed
+service mode remains the cross-platform path. See
+[`disk-mode.md`](disk-mode.md) and [ADR-0005](adr/0005-helikon-disk-mode.md).
 
 **Scope.** This paper studies how the iPod-side Helikon-OS firmware and the
 macOS-side Helikon Companion should exchange music, artwork, editorial
@@ -133,7 +140,7 @@ terms were checked on 2026-11-06 and can change.
 | iPod Classic 6G is the reference target; 7G is a future port after a board audit | The host contract targets one panel, one button map and one 64 MiB memory budget. Ports may change sizes, not semantics. |
 | 64 MiB RAM and no desktop-class virtual-memory budget | No SQLite on the device. The catalog is read lazily from a file with fixed-size records. No full-library scan or full-tree load. |
 | 320×240 panel with a restrained colour palette | 96×96 RGB565 thumbnails are enough for lists and album sleeves. A larger image is decoded only for the visible page. |
-| Native HFS+ journaled volume; no overlay, no FAT, no writable LUN | The device writer is the only writer that can promise transactional consistency. macOS Disk Mode writes are a host path with a different safety story and must be treated as such. |
+| Native HFS+ journaled volume; no overlay, no FAT; normal USB is read-only, with an explicit Disk Mode exception | The device writer is the only writer that can promise transactional consistency while the firmware is mounted. macOS Disk Mode and Helikon Disk Mode are host-owned write paths with a different safety story and must be treated as such. |
 | USB 2.0 device, no network | The host does all network work. USB is for files, manifests and, later, a framed service mode. |
 | Battery and storage are finite | Sync must be incremental, resumable and bounded. Podcast retention and artwork caches need hard caps. |
 | The launcher reads **zero** database bytes at boot | The catalog is opened only when Music/Podcasts/Audiobooks is opened. Do not add a boot-time manifest read or a full CRC scan. |
@@ -198,8 +205,8 @@ helper daemon, a writable USB LUN or an always-on network connection.
 | D-07 — database location | accepted | One immutable host-built `/.helikon/music.hdb`; read-only lazy device reader; small runtime journal; no device scan for a normal build. |
 | D-33 — library index architecture | accepted | Fixed HDB records, string pool, precomputed indexes, separate artwork table. No SQLite, tagcache or full on-device build. |
 | D-53 — music catalog ownership | accepted | HelikonDB is the only music catalog. No iTunesDB, libgpod, tagcache or Apple-format writes. |
-| D-09 — desktop transport | proposed | macOS Disk Mode is the first path. A vendor-specific USB service mode is the cross-platform path. A writable LUN is rejected. |
-| D-38 — USB profile and service mode | proposed | Read-only LUN, HID and charge-only profiles; an authenticated framed service mode is a later project. |
+| D-09 — desktop transport | proposed | macOS Disk Mode is the first path. A vendor-specific USB service mode is the cross-platform path. A writable LUN is allowed only in the explicit, exclusive Helikon Disk Mode (D-54). |
+| D-38 — USB profile and service mode | proposed | Normal read-only LUN, HID and charge-only profiles; an authenticated framed service mode is a later project. Helikon Disk Mode is a separate writable exception (D-54). |
 | D-43 — podcast/audiobook model | proposed | Host subscribes/downloads; device plays a local episode model; sidecar state under `/.helikon/podcasts/`; no device network. |
 | D-48 — privacy/network policy | proposed | No device network or telemetry; host network only for explicit user actions; scrobbling off by default. |
 | D-02 — boot state (T-050 resolved) | accepted | Single-image fail-closed; no A/B rollback; recovery is DFU/Apple restore. Install work must not promise rollback. |
@@ -1165,7 +1172,7 @@ A missing field is not an error. A corrupt file is an error with a safe state.
 | A. macOS Disk Mode | The iPod mounts as an HFS+ volume; the Mac writes files | macOS HFS+ driver, then the device reads them | D-09 proposed first path; host MVP tests only | macOS v1 media, catalog and sidecar transfer |
 | B. Read-only LUN | The device exposes a read-only mass-storage LUN | none | Planned T-076 | Inspection, backup, diagnostics; never writes |
 | C. Vendor service mode | A framed USB protocol; the device performs file operations through its VFS and transaction engine | Device VFS + HFS+ transaction engine | Proposed T-077/D-38 | Cross-platform writes, atomic state exchange, future |
-| D. Writable LUN | The host writes raw blocks/sectors | Host, bypassing the device | Rejected | Never |
+| D. Writable LUN | The host writes raw blocks/sectors | Host, while the device does not mount the volume | Allowed only in the explicit, exclusive Helikon Disk Mode (D-54); rejected in normal firmware |
 
 The paper's recommendation is **A first, C later, B as a read-only fallback,
 D never**. The host data model and file contract are transport-independent:
@@ -2062,7 +2069,7 @@ existing rules:
 - bootloader changes are DFU-only; never `--single`;
 - a failed install leaves the old image bootable or fails closed to recovery;
 - no A/B rollback claim (D-02/T-050);
-- no writable LUN;
+- no writable LUN in normal firmware; Disk Mode is the explicit host-owned exception (D-54);
 - app/game/skin install only after the package format, sandbox and signing
   model exist. Skins are data-only packages; a malformed skin falls back to
   the first-party UI.
@@ -2624,7 +2631,7 @@ does not silently choose a side.
 | PD-6 | **Artwork policy.** 96×96 RGB565 in HDB v1; larger art opt-in; no bundled proprietary art; provenance/licence per image. | Storage, memory and legal safety. |
 | PD-7 | **Identity policy.** HDB v1 UID is path-based; host content hash/recording ID survives rename; podcast feed identity `podcast:guid` > canonical URL > title+author; episode `guid` > enclosure URL > hash. | Prevents duplicate episodes and lost play history. |
 | PD-8 | **Network/privacy.** No device network or telemetry; host network only for explicit actions; scrobbling off by default; Keychain for tokens; provider disable. | Aligns with D-48 and the repository's security rules. |
-| PD-9 | **Disk Mode first, service mode later.** macOS Disk Mode is the v1 transport; a framed service mode is the cross-platform path; writable LUN remains rejected. | Matches D-09/D-38 and avoids a USB-stack project blocking the app. |
+| PD-9 | **Disk Mode first, service mode later.** macOS Disk Mode is the v1 transport; a framed service mode is the cross-platform path; the only writable LUN is the explicit, exclusive Helikon Disk Mode (D-54). | Matches D-09/D-38 and avoids a USB-stack project blocking the app. |
 | PD-10 | **Editorial text policy.** User notes/reviews first; Wikipedia only opt-in with attribution; no external reviews without a licence; source/licence line on device. | Answers "where do reviews and bios come from?" without scraping. |
 
 ### 17.2 Open questions

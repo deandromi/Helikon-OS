@@ -4,9 +4,9 @@
 > phase, the active task, the evidence and the next safe step before editing.
 > Status: living — full-procedure prompt
 > Owner: docs lead; every agent
-> Last updated: 2026-11-05
+> Last updated: 2026-11-11
 > Source: `agents.md`, `docs/state.md`, `docs/tasks.md`, `docs/handoff.md`,
-> `docs/conventions.md`
+> `docs/conventions.md`, `docs/disk-mode.md`
 
 **Use this prompt at the start of every session.** Paste it, optionally with the
 task you want to work on. The agent must read the repository, not rely on chat
@@ -243,6 +243,7 @@ not done.
 | Domain | First action | Canonical docs | Evidence |
 |---|---|---|---|
 | Firmware F1–F5 | Use `docs/prompts/build-firmware.md`; start with F1/T-054 | firmware-architecture, ADR-0003/0004, LOADER | Host tests + one device run + `fsck_hfs` |
+| Helikon Disk Mode / USB / LBA48 | Start with T-109, the read-only ATA/LBA48/APM probe; do not build the writable LUN before the probe evidence | disk-mode, ADR-0005, D-54, invariants I-16 | Probe run + host tests + one 6G host-write/fsck run |
 | Bootloader/loader | Check image hash, `MOVE_AREA`, DFU path | bootloader/README, DFU, LOADER, LOADER_TEST | Device run + screen + fsck |
 | Diagnostic images | Check the specific runbook and opt-in gate | WRITE_DIAG, OUTER_DIAG, device-matrix | Device run + fsck + backup diff |
 | HFS+ writer | Read the frozen interface and invariants | hfsplus-write-engine, invariants, failures | Model/crash tests + `fsck_hfs` |

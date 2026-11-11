@@ -3,9 +3,9 @@
 > Purpose: map “I need to change X” to the owning file or module.
 > Status: living document
 > Owner: architecture; each module owner
-> Last updated: 2026-11-06
+> Last updated: 2026-11-11
 > Source: repository inspection; design paper §3, §8–§19, Appendices A/B;
-> [`competitive-roadmap.md`](competitive-roadmap.md)
+> [`competitive-roadmap.md`](competitive-roadmap.md); [`disk-mode.md`](disk-mode.md)
 
 **Early host code exists.** The HFS+ read core and a read-only diagnostic
 bootloader core are real host-side code. The flashable bootloader, device
@@ -312,7 +312,7 @@ is created; do not let it drift.
 | `firmware/boot/` | Entry, vectors, linker script, boot-info parser, bootstate parser/promoter, panic | boot lead | `docs/firmware-architecture.md` §3, ADR-0004, `docs/f2-bootstate-test.md` | boot-info, bootstate and fault tests | No C before stacks/BSS; entry never returns; the bootstate write is the only F2 filesystem write |
 | `firmware/lib/` | Freestanding mem/string/CRC/SHA-256/ring/pool helpers | firmware lead | `docs/firmware-architecture.md` §8.9 | host unit tests; no hosted symbols | No `malloc`, `stdio` or locale |
 | `firmware/board/6g/` | BSP constants, init sequence, memory map | hardware lead | ADR-0003, paper §6 | map assertions, board audit | No target `#ifdef` in shared core |
-| `firmware/hal/6g/` | S5L8702 clocks, GPIO, PMU, ATA read/write/flush, LCD, CS42L55 codec, I2S and DMA | hardware lead | paper §6–§7, `docs/architecture.md` | register-level bring-up, sleep/wake, PIO write/flush, first PCM output | No filesystem, UI or policy; no unmeasured overclock/undervolt |
+| `firmware/hal/6g/` | S5L8702 clocks, GPIO, PMU, ATA read/write/flush, LCD, CS42L55 codec, I2S and DMA; planned VIC and USB devicecore | hardware lead | paper §6–§7, `docs/architecture.md`, `docs/disk-mode.md` | register-level bring-up, sleep/wake, PIO write/flush, first PCM output; LBA48/USB planned | No filesystem, UI or policy; no unmeasured overclock/undervolt |
 | `firmware/block/` | Sector I/O, flush, power state | storage lead | paper §7, `docs/architecture.md` | read/write/flush, 512/4096, error injection | No paths/files/caches; a flush error must propagate |
 | `firmware/hfs/` | HFS+ read core and writer: volume, B-tree, catalog, Unicode, extents, journal, txn, in-place overwrite | HFS+ lead | paper §8, §10.4, `docs/hfsplus-write-engine.md` | 104 host tests; overwrite and crash tests; fuzz/malformed/macOS differential planned | Writes only through `hfs_txn`; never hide unsupported entries |
 | `firmware/hfs/hfs_catalog_write.c`, `hfs_btree_tree.c`, `hfs_bitmap.c`, `hfs_extents_write.c` | Catalog/bitmap/extents mutation | HFS+ lead | `docs/hfsplus-write-engine.md`, invariants I-03–I-15 | model/property/crash tests, `fsck_hfs` | No journal format, UI or boot policy; no direct writes outside a transaction |
@@ -325,7 +325,7 @@ is created; do not let it drift.
 | `firmware/input/` | Click wheel/button events, debounce, focus | UI lead | `docs/firmware-architecture.md` §9.7 | event/acceleration tests | No storage or playback policy |
 | `firmware/skin/` | Documented WPS subset | UI lead | paper §28.3.4, D-10/D-15 | 20-skin corpus, hostile skin tests | No raw storage/playback policy; no full WPS engine; no unlicensed assets |
 | `firmware/sandbox/` | App/game runtime, quotas, host API | runtime lead | paper §15, §28.3.9–10, D-08 | escape/quota/crash tests | No raw block/NOR/PMU/GPIO; no legacy plugin binary compatibility |
-| `firmware/usb/` | Read-only LUN, descriptors, optional service mode | USB lead | paper §16, D-09 | read-only mount, descriptor/error tests | No filesystem writes; no writable mass-storage LUN; RAM-only relabel |
+| `firmware/usb/` | Normal read-only LUN, descriptors, service mode later; Helikon Disk Mode data/whole-disk LUN, BOT/SCSI and VIC/IRQ integration | USB lead | paper §16, D-09, D-54, `docs/disk-mode.md` | read-only mount, descriptor/error tests; Disk Mode host/mock tests planned | Normal profile never exposes a writable LUN; Disk Mode is exclusive and firmware does not mount HFS+ (I-16) |
 | `firmware/diag/` | Events, counters, recovery | diagnostics lead | paper §11.2, `docs/failures.md` | log/export tests | Do not write logs on a failing filesystem; bounded RAM ring |
 | `firmware/update/` | Staged update and bootstate promotion | release lead | paper §16, `docs/release.md` | signed manifest, staging, bootstate tests | No silent install; no unsigned image; loader verifies |
 | `tools/build-diagnostic-bootloader.sh` | Render the diagnostic image from a pinned donor checkout | boot/release lead | D-21, `bootloader/README.md` | Thumb build, `MOVE_AREA`, hash, `mks5lboot` dry-run | Uses a clean `git archive`; never modifies the donor checkout; image is unproven |
@@ -345,6 +345,9 @@ is created; do not let it drift.
 | `tools/desktop/` | macOS companion shell after the 2026-11-06 reset | host lead | [`companion-app.md`](companion-app.md), paper §28.4.2, D-09 | universal release build; `scripts/build-dmg.sh` creates and verifies the DMG; no test target yet | No feature code, device access, network or installer claim; ad-hoc signed, not notarized; no generated artwork |
 | `tests/` | Host volume/B-tree, disposable-image, Unicode and crash fixtures now; fuzz/model/device planned | test lead | `docs/testing.md`, `docs/fixtures.md`, `docs/validation.md` | all layers | No proprietary themes/art/fonts; no personal data; no disk images in repo |
 | `docs/adr/` | Long-form decisions | docs lead | `docs/decisions.md` | review | Only for decisions too large for `decisions.md`; do not duplicate |
+| `docs/disk-mode.md` | Canonical Helikon Disk Mode plan: writable-LUN exception, LUN layout, USB stack, LBA48 and capacity migration | firmware/USB lead | D-54, ADR-0005, paper §16.2/§28.4.2 | design review; no code/device claim | Normal USB stays read-only; Disk Mode is exclusive (I-16) |
+| `tests/usb/` | Host SCSI/BOT/descriptor/LUN tests and the USB controller mock (planned) | USB/test lead | `docs/disk-mode.md`, T-110–T-112 | host tests + sanitizers | No device writes; no vendor commands |
+| `tools/collect-ipod-evidence.sh` | Read-only macOS evidence collector for Apple Disk Mode (planned) | boot/test lead | T-110, `docs/disk-mode.md` | dry-run and redaction check | Never writes `/dev/*`; redacts serial numbers |
 | `docs/log/` | Dated work logs | docs lead | `docs/log/TEMPLATE.md` | review | One file per active day/session; no secrets |
 | `docs/prompts/` | Reusable task prompts | docs lead | `docs/prompts/README.md` | review | Prompts link to docs; they are not a second spec |
 

@@ -3,10 +3,10 @@
 > Purpose: what is true today. This file is not a plan and not a design paper.
 > Status: living document
 > Owner: project owner; maintained by the documentation agent
-> Last updated: 2026-11-08
+> Last updated: 2026-11-11
 > Source: `README.md`, `docs/design-paper.md`, repository inspection;
 > Rockbox iPod Classic manual `0d5c2b0604-261105`;
-> [`audio-formats.md`](audio-formats.md)
+> [`audio-formats.md`](audio-formats.md), [`disk-mode.md`](disk-mode.md)
 
 ## Current phase
 
@@ -38,6 +38,13 @@ Date of this snapshot: **2026-11-06**. The repository retains the 2026-11-04
 device runs; the owner reports the Alpha 2.0.0 release set (loader, launcher and
 Music hub) was tested on a 6G, but the per-image evidence was not attached.
 
+**Disk Mode line, 2026-11-11.** The owner accepted D-54: a separate, explicit,
+exclusive Helikon Disk Mode may expose a writable USB LUN, while normal firmware
+USB remains read-only. The plan is in [`disk-mode.md`](disk-mode.md) and
+[ADR-0005](adr/0005-helikon-disk-mode.md). The first runtime step is T-109, a
+read-only ATA/LBA48/APM probe on the 6G/iFlash SD. There is no USB stack, no LUN,
+no LBA48 write and no >128 GiB volume yet; this line does not unblock F2/T-055.
+
 ## What exists
 
 | Item | Document status | Evidence |
@@ -45,6 +52,7 @@ Music hub) was tested on a 6G, but the per-image evidence was not attached.
 | Root `README.md` with 25 owner-authored goals and poster | living | Current `README.md`; goals unchanged, poster added 2026-11-03 |
 | Design paper, revision 2, 2026-11-03 | source | [`design-paper.md`](design-paper.md), source commit `3f220a73d0cceb083b3c057c6fe914d88468800a` |
 | Firmware architecture research paper | living | [`firmware-architecture.md`](firmware-architecture.md); functional, aesthetic and developer-ergonomics design; F1 device run owner-reported 2026-11-04 |
+| Helikon Disk Mode plan and ADR | design | [`disk-mode.md`](disk-mode.md), [ADR-0005](adr/0005-helikon-disk-mode.md), D-54; no USB stack, LUN or device run |
 | Firmware memory map / entry ABI ADRs | living | [`adr/0003-firmware-memory-map.md`](adr/0003-firmware-memory-map.md), [`adr/0004-firmware-entry-abi.md`](adr/0004-firmware-entry-abi.md); D-27/D-28 accepted 2026-11-04 |
 | Firmware F1/T-054 skeleton | `pass` | `firmware/boot`, `firmware/lib`, `firmware/board/6g`, `firmware/hal/6g`, `firmware/block`, `firmware/diag` and the HFS+ read adapter; signed development image 39,108 bytes, SHA-256 `d7916411…`; 9 host test groups sanitizer-clean; loader host core reports `loader: OK` / `bootstate: GOOD`; owner-reported 6G device run accepted 2026-11-04 (PASS, power-off, no write; photo/timings/`fsck_hfs` not attached) |
 | Firmware F2/T-055 bootstate promotion | `in progress` — **blocked; not in Alpha 2.0.0** | ATA PIO write/flush, firmware bootstate parser/promoter, in-place `hfs_catalog_overwrite_file` through `hfs_txn`, and the `WRITE` stage. Current candidate image 76,080 bytes, SHA-256 `1d6d4c92…`, BSS `0x08890000`–`0x08922e60`, bootstate `TRYING` sequence 1. Host checks pass (`tools/check-f2-artifact.sh` promotes to `GOOD`, `fsck_hfs` clean, loader sees `GOOD`; 22 overwrite cuts plus flush/partial modes). The write gate is unfinished and unconfirmed due to a currently unfixable bug, so the image is **not** an Alpha 2.0.0 asset and no device success is claimed. Runbook: [`f2-bootstate-test.md`](f2-bootstate-test.md) |
@@ -129,6 +137,7 @@ Helikon-OS poster above the goals on 2026-11-03.
 | VFS and player | `in progress` | The PCM path is device-proven: the four-buffer PL080 LLI ring, bounded 16-bit mono/stereo WAV at 44.1/48 kHz, pause/resume and Now Playing; owner run 2026-11-08 on image `18f5fe39…` (4,111,124 bytes) reported clean audio with working pause/resume, and PR #17 is merged. The first compressed tranche is merged as `e9f6ad6`: `firmware/codec/` has a static registry and a native FLAC decoder for 16/24-bit mono/stereo at 44.1/48 kHz in a 65,608-byte workspace, host bit-exact over 879,952 frames; owner run 2026-11-08 on image `6a2328ae…` (2,560,056 bytes, version 15) reported clean FLAC audio with working pause/resume. The cleaned Music-flow/Now Playing implementation (PR #21, image `5292c8ed…`, 4,195,680 bytes) is device-blocked: selecting an artist stalls for almost 20 s, and repeated presses eventually start playback. No VFS/storage-backed playback, next/previous, gapless, MP3, ALAC or AAC exists yet. The four-codec sequence is in [`audio-formats.md`](audio-formats.md) §11: audio bench, player/FLAC core, MP3/ALAC/AAC-LC, read-only storage, functional gate |
 | HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete/growth/deep delete/in-place update, fork staging, file/folder create/delete/rename, multi-extent/overflow data append/truncate, FastUnicodeCompare, HFS+ normalization, metadata policy and disposable-image `fsck_hfs` validation exist. One outer-volume 6G run passed; D-05 cache limits, broader fuzzing, timing and the device power-cut/adapter matrix remain |
 | F2 bootstate device run | `not run` — **blocked** | Host: the F2 candidate promotes `TRYING` to `GOOD`, `fsck_hfs` clean, loader sees `GOOD`; overwrite crash matrix passes. The firmware write gate is unfinished and unconfirmed due to a currently unfixable bug, so there is no confirmed 6G run. The image is not an Alpha 2.0.0 asset |
+| Helikon Disk Mode | `planned` | No USB stack, VIC/IRQ handler, LUN, LBA48 write probe or Disk Mode device run. T-109 is the first runtime step; normal USB stays read-only (D-54) |
 | Journal replay on a real dirty volume | `unproven` | Replay is host-tested on synthetic journals; no macOS-created dirty volume or device run |
 | Installer or desktop app | `in progress` | Companion app reset under `tools/desktop/`: owner-banner welcome screen and a brand-only shell with no sidebar navigation. All previous device, library, metadata, transfer, podcast, audiobook, scrobbler, install, settings and test code was removed on 2026-11-06. The shell builds universal (arm64 + x86_64) and ships as `Helikon-Companion-0.1.0-alpha2.dmg`; it has no device, network or write functionality. See [`companion-app.md`](companion-app.md) |
 | Build system, CI, release artifacts | `in progress` | `firmware/Makefile` and `tools/make-firmware-image.py` build the F1/F2 ELF, raw image, manifest, bootstate and signed development image. `VERSION` selects the image version and `BOOTSTATE_STATE=trying` or `good` selects the initial slot state. Host test Makefiles and bootloader build scripts exist. Alpha 2.0.0 (`alpha-2.0.0`) is published with the loader, two storage-free firmware sets and a universal companion DMG; it is an engineering preview with a test key and no firmware-owned write. There is no CI, reproducible release build, release key or staged update client |
