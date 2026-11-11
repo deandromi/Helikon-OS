@@ -50,7 +50,7 @@ LIB_SRC := lib/mem.c lib/string.c lib/crc32.c lib/sha256.c lib/ring.c \
 BOARD_SRC := board/$(BOARD)/board.c
 HAL_SRC := hal/$(BOARD)/cpu.c hal/$(BOARD)/clock.c hal/$(BOARD)/pmu.c \
            hal/$(BOARD)/backlight.c hal/$(BOARD)/lcd.c hal/$(BOARD)/ata.c \
-           hal/$(BOARD)/buttons.c
+           hal/$(BOARD)/buttons.c hal/$(BOARD)/vic.c
 BLOCK_SRC := block/block.c block/bounce.c block/partition.c
 DIAG_SRC := diag/stages.c diag/trace.c diag/crash.c diag/screen.c
 HFS_ADAPTER_SRC := hfs/hfs_block_adapter.c hfs/hfs_file.c

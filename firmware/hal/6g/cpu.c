@@ -23,6 +23,21 @@ void helikon_cpu_disable_interrupts(void)
     __asm__ volatile("msr cpsr_c, %0" : : "r"(value) : "memory");
 }
 
+void helikon_cpu_enable_interrupts(void)
+{
+    uint32_t value;
+    __asm__ volatile("mrs %0, cpsr" : "=r"(value));
+    value &= ~0x80u; /* Clear IRQ disable only; FIQ stays as it was. */
+    __asm__ volatile("msr cpsr_c, %0" : : "r"(value) : "memory");
+}
+
+int helikon_cpu_irq_enabled(void)
+{
+    uint32_t value;
+    __asm__ volatile("mrs %0, cpsr" : "=r"(value));
+    return (value & 0x80u) == 0u;
+}
+
 void helikon_cpu_data_sync(void)
 {
     uint32_t zero = 0;
