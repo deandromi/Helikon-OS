@@ -3,10 +3,10 @@
 > Purpose: what to do next, with dependencies and acceptance criteria.
 > Status: living document
 > Owner: project owner; task owners as listed
-> Last updated: 2026-11-08
+> Last updated: 2026-11-11
 > Source: design paper §23–§28, `docs/state.md`,
 > [`competitive-roadmap.md`](competitive-roadmap.md), Rockbox iPod Classic
-> manual `0d5c2b0604-261105`
+> manual `0d5c2b0604-261105`, [`disk-mode.md`](disk-mode.md)
 
 Priority: **P0** blocks the first safe write release or the evidence needed to
 prove it; **P1** is the first follow-up line; **P2** is later and must not delay
@@ -50,6 +50,15 @@ complete for the release set, but the per-image photos, timings and `fsck_hfs`
 remain to be attached. See
 [`releases/alpha-2.0.0/RELEASE_NOTES.md`](releases/alpha-2.0.0/RELEASE_NOTES.md).
 
+**Disk Mode line, 2026-11-11.** The owner accepted D-54: a separate, explicit,
+exclusive Helikon Disk Mode may expose a writable USB LUN, while normal firmware
+USB stays read-only. T-108 defines the plan and decision; T-109 is the first
+runtime step, a read-only ATA/LBA48/APM probe. No Disk Mode code, LBA48 write,
+writable LUN or >128 GiB volume exists yet. This line does not unblock F2/T-055
+and does not authorize a library write; the first write test still needs a
+verified backup. See [`disk-mode.md`](disk-mode.md) and
+[ADR-0005](adr/0005-helikon-disk-mode.md).
+
 ## Now
 
 The first firmware write and production handoff are blocked. F1/T-054 produced
@@ -72,6 +81,11 @@ authorize a library write.
 
 | ID | Task | Priority | Dependencies | Acceptance criteria | Status | Owner | Links |
 |---|---|---|---|---|---|---|---|
+| T-108 | Define and record Helikon Disk Mode, the D-54 writable-LUN exception and the LBA48/capacity plan; produce the read-only P0 evidence runbook/collector. | P0 | Owner approval 2026-11-11 | D-54 accepted; ADR-0005 and `disk-mode.md` exist; P0 collector runbook/script exists; tasks/roadmap/state/invariants/file-map updated; no code and no device run claimed. | `in progress` | architecture/docs | [disk-mode.md](disk-mode.md), [ADR-0005](adr/0005-helikon-disk-mode.md), [D-54](decisions.md#d-54--helikon-disk-mode-and-the-writable-lun) |
+| T-109 | Build the read-only ATA/LBA48/APM probe image and record the 6G geometry. | P0 | T-108; one 6G/iFlash SD | Probe prints IDENTIFY 83/86/100–103/60–61/106/117–118, APM/MBR/HFS geometry, sector size, LBA48 support and the LUN candidate; one owner-reported 6G run with photo and values; no write, no USB. | `in progress` | firmware/storage | [disk-mode.md](disk-mode.md), [f2-bootstate-test.md](f2-bootstate-test.md), [device-matrix.md](device-matrix.md) |
+| T-110 | Implement the USB device core, VIC/IRQ and enumeration (P2); the USB device-stack research is `docs/usb-device-stack.md`. | P0 | T-109; USB device-stack research | macOS enumerates "Helikon Disk Mode"; descriptors and control requests pass host/mock tests; 100 connect/disconnect cycles; no storage LUN yet. | `planned` | firmware/USB | [disk-mode.md](disk-mode.md), [firmware-architecture.md](firmware-architecture.md) |
+| T-111 | Implement the read-only MSC data-volume LUN (P3). | P0 | T-110, T-109 | macOS mounts the largest HFS+ partition read-only and reads a known file; LUN mapping, READ CAPACITY/READ and error paths pass; no write. | `planned` | firmware/USB | [disk-mode.md](disk-mode.md) |
+| T-112 | Implement the writable MSC data-volume LUN with flush, eject and error handling (P4). | P0 | T-111, D-54, verified backup | 1 GB host write + SHA-256 read-back; `fsck_hfs -fn` zero repairs; safe eject; surprise-unplug journal test; only the data volume is exposed by default. | `planned` | firmware/USB | [disk-mode.md](disk-mode.md), [invariants.md](invariants.md) |
 | T-013 | Define the first-party UI task tests and the 20-skin corpus licence review. | P2 | D-10, D-15 | Five tasks (play, browse, settings, podcast, install) have success criteria; corpus list records licence/source; unsupported-tag report format defined. | `planned` | UI/test lead | [goals.md](goals.md), [validation.md](validation.md) |
 | T-029 | Build and run a hardware-testable diagnostic bootloader image. | P1 | T-028, T-003 | Image built: 67,144 bytes, SHA-256 `280ed7aee5dcf38d1a30470704f91740b299004692c2aebbb21d41744c05f43c`, `_moveend` `0x22030e40`, 61,888 bytes `MOVE_AREA` headroom. First run (`bd0ebc92…`) booted and splashed; volume/catalog PASS, read FAIL `-11`, report formatting corrupt. Fixed image (`280ed7ae…`) rerun: formatting correct, volume/catalog/write/journal/splash/partition correct, read `-8` because `/rockbox.ipod` is not a disk file; no write. Remaining: optional real-file probe, button/power-off record. | `in progress` | boot/release | [DFU.md](../bootloader/DFU.md), [artifact README](../bootloader/artifacts/README.md), [device-matrix.md](device-matrix.md) |
 | T-045 | Design and integrate a new bootloader splash. | P2 | owner design; bootloader display path | Final owner green/red PNGs are in `assets/bootloader/` with `VERSION ALPHA`; only the HFS+ label is composited at runtime. The refreshed image uses a 16-colour 4bpp RGB565 base, a 324-byte label mask and no temporary stage line. Owner-reported device check passed on `6bc6927c…`: 6.5 s startup and `fsck_hfs -fn` clean. | `implemented` | owner/boot | [bootloader assets README](../assets/bootloader/README.md), [splash_color.c](../bootloader/splash_color.c), [LOADER_TEST.md](../bootloader/LOADER_TEST.md) |
@@ -129,6 +143,9 @@ commitments.
 
 | ID | Task | Priority | Dependencies | Acceptance criteria | Status | Owner | Links |
 |---|---|---|---|---|---|---|---|
+| T-113 | Integrate Helikon Disk Mode into the firmware, UI and safe-exit flow (P6). | P1 | T-112 | Settings entry, status screen, USB-power gate, safe eject, reboot, journal check/replay and error screens; an end-to-end device run copies a file, ejects, reboots and reads it in Helikon-OS. | `planned` | firmware/UI | [disk-mode.md](disk-mode.md), [ui.md](ui.md) |
+| T-114 | Implement the whole-disk expert mode and the capacity-migration tool (P7). | P1 | T-112, T-113, a card >128 GiB, verified backup | Whole-disk LUN read-only by default; writable only as an explicit restore mode; host tool creates a second larger HFS+ partition or (expert) grows the first; `fsck_hfs` clean; Apple fallback recorded. | `planned` | firmware/USB/host | [disk-mode.md](disk-mode.md), [outer-volume-test.md](outer-volume-test.md) |
+| T-115 | Harden and measure Disk Mode: DMA, fuzz, 100-cycle, power-cut and throughput (P8–P9). | P1 | T-112–T-114 | ATA DMA/UDMA measured against PIO; malformed SCSI/BOT fuzz clean; 100 connect/disconnect cycles; surprise-unplug and device power-cut recover; one 6G/iFlash SD row with no support claim. | `planned` | firmware/test | [disk-mode.md](disk-mode.md), [validation.md](validation.md) |
 | T-015 | Phase 0: rescue bootloader and native HFS+ read-only firmware skeleton. | P0 | T-011, source tree | Boots, loads a verified image, Apple path intact, zero writes; volume hash unchanged. No in-bootloader recovery menu (D-26): native Menu+Play and DFU cover recovery. | `planned` | boot/firmware | [roadmap.md](roadmap.md), [decisions.md](decisions.md#d-26--bootloader-recoveryof-selection) |
 | T-016 | Phase 1: read-only player with HAL, HFS+ read, audio and minimal UI. | P0 | T-015 | Plays, browses, survives reboot and leaves the volume hash unchanged. | `planned` | firmware | [roadmap.md](roadmap.md) |
 | T-017 | Phase 2: non-journaled writer prototype on a disposable volume. | P2 | T-007, T-008, T-010 | Superseded: the journaled writer was implemented directly; a non-journaled prototype is not needed for release. | `rejected` | HFS+ lead | [hfsplus-write-engine.md](hfsplus-write-engine.md) |

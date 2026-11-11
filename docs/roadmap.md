@@ -3,9 +3,10 @@
 > Purpose: sequence the work and make every phase's exit criterion explicit.
 > Status: living document
 > Owner: project owner; phase leads
-> Last updated: 2026-11-05
+> Last updated: 2026-11-11
 > Source: design paper §23, §24, §27, §28; Rockbox iPod Classic manual
-> `0d5c2b0604-261105`; [`competitive-roadmap.md`](competitive-roadmap.md)
+> `0d5c2b0604-261105`; [`competitive-roadmap.md`](competitive-roadmap.md);
+> [`disk-mode.md`](disk-mode.md)
 
 **No phase is complete.** This is a design-stage roadmap, not a schedule
 promise. Durations are intentionally omitted; the paper says months to years, not
@@ -40,6 +41,13 @@ owner-reported 6G runs, and Alpha 2.0.0 ships storage-free launcher and Music-hu
 images. The F2/T-055 write path is host-verified but blocked and unconfirmed
 due to a currently unfixable bug; it is not part of Alpha 2.0.0. Volume-hash
 comparison, production handoff and the release-key path remain.
+
+**Disk Mode line (owner-authorized 2026-11-11).** D-54 adds a parallel storage
+and USB line: T-108 defines the plan, T-109 is a read-only ATA/LBA48/APM probe,
+and T-110–T-115 cover USB enumeration, the read-only and writable LUN, the UI,
+whole-disk/capacity migration, DMA and hardening. The line does not renumber the
+phases, does not unblock F2/T-055 and does not authorize a library write before
+T-112's verified-backup gate. See [`disk-mode.md`](disk-mode.md).
 
 ## Competitive baseline (2026-11-05)
 
@@ -105,6 +113,7 @@ only after the dependency named in the row. Tasks are in
 | H1-D Playback parity | Tier 1 codecs, gapless, ReplayGain, EQ, crossfade, volume limit | Phase 1 + audio HAL | T-068, T-070, T-097, T-099 | 20-track codec corpus; gapless/seek pass; no clipping |
 | H1-E UI parity | Renderer, native theme, status bar, now playing, album art, display/startup settings | Phase 1 + T-042 | T-072, T-079, T-103 | 30 fps scroll, <200 ms open, panel photos, settings parity |
 | H1-F Desktop and USB | Read-only LUN, HID, charge-only, macOS app MVP | Phase 9 | T-076, T-083 | Backup, import, tag, install and verify pass on macOS |
+| H1-G Disk Mode and LBA48 | Explicit writable Disk Mode, LBA48, data/whole-disk LUN, capacity migration | Owner D-54; T-109 evidence | T-108–T-115 | One 6G/iFlash SD: probe, enumerate, mount, 1 GB write, fsck, LBA48 boundary, safe eject, no corruption |
 | H2-A Data leadership | Checksums, scrub, quarantine, corruption reporting, read-only health scan, device health | H1-B | T-078, T-105 | Injected corruption detected; zero false OK; health report recorded |
 | H2-B Index leadership | On-device incremental builder, power-cut resume, library doctor, smart navigation | H1-C | T-067, T-106 | 10k build resumes at 25/50/75%; library doctor report clean |
 | H2-C Audio leadership | All 37 audio families (including Opus), advanced DSP, DAC/output measurements, per-output profiles | H1-D | T-069, T-071, T-092, T-098, T-100, T-101, T-107 | Full audio corpus passes; published measurements; profile safety check |

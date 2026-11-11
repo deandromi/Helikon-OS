@@ -3,8 +3,9 @@
 > Purpose: stable definitions so docs and agents use the same words.
 > Status: living document
 > Owner: docs lead
-> Last updated: 2026-11-04
-> Source: design paper Appendix F, plus project-specific terms
+> Last updated: 2026-11-11
+> Source: design paper Appendix F, plus project-specific terms; D-54;
+> [`disk-mode.md`](disk-mode.md)
 
 | Term | Plain-language meaning |
 |---|---|
@@ -45,13 +46,14 @@
 | **Freestanding** | A build with no hosted C library or OS; only the firmware's own support code. |
 | **Fuzzing** | Feeding random/malformed input to find crashes and parser bugs. |
 | **HAL** | Hardware abstraction layer. A clean interface over registers and chips. |
+| **Helikon Disk Mode** | An explicit, exclusive firmware mode that exposes a writable USB mass-storage LUN. The host owns the HFS+ volume; the firmware does not mount it. See D-54 and [disk-mode.md](disk-mode.md). |
 | **HFS+** | Apple's hierarchical file system used by the iPod. Helikon-OS targets HFS+ v4. |
 | **HFSX** | A case-sensitive HFS+ variant; not supported by Helikon-OS. |
 | **Host test** | A test that runs on the Mac/host, not the iPod. |
 | **Journal** | A log of pending metadata changes that makes HFS+ writes crash-consistent. |
 | **Journal replay** | Re-applying committed journal records after an interrupted write. |
 | **Journaled volume** | An HFS+ volume with a journal. Helikon-OS must replay or refuse writes. |
-| **LUN** | A USB mass-storage logical unit. Helikon-OS exposes it read-only. |
+| **LUN** | A USB mass-storage logical unit. The normal Helikon-OS profile exposes it read-only; Helikon Disk Mode is the explicit writable exception. |
 | **Manifest** | A small file describing a firmware image: magic, board, version, load address, size and hashes. |
 | **MOVE_AREA** | The memory window the bootloader must fit into. |
 | **Native metadata** | Apple's catalog, bitmap, extents tree, volume header and journal. |

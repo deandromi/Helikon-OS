@@ -3,8 +3,8 @@
 > Purpose: numbered safety invariants. Each one is testable or inspectable.
 > Status: living document
 > Owner: project owner; every contributor
-> Last updated: 2026-11-04
-> Source: design paper §1, §5, §8–§10, §16, §21, §24, §28
+> Last updated: 2026-11-11
+> Source: design paper §1, §5, §8–§10, §16, §21, §24, §28; D-54; ADR-0005
 
 These are not style preferences. A change that violates one is rejected, even if
 it makes a demo work. "Verify" describes the evidence that would prove the
@@ -64,9 +64,11 @@ no direct catalog/bitmap/extents writes outside the engine. Fault injection at
 each boundary leaves either the old or the new consistent state.
 
 **What would violate it.** A "quick" direct metadata write, a write path that
-skips the journal, a second writer, or an application writing raw blocks.
+skips the journal, a second firmware writer, an application writing raw blocks,
+or a firmware HFS+ mount while a host owns the LUN (I-16). A host write in
+Helikon Disk Mode is not a firmware metadata change; I-16 governs that mode.
 
-**Paper:** §9.2, §9.4, §9.6, §19.1.
+**Paper:** §9.2, §9.4, §9.6, §19.1; D-54; ADR-0005.
 
 ## I-04 — `fsck_hfs` reports zero repairs after crash tests
 
@@ -287,3 +289,29 @@ threshold and measurement method.
 that starts on a low battery "to finish quickly".
 
 **Paper:** §9.4, §19.2, §20, §28.3.2.
+
+## I-16 — Disk Mode is exclusive and host-owned
+
+**Statement.** A writable USB LUN exists only in Helikon Disk Mode. In that mode
+the firmware does not mount, read or write the HFS+ volume; the host filesystem
+is the only writer. Normal firmware USB is read-only. Disk Mode is entered by an
+explicit user action, flushes before it reports eject success, checks the journal
+after the host releases the volume, and reboots before the firmware mounts the
+volume again. The bootloader is never part of Disk Mode.
+
+**Why it matters.** Two writers on one volume are the corruption case D-09/D-38
+were protecting against. A dedicated mode removes the second firmware writer and
+makes the host's own journal the crash-consistency mechanism, exactly as in
+Apple Disk Mode. Without the exclusivity rule, a writable LUN would be unsafe.
+
+**How to verify.** Code review: no open HFS+/VFS handle survives Disk Mode entry;
+the normal USB profile never advertises a writable LUN; the state machine refuses
+exit while active. Device tests: host write, eject, reboot, `fsck_hfs -fn`,
+surprise unplug, journal replay. A dirty or invalid journal must produce a
+visible error, not a silent mount.
+
+**What would violate it.** A writable LUN in normal firmware, a firmware HFS+
+mount while the host owns the LUN, a Disk Mode exit without flush, a bootloader
+write path, or a host write that is presented as a firmware transaction.
+
+**Paper:** D-54; ADR-0005; §16.2, §21.

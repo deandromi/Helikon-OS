@@ -3,10 +3,10 @@
 > Purpose: why the design is what it is, and what is still undecided.
 > Status: living document
 > Owner: project owner
-> Last updated: 2026-11-05
+> Last updated: 2026-11-11
 > Source: design paper §18, §25, §28; Helikon-OS README; Rockbox iPod
 > Classic manual `0d5c2b0604-261105`; [`competitive-roadmap.md`](competitive-roadmap.md);
-> [`audio-formats.md`](audio-formats.md)
+> [`audio-formats.md`](audio-formats.md); [`disk-mode.md`](disk-mode.md)
 
 This file is the index and short-form record. Use `docs/adr/` only for a
 decision too large to explain here. Do not invent an owner decision. Mark
@@ -86,6 +86,7 @@ re-litigate them.
 | D-51 | Audio metadata, artwork and gapless policy | proposed | owner | §9.4, §28.3.8; D-06; audio-formats |
 | D-52 | Display face for home-screen headers (ITC Benguiat) | proposed | owner | §14, §28.3.4; D-23 |
 | D-53 | Music catalog ownership (native HelikonDB, no iTunesDB) | accepted | owner | §12, §28.4.1; D-07, D-33; [helikondb.md](helikondb.md) |
+| D-54 | Helikon Disk Mode and the writable LUN | accepted | owner | §16.2, §28.4.2; D-09, D-38; [ADR-0005](adr/0005-helikon-disk-mode.md) |
 
 The paper's §25 lists 17 decisions. D-18, D-19, D-20 and D-26 are added from §18,
 §28.4.4 and the bootloader recovery policy. D-18 and D-20 are accepted; D-19 was
@@ -291,6 +292,10 @@ accept, reject or narrow one of them.
   mode is not a raw block device and must never bypass the transaction engine.
 - **Follow-up:** define the protocol boundary and threat model; keep read-only
   LUN as the fallback.
+- **Amendment (2026-11-11):** D-54 narrows option (c). A writable LUN is allowed
+  only in the explicit, exclusive Helikon Disk Mode; the normal USB profile stays
+  read-only and the service mode remains the cross-platform path. See
+  [`disk-mode.md`](disk-mode.md).
 
 ## D-10 — Skin compatibility scope
 
@@ -905,6 +910,9 @@ accept, reject or narrow one of them.
   recovery path. No Windows/Linux write claim until the service mode passes.
 - **Follow-up:** T-076 (composite USB), T-077 (service mode), T-091 (security
   review).
+- **Amendment (2026-11-11):** D-54 allows a writable LUN only in the explicit,
+  exclusive Helikon Disk Mode. The normal profile stays read-only; the service
+  mode remains the cross-platform path. See [`disk-mode.md`](disk-mode.md).
 
 ## D-39 — Anti-corruption algorithm and coverage
 
@@ -1369,6 +1377,38 @@ not authorize a product change.
   tags on the host.
 - **Follow-up:** T-066 production builder, T-067 journal, T-056/T-088 Music
   screens, 10k-track and power-cut evidence.
+
+## D-54 — Helikon Disk Mode and the writable LUN
+
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-11. **Paper:** §16.2, §28.4.2; D-09, D-38; [ADR-0005](adr/0005-helikon-disk-mode.md); [disk-mode.md](disk-mode.md).
+- **Context:** the normal USB profile is read-only under D-09/D-38. The owner
+  needs a Helikon-owned way to write to the iPod without Apple Disk Mode, and
+  the 6G needs LBA48 to address more than the Apple LBA28 limit of 128 GiB. A
+  writable LUN is unsafe only while the firmware can also mount and write the
+  volume.
+- **Options:** (a) keep the read-only LUN and wait for the service mode; (b) add
+  an explicit, exclusive Disk Mode with a writable LUN; (c) add a writable LUN to
+  the normal firmware profile.
+- **Decision:** option (b). Helikon Disk Mode is a separate, explicit,
+  exclusive mode. Normal firmware USB remains read-only. The default LUN is the
+  largest HFS+ data partition, exposed as a bare volume; the whole-disk LUN is
+  an expert mode, read-only by default and writable only as an explicit restore
+  mode. The firmware does not mount HFS+ while the host owns the LUN; the host
+  filesystem is the only writer, as in Apple Disk Mode. The firmware flushes on
+  eject, checks the journal after the host releases the volume, and reboots
+  before it mounts the volume again. LBA48 is runtime-probed. Capacity migration
+  is host-side and starts with a second larger HFS+ partition; growing the
+  existing partition is expert-only. macOS is the first write host.
+- **Consequences:** the old writable-LUN rejection remains true for normal
+  operation; the Disk Mode exception is narrow and explicit. The firmware
+  transaction engine is not bypassed because the firmware is not a writer while
+  the host owns the volume; the optional post-eject replay still goes through
+  `hfs_txn`. The USB stack, VIC/IRQ, LBA48 and a new device-test matrix are
+  required. A dirty journal, surprise removal or a failed flush must fail safe.
+  No second image path, no bootloader write and no firmware format/repair.
+- **Follow-up:** T-108–T-115; ADR-0005; [disk-mode.md](disk-mode.md);
+  [invariants.md](invariants.md) I-16; one 6G/iFlash SD LBA48 probe before any
+  writable LUN.
 
 ## Adding a decision
 
