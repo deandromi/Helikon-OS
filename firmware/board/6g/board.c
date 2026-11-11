@@ -115,6 +115,22 @@ int helikon_board_display_attach(struct helikon_board_runtime *runtime)
     return HELIKON_OK;
 }
 
+int helikon_board_storage_attach(struct helikon_board_runtime *runtime)
+{
+    if (runtime == NULL || !runtime->ata.initialized ||
+        runtime->ata.sector_size < 512u ||
+        runtime->ata.total_sectors == 0u)
+        return HELIKON_ERR_ARGUMENT;
+
+    struct helikon_block_info info = {
+        .sector_size = runtime->ata.sector_size,
+        .sector_count = runtime->ata.total_sectors,
+        .flags = HELIKON_BLOCK_FLAG_READ_ONLY
+    };
+    return helikon_block_init(&runtime->block, &block_ops, &runtime->ata,
+                              &info);
+}
+
 int helikon_board_storage_init(struct helikon_board_runtime *runtime,
                                uint32_t timeout_ms)
 {
@@ -124,14 +140,7 @@ int helikon_board_storage_init(struct helikon_board_runtime *runtime,
                               timeout_ms);
     if (rc != HELIKON_OK)
         return rc;
-
-    struct helikon_block_info info = {
-        .sector_size = runtime->ata.sector_size,
-        .sector_count = runtime->ata.total_sectors,
-        .flags = HELIKON_BLOCK_FLAG_READ_ONLY
-    };
-    return helikon_block_init(&runtime->block, &block_ops, &runtime->ata,
-                              &info);
+    return helikon_board_storage_attach(runtime);
 }
 
 int helikon_board_input_init(struct helikon_board_runtime *runtime,

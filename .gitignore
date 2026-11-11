@@ -34,6 +34,7 @@ tests/firmware/test_lib
 tests/firmware/test_boot_info
 tests/firmware/test_bootstate
 tests/firmware/test_block
+tests/firmware/test_ata_geometry
 tests/firmware/test_stages
 tests/firmware/test_ring
 tests/firmware/test_pool

@@ -51,7 +51,8 @@ BOARD_SRC := board/$(BOARD)/board.c
 HAL_SRC := hal/$(BOARD)/cpu.c hal/$(BOARD)/clock.c hal/$(BOARD)/pmu.c \
            hal/$(BOARD)/backlight.c hal/$(BOARD)/lcd.c hal/$(BOARD)/ata.c \
            hal/$(BOARD)/buttons.c
-BLOCK_SRC := block/block.c block/bounce.c block/partition.c
+BLOCK_SRC := block/block.c block/bounce.c block/partition.c \
+             block/ata_geometry.c
 DIAG_SRC := diag/stages.c diag/trace.c diag/crash.c diag/screen.c
 HFS_ADAPTER_SRC := hfs/hfs_block_adapter.c hfs/hfs_file.c
 HFS_SRC := hfs/hfs_volume.c hfs/hfs_btree.c hfs/hfs_catalog.c \

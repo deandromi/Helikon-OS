@@ -64,6 +64,12 @@ int helikon_board_power_attach(struct helikon_board_runtime *runtime);
 int helikon_board_display_attach(struct helikon_board_runtime *runtime);
 int helikon_board_storage_init(struct helikon_board_runtime *runtime,
                                uint32_t timeout_ms);
+/*
+ * Build the block device from an ATA handle that is already initialized.
+ * The diagnostic probe uses this after its own init so it does not run a
+ * second ATA init. The block stays read-only: no write gate is opened.
+ */
+int helikon_board_storage_attach(struct helikon_board_runtime *runtime);
 int helikon_board_input_init(struct helikon_board_runtime *runtime,
                              uint32_t timeout_ms);
 
