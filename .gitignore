@@ -39,6 +39,7 @@ tests/firmware/test_ring
 tests/firmware/test_pool
 tests/firmware/test_screen
 tests/firmware/test_trace
+tests/firmware/test_vic
 tests/firmware/*.dSYM/
 tests/firmware/test_hfs_file
 

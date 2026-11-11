@@ -78,11 +78,15 @@ helikon_vector_reserved:
     .global helikon_vector_irq
     .type helikon_vector_irq, %function
 helikon_vector_irq:
-    mov r1, lr
-    mov r0, #6
-    bl helikon_panic_vector
-1:
-    b 1b
+    /*
+     * IRQ entry: save the caller-saved registers and the IRQ-mode lr, run the
+     * short C dispatcher, restore, then return through lr-4 with the SPSR
+     * restored by the `s` suffix. Nested interrupts stay disabled.
+     */
+    stmfd sp!, {r0-r3, r12, lr}
+    bl helikon_vic_dispatch
+    ldmfd sp!, {r0-r3, r12, lr}
+    subs pc, lr, #4
 
     .global helikon_vector_fiq
     .type helikon_vector_fiq, %function

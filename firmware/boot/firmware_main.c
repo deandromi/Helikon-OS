@@ -33,6 +33,9 @@
 #ifdef HELIKON_DIAG_LAUNCHER
 #include "launcher_run.h"
 #endif
+#ifdef HELIKON_DIAG_IRQ
+#include "vic.h"
+#endif
 #include "mem.h"
 #include "panic.h"
 #include "partition.h"
@@ -512,6 +515,95 @@ static void diag_finish(struct boot_context *ctx)
 }
 #endif
 
+#ifdef HELIKON_DIAG_IRQ
+static volatile uint32_t irq_selftest_count;
+
+static void irq_selftest_handler(void *context)
+{
+    (void)context;
+    ++irq_selftest_count;
+}
+
+/*
+ * Diagnostic IRQ self-test. The only enabled VIC source is bank-0 software
+ * interrupt 0, which nothing else in the firmware uses. ATA, HFS+, USB and the
+ * filesystem are untouched. The timeout is a bounded 100 ms poll, not WFI:
+ * timer E is not configured as an interrupt source, so WFI alone would not
+ * bound the wait.
+ */
+static void irq_selftest(struct boot_context *ctx) __attribute__((noreturn));
+
+static void irq_selftest(struct boot_context *ctx)
+{
+    int stage = 1;
+    int rc = helikon_vic_init();
+    if (rc == HELIKON_OK) {
+        stage = 2;
+        rc = helikon_vic_register(HELIKON_VIC_IRQ_SOFT, irq_selftest_handler,
+                                  NULL);
+    }
+    if (rc == HELIKON_OK) {
+        stage = 3;
+        rc = helikon_vic_enable(HELIKON_VIC_IRQ_SOFT);
+    }
+    if (rc == HELIKON_OK) {
+        stage = 4;
+        helikon_cpu_enable_interrupts();
+        if (!helikon_cpu_irq_enabled())
+            rc = HELIKON_ERR_IO;
+    }
+    if (rc == HELIKON_OK) {
+        stage = 5;
+        irq_selftest_count = 0u;
+        rc = helikon_vic_software_trigger(HELIKON_VIC_IRQ_SOFT);
+    }
+    if (rc == HELIKON_OK) {
+        stage = 6;
+        uint64_t start = helikon_clock_now_us(&ctx->board.clock);
+        while (irq_selftest_count == 0u &&
+               !helikon_clock_expired(&ctx->board.clock, start, 100u)) {
+            helikon_clock_delay_us(&ctx->board.clock, 1000u);
+        }
+        if (irq_selftest_count == 0u)
+            rc = HELIKON_ERR_IO;
+    }
+
+    (void)helikon_vic_disable(HELIKON_VIC_IRQ_SOFT);
+    helikon_cpu_disable_interrupts();
+    (void)helikon_vic_software_clear(HELIKON_VIC_IRQ_SOFT);
+    (void)helikon_vic_unregister(HELIKON_VIC_IRQ_SOFT);
+    helikon_vic_acknowledge();
+
+    paint_title(ctx, "VIC/IRQ DIAGNOSTIC");
+    char line[64];
+    if (rc == HELIKON_OK) {
+        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_SUCCESS);
+        helikon_strlcpy(line, "IRQ OK ", sizeof(line));
+        append_u32(line, sizeof(line), (uint32_t)irq_selftest_count);
+        helikon_screen_text(&ctx->screen, 16, 80, 3, line);
+    } else {
+        helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_FAILURE);
+        helikon_strlcpy(line, "IRQ FAIL ", sizeof(line));
+        append_i32(line, sizeof(line), stage);
+        text_append(line, sizeof(line), "/");
+        append_i32(line, sizeof(line), rc);
+        helikon_screen_text(&ctx->screen, 16, 80, 3, line);
+    }
+
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+    helikon_screen_text(&ctx->screen, 16, 140, 2, "IRQ 0 VIC0 SOFTINT");
+    helikon_strlcpy(line, "SPURIOUS ", sizeof(line));
+    append_u32(line, sizeof(line), helikon_vic_spurious_count());
+    helikon_screen_text(&ctx->screen, 16, 160, 2, line);
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_NEUTRAL);
+    helikon_screen_text(&ctx->screen, 16, 190, 2,
+                        "NO STORAGE OR USB USED");
+    (void)present_or_trace(ctx, HELIKON_TRACE_INFO, HELIKON_STAGE_LCD);
+    helikon_clock_delay_us(&ctx->board.clock, 5000000u);
+    boot_power_off(ctx);
+}
+#endif
+
 static void boot_fail(struct boot_context *ctx, int stage, int error,
                       const char *reason) __attribute__((noreturn));
 
@@ -956,6 +1048,10 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
                                &ctx->board.clock);
     paint_message(ctx, "HOME", "POWER OFF");
     boot_power_off(ctx);
+#endif
+
+#ifdef HELIKON_DIAG_IRQ
+    irq_selftest(ctx);
 #endif
 
     stage_begin(ctx, HELIKON_STAGE_ATA);
