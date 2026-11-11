@@ -4,8 +4,9 @@
 > recovery. This is a design, not an implementation.
 > Status: living document
 > Owner: architecture lead
-> Last updated: 2026-11-04
-> Source: design paper §5–§19, §21, §24; `docs/hfsplus-write-engine.md`
+> Last updated: 2026-11-11
+> Source: design paper §5–§19, §21, §24; `docs/hfsplus-write-engine.md`;
+> `docs/disk-mode.md`; D-54; ADR-0005
 
 **A host HFS+ read core, a read-only diagnostic bootloader core, a host
 manifest/boot-state loader and a verification-only Ed25519 module exist.** A
@@ -197,7 +198,9 @@ changes anything.
   certified release key; certificate verification is T-053.
 - Boot-state file is read-only from the bootloader and checksummed; the firmware
   writes it only through the HFS+ transaction engine.
-- Read-only USB by default; no writable mass-storage LUN.
+- Read-only USB in the normal profile. Helikon Disk Mode is an explicit,
+  exclusive exception with a writable LUN; the firmware does not mount HFS+
+  while the host owns the volume (D-54, ADR-0005, I-16).
 - Metadata only through the transaction engine, with ordering and checksums.
 - Journal replay is bounded and idempotent; any journal/checksum failure mounts
   read-only.
@@ -226,7 +229,9 @@ changes anything.
 7. Bootloader changes are DFU-only with their own verification. They are never
    staged on HFS+ and never use `--single`.
 
-There is no auto-update, no silent install and no writable USB path.
+There is no auto-update and no silent install. A writable USB path exists only
+in Helikon Disk Mode (D-54), where the host owns the volume; the bootloader
+still verifies every staged image before a jump.
 
 ## 9. Database, player and UI boundaries
 
@@ -251,7 +256,8 @@ There is no auto-update, no silent install and no writable USB path.
 - Non-transactional metadata writes.
 - Journal bypass/deletion/zeroing.
 - Auto-repair, format/erase/restore as a firmware action.
-- Writable USB mass storage.
+- A writable USB mass-storage LUN in the normal firmware profile. Helikon Disk
+  Mode is the only exception and is governed by D-54/I-16.
 - Full Rockbox plugin tree or raw-hardware plugin API.
 - Full WPS engine or bundled proprietary themes.
 - Unsigned firmware or plugins.

@@ -3,8 +3,9 @@
 > Purpose: prevent secrets, data loss and unsafe device operations.
 > Status: living document
 > Owner: project owner; security lead
-> Last updated: 2026-11-04
-> Source: design paper §19.3, §20, §28.3.9–10, §28.4.4; root `SECURITY.md`
+> Last updated: 2026-11-11
+> Source: design paper §19.3, §20, §28.3.9–10, §28.4.4; root `SECURITY.md`;
+> D-54; [`disk-mode.md`](disk-mode.md)
 
 ## 1. Secrets
 
@@ -52,7 +53,9 @@ delete the journal, zero metadata, delete app data or overwrite a newer file.
 
 - No destructive repair as a first response.
 - No `--single`.
-- No writable USB mass-storage LUN.
+- No writable USB mass-storage LUN in the normal firmware profile. Helikon Disk
+  Mode is the only exception; it is explicit, exclusive and follows
+  [disk-mode.md](disk-mode.md), D-54 and I-16.
 - No auto-format/auto-repair.
 - No write to a volume `fsck_hfs` reports dirty/damaged.
 - If the only evidence is "it boots", do not proceed.

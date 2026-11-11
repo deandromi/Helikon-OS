@@ -3,11 +3,44 @@
 > Purpose: the latest session handoff and the reusable template.
 > Status: living document
 > Owner: session author; next agent reads this first
-> Last updated: 2026-11-08
-> Source: `docs/state.md`, `docs/tasks.md`, repository history
+> Last updated: 2026-11-11
+> Source: `docs/state.md`, `docs/tasks.md`, repository history; D-54;
+> [`disk-mode.md`](disk-mode.md)
 
 Keep the newest handoff at the top. Move older entries to `docs/log/` when this
 file grows. Do not rely on chat history for current state.
+
+---
+
+# Handoff — 2026-11-11 (Helikon Disk Mode plan and D-54)
+
+## What happened
+
+- Owner accepted D-54: a separate, explicit, exclusive Helikon Disk Mode may
+  expose a writable USB LUN; normal firmware USB stays read-only.
+- Added [ADR-0005](adr/0005-helikon-disk-mode.md) and the canonical
+  [`disk-mode.md`](disk-mode.md) plan: data-volume LUN default, whole-disk expert
+  mode, BOT/SCSI stack, LBA48, capacity migration and the test matrix.
+- Added T-108–T-115 to [`tasks.md`](tasks.md); T-108 is this docs task and T-109
+  is the first runtime step (read-only ATA/LBA48/APM probe).
+- Updated architecture, firmware-architecture, invariants (I-16), security,
+  release, failures, glossary, FAQ, competitive roadmap, companion research,
+  file map, state, roadmap, device matrix and the build prompt.
+- No USB stack, LUN, LBA48 write, Disk Mode device run or >128 GiB volume exists.
+
+## What is next
+
+1. T-109: build and run the read-only ATA/LBA48/APM probe on the 6G/iFlash SD;
+   record IDENTIFY 83/86/100–103/60–61/106/117–118 and the real partition map.
+2. T-108: host evidence collector; T-110: USB device-core research; no writable LUN.
+3. Do not start T-112 until T-109/T-111 pass and a verified backup exists.
+
+## Do not claim
+
+- That Helikon Disk Mode, a writable LUN, LBA48 or >128 GiB exists.
+- That F2/T-055 is unblocked by this line.
+- That a host write is transactional firmware I/O; it is host-owned Disk Mode
+  I/O and must be tested with `fsck_hfs`.
 
 ---
 
