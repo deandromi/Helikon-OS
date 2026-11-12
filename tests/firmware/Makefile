@@ -24,12 +24,13 @@ FW_OBJS := $(BUILD)/lib/mem.o $(BUILD)/lib/string.o $(BUILD)/lib/crc32.o \
            $(BUILD)/lib/fixed.o $(BUILD)/lib/format.o \
            $(BUILD)/boot/boot_info.o $(BUILD)/boot/bootstate.o \
            $(BUILD)/block/block.o $(BUILD)/block/bounce.o \
-           $(BUILD)/block/partition.o $(BUILD)/diag/stages.o \
+           $(BUILD)/block/partition.o $(BUILD)/block/ata_geometry.o \
+           $(BUILD)/diag/stages.o \
            $(BUILD)/diag/trace.o $(BUILD)/diag/crash.o \
            $(BUILD)/diag/screen.o $(BUILD)/hfs/hfs_block_adapter.o
 
-TESTS := test_lib test_boot_info test_bootstate test_block test_stages \
-         test_ring test_pool test_screen test_trace test_hfs_file
+TESTS := test_lib test_boot_info test_bootstate test_block test_ata_geometry \
+         test_stages test_ring test_pool test_screen test_trace test_hfs_file
 
 .PHONY: all test sanitize clean
 
@@ -62,6 +63,11 @@ test_block: test_block.c test_check.h $(BUILD)/block/block.o \
 	$(HOSTCC) $(TEST_CFLAGS) test_block.c $(BUILD)/block/block.o \
 	  $(BUILD)/block/bounce.o $(BUILD)/block/partition.o \
 	  $(BUILD)/lib/mem.o $(LDFLAGS) -o $@
+
+test_ata_geometry: test_ata_geometry.c test_check.h \
+                   $(BUILD)/block/ata_geometry.o
+	$(HOSTCC) $(TEST_CFLAGS) test_ata_geometry.c \
+	  $(BUILD)/block/ata_geometry.o $(LDFLAGS) -o $@
 
 test_stages: test_stages.c test_check.h $(BUILD)/diag/stages.o
 	$(HOSTCC) $(TEST_CFLAGS) test_stages.c $(BUILD)/diag/stages.o \
@@ -102,6 +108,7 @@ test: $(TESTS)
 	./test_boot_info
 	./test_bootstate
 	./test_block
+	./test_ata_geometry
 	./test_stages
 	./test_ring
 	./test_pool
