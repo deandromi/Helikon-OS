@@ -53,3 +53,5 @@ tests/player/test_player
 tests/codec/test_codec
 tests/codec/*.dSYM/
 tests/player/*.dSYM/
+
+tests/hfsplus/test_catalog_header
