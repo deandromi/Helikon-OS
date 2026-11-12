@@ -164,6 +164,47 @@ static int test_journal_uninitialized_readonly(void)
     return 0;
 }
 
+static int test_journal_dirty_readonly(void)
+{
+    struct hfs_volume volume;
+    make_valid_header();
+    uint8_t *header = test_image + 1024;
+    test_image_make_header(header, 0x482bu, 4,
+                           TEST_ATTR_UNMOUNTED | TEST_ATTR_JOURNALED, 512,
+                           128, 64);
+    test_image_put_be32(header + 8, 0x4846534au);
+    test_image_put_be32(header + 12, 4);
+    uint8_t *info = test_image + 4 * 512;
+    test_image_put_be32(info, 1u);
+    test_image_put_be64(info + 36, 8u * 512u);
+    test_image_put_be64(info + 44, 8u * 512u);
+
+    uint8_t *journal = test_image + 8 * 512;
+    test_image_put_be32(journal, 0x4a4e4c78u);
+    test_image_put_be32(journal + 4, 0x12345678u);
+    test_image_put_be64(journal + 8, 512u);       /* start */
+    test_image_put_be64(journal + 16, 1024u);     /* end: dirty */
+    test_image_put_be64(journal + 24, 4096u);     /* journal size */
+    test_image_put_be32(journal + 32, 512u);      /* block-list header */
+    test_image_put_be32(journal + 40, 512u);      /* header size */
+    test_image_put_be32(journal + 36, 0u);
+    uint32_t sum = 0;
+    for (size_t i = 0; i < 44; ++i)
+        sum = (sum << 8) ^ (sum + journal[i]);
+    test_image_put_be32(journal + 36, ~sum);
+
+    int rc = hfs_volume_probe(&volume, test_image_read, NULL, 0,
+                              TEST_IMAGE_SIZE);
+    CHECK(rc == HFS_ERR_DIRTY);
+
+    rc = hfs_volume_probe_readonly(&volume, test_image_read, NULL, 0,
+                                   TEST_IMAGE_SIZE);
+    CHECK(rc == HFS_OK);
+    CHECK(volume.journaled == 1);
+    CHECK(volume.journal_dirty == 1);
+    return 0;
+}
+
 static int test_journal_missing_info(void)
 {
     struct hfs_volume volume;
@@ -212,6 +253,7 @@ int main(void)
         {"external journal rejected", test_journal_external_rejected},
         {"journal needs init", test_journal_needs_init},
         {"journal uninitialized read-only", test_journal_uninitialized_readonly},
+        {"journal dirty read-only", test_journal_dirty_readonly},
         {"journal missing info", test_journal_missing_info},
         {"bad arguments", test_bad_arguments}
     };

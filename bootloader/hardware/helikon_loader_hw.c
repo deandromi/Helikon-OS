@@ -265,8 +265,8 @@ void helikon_loader_main(void)
 
     progress("HFS+ volume");
     struct hfs_volume volume;
-    int rc = hfs_volume_probe(&volume, loader_read, NULL, best->offset,
-                              best->length);
+    int rc = hfs_volume_probe_readonly(&volume, loader_read, NULL,
+                                       best->offset, best->length);
     if (rc != HFS_OK) {
         if (rc == HFS_ERR_DIRTY)
             fail_hfs("Journal is dirty; no replay.", rc);
