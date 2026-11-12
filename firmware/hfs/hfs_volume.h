@@ -52,6 +52,7 @@ struct hfs_volume {
     uint64_t journal_info_offset;
     uint64_t journal_info_size;
     uint8_t journaled;
+    uint8_t journal_uninitialized;
     uint8_t recovery;
 };
 

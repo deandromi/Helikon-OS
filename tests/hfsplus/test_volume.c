@@ -139,6 +139,31 @@ static int test_journal_needs_init(void)
     return 0;
 }
 
+static int test_journal_uninitialized_readonly(void)
+{
+    struct hfs_volume volume;
+    make_valid_header();
+    uint8_t *header = test_image + 1024;
+    test_image_make_header(header, 0x482bu, 4,
+                           TEST_ATTR_UNMOUNTED | TEST_ATTR_JOURNALED, 512,
+                           128, 64);
+    /* The alternate header uses "10.0"; the primary is authoritative. */
+    test_image_put_be32(header + 8, 0x31302e30u); /* "10.0" */
+    test_image_put_be32(header + 12, 4);
+    uint8_t *info = test_image + 4 * 512;
+    test_image_put_be32(info, 1u); /* in-FS journal */
+    test_image_put_be64(info + 36, 8u * 512u);
+    test_image_put_be64(info + 44, 8u * 512u);
+    /* Journal header at 8*512 remains zero: uninitialized, but clean. */
+
+    int rc = hfs_volume_probe(&volume, test_image_read, NULL, 0,
+                              TEST_IMAGE_SIZE);
+    CHECK(rc == HFS_OK);
+    CHECK(volume.journaled == 1);
+    CHECK(volume.journal_uninitialized == 1);
+    return 0;
+}
+
 static int test_journal_missing_info(void)
 {
     struct hfs_volume volume;
@@ -186,6 +211,7 @@ int main(void)
         {"alternate header recovery", test_alternate_header_recovery},
         {"external journal rejected", test_journal_external_rejected},
         {"journal needs init", test_journal_needs_init},
+        {"journal uninitialized read-only", test_journal_uninitialized_readonly},
         {"journal missing info", test_journal_missing_info},
         {"bad arguments", test_bad_arguments}
     };
