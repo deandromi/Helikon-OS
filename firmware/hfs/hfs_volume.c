@@ -181,8 +181,25 @@ static int check_journal(struct hfs_volume *volume, uint32_t info_block)
 
     int little = be32(header + 4) == 0x78563412u;
     if (j32(header + 4, little) != 0x12345678u ||
-        j32(header, little) != 0x4a4e4c78u)
-        return HFS_ERR_FORMAT;
+        j32(header, little) != 0x4a4e4c78u) {
+        /*
+         * macOS can leave a freshly formatted/mounted journaled volume with a
+         * zero journal header. A clean unmounted volume is still readable; the
+         * write path must refuse until the journal is initialized. This keeps
+         * the loader and read-only firmware working without weakening writes.
+         */
+        if ((volume->attributes & (1u << 8)) != 0u &&
+            (volume->attributes & (1u << 11)) == 0u) {
+            volume->journal_uninitialized = 1;
+            volume->journal_info_offset =
+                (uint64_t)info_block * volume->block_size;
+            volume->journal_info_size = volume->block_size;
+            volume->journal_offset = offset;
+            volume->journal_size = size;
+            return HFS_OK;
+        }
+        return HFS_ERR_DIRTY;
+    }
 
     uint64_t start = j64(header + 8, little);
     uint64_t end = j64(header + 16, little);
@@ -251,8 +268,6 @@ static int parse_header(struct hfs_volume *volume, const uint8_t *header,
         return HFS_ERR_DIRTY;
 
     if ((volume->attributes & (1u << 13)) != 0) {
-        if (be32(header + 8) != 0x4846534au) /* HFSJ */
-            return HFS_ERR_UNSUPPORTED;
         volume->journaled = 1;
         int rc = check_journal(volume, be32(header + 12));
         if (rc != HFS_OK)
