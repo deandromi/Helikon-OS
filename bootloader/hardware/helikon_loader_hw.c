@@ -112,6 +112,15 @@ static int loader_read(void *context, uint64_t offset, void *buffer,
         if (in_sector == 0 && length >= sector_size &&
             ((uintptr_t)dest & 3u) == 0) {
             size_t sectors = length / sector_size;
+            /*
+             * The iFlash bridge on the reference 6G has returned corrupted
+             * data for large multi-sector PIO reads (the catalog B-tree node
+             * failed validation while the same bytes read correctly over USB).
+             * Read one sector per command until the bridge quirk is measured;
+             * the loader only reads a small catalog/manifest/image.
+             */
+            if (sectors > 1u)
+                sectors = 1u;
             if (ata_read_sectors(IF_MD(0,) (sector_t)lba, (int)sectors,
                                  dest) != 0)
                 return -1;
