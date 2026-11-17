@@ -3,12 +3,67 @@
 > Purpose: the latest session handoff and the reusable template.
 > Status: living document
 > Owner: session author; next agent reads this first
-> Last updated: 2026-11-11
+> Last updated: 2026-11-17
 > Source: `docs/state.md`, `docs/tasks.md`, repository history; D-54;
 > [`disk-mode.md`](disk-mode.md)
 
 Keep the newest handoff at the top. Move older entries to `docs/log/` when this
 file grows. Do not rely on chat history for current state.
+
+---
+
+# Handoff — 2026-11-17 (branch cleanup, decision batch, codec research)
+
+## What happened
+
+- **Branch cleanup, owner-ordered.** Every topic branch is merged or rescued and
+  deleted; only `main` exists locally and on GitHub, matching the owner's order.
+  All merges were squash merges with no history rewrite. Rescued into `main`
+  via the PRs: #27 (T-109 LBA48/APM probe code), #28 (T-110 VIC/IRQ entry path),
+  #29 (T-112 loader reads with the live ATA sector size; union-resolved the
+  "accept uninitialized journal" change in `hfs_volume` with the dirty-volume
+  read-only guard and test), #21 (cleaned Music flow / Now Playing), and #30
+  (the F2 ATA SRST + iFlash power-cycle + early-ATA + `HLO1` handoff-marker
+  chain, rescued from a local-only branch). Worktrees removed; a pre-cleanup
+  bundle is at `Helikon-OS-pre-cleanup-2026-11-05.bundle`.
+- **Decision batch.** The owner accepted all remaining proposed decisions;
+  PR #31 records D-05, D-07–D-12, D-15, D-16 and D-29–D-52 as accepted
+  (2026-11-17). Still open: D-08 (D-44 records the accepted WASM-first
+  direction), D-13, D-14, D-47; D-17 name clearance; the Benguiat
+  font-embedding licence gate (D-52) and the AAC patent decision (inside
+  accepted D-49) remain open legal decisions.
+- **Codec research committed.** [`audio-formats.md`](audio-formats.md) §12:
+  Rockbox codec-framework internals, licence verification (libmad GPL-2+,
+  libalac MIT, libm4a MIT+GPL-2+, libfaad 2005-02-02 snapshot GPL-2+ pinned,
+  ffmpeg helpers LGPL-2.1+), framework contracts to adopt, mechanisms to
+  replace, size accounting and the port order MP3 → ALAC → AAC-LC.
+- **Workspace rule (P0.1).** `HELIKON_CODEC_WORKSPACE_MAX` stays 128 KiB for
+  the MP3/ALAC ports; every descriptor carries measured `workspace_bytes`/
+  `stack_bytes`; an AAC cap raise happens only after measurement, inside the
+  512 KiB `CODEC_SIZE` envelope.
+- Docs corrected to existing reality: FLAC and the bounded codec framework
+  shipped in PR #19/e9f6ad6 with the recorded 2026-11-08 device run; stale
+  "no decoder exists yet" lines fixed in `audio-formats.md` and `state.md`.
+
+## What is next
+
+1. T-109 device run on the 6G/iFlash SD (probe image; record IDENTIFY/APM/
+   geometry values in `device-matrix.md`) — the code is merged, the run is not.
+2. Spree order from accepted decisions: T-056 VFS keystone → T-097 codec
+   descriptor extensions and framework prep → MP3 (libmad) → ALAC
+   (libalac + libm4a) → AAC-LC behind the D-49 patent gate.
+3. F2/T-055 bug remains the P0 blocker; PR #30 changed the ATA path but did not
+   unblock it. The ~20 s Artist-open stall from PR #21 needs a device retest.
+4. Housekeeping: `handoff.md` is 3,696 lines; move the older entries to
+   `docs/log/` next session.
+
+## Do not claim
+
+- No support claim for anything: F2 write gate, Music flow post-merge, Disk
+  Mode, LBA48, >128 GiB, MP3/ALAC/AAC playback all remain unproven or unfinished.
+- No new device runs happened in this session; nothing in `device-matrix.md`
+  changed.
+- The decisions batch does not license device work ahead of the writer gate.
 
 ---
 

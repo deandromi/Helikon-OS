@@ -3,7 +3,7 @@
 > Purpose: what is true today. This file is not a plan and not a design paper.
 > Status: living document
 > Owner: project owner; maintained by the documentation agent
-> Last updated: 2026-11-11
+> Last updated: 2026-11-17
 > Source: `README.md`, `docs/design-paper.md`, repository inspection;
 > Rockbox iPod Classic manual `0d5c2b0604-261105`;
 > [`audio-formats.md`](audio-formats.md), [`disk-mode.md`](disk-mode.md)
@@ -34,16 +34,23 @@ Alpha 2.0.0**. F3–F5 are not implemented. The launcher, Music hub, album/artis
 walls, HelikonDB reader and companion shell exist; playback, VFS,
 storage-backed library and the working companion do not.
 
-Date of this snapshot: **2026-11-06**. The repository retains the 2026-11-04
+Date of this snapshot: **2026-11-17**. The repository retains the 2026-11-04
 device runs; the owner reports the Alpha 2.0.0 release set (loader, launcher and
 Music hub) was tested on a 6G, but the per-image evidence was not attached.
+In the 2026-11-17 cleanup the branch backlog merged into `main` (PRs #27–#30:
+LBA48/APM probe code, VIC/IRQ entry path, loader live-sector-size reads with a
+dirty-journal read-only guard, the cleaned Music flow with a device-blocked
+~20 s Artist-open stall, and the F2 ATA SRST/handoff chain), and the owner
+accepted the D-29–D-52 decision batch (PR #31).
 
 **Disk Mode line, 2026-11-11.** The owner accepted D-54: a separate, explicit,
 exclusive Helikon Disk Mode may expose a writable USB LUN, while normal firmware
 USB remains read-only. The plan is in [`disk-mode.md`](disk-mode.md) and
 [ADR-0005](adr/0005-helikon-disk-mode.md). The first runtime step is T-109, a
-read-only ATA/LBA48/APM probe on the 6G/iFlash SD. There is no USB stack, no LUN,
-no LBA48 write and no >128 GiB volume yet; this line does not unblock F2/T-055.
+read-only ATA/LBA48/APM probe on the 6G/iFlash SD; its host-side probe code and
+the VIC/IRQ entry path have merged, but the recorded device run is still
+pending. There is no USB stack, no LUN, no LBA48 write and no >128 GiB volume
+yet; this line does not unblock F2/T-055.
 
 ## What exists
 
@@ -62,7 +69,7 @@ no LBA48 write and no >128 GiB volume yet; this line does not unblock F2/T-055.
 | Agent contract and documentation set | living | `main`, merged 2026-11-03 |
 | Product intent, safety rules, roadmap, goals, open decisions | living | `docs/` |
 | Competitive roadmap (Rockbox comparison) | living | [`competitive-roadmap.md`](competitive-roadmap.md); Rockbox manual `0d5c2b0604-261105` reviewed 2026-11-05; D-29–D-52 accepted 2026-11-17 (D-08/D-13/D-14/D-47 excepted) and T-060–T-107 planned; manual section audit complete; no Helikon-OS feature claim |
-| Audio-format plan | living | [`audio-formats.md`](audio-formats.md); 37 audio families (36 in Appendix B.1 plus Opus) inventoried; Tier 1 at v1 and full Rockbox audio parity at v1.x; no decoder exists yet |
+| Audio-format plan | living | [`audio-formats.md`](audio-formats.md); 37 audio families (36 in Appendix B.1 plus Opus) inventoried; Tier 1 at v1 and full Rockbox audio parity at v1.x; the bounded codec framework and native FLAC exist (2026-11-08 device run); MP3, ALAC and AAC-LC do not |
 | Manual feature audit | living | [`competitive-roadmap.md`](competitive-roadmap.md) §12; every manual section mapped; remaining gaps T-093–T-107; recording/FM/line-in `N/A`; native plugins/video declined |
 | Donor file references and provenance | living | [`file-map.md`](file-map.md) |
 | License: GPL-2.0-or-later | living | `LICENSE`, `NOTICE`, D-18 |
@@ -139,7 +146,7 @@ font licence decision before T-042/T-057). They are not an accepted theme or a r
 | VFS and player | `in progress` | The PCM path is device-proven: the four-buffer PL080 LLI ring, bounded 16-bit mono/stereo WAV at 44.1/48 kHz, pause/resume and Now Playing; owner run 2026-11-08 on image `18f5fe39…` (4,111,124 bytes) reported clean audio with working pause/resume, and PR #17 is merged. The first compressed tranche is merged as `e9f6ad6`: `firmware/codec/` has a static registry and a native FLAC decoder for 16/24-bit mono/stereo at 44.1/48 kHz in a 65,608-byte workspace, host bit-exact over 879,952 frames; owner run 2026-11-08 on image `6a2328ae…` (2,560,056 bytes, version 15) reported clean FLAC audio with working pause/resume. The cleaned Music-flow/Now Playing implementation (PR #21, image `5292c8ed…`, 4,195,680 bytes) is device-blocked: selecting an artist stalls for almost 20 s, and repeated presses eventually start playback. No VFS/storage-backed playback, next/previous, gapless, MP3, ALAC or AAC exists yet. The four-codec sequence is in [`audio-formats.md`](audio-formats.md) §11: audio bench, player/FLAC core, MP3/ALAC/AAC-LC, read-only storage, functional gate |
 | HFS+ write engine | `in progress` | Journal, txn, bitmap, B-tree insert/delete/growth/deep delete/in-place update, fork staging, file/folder create/delete/rename, multi-extent/overflow data append/truncate, FastUnicodeCompare, HFS+ normalization, metadata policy and disposable-image `fsck_hfs` validation exist. One outer-volume 6G run passed; D-05 cache limits, broader fuzzing, timing and the device power-cut/adapter matrix remain |
 | F2 bootstate device run | `not run` — **blocked** | Host: the F2 candidate promotes `TRYING` to `GOOD`, `fsck_hfs` clean, loader sees `GOOD`; overwrite crash matrix passes. The firmware write gate is unfinished and unconfirmed due to a currently unfixable bug, so there is no confirmed 6G run. The image is not an Alpha 2.0.0 asset |
-| Helikon Disk Mode | `planned` | No USB stack, VIC/IRQ handler, LUN, LBA48 write probe or Disk Mode device run. T-109 is the first runtime step; normal USB stays read-only (D-54) |
+| Helikon Disk Mode | `planned` | No USB stack, LUN, LBA48 write or Disk Mode device run. The VIC/IRQ entry path and the LBA48/APM probe code have merged; the T-109 probe device run is pending. Normal USB stays read-only (D-54) |
 | Journal replay on a real dirty volume | `unproven` | Replay is host-tested on synthetic journals; no macOS-created dirty volume or device run |
 | Installer or desktop app | `in progress` | Companion app reset under `tools/desktop/`: owner-banner welcome screen and a brand-only shell with no sidebar navigation. All previous device, library, metadata, transfer, podcast, audiobook, scrobbler, install, settings and test code was removed on 2026-11-06. The shell builds universal (arm64 + x86_64) and ships as `Helikon-Companion-0.1.0-alpha2.dmg`; it has no device, network or write functionality. See [`companion-app.md`](companion-app.md) |
 | Build system, CI, release artifacts | `in progress` | `firmware/Makefile` and `tools/make-firmware-image.py` build the F1/F2 ELF, raw image, manifest, bootstate and signed development image. `VERSION` selects the image version and `BOOTSTATE_STATE=trying` or `good` selects the initial slot state. Host test Makefiles and bootloader build scripts exist. Alpha 2.0.0 (`alpha-2.0.0`) is published with the loader, two storage-free firmware sets and a universal companion DMG; it is an engineering preview with a test key and no firmware-owned write. There is no CI, reproducible release build, release key or staged update client |
