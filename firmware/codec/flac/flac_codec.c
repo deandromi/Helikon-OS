@@ -58,8 +58,15 @@ static void flac_close(struct helikon_codec *codec)
     codec->state = NULL;
 }
 
+static const char *const flac_extensions[] = { "flac", NULL };
+
 const struct helikon_codec_ops helikon_flac_codec_ops = {
     .name = "flac",
+    .extensions = flac_extensions,
+    .capabilities = HELIKON_CODEC_CAP_SEEK | HELIKON_CODEC_CAP_GAPLESS,
+    .stack_bytes = 4096u,
+    .min_clock_hz = 54000000u,
+    .recommended_clock_hz = 216000000u,
     .probe = flac_probe,
     .open = flac_open,
     .read = flac_read,

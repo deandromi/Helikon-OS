@@ -12,6 +12,95 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-17/18 (T-097 descriptor extensions + MP3/libmad port)
+
+## What happened
+
+- **T-097 framework extensions landed.** Codec descriptors now declare
+  `extensions` (NULL-terminated lowercase list, case-insensitive match after
+  the final dot; a path with no dot never matches), a descriptor-level
+  `capabilities` mask (`SEEK|GAPLESS|RESUME`) alongside the per-file
+  `HELIKON_CODEC_FLAG_SEEK`, and `stack_bytes`, `min_clock_hz`,
+  `recommended_clock_hz`. New `helikon_codec_matches_extension()` and
+  `helikon_codec_registry()`. FLAC descriptor updated; WAV/FLAC/MP3 registry
+  order kept. `helikon_codec_probe` now refuses zero-size buffers with
+  `HELIKON_ERR_ARGUMENT`.
+- **MP3 decoder ported** (`firmware/codec/mp3/` wrapper + vendored
+  `firmware/codec/libmad/`): libmad 0.15.1b from the pinned Rockbox mirror
+  commit `97986f2cdaec1585856d…` (no ARM/Coldfire asm, C paths
+  `FPM_DEFAULT`), Helikon port shim `libmad_port.h`, whole-buffer wrapper
+  with ID3v2 skip, full-header probe, Xing/Info frames+TOC, fixed→s16 clip
+  output, mono→stereo duplication, 64-recoverable-error bound, CBR/Xing TOC
+  seek. Measured workspace 30,976 B (`_Static_assert` inside
+  `HELIKON_CODEC_WORKSPACE_MAX`), declared stack 8192 B, clocks 54/216 MHz.
+- **Deep-dive fixes debugging the decode path** (worth knowing for the next
+  codec port):
+  - libmad `frame.sbsample` and `frame.sbsample_prev` must point at the
+    SAME buffer (Rockbox single-core wiring): layer code writes `sbsample`,
+    the Rockbox-modified `synth.c` reads `sbsample_prev`. Wired after init
+    or to two arrays, the synth produced all-zero PCM (or worse).
+  - After a seek, `mad_synth_mute` does NOT clear `synth.pcm.length`; the
+    wrapper clears it to avoid replaying pre-seek samples.
+  - After a seek, libmad's `main_data` chain is empty: every frame whose
+    `main_data_begin` exceeds the local chained data fails with
+    `BADDATAPTR` (recoverable) and produces no PCM until the chain rebuilds.
+    Short fixtures can yield zero emitted frames after a mid-file seek; the
+    VBR fixture was enlarged (8×1152 samples) so decode visibly resumes.
+  - libmad's last frame needs `N + MAD_BUFFER_GUARD` bytes in the stream;
+    the wrapper re-buffers the tail through a workspace bounce buffer once.
+  - The seek re-aligner only accepts headers of the file's own MPEG
+    version/layer: main-data bytes carry plausible-looking foreign-layer
+    headers that made libmad jump past real frames.
+  - MP3 probe corroborates a candidate header with its declared successor
+    position (`offset + frame_bytes` must start another same-version/layer
+    header); a valid-looking header inside a corrupt-magic FLAC stream would
+    otherwise claim MP3.
+- **Build confusions resolved.** `tests/codec/Makefile` now defines
+  `HELIKON_HOST_TEST` like every other suite; without it the freestanding
+  `memset`/`memcpy` shims in `firmware/lib/mem.c` shadow libc and clang's
+  idiom recognition turned a bounded fill loop into infinite recursion
+  (261k frames, stack-guard SIGSEGV). The repo-local
+  `firmware/lib/string.h` shadows `<string.h>` on the test include path, so
+  host tests call the `helikon_*` mem names (documented convention).
+  `firmware/Makefile` gained the libmad object rule: `-DNDEBUG` plus
+  conversion suppressions, with GCC-per-target extras
+  (`-Wno-implicit-fallthrough -Wno-shadow`; GCC 9 does not know clang's
+  `-Wno-implicit-int-conversion`). `libmad_port.h` sets `HAVE_LIMITS_H`
+  only under hosted builds and defines `INT_MAX`/`UINT_MAX` for the
+  freestanding target.
+- **FLAC UBSan fix.** `flac_decoder.c` mid-side doubling used `(mid << 1)`
+  on a negative value; now `(mid * 2)` — UBSan clean for Helikon code. One
+  upstream note remains: `synth.c:1155` `D[0] - p` pointer arithmetic
+  (documented in `firmware/codec/libmad/README.md`, accesses in bounds).
+- **Fixtures.** `tests/codec/make_mp3_fixtures.py` (lame-based) generates the
+  four committed MP3 fixtures (CBR stereo, VBR stereo with Xing TOC, mono,
+  ID3v2). `.gitignore` gained `tests/codec` build outputs and
+  `tests/vfs/test_vfs` artifacts.
+
+## Evidence
+
+- `make -C tests/codec test` + `sanitize`: PASS.
+- Regressions: `tests/hfsplus` (107 checks) + sanitize, `tests/vfs`,
+  `tests/firmware` (test + sanitize after `clean`), `tests/bootloader`
+  (test + sanitize), `tests/image` incl. write-diag/outer-diag/loader,
+  `tests/musicdb`: all pass.
+- Cross-builds: `make -C firmware BOARD=6g` (plain), full music-hub config
+  (`UI=1 HDB=… AUDIO=<mp3> EXTRA_CFLAGS=-DHELIKON_DIAG_LAUNCHER`,
+  763,276 B raw image with the MP3 path linked), `VERSION=2`
+  `BOOTSTATE_STATE=trying image` + `check-f2-artifact.sh`: PASS.
+- Host-verified only: **no device run**; no support claim.
+
+## Open / next
+
+- T-056 device half (storage-backed Music-hub on the 6G) remains the open
+  device work; the MP3 path links but nothing storage-backed plays it.
+- MP3 codec remaining: streaming source model, gapless (LAME
+  delay/padding), resume, half-rate, ARMv5E synth accelerator, MPEG-2/2.5
+  and Layer I/II execution-path coverage (`audio-formats.md` §13.5).
+- T-098/T-100/T-101 device gates unchanged.
+
+---
+
 # Handoff — 2026-11-17 (T-056 read-only VFS, host part)
 
 ## What happened

@@ -610,8 +610,12 @@ superseded: Tier 2 is a hard v1.x parity requirement, not an optional study.
 > Status: the PCM/WAV path is device-proven (four-buffer PL080 LLI ring, bounded
 > WAV player, pause/resume); the first compressed tranche (bounded codec
 > registry + native FLAC, 16-bit ring output) is merged and device-proven on
-> image `6a2328ae…`. No storage-backed playback, seek UI or MP3/ALAC/AAC yet.
-> The Alpha 2.0.0 Music images are storage-free UI demos.
+> image `6a2328ae…`. The T-097 descriptor extensions (seek/gapless/resume
+> capabilities, extension lists, workspace/stack/clock declarations, registry
+> query) and the MP3 codec (vendored libmad via the pinned Rockbox mirror) are
+> host-implemented and host-tested (2026-11-17/18); see §13. No storage-backed
+> playback or seek UI yet. The Alpha 2.0.0 Music images are storage-free UI
+> demos.
 
 ### 11.1 First release scope
 
@@ -787,7 +791,7 @@ pcmbuf ~529 KiB (3 s at 44.1 kHz s16 stereo, watermark 2 s), metadata pools
 | Codec | Estimated Helikon workspace | Note |
 |---|---|---|
 | FLAC (native, done) | 65,608 B | measured in the host test |
-| MP3 / libmad | small (tens of KiB) | cost is code size plus IRAM-resident state (overlap 4.6 KiB, sbsample 9.2 KiB, main data, 8 KiB stream buffer in Rockbox) |
+| MP3 / libmad | **30,976 B measured** (`sizeof(struct mp3_state)`, compile-time asserted) | whole-buffer model: libmad state, one shared `[2][36][32]` subband buffer (libmad writes `frame->sbsample`, the Rockbox-modified synth reads `frame->sbsample_prev`; the Rockbox single-core wiring points both at the same buffer, see §13.2), overlap buffer and the `MAD_BUFFER_MDLEN` main-data copy |
 | ALAC / libalac | ~48 KiB plus a 32 KiB IRAM candidate (`outputbuffer[2][4096]`) | the interleaved s32 output buffer dominates; moving it to the codec fast section keeps DRAM workspace comfortably inside 128 KiB |
 | AAC-LC / libfaad crop | likely 256–400 KiB — UNVERIFIED, measure | first codec to collide with the 128 KiB `HELIKON_CODEC_WORKSPACE_MAX` |
 
@@ -808,3 +812,115 @@ D-49 patent gate, not licence incompatibility. Candidates rejected by the
 research passes: minimp3 and dr_mp3 (float DSP), Helix MP3 (Real RPSL),
 fdk-aac (non-standard licence, C++), and Apple's Apache-2.0 ALAC reference
 decoder (GPL-3 forcing). HE-AAC v1/v2 stays out of the first player per §11.5.
+
+---
+
+## 13. T-097 framework extensions and the MP3 (libmad) port — host implementation (2026-11-17/18)
+
+Status: `implemented` as host code with host tests; `unproven` on a device (no
+6G run; the storage-backed wiring remains the T-056 device half and the
+functional gate stays T-100/T-101). Nothing here claims device or release
+support.
+
+### 13.1 What landed in the framework
+
+- **Descriptor extensions** (`firmware/codec/codec.h`, `codec.c`): every codec
+  descriptor now carries `extensions` (NULL-terminated lowercase list, matched
+  case-insensitively after the final dot; no dot means no match), a
+  `capabilities` mask (`HELIKON_CODEC_CAP_SEEK/GAPLESS/RESUME`) separate from
+  the per-file `HELIKON_CODEC_FLAG_SEEK`, and declared `stack_bytes`,
+  `min_clock_hz`, `recommended_clock_hz`. `helikon_codec_registry()` exposes
+  the registry (wav → flac → mp3) to callers. The per-file `flags` stay inside
+  `helikon_codec_info`.
+- **Probe policy**: `helikon_codec_probe` refuses a zero-size buffer with
+  `HELIKON_ERR_ARGUMENT`, keeps the probe-by-header contract (a wrong
+  extension does not matter) and propagates the first non-`NOT_FOUND` probe
+  error.
+- **FLAC** descriptor extended accordingly (`SEEK | GAPLESS`, 4096 B stack,
+  54/216 MHz).
+
+### 13.2 MP3 via vendored libmad
+
+- **Provenance** (`firmware/codec/libmad/README.md`): libmad 0.15.1b as
+  carried by the Rockbox mirror at the same pinned commit as §12
+  (`97986f2cdaec1585856d708966858c56f5dedc6b`), with the Rockbox edits
+  (`README.rockbox`, ported tables, pointer-wired buffers instead of malloc).
+  The ARM/Coldfire assembly accelerators are **not** imported: on the 6G the
+  C paths are the first implementation and a later slice may add the ARMv5E
+  synth after measurement. GPL-2.0-or-later headers preserved; modifications
+  documented in that README.
+- **Port shim** (`libmad_port.h`): replaces Rockbox's `codeclib.h` and
+  `config.h` includes, empties the ICODE/ICONST/IDATA/IBSS placement
+  attributes (everything lands in `.text`/`.bss`), supplies `betoh32`, and
+  toggles `HAVE_LIMITS_H`: hosted builds (host tests) use libc
+  `<limits.h>`; the freestanding target build gets `INT_MAX`/`UINT_MAX`
+  from the shim instead.
+- **Wrapper** (`firmware/codec/mp3/`): Helikon-owned `mp3_codec.c` around the
+  libmad API. Whole-buffer model (no streaming callbacks yet); probe skips
+  ID3v2, finds a sync inside 16 KiB, validates the header fields fully, reads
+  the Xing/Info tag (frames count + 100-byte TOC) and computes duration;
+  decode is libmad with a fixed → s16 clip conversion, mono duplicated to
+  stereo; bound of 64 consecutive recoverable errors returns
+  `HELIKON_ERR_FORMAT`; `MAD_ERROR_BUFLEN` is a clean end-of-stream.
+- **Two wrapper behaviours worth recording**:
+  1. `frame->sbsample` and `frame->sbsample_prev` are wired to the **same**
+     buffer, matching Rockbox's single-core `init_mad()`: the layer decoders
+     write `sbsample` while the Rockbox-modified `synth.c` reads
+     `sbsample_prev`; the dual-core pointer swap in Rockbox's `mpa.c` exists
+     only for its decode/synth thread split, which Helikon does not have.
+  2. On the first end-of-buffer error the wrapper re-buffers the stream tail
+     into a workspace bounce buffer padded with `MAD_BUFFER_GUARD` bytes so
+     the final frame decodes instead of being lost to libmad's
+     "N + guard bytes required" rule; after a seek the wrapper clears the
+     stale `synth.pcm.length` so no pre-seek samples replay, and it
+     re-aligns the stream to a header of the file's own MPEG version and
+     layer (main-data bytes frequently carry plausible-looking foreign-layer
+     headers that used to derail the seek).
+- **Probe corroboration**: a candidate MP3 header is accepted only when its
+  declared successor position (`offset + frame_bytes`) also holds a valid
+  header of the same version and layer. This stops lone plausible headers
+  inside other formats' audio data (observed with a corrupt-magic FLAC
+  stream) from claiming MP3.
+- **Workspace**: the descriptor reports the measured
+  `sizeof(struct mp3_state)` = **30,976 bytes** (compile-time
+  `_Static_assert` keeps it inside `HELIKON_CODEC_WORKSPACE_MAX`); declared
+  stack bound 8192 bytes; clocks 54/216 MHz.
+
+### 13.3 Build integration
+
+- `firmware/Makefile`: the AUDIO player build compiles `codec/mp3/` plus the
+  seven C-path libmad objects with `-DNDEBUG` and the conversion-warning
+  suppressions (per-compiler: GCC also needs
+  `-Wno-implicit-fallthrough -Wno-shadow`). Verified on the full
+  music-hub image config (`UI=1 HDB=… AUDIO=… EXTRA_CFLAGS=-DHELIKON_DIAG_LAUNCHER`,
+  763,276-byte raw image) where the MP3 decode path links into the image; the
+  standard F2 artifact check still passes. With the Music-hub storage wiring
+  absent, `--gc-sections` drops the codec tree from images that never reach
+  it — expected until the T-056 device half lands.
+- `tests/codec/Makefile`: builds the libmad objects (plain + sanitizer trees),
+  and now defines `HELIKON_HOST_TEST` like every other host suite (without it
+  the freestanding `memset`/`memcpy` shims shadow libc and a compiler
+  idiom-recognition quirk turns a bounded fill loop into infinite recursion —
+  recorded in the work log).
+
+### 13.4 Test evidence (host only, no device run)
+
+- `make -C tests/codec test` and `sanitize`: registry/descriptor contract,
+  MP3 CBR stereo decode (non-silent sine, length, EOF), mono duplicate,
+  VBR Xing mid-file seek, ID3v2 skip, truncated mid-frame clean EOF,
+  sync-with-invalid-header FORMAT probe, MP3 probe corroboration, zero-buffer
+  refusal. Sanitizers report one upstream note: `synth.c`'s `D[0] - p`
+  pointer arithmetic (pre-existing in Rockbox's code, the accesses land
+  inside the `D` table; see the libmad README). `flac_decoder.c`'s negative
+  left shift (mid-side doubling) is fixed by multiplication in this change.
+- Full regression matrix unchanged: `tests/hfsplus` (107 checks + sanitize),
+  `tests/vfs`, `tests/firmware` (test + sanitize after `clean`),
+  `tests/bootloader`, `tests/image` (incl. write-diag, outer-diag,
+  loader-test), `tests/musicdb`.
+
+### 13.5 Remaining for the MP3 codec
+
+Streaming source model (bounded callbacks), gapless (LAME delay/padding),
+resume, half-rate decode, the ARMv5E synth accelerator, coverage for
+MPEG-2/2.5 and Layer I/II execution paths on the host corpus, and the
+T-100/T-101 device gates.

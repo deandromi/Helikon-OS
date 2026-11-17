@@ -69,7 +69,12 @@ PLAYER_SRC :=
 ifneq ($(AUDIO),)
 PLAYER_SRC := player/player.c player/wav.c \
               codec/codec.c codec/flac/flac_codec.c \
-              codec/flac/flac_decoder.c hal/$(BOARD)/audio.c
+              codec/flac/flac_decoder.c \
+              codec/mp3/mp3_codec.c \
+              codec/libmad/bit.c codec/libmad/frame.c \
+              codec/libmad/huffman.c codec/libmad/layer12.c \
+              codec/libmad/layer3.c codec/libmad/stream.c \
+              codec/libmad/synth.c hal/$(BOARD)/audio.c
 endif
 LIBRARY_SRC := db/hdb.c
 VFS_SRC := vfs/vfs.c
@@ -101,6 +106,18 @@ $(CONFIG_STAMP):
 $(BUILD)/%.o: %.c $(CONFIG_STAMP)
 	@mkdir -p $(dir $@)
 	$(CC) $(ARCH) $(CFLAGS) -c $< -o $@
+
+# Vendored libmad predates the modern narrowing diagnostics; silence the
+# conversion warnings for its objects, per-compiler extras, and keep assert
+# out (no libc on the target).
+LIBMAD_NOWARN := -DNDEBUG -Wno-sign-conversion -Wno-conversion
+ifeq ($(findstring clang,$(shell $(CC) --version)),)
+LIBMAD_NOWARN += -Wno-implicit-fallthrough -Wno-shadow
+else
+LIBMAD_NOWARN += -Wno-implicit-int-conversion
+endif
+
+$(BUILD)/codec/libmad/%.o: CFLAGS += $(LIBMAD_NOWARN)
 
 $(BUILD)/%.o: %.S $(CONFIG_STAMP)
 	@mkdir -p $(dir $@)

@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "codec.h"
+#include "mp3.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -179,14 +180,14 @@ static size_t make_wav(uint8_t *data, size_t frames)
 {
     size_t data_bytes = frames * 4u;
     size_t riff_size = 36u + data_bytes;
-    memset(data, 0, 44u + data_bytes);
-    memcpy(data, "RIFF", 4u);
+    helikon_memset(data, 0, 44u + data_bytes);
+    helikon_memcpy(data, "RIFF", 4u);
     data[4] = (uint8_t)(riff_size & 0xffu);
     data[5] = (uint8_t)((riff_size >> 8) & 0xffu);
     data[6] = (uint8_t)((riff_size >> 16) & 0xffu);
     data[7] = (uint8_t)(riff_size >> 24);
-    memcpy(data + 8u, "WAVE", 4u);
-    memcpy(data + 12u, "fmt ", 4u);
+    helikon_memcpy(data + 8u, "WAVE", 4u);
+    helikon_memcpy(data + 12u, "fmt ", 4u);
     data[16] = 16u;
     data[20] = 1u;
     data[22] = 2u;
@@ -197,7 +198,7 @@ static size_t make_wav(uint8_t *data, size_t frames)
     data[30] = 0x02u;
     data[32] = 4u;
     data[34] = 16u;
-    memcpy(data + 36u, "data", 4u);
+    helikon_memcpy(data + 36u, "data", 4u);
     data[40] = (uint8_t)(data_bytes & 0xffu);
     data[41] = (uint8_t)((data_bytes >> 8) & 0xffu);
     data[42] = (uint8_t)((data_bytes >> 16) & 0xffu);
@@ -268,6 +269,261 @@ static size_t flac_first_frame(const uint8_t *data, size_t size)
     }
 }
 
+static int check_mp3_cbr_stereo(void)
+{
+    size_t size = load_file("fixtures/mp3_cbr_stereo16.mp3", file_data,
+                            sizeof(file_data));
+    if (expect(size > 0u, "MP3 fixture load"))
+        return 1;
+
+    /* The probe decides by header, not by extension. */
+    const struct helikon_codec_ops *ops = NULL;
+    struct helikon_codec_info info;
+    if (expect(helikon_codec_probe(file_data, size, &ops, &info) ==
+                   HELIKON_OK,
+               "MP3 probe"))
+        return 1;
+    if (expect(ops == &helikon_mp3_codec_ops, "MP3 descriptor"))
+        return 1;
+    /* The measured workspace (30,976 bytes) must keep the descriptor's
+     * claim inside the shared workspace ceiling. */
+    if (expect(info.workspace_bytes > 0u &&
+                   info.workspace_bytes <= HELIKON_CODEC_WORKSPACE_MAX,
+               "MP3 workspace bound"))
+        return 1;
+    if (expect(info.sample_rate == 44100u && info.source_channels == 2u &&
+                   info.source_bits == 16u && info.output_bits == 16u &&
+                   info.total_frames >= 4096u &&
+                   info.total_frames <= 4096u + 2304u,
+               "MP3 stream info"))
+        return 1;
+
+    struct helikon_codec codec;
+    if (expect(helikon_codec_open(&codec, ops, file_data, size, workspace,
+                                  sizeof(workspace)) == HELIKON_OK,
+               "MP3 open"))
+        return 1;
+    size_t frames = 0u;
+    if (expect(helikon_codec_read(&codec, NULL, 4u, &frames) ==
+                   HELIKON_ERR_ARGUMENT,
+               "MP3 read null buffer"))
+        return 1;
+    if (expect(helikon_codec_read(&codec, pcm, 0u, &frames) == HELIKON_OK &&
+                   frames == 0u,
+               "MP3 zero-length read"))
+        return 1;
+    size_t out = 0u;
+    while (out < info.total_frames + 1152u) {
+        if (expect(helikon_codec_read(&codec, pcm + out * 2u, CHUNK_FRAMES,
+                                      &frames) == HELIKON_OK,
+                   "MP3 read"))
+            return 1;
+        if (frames == 0u)
+            break;
+        out += frames;
+        if (out > info.total_frames + 1152u)
+            break;
+    }
+    if (expect(out >= 4096u && out <= 4096u + 2304u, "MP3 decoded length"))
+        return 1;
+    if (expect(helikon_codec_read(&codec, pcm, CHUNK_FRAMES, &frames) ==
+                   HELIKON_OK && frames == 0u,
+               "MP3 end of stream"))
+        return 1;
+
+    /* A 12 kHz-amplitude sine must decode to a clearly non-silent signal. */
+    int16_t peak = 0;
+    for (size_t i = 0u; i < out; ++i) {
+        if (pcm[i * 2u] > peak)
+            peak = pcm[i * 2u];
+    }
+    if (expect(peak > 9000, "MP3 sine peak"))
+        return 1;
+
+    const uint32_t mid = info.total_frames / 2u;
+    if (expect(helikon_codec_seek(&codec, mid) == HELIKON_OK,
+               "MP3 seek"))
+        return 1;
+    size_t after = 0u;
+    while (after < 1u) {
+        if (expect(helikon_codec_read(&codec, pcm, CHUNK_FRAMES, &frames) ==
+                       HELIKON_OK,
+                   "MP3 seek read"))
+            return 1;
+        if (frames == 0u)
+            break;
+        after += frames;
+    }
+    if (expect(after > 0u, "MP3 seek read count"))
+        return 1;
+    if (expect(helikon_codec_seek(&codec, info.total_frames + 1u) ==
+                   HELIKON_ERR_ARGUMENT,
+               "MP3 seek beyond end"))
+        return 1;
+    helikon_codec_close(&codec);
+    return 0;
+}
+
+static int check_mp3_mono_vbr_id3(void)
+{
+    /* Mono: the wrapper must duplicate the single channel to stereo. */
+    size_t size = load_file("fixtures/mp3_cbr_mono16.mp3", file_data,
+                            sizeof(file_data));
+    if (expect(size > 0u, "MP3 mono load"))
+        return 1;
+    const struct helikon_codec_ops *ops = NULL;
+    struct helikon_codec_info info;
+    if (expect(helikon_codec_probe(file_data, size, &ops, &info) ==
+                   HELIKON_OK && ops == &helikon_mp3_codec_ops &&
+                   info.source_channels == 1u && info.sample_rate == 44100u,
+               "MP3 mono probe"))
+        return 1;
+    struct helikon_codec codec;
+    if (expect(helikon_codec_open(&codec, ops, file_data, size, workspace,
+                                  sizeof(workspace)) == HELIKON_OK,
+               "MP3 mono open"))
+        return 1;
+    size_t frames = 0u;
+    if (expect(helikon_codec_read(&codec, pcm, CHUNK_FRAMES, &frames) ==
+                   HELIKON_OK && frames > 0u,
+               "MP3 mono read"))
+        return 1;
+    if (expect(pcm[0] == pcm[1], "MP3 mono duplicate"))
+        return 1;
+    helikon_codec_close(&codec);
+
+    /* VBR: Xing frames with a TOC; seek must serve a mid-file position. */
+    size = load_file("fixtures/mp3_vbr_stereo16.mp3", file_data,
+                     sizeof(file_data));
+    if (expect(size > 0u, "MP3 vbr load"))
+        return 1;
+    ops = NULL;
+    if (expect(helikon_codec_probe(file_data, size, &ops, &info) ==
+                   HELIKON_OK && ops == &helikon_mp3_codec_ops &&
+                   info.sample_rate == 44100u,
+               "MP3 vbr probe"))
+        return 1;
+    if (expect(helikon_codec_open(&codec, ops, file_data, size, workspace,
+                                  sizeof(workspace)) == HELIKON_OK,
+               "MP3 vbr open"))
+        return 1;
+    if (expect(helikon_codec_seek(&codec, info.total_frames / 2u) ==
+                   HELIKON_OK &&
+                   helikon_codec_read(&codec, pcm, CHUNK_FRAMES, &frames) ==
+                       HELIKON_OK && frames > 0u,
+               "MP3 vbr seek read"))
+        return 1;
+    helikon_codec_close(&codec);
+
+    /* ID3v2 front matter is skipped, then the header probe finds MPEG sync. */
+    size = load_file("fixtures/mp3_id3_stereo16.mp3", file_data,
+                     sizeof(file_data));
+    if (expect(size > 0u, "MP3 id3 load"))
+        return 1;
+    ops = NULL;
+    if (expect(helikon_codec_probe(file_data, size, &ops, &info) ==
+                   HELIKON_OK && ops == &helikon_mp3_codec_ops &&
+                   info.sample_rate == 44100u,
+               "MP3 id3 probe"))
+        return 1;
+
+    /* Truncated mid-frame decodes to a clean end of stream, not a hang. */
+    if (expect(size > 64u, "MP3 id3 truncation room"))
+        return 1;
+    size_t truncated = size - 64u;
+    ops = NULL;
+    if (expect(helikon_codec_probe(file_data, truncated, &ops, &info) ==
+                   HELIKON_OK,
+               "MP3 truncated probe"))
+        return 1;
+    if (expect(helikon_codec_open(&codec, ops, file_data, truncated,
+                                  workspace, sizeof(workspace)) ==
+                   HELIKON_OK,
+               "MP3 truncated open"))
+        return 1;
+    if (expect(helikon_codec_read(&codec, pcm, CHUNK_FRAMES, &frames) ==
+                   HELIKON_OK,
+               "MP3 truncated read"))
+        return 1;
+    helikon_codec_close(&codec);
+
+    /* Garbage that starts with MPEG sync but has an invalid header is a
+     * recognized-format FORMAT, not a silent "not ours". */
+    file_data[0] = 0xFFu;
+    file_data[1] = 0xFBu;
+    file_data[2] = 0xF0u; /* bitrate index 15: illegal */
+    file_data[3] = 0x00u;
+    for (size_t i = 4u; i < 4096u; ++i)
+        file_data[i] = 0x11u;
+    ops = NULL;
+    if (expect(helikon_codec_probe(file_data, 4096u, &ops, &info) ==
+                   HELIKON_ERR_FORMAT,
+               "MP3 invalid header probe"))
+        return 1;
+    return 0;
+}
+
+static int check_registry(void)
+{
+    const struct helikon_codec_ops *entries[8];
+    unsigned int count = helikon_codec_registry(entries, 8u);
+    if (expect(count == 3u, "registry count"))
+        return 1;
+    if (expect(entries[0] == &helikon_wav_codec_ops &&
+                   entries[1] == &helikon_flac_codec_ops &&
+                   entries[2] == &helikon_mp3_codec_ops,
+               "registry order"))
+        return 1;
+
+    if (expect(helikon_codec_matches_extension(entries[0], "a/B.WAV") &&
+                   helikon_codec_matches_extension(entries[0], "a.wav") &&
+                   helikon_codec_matches_extension(entries[1], "x/y.FLAC") &&
+                   helikon_codec_matches_extension(entries[2], "song.mp3"),
+               "extension matches"))
+        return 1;
+    if (expect(!helikon_codec_matches_extension(entries[2], "song.mp4") &&
+                   !helikon_codec_matches_extension(entries[2], "mp3") &&
+                   !helikon_codec_matches_extension(entries[1], "flac.fl"),
+               "extension rejects"))
+        return 1;
+
+    /* Every descriptor must declare its family contract. */
+    for (unsigned int i = 0u; i < count; ++i) {
+        if (expect(entries[i]->probe != NULL && entries[i]->open != NULL &&
+                       entries[i]->read != NULL && entries[i]->close != NULL &&
+                       entries[i]->name != NULL &&
+                       entries[i]->extensions != NULL &&
+                       entries[i]->stack_bytes > 0u &&
+                       entries[i]->min_clock_hz > 0u &&
+                       entries[i]->recommended_clock_hz >=
+                           entries[i]->min_clock_hz &&
+                       (entries[i]->capabilities &
+                        (HELIKON_CODEC_CAP_SEEK | HELIKON_CODEC_CAP_GAPLESS |
+                         HELIKON_CODEC_CAP_RESUME)) != 0u,
+                   "descriptor contract"))
+            return 1;
+    }
+
+    /* Wrong extension still probes by header. */
+    size_t size = load_file("fixtures/mp3_cbr_stereo16.mp3", file_data,
+                            sizeof(file_data));
+    if (expect(size > 0u, "MP3 header-decision load"))
+        return 1;
+    const struct helikon_codec_ops *ops = NULL;
+    struct helikon_codec_info info;
+    if (expect(helikon_codec_probe(file_data, size, &ops, &info) ==
+                   HELIKON_OK && ops == &helikon_mp3_codec_ops,
+               "probe ignores extension"))
+        return 1;
+
+    /* An empty buffer refuses: no probe can claim it. */
+    if (expect(helikon_codec_probe(file_data, 0u, &ops, &info) ==
+                   HELIKON_ERR_ARGUMENT,
+               "zero buffer probe"))
+        return 1;
+    return 0;
+}
+
 static int check_malformed(void)
 {
     size_t size = load_file("fixtures/stereo16.flac", file_data,
@@ -275,7 +531,7 @@ static int check_malformed(void)
     if (expect(size > 0u, "malformed load"))
         return 1;
 
-    memcpy(expected_data, file_data, size);
+    helikon_memcpy(expected_data, file_data, size);
     expected_data[0] = 'X';
     const struct helikon_codec_ops *ops = NULL;
     struct helikon_codec_info info;
@@ -289,7 +545,7 @@ static int check_malformed(void)
                "truncated metadata"))
         return 1;
 
-    memcpy(expected_data, file_data, size);
+    helikon_memcpy(expected_data, file_data, size);
     size_t first_frame = flac_first_frame(expected_data, size);
     if (expect(first_frame > 0u && first_frame + 20u < size,
                "first frame offset"))
@@ -331,6 +587,12 @@ int main(void)
     if (check_flac("left_side16", 2u, 16u, 44100u, 1024u))
         return 1;
     if (check_wav())
+        return 1;
+    if (check_mp3_cbr_stereo())
+        return 1;
+    if (check_mp3_mono_vbr_id3())
+        return 1;
+    if (check_registry())
         return 1;
     if (check_malformed())
         return 1;

@@ -634,7 +634,10 @@ static int flac_decode_frame(struct helikon_flac_decoder *decoder)
         for (uint32_t index = 0u; index < blocksize; ++index) {
             int32_t mid = decoder->decoded[0][index];
             int32_t side = decoder->decoded[1][index];
-            mid = (mid << 1) | (side & 1);
+            /* Doubling by multiplication, not a shift: mid may be negative
+             * and the FLAC reference defines this arithmetic on the signed
+             * value. */
+            mid = (mid * 2) | (side & 1);
             decoder->decoded[0][index] = (mid + side) >> 1;
             decoder->decoded[1][index] = (mid - side) >> 1;
         }

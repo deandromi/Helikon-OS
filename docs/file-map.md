@@ -168,10 +168,12 @@ Helikon-OS/
     Makefile                WAV container/parser host test
     test_wav.c              RIFF/WAVE validation and profile rejection
   tests/codec/
-    Makefile                codec registry and FLAC decoder host tests
+    Makefile                codec registry, MP3 (libmad) and FLAC host tests
     test_codec.c            probe/open/read/seek/malformed/bit-exact tests
     make_fixtures.py        synthetic FLAC/PCM fixture generator
+    make_mp3_fixtures.py    lame-based MP3 CBR/VBR/ID3 fixture generator
     fixtures/               synthetic constant/verbatim/fixed/LPC FLAC + PCM
+                            and committed MP3 fixtures (CBR/VBR/mono/ID3v2)
   tests/vfs/
     Makefile                read-only VFS host test build/sanitizer targets
     test_vfs.c              mount, path rules, open/read/seek/EOF, handle
@@ -328,7 +330,7 @@ is created; do not let it drift.
 | `firmware/vfs/` | Read-only VFS (`vfs.c`/`vfs.h`): mount over the HFS+ read core, bounded path validation, generation-checked file/directory handles, stat/iterate/read/seek; close is stale, writes are a READ_ONLY stub | VFS lead | paper §10, `docs/architecture.md`, T-056 | `tests/vfs` (8 tests, sanitizer-clean); no device run yet | Read-only; no hardware registers; no overlay branch; no errno guessing; empty extents file mounts, overflow forks fail closed if the extents B-tree never opens |
 | `firmware/db/` | HelikonDB v1 read-only catalog reader: header validation, fixed track/album/artist records, strings, indices, artwork, CRC | database lead | paper §12, D-07, D-33, D-53, `docs/helikondb.md` | `tests/musicdb` fixture + 100-song corpus | No iTunesDB, tagcache or device scan; caller owns buffers; catalog is a derived cache |
 | `firmware/player/` | Bounded PCM player (`wav.c`, `player.c`) feeding the four-buffer ring, with a codec-source bridge for compressed PCM | audio lead | paper §13, §28.3.8, `docs/audio-formats.md` §11 | WAV/player host tests, FLAC bridge test, audio previews, 6G WAV and FLAC runs | No filesystem internals; no unmeasured audiophile claims; only documented WAV/FLAC profiles |
-| `firmware/codec/` | Static codec registry (`codec.c`, `codec.h`) plus the native FLAC decoder (`flac/`) and WAV descriptor | audio lead | `docs/audio-formats.md` §11, D-34, T-097 | `tests/codec`; 879,952 frames bit-exact; 65,608-byte workspace; 6G FLAC image `6a2328ae…` clean | No `malloc`; caller-owned fixed workspace; 16-bit ring output only; no storage/VFS, MP3, ALAC or AAC yet |
+| `firmware/codec/` | Static codec registry (`codec.c`, `codec.h`) plus the native FLAC decoder (`flac/`), the MP3 wrapper (`mp3/`) over the vendored libmad (`libmad/`, see its README for the modification list) and the WAV descriptor | audio lead | `docs/audio-formats.md` §11, §13, D-34, T-097 | `tests/codec`; 879,952 frames bit-exact FLAC; MP3 decode/seek tests green (test + sanitize); FLAC workspace 65,608 B, MP3 workspace 30,976 B; no device run for MP3 yet | No `malloc`; caller-owned fixed workspace; 16-bit ring output only; no storage/VFS, ALAC or AAC yet; libmad edits limited to the documented port header |
 | `firmware/ui/` | Launcher renderer and the functional Music section (`music.c`: launcher-style hub, album/artist walls, lists and detail pages over an embedded HDB), the cleaned Music flow from `docs/ui.md` §6, the IBM Plex Sans atlas (`font_atlas.c`) and text renderer (`ui_text.c`), screens, input and focus | UI lead | paper §14, `docs/ui.md`, `docs/helikondb.md`, D-23/D-24 | `tests/ui` previews, frame trace, typography mockup; `5292c8ed…` device run found a ~20 s Artist-open stall | No storage policy; embedded catalog only in the pre-VFS test; default UI must survive skin failure |
 | `firmware/input/` | Click wheel/button events, debounce, focus | UI lead | `docs/firmware-architecture.md` §9.7 | event/acceleration tests | No storage or playback policy |
 | `firmware/skin/` | Documented WPS subset | UI lead | paper §28.3.4, D-10/D-15 | 20-skin corpus, hostile skin tests | No raw storage/playback policy; no full WPS engine; no unlicensed assets |
