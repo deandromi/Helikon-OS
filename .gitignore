@@ -34,11 +34,13 @@ tests/firmware/test_lib
 tests/firmware/test_boot_info
 tests/firmware/test_bootstate
 tests/firmware/test_block
+tests/firmware/test_ata_geometry
 tests/firmware/test_stages
 tests/firmware/test_ring
 tests/firmware/test_pool
 tests/firmware/test_screen
 tests/firmware/test_trace
+tests/firmware/test_vic
 tests/firmware/*.dSYM/
 tests/firmware/test_hfs_file
 
