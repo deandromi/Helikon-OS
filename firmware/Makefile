@@ -15,6 +15,10 @@ BOARD ?= 6g
 VERSION ?= 1
 BOOTSTATE_STATE ?= good
 EXTRA_CFLAGS ?=
+UI ?= 0
+HDB ?=
+AUDIO ?=
+AUDIO_TRACK ?= 0
 CROSS ?= arm-elf-eabi-
 CC := $(CROSS)gcc
 OBJCOPY := $(CROSS)objcopy
@@ -30,6 +34,7 @@ ARCH := -mcpu=arm926ej-s -marm -mno-thumb-interwork -mfloat-abi=soft
 CFLAGS := -std=c99 -O2 -g -ffreestanding -fno-builtin -nostdinc \
           -isystem $(GCC_INCLUDE) -DHELIKON_IMAGE_VERSION=$(VERSION) \
           -Ilib -Iboot -Iboard/$(BOARD) -Ihal/$(BOARD) -Iblock -Idiag -Ihfs \
+          -Iui -Idb -Iplayer -Icodec \
           -Wall -Wextra -Werror -Wconversion -Wshadow -Wundef \
           -Wpointer-arith -ffunction-sections -fdata-sections -fno-common \
           -fno-stack-protector -fno-unwind-tables \
@@ -45,8 +50,9 @@ LIB_SRC := lib/mem.c lib/string.c lib/crc32.c lib/sha256.c lib/ring.c \
 BOARD_SRC := board/$(BOARD)/board.c
 HAL_SRC := hal/$(BOARD)/cpu.c hal/$(BOARD)/clock.c hal/$(BOARD)/pmu.c \
            hal/$(BOARD)/backlight.c hal/$(BOARD)/lcd.c hal/$(BOARD)/ata.c \
-           hal/$(BOARD)/buttons.c
-BLOCK_SRC := block/block.c block/bounce.c block/partition.c
+           hal/$(BOARD)/buttons.c hal/$(BOARD)/vic.c
+BLOCK_SRC := block/block.c block/bounce.c block/partition.c \
+             block/ata_geometry.c
 DIAG_SRC := diag/stages.c diag/trace.c diag/crash.c diag/screen.c
 HFS_ADAPTER_SRC := hfs/hfs_block_adapter.c hfs/hfs_file.c
 HFS_SRC := hfs/hfs_volume.c hfs/hfs_btree.c hfs/hfs_catalog.c \
@@ -57,9 +63,28 @@ HFS_SRC := hfs/hfs_volume.c hfs/hfs_btree.c hfs/hfs_catalog.c \
            hfs/hfs_btree_write.c hfs/hfs_btree_tree.c \
            hfs/hfs_extents_write.c hfs/hfs_catalog_write.c
 
+UI_SRC := $(if $(filter 1,$(UI)),ui/launcher.c ui/launcher_run.c \
+          ui/launcher_assets.c ui/ui_text.c ui/font_atlas.c ui/music.c,)
+PLAYER_SRC :=
+ifneq ($(AUDIO),)
+PLAYER_SRC := player/player.c player/wav.c \
+              codec/codec.c codec/flac/flac_codec.c \
+              codec/flac/flac_decoder.c hal/$(BOARD)/audio.c
+endif
+LIBRARY_SRC := db/hdb.c
+
 ALL_SRC := $(BOOT_SRC) $(LIB_SRC) $(BOARD_SRC) $(HAL_SRC) $(BLOCK_SRC) \
-           $(DIAG_SRC) $(HFS_ADAPTER_SRC) $(HFS_SRC)
+           $(DIAG_SRC) $(HFS_ADAPTER_SRC) $(HFS_SRC) $(UI_SRC) \
+           $(PLAYER_SRC) $(LIBRARY_SRC)
 OBJS := $(patsubst %.c,$(BUILD)/%.o,$(patsubst %.S,$(BUILD)/%.o,$(ALL_SRC)))
+
+ifneq ($(HDB),)
+CFLAGS += -DHELIKON_HDB_EMBEDDED
+HDB_BLOB_SRC := $(BUILD)/hdb_blob.S
+HDB_BLOB_OBJ := $(BUILD)/hdb_blob.o
+OBJS += $(HDB_BLOB_OBJ)
+endif
+
 ELF := $(BUILD)/firmware.elf
 RAW := $(BUILD)/firmware.raw
 CONFIG_STAMP := $(BUILD)/config-$(BOARD)-v$(VERSION)
@@ -79,6 +104,29 @@ $(BUILD)/%.o: %.c $(CONFIG_STAMP)
 $(BUILD)/%.o: %.S $(CONFIG_STAMP)
 	@mkdir -p $(dir $@)
 	$(CC) $(ARCH) $(CFLAGS) -c $< -o $@
+
+ifneq ($(HDB),)
+$(HDB_BLOB_SRC): $(HDB)
+	@mkdir -p $(BUILD)
+	@printf '.section .rodata, "a", %%progbits\n.balign 4\n.global helikon_hdb_start\nhelikon_hdb_start:\n.incbin "%s"\n.global helikon_hdb_end\nhelikon_hdb_end:\n.balign 4\n' "$(abspath $(HDB))" > $@
+
+$(HDB_BLOB_OBJ): $(HDB_BLOB_SRC)
+	$(CC) $(ARCH) -c $< -o $@
+endif
+
+ifneq ($(AUDIO),)
+CFLAGS += -DHELIKON_AUDIO_EMBEDDED -DHELIKON_AUDIO_TRACK=$(AUDIO_TRACK)
+AUDIO_BLOB_SRC := $(BUILD)/audio_blob.S
+AUDIO_BLOB_OBJ := $(BUILD)/audio_blob.o
+OBJS += $(AUDIO_BLOB_OBJ)
+
+$(AUDIO_BLOB_SRC): $(AUDIO)
+	@mkdir -p $(BUILD)
+	@printf '.section .rodata, "a", %%progbits\n.balign 4\n.global helikon_audio_start\nhelikon_audio_start:\n.incbin "%s"\n.global helikon_audio_end\nhelikon_audio_end:\n.balign 4\n' "$(abspath $(AUDIO))" > $@
+
+$(AUDIO_BLOB_OBJ): $(AUDIO_BLOB_SRC)
+	$(CC) $(ARCH) -c $< -o $@
+endif
 
 $(ELF): $(OBJS) boot/firmware.ld
 	@mkdir -p $(BUILD)

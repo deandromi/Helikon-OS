@@ -1,0 +1,113 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
+ * 6G audio output: CS42L55 codec, I2S and PL080 DMA.
+ *
+ * The register sequences are ported from the Rockbox CS42L55 and
+ * pcm-s5l8702 drivers (GPL-2.0-or-later) and are hardware sequences, not
+ * measurements. The first path is 16-bit stereo at 44.1 or 48 kHz. Playback
+ * drains one bounded DMA chunk at a time so the caller can poll input between
+ * chunks.
+ */
+#ifndef HELIKON_HAL_6G_AUDIO_H
+#define HELIKON_HAL_6G_AUDIO_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+#include "audio_stream.h"
+#include "clock.h"
+#include "pmu.h"
+
+#define HELIKON_AUDIO_PEAK_BARS 12u
+#define HELIKON_AUDIO_PEAK_WINDOW 1024u
+
+/*
+ * Stage codes are retained on the audio object after a failure so the UI can
+ * name the failing path instead of collapsing every error into one message.
+ * They are diagnostic labels, not a second error taxonomy.
+ */
+enum helikon_audio_stage {
+    HELIKON_AUDIO_STAGE_NONE = 0,
+    HELIKON_AUDIO_STAGE_CODEC = 1,
+    HELIKON_AUDIO_STAGE_RATE = 2,
+    HELIKON_AUDIO_STAGE_I2S = 3,
+    HELIKON_AUDIO_STAGE_DMA_SETUP = 4,
+    HELIKON_AUDIO_STAGE_DMA_WAIT = 5,
+    HELIKON_AUDIO_STAGE_DMA_ACTIVE = 6,
+    HELIKON_AUDIO_STAGE_CACHE = 7,
+    HELIKON_AUDIO_STAGE_BUFFER = 8,
+    HELIKON_AUDIO_STAGE_DMA_CLOCK = 9,
+    HELIKON_AUDIO_STAGE_DMA_CONFIG = 10,
+    HELIKON_AUDIO_STAGE_I2S_FIFO = 11,
+    HELIKON_AUDIO_STAGE_STREAM_UNDERRUN = 12,
+    HELIKON_AUDIO_STAGE_CODEC_DATA = 13
+};
+
+typedef int (*helikon_audio_pcm_source)(void *context, int16_t *pcm,
+                                        size_t max_frames, size_t *frames);
+
+struct helikon_audio {
+    struct helikon_pmu *pmu;
+    struct helikon_clock *clock;
+    uint32_t sample_rate;
+    uint32_t timeout_ms;
+    uint32_t stage;
+    int initialized;
+    int running;
+    int paused;
+
+    /*
+     * Streaming ring state. The HAL keeps four linked DMA buffers in flight;
+     * the player only calls service() to refill a completed buffer and to
+     * advance the played position.
+     */
+    const int16_t *stream_pcm;
+    helikon_audio_pcm_source stream_source;
+    void *stream_source_context;
+    size_t stream_frames;
+    size_t stream_cursor;
+    size_t stream_played;
+    uint32_t stream_channels;
+    uint32_t stream_play;
+    uint32_t stream_buffer_frames[HELIKON_AUDIO_RING_BUFFERS];
+    uint32_t stream_underruns;
+    int stream_error;
+    int stream_started;
+
+    /*
+     * Sample-peak history for the Now Playing visualizer. One byte per
+     * DMA-sized window (1024 frames) plus one release byte; the UI reads this
+     * ring without touching PCM, doing an FFT or allocating. History is
+     * cleared on start/stop and freezes while paused.
+     */
+    uint8_t peak_history[HELIKON_AUDIO_PEAK_BARS];
+    uint8_t peak_head;
+    uint8_t peak_release;
+};
+
+int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
+                       struct helikon_clock *clock, uint32_t timeout_ms);
+int helikon_audio_set_rate(struct helikon_audio *audio, uint32_t sample_rate);
+
+int helikon_audio_stream_start(struct helikon_audio *audio,
+                               const int16_t *pcm, size_t frames,
+                               uint32_t channels);
+int helikon_audio_stream_start_source(struct helikon_audio *audio,
+                                      helikon_audio_pcm_source source,
+                                      void *context, size_t frames);
+int helikon_audio_stream_service(struct helikon_audio *audio);
+int helikon_audio_stream_pause(struct helikon_audio *audio);
+int helikon_audio_stream_resume(struct helikon_audio *audio);
+void helikon_audio_stream_stop(struct helikon_audio *audio);
+int helikon_audio_stream_finished(const struct helikon_audio *audio);
+uint32_t helikon_audio_stream_position_frames(const struct helikon_audio *audio);
+uint32_t helikon_audio_stream_underruns(const struct helikon_audio *audio);
+
+/*
+ * Copy the most recent `count` peak bytes (0..15) in display order, oldest
+ * first. Missing history reads as 0. `count` is clamped to 12.
+ */
+void helikon_audio_peak_levels(const struct helikon_audio *audio,
+                               uint8_t *levels, uint32_t count);
+
+#endif

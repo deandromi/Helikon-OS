@@ -3,17 +3,21 @@
 > Purpose: answer common questions honestly, with the design-stage boundary.
 > Status: living document
 > Owner: docs lead; project owner
-> Last updated: 2026-11-05
+> Last updated: 2026-11-11
 > Source: design paper Appendix G, §28; root `README.md`;
-> [`competitive-roadmap.md`](competitive-roadmap.md)
+> [`competitive-roadmap.md`](competitive-roadmap.md);
+> [`disk-mode.md`](disk-mode.md)
 
 ## Can I build Helikon-OS today?
 
-No firmware release. Diagnostic bootloader images, a separate loader test image
-and the F1/F2 development firmware sources exist; there is no production
-firmware, kernel, installer or release. The diagnostic images are not a support
-claim. You can build and test the donor project today in a separate checkout and
-follow the paper's assembly plan; that is not Helikon-OS firmware.
+Alpha 2.0.0 “Launchers and Interfaces” is a development release, not a
+production firmware release. It includes the loader test image, storage-free
+launcher and Music-hub firmware images, and a companion shell DMG. It does not
+include a firmware-owned filesystem write. There is no production firmware,
+kernel, installer, audio playback or working companion, and the release is not
+a support claim. Diagnostic bootloader images and the F1 development firmware
+sources also exist. You can build and test the donor project today in a separate
+checkout and follow the paper's assembly plan; that is not Helikon-OS firmware.
 
 ## Do I need to be a programmer?
 
@@ -27,6 +31,15 @@ The first target is the iPod Classic 6G. The 7G is the next named port and
 requires a board audit before support is claimed. Other iPods and players are
 ports, not launch promises. No device is supported until a recorded run is in
 `docs/device-matrix.md`.
+
+## What is Helikon Disk Mode?
+
+Planned, not built. It is a separate, explicit, exclusive firmware mode that
+exposes a writable USB mass-storage LUN, so macOS can write to the iPod without
+booting Apple Disk Mode. Normal firmware USB remains read-only. The 6G Apple
+firmware is LBA28-limited to 128 GiB; Helikon plans LBA48 but must prove it on
+the actual iFlash bridge before claiming a larger volume. The first step is a
+read-only ATA/LBA48/APM probe (T-109). See [disk-mode.md](disk-mode.md) and D-54.
 
 ## How is Helikon-OS different from Rockbox?
 
@@ -124,9 +137,10 @@ unmeasured battery or lifespan promises. See T-105.
 
 ## Is there a desktop app?
 
-Planned, not built. macOS first, because it can write HFS+ in Disk Mode.
-Windows/Linux need either a tested HFS+ path or a Helikon-OS USB service mode;
-that transport is an open decision (D-09), not a shipped feature.
+Planned, not built. macOS first: Helikon Disk Mode will expose a writable
+HFS+-volume to macOS without Apple Disk Mode. Windows/Linux need either a tested
+HFS+ path or a Helikon-OS USB service mode; that transport remains an open
+decision (D-09/T-077), not a shipped feature. See [disk-mode.md](disk-mode.md).
 
 ## Does it scrobble to Last.fm?
 

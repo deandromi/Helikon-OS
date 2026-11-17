@@ -179,6 +179,28 @@ void helikon_screen_text(struct helikon_screen *screen, uint32_t x, uint32_t y,
     }
 }
 
+void helikon_screen_bitmap(struct helikon_screen *screen, uint32_t x,
+                           uint32_t y, uint32_t width, uint32_t height,
+                           const uint16_t *pixels, uint32_t stride)
+{
+    if (screen == NULL || screen->pixels == NULL || pixels == NULL ||
+        width == 0u || height == 0u || stride < width)
+        return;
+    if (x >= screen->width || y >= screen->height)
+        return;
+    if (width > screen->width - x)
+        width = screen->width - x;
+    if (height > screen->height - y)
+        height = screen->height - y;
+
+    for (uint32_t row = 0; row < height; ++row) {
+        uint16_t *line = screen->pixels + (size_t)(y + row) * screen->width + x;
+        const uint16_t *source = pixels + (size_t)row * stride;
+        for (uint32_t column = 0; column < width; ++column)
+            line[column] = source[column];
+    }
+}
+
 int helikon_screen_present(struct helikon_screen *screen, uint32_t x,
                            uint32_t y, uint32_t width, uint32_t height)
 {

@@ -336,6 +336,34 @@ int helikon_lcd_init(struct helikon_lcd *lcd, struct helikon_clock *clock,
     return HELIKON_OK;
 }
 
+int helikon_lcd_attach(struct helikon_lcd *lcd, struct helikon_clock *clock)
+{
+    if (lcd == NULL || clock == NULL || !clock->initialized)
+        return HELIKON_ERR_ARGUMENT;
+
+    lcd->clock = clock;
+    lcd->initialized = 0;
+
+    S5L_PWRCON(S5L_CLOCKGATE_LCD >> 5) &=
+        ~(1u << (S5L_CLOCKGATE_LCD & 0x1fu));
+    S5L_LCD_PHTIME = 0x33u;
+    S5L_PCON(6) &= ~0x00ff0000u;
+
+    lcd->panel_type = (uint8_t)((S5L_PDAT(S5L_LCD_TYPE_PORT) &
+                                 S5L_LCD_TYPE_MASK) >>
+                                S5L_LCD_TYPE_SHIFT);
+    if (lcd->panel_type <= 1u) {
+        lcd->cmdset = 8u;
+        lcd->cmd_mode = LCD_MODE_P8;
+    } else {
+        lcd->cmdset = 16u;
+        lcd->cmd_mode = LCD_MODE_P18;
+    }
+    lcd->frame_mode = LCD_MODE_P16;
+    lcd->initialized = 1;
+    return HELIKON_OK;
+}
+
 int helikon_lcd_present(void *context, const uint16_t *pixels, uint32_t stride,
                         uint32_t x, uint32_t y, uint32_t width,
                         uint32_t height)

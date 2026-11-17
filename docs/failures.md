@@ -4,8 +4,9 @@
 > warnings.
 > Status: living document
 > Owner: diagnostics lead; every agent must follow the warnings
-> Last updated: 2026-11-04
-> Source: design paper §8.3, §9–§11, §16, §20, §24, §28
+> Last updated: 2026-11-11
+> Source: design paper §8.3, §9–§11, §16, §20, §24, §28; D-54;
+> [`disk-mode.md`](disk-mode.md)
 
 Helikon-OS has no implemented error path yet. These are design meanings and the
 safe response. Do not invent a numeric code or a recovery action that is not
@@ -114,7 +115,9 @@ result as evidence that the writer is correct. A repair means failure.
 | Bootloader update fails | Recover through DFU; never `--single`; Apple path preserved. |
 
 No update is "installed" until the bootloader verifies it and the firmware
-commits a boot-state record. No silent install. No writable USB mass storage.
+commits a boot-state record. No silent install. No writable USB mass storage in
+the normal profile; Helikon Disk Mode is the only exception and is covered
+below.
 
 **Single-image fail-closed (owner decision 2026-11-04, T-050).** The frozen
 format has one image path. A failed, mismatched or unbootable image produces a
@@ -139,8 +142,12 @@ the app's granted roots.
 
 | Failure | Safe response |
 |---|---|
-| Device not detected | Check cable/mode; read-only LUN vs service mode; do not force a mount. |
+| Device not detected | Check cable/mode; read-only LUN vs service mode vs Helikon Disk Mode; do not force a mount. |
 | HFS+ volume dirty | Stop; ask the user to repair on macOS; do not write. |
+| Disk Mode host write fails | Report the SCSI/ATA error; do not silently drop data; leave the volume for host repair if the journal is dirty. |
+| Disk Mode surprise unplug | Attempt a bounded flush; report unsafe removal; check the journal after the host releases the volume; do not boot the loader on an invalid volume. |
+| Disk Mode LBA48 not supported | Cap at the LBA28 limit and show `LBA28 LIMIT`; do not claim >128 GiB. |
+| Disk Mode whole-disk write | Refuse unless the explicit expert restore mode and confirmation were used; back up first. |
 | Transfer interrupted | Keep the old file; verify the new file hash; retry from the host. |
 | Conflict (newer device file) | Report; resolve by mtime/content hash; never silently overwrite. |
 | Scrobble upload fails | Keep the queue offline; retry rate-limited; no listening history leaves the machine without consent. |

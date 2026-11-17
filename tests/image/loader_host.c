@@ -17,7 +17,9 @@
 #include <unistd.h>
 
 #define SCRATCH_SIZE 32768u
-#define IMAGE_CAPACITY (1024u * 1024u)
+/* The loader ABI allows the full 8 MiB window; the test image with an embedded
+ * HelikonDB is ~2 MiB, so the old 1 MiB harness cap was too small. */
+#define IMAGE_CAPACITY (8u * 1024u * 1024u)
 
 struct io {
     int fd;

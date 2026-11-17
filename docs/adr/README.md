@@ -3,7 +3,7 @@
 > Purpose: long-form decisions that are too large for `docs/decisions.md`.
 > Status: living document
 > Owner: architecture lead
-> Last updated: 2026-11-04
+> Last updated: 2026-11-11
 
 ## When to create an ADR
 
@@ -40,6 +40,7 @@ Do **not** use an ADR for a small style choice, a task status, or a decision tha
 | [`0002-signing-key-ownership.md`](0002-signing-key-ownership.md) | Signing-key ownership and release signing | accepted |
 | [`0003-firmware-memory-map.md`](0003-firmware-memory-map.md) | Firmware memory map and image layout | accepted |
 | [`0004-firmware-entry-abi.md`](0004-firmware-entry-abi.md) | Firmware entry ABI and boot information | accepted |
+| [`0005-helikon-disk-mode.md`](0005-helikon-disk-mode.md) | Helikon Disk Mode: an exclusive writable USB LUN | accepted |
 | [`0001-template.md`](0001-template.md) | Template (not a decision) | template |
 
 Add real ADRs above this line when created. Do not create both an ADR and a

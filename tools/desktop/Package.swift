@@ -8,25 +8,10 @@ let package = Package(
         .executable(name: "HelikonCompanion", targets: ["HelikonCompanion"])
     ],
     targets: [
-        .target(
-            name: "CompanionCore",
-            path: "Sources/CompanionCore",
-            swiftSettings: [.swiftLanguageMode(.v5)],
-            linkerSettings: [
-                .linkedFramework("AVFoundation"),
-                .linkedFramework("Security")
-            ]
-        ),
         .executableTarget(
             name: "HelikonCompanion",
-            dependencies: ["CompanionCore"],
             path: "Sources/HelikonCompanion",
-            swiftSettings: [.swiftLanguageMode(.v5)]
-        ),
-        .testTarget(
-            name: "CompanionCoreTests",
-            dependencies: ["CompanionCore"],
-            path: "Tests/CompanionCoreTests",
+            resources: [.process("Resources")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         )
     ]

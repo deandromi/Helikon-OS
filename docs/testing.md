@@ -3,12 +3,13 @@
 > Purpose: define the test pyramid and the evidence each layer produces.
 > Status: living document
 > Owner: test lead
-> Last updated: 2026-11-04
-> Source: design paper §17, §24, §26, §28; `docs/verification.md`
+> Last updated: 2026-11-11
+> Source: design paper §17, §24, §26, §28; `docs/verification.md`;
+> [`disk-mode.md`](disk-mode.md)
 
 **Helikon-OS has a host test tree.** It covers the HFS+ read/write core, the
 read-only diagnostic bootloader core, the host firmware loader and the F1
-firmware modules. The portable HFS+/bootloader suites are 135 tests (104 HFS+,
+firmware modules. The portable HFS+/bootloader suites are 136 tests (105 HFS+,
 31 bootloader), sanitizer-clean. The F1 firmware adds nine host test groups
 (`tests/firmware/`: boot-info, block/partition, stages, lib, ring, pool, screen
 and trace), also sanitizer-clean. F2 adds a tenth group for bootstate parsing
@@ -35,7 +36,7 @@ Helikon-OS validation.
 | Battery/RAM | Runtime, sleep drain, peak RAM, soak | Device/rig | `not run` | Goal 1/4, D-12 |
 | Skin corpus | 20 skins, tags, frame/memory caps, fallback | Device | `not run` | Goal 3, D-10 |
 | App sandbox | Permissions, quotas, escape, crash isolation | Device | `not run` | Goals 15/18, D-08 |
-| Desktop app | Import/tag/rate/scrobble/install/backup, failed transfer | macOS first | `in progress` — 21 host core tests and release build pass; full macOS task matrix not run | Goal 20, D-09 |
+| Desktop app | Import/tag/rate/scrobble/install/backup, failed transfer | macOS first | `not run` — app reset to a shell on 2026-11-06; no test target or device matrix | Goal 20, D-09 |
 | Car/receiver | Line-out, charging, resume, ignition, Tier 2 controls | Device + receiver | `not run` | Goal 23, D-14 |
 | Update/rollback | Bad image rejection, staging cut, rollback, version/hash | Device | `not run` | Goal 9, D-01/D-16/D-20 |
 
@@ -223,6 +224,50 @@ make -C tests/firmware test
 make -C tests/firmware sanitize
 ```
 
+The launcher and music browser have host previews and checks:
+
+```sh
+make -C tests/ui preview
+```
+
+It renders the real firmware framebuffer to `build/ui/launcher.png`,
+`build/ui/music-*.png` (hub, albums, artists, tracks, artist overview, artist
+albums, artist tracks, album, track) and `build/ui/audio-*.png`
+(now-playing, paused), and checks the launcher focus marks, the hub focus mark,
+both wall headers and frames, the tracks header, the artist tab
+underline/covers/track row, the monogram fallback, the playback progress bar
+and the player chunk/position logic.
+
+The WAV container and player state are host-tested separately:
+
+```sh
+make -C tests/player test
+```
+
+The HelikonDB reader is tested against a generated fixture, with an optional
+real corpus:
+
+```sh
+make -C tests/musicdb test
+make -C tests/musicdb real REAL=/path/to/music.hdb
+```
+
+The reference builder is:
+`python3 tools/hdb_build.py build MUSIC_DIR --out music.hdb --sample 100`.
+
+The functional library image embeds an HDB in the signed firmware and is
+checked without a device:
+
+```sh
+make -C firmware BOARD=6g VERSION=14 BOOTSTATE_STATE=good UI=1 \
+  HDB=../build/helikondb/first100/music.hdb \
+  EXTRA_CFLAGS='-DHELIKON_DIAG_LAUNCHER' \
+  BUILD=../build/firmware/6g-music image
+./tools/check-loader-artifact.sh build/firmware/6g-music/out
+```
+
+It does not touch storage; the device run remains the acceptance gate.
+
 The groups are:
 
 - `test_lib` — mem/string/endian/CRC-32/fixed-point/bounded format;
@@ -274,7 +319,9 @@ partition scan, HFS+ probe, read one known file, input, bootstate promotion,
 browser, first UI, first audio. A rung is not skipped because a host test
 passes. The F1 image `d7916411…` is built and host-verified and has one
 owner-reported 6G device run (2026-11-04), accepted as the T-054 gate. The F2
-image `f33f2791…` is host-verified but has no device run;
+image `1d6d4c92…` (76,080 bytes) is host-verified, but the write gate is
+unfinished and unconfirmed due to a currently unfixable bug. It is **not** part
+of Alpha 2.0.0 and has no confirmed 6G result.
 [`f2-bootstate-test.md`](f2-bootstate-test.md) is its runbook.
 
 ## 6. Device tests
@@ -286,12 +333,34 @@ Device tests require a recorded inventory and backup. Minimum matrix:
 - 100-cycle sleep/wake and resume;
 - playback, seek, next/previous, volume, line-out/headphone, charging;
 - USB read-only mount and log export;
+- Helikon Disk Mode enumeration, read-only mount, writable 1 GB host transfer,
+  safe eject, surprise unplug, journal replay and Apple Disk Mode fallback;
 - DFU install/uninstall and Apple recovery;
 - update/rollback and migration;
 - per-target 7G/port matrix before a support claim.
 
 Record the exact model/revision, adapter/card, firmware/bootloader hash, test,
 result and evidence in [`device-matrix.md`](device-matrix.md).
+
+### 6.1 Helikon Disk Mode and LBA48
+
+Disk Mode has a separate bring-up ladder because it adds USB and a host-owned
+write path. The canonical matrix is [`disk-mode.md`](disk-mode.md) §13.
+
+- Host unit/mock: SCSI parser, CBW/CSW, descriptors, LUN mapping, LBA48
+  encoding, malformed commands.
+- P0: read-only Apple Disk Mode evidence on macOS.
+- P1: read-only ATA/LBA48/APM probe on one 6G/iFlash SD.
+- P2: enumeration on macOS; 100 connect/disconnect cycles.
+- P3: read-only mount and file read.
+- P4: 1 GB host write + SHA-256 read-back + `fsck_hfs -fn`.
+- P5: LBA 2^28−1/2^28/2^28+1 and last LBA; >128 GiB volume or second partition.
+- P6: surprise unplug, journal replay, Apple Disk Mode fallback, Helikon boot
+  after host write.
+- P9: SCSI/BOT fuzz, 100 cycles, throughput and battery.
+
+No Disk Mode test may run on the only copy of the library. A verified backup is
+required before P4.
 
 ## 7. Power-loss tests
 

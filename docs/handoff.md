@@ -3,11 +3,242 @@
 > Purpose: the latest session handoff and the reusable template.
 > Status: living document
 > Owner: session author; next agent reads this first
-> Last updated: 2026-11-05
-> Source: `docs/state.md`, `docs/tasks.md`, repository history
+> Last updated: 2026-11-11
+> Source: `docs/state.md`, `docs/tasks.md`, repository history; D-54;
+> [`disk-mode.md`](disk-mode.md)
 
 Keep the newest handoff at the top. Move older entries to `docs/log/` when this
 file grows. Do not rely on chat history for current state.
+
+---
+
+# Handoff — 2026-11-11 (Helikon Disk Mode plan and D-54)
+
+## What happened
+
+- Owner accepted D-54: a separate, explicit, exclusive Helikon Disk Mode may
+  expose a writable USB LUN; normal firmware USB stays read-only.
+- Added [ADR-0005](adr/0005-helikon-disk-mode.md) and the canonical
+  [`disk-mode.md`](disk-mode.md) plan: data-volume LUN default, whole-disk expert
+  mode, BOT/SCSI stack, LBA48, capacity migration and the test matrix.
+- Added T-108–T-115 to [`tasks.md`](tasks.md); T-108 is this docs task and T-109
+  is the first runtime step (read-only ATA/LBA48/APM probe).
+- Updated architecture, firmware-architecture, invariants (I-16), security,
+  release, failures, glossary, FAQ, competitive roadmap, companion research,
+  file map, state, roadmap, device matrix and the build prompt.
+- No USB stack, LUN, LBA48 write, Disk Mode device run or >128 GiB volume exists.
+
+## What is next
+
+1. T-109: build and run the read-only ATA/LBA48/APM probe on the 6G/iFlash SD;
+   record IDENTIFY 83/86/100–103/60–61/106/117–118 and the real partition map.
+2. T-108: host evidence collector; T-110: USB device-core research; no writable LUN.
+3. Do not start T-112 until T-109/T-111 pass and a verified backup exists.
+
+## Do not claim
+
+- That Helikon Disk Mode, a writable LUN, LBA48 or >128 GiB exists.
+- That F2/T-055 is unblocked by this line.
+- That a host write is transactional firmware I/O; it is host-owned Disk Mode
+  I/O and must be tested with `fsck_hfs`.
+
+---
+
+# Handoff — 2026-11-08 (codec framework, FLAC and Music-flow device runs)
+
+## What happened
+
+- PR #17 (four-buffer WAV ring fix) merged as `2420c64` after the owner's 6G run
+  on image `18f5fe39…` reported clean audio with working pause/resume.
+- PR #20 (binding Music-flow and Now Playing design in `docs/ui.md` §6) merged
+  as `5fa0510`; PR #18 was closed as superseded.
+- PR #19 (codec registry and native FLAC decoder) merged as `e9f6ad6` after the
+  owner's 6G run on image `6a2328ae…`: FLAC audio clean, pause/resume works.
+  The branch was rebuilt after merging `main` `5fa0510` and produced the
+  identical SHA-256, so the tested image matches the merged tree. Host decode is
+  bit-exact over 879,952 frames with a 65,608-byte workspace.
+- PR #21 (cleaned Music flow and Now Playing UI) is open and device-blocked.
+  On image `5292c8ed…` the device stalls for almost 20 s when an artist is
+  selected; repeated presses are then processed and eventually start a song.
+  Do not merge it.
+- Host suites pass on both branches: codec, player, UI, firmware and image
+  checks.
+
+## What is next
+
+**Test packaging (owner rule, 2026-11-09):** one combined image per device test.
+Do not ask the owner to test separate images for separate features; split only
+to isolate a specific failure.
+
+1. Diagnose the Artist-open stall on `firmware/T-088-music-flow` (blocking work
+   before the first frame and queued input reaching the player), fix it, rebuild
+   and device-test the fixed image before merge.
+2. Build the combined FLAC + UI image only after PR #21 merges.
+3. Start MP3 on a fresh branch after the FLAC tranche; ALAC and AAC remain
+   behind the provenance/licence review.
+4. Attach the 2026-11-08 screen photos and `fsck_hfs` output when available.
+
+## Do not claim
+
+- That PR #21, the cleaned Music flow or the new Now Playing screen is
+  device-proven.
+- That the UI meets the T-088 page-open or 30 fps target.
+- That 24-bit output, >48 kHz, seek timing, storage/VFS playback, next/previous,
+  gapless, MP3, ALAC or AAC exist.
+- That the 2026-11-08 runs are a support matrix; one 6G/iFlash SD only.
+
+---
+
+# Handoff — 2026-11-06 (Alpha 2.0.0 release)
+
+## What happened
+
+- Published Alpha 2.0.0 “Launchers and Interfaces” as a normal GitHub release
+  at tag `alpha-2.0.0`, from a clean `release/alpha-2.0.0` branch based on
+  `main` at `f5f8bfb`.
+- **Correction:** T-055/F2 was removed from the Alpha 2.0.0 release. The write
+  gate is unfinished and unconfirmed due to a currently unfixable bug. The
+  published release body, release notes, quick start and `SHA256SUMS` were
+  corrected, and the F2 firmware zip was removed from the release assets. The
+  source tag remains immutable; the live release no longer covers F2.
+- The release set is loader `7f13e7e5…`, launcher `b3218ccd…`, Music hub
+  `de6491a9…`, plus the uninstaller, test public key and a universal
+  `Helikon-Companion-0.1.0-alpha2.dmg`. The firmware images are storage-free.
+- Added the DMG tooling (`tools/desktop/scripts/build-dmg.sh`, universal support
+  in `build-app.sh`) and the archive at `docs/releases/alpha-2.0.0/`.
+- Host evidence: 105 HFS+ tests, 31 bootloader tests, 10 firmware groups,
+  MusicDB reader, UI previews, disposable-image writer test and loader artifact
+  checks. The 346-cut crash matrix is documented but was not rerun in this cut.
+- The owner reports the release-set 6G test is complete; per-image photos,
+  timings and `fsck_hfs` were not attached. The companion DMG was mounted,
+  launched and quit on the build host.
+
+## What is next
+
+1. Attach the launcher and Music-hub 6G screen photos, timings and post-run
+   `fsck_hfs` to `device-matrix.md`.
+2. T-055/F2 remains blocked and unconfirmed; T-051 production handoff is
+   blocked with it. The owner must resolve or re-scope T-055 before either can
+   proceed.
+3. T-053 release-key certificate verifier.
+4. Keep Alpha 2.0.0 described as a storage-free alpha with no firmware-owned
+   filesystem write.
+
+## Do not claim
+
+- That Alpha 2.0.0 includes a firmware write or T-055/F2.
+- That T-055/F2 has a confirmed 6G result.
+- That the release is stable, supported or production firmware.
+- That the firmware is signed by a release key, or that the companion is
+  notarized.
+- That the music image reads the user's library or plays audio.
+- That the companion has library, transfer, metadata, podcast, audiobook,
+  scrobble or install functionality.
+
+---
+
+# Handoff — 2026-11-06 (companion app reset)
+
+## What happened
+
+- Owner-directed reset: removed the complete speculative companion feature set
+  and the sidebar navigation. The app is now a welcome screen and an empty shell.
+- Deleted `CompanionCore`, all feature views, the settings/install/scrobble/
+  podcast/audiobook/transfer/library/metadata surfaces and the 21 core tests.
+- Kept the owner banner crop and the welcome screen, reduced to Open companion.
+- The shell has a brand-only sidebar and an empty-state page. It does not
+  enumerate or read a volume, does not use the network and does not write.
+- Updated [`../docs/companion-app.md`](../docs/companion-app.md),
+  [`../tools/desktop/README.md`](../tools/desktop/README.md), the state row,
+  T-083, the desktop test row and the file map.
+- Evidence: `swift build` and `swift build -c release` pass; the app bundle
+  builds and contains the welcome banner; host screenshots of the welcome screen
+  and empty shell were reviewed.
+
+## What is next
+
+1. Write the companion capability inventory against the current Helikon-OS
+   surface: launcher, read-only library, HelikonDB and diagnostics.
+2. Add one honest host capability with a small test target instead of restoring
+   the deleted feature list.
+3. Keep the splash and shell as the visual base.
+
+## Do not claim
+
+- That library, metadata, transfer, podcast, audiobook, scrobble or install
+  functionality exists; the code was deliberately removed.
+- That the shell has been run against a device.
+- That this reset is a release or support claim.
+
+---
+
+# Handoff — 2026-11-05 (companion app welcome screen)
+
+## What happened
+
+- Added a full-window welcome screen to the companion app. It opens at launch
+  and can be reopened from the app menu or Settings.
+- Used the owner-supplied `assets/branding/helikon-os-poster.png` as the source.
+  The app bundles a 1600×1054 crop of the Halftone photo area at
+  `tools/desktop/Sources/HelikonCompanion/Resources/helikon-os-banner.png`;
+  nothing was redrawn, recoloured or generated.
+- Added **Open companion** and **Add music…** actions, plus a `--skip-splash`
+  developer launch option. The splash avoids touching a mounted volume until the
+  user enters the app, so macOS volume permission is requested in context.
+- Updated [`../docs/companion-app.md`](../docs/companion-app.md) and
+  [`../tools/desktop/README.md`](../tools/desktop/README.md).
+- Evidence: `swift test` passes 21 tests; `swift build -c release` passes; the
+  debug app bundle and resource bundle were built and the welcome screen was
+  visually reviewed on the host. No device write or transfer was performed.
+
+## What is next
+
+1. Check the splash on the minimum window size and with large accessibility text.
+2. Run the macOS task matrix and a real device transfer on a backed-up volume.
+3. Continue the installer only after the signed release exists.
+
+## Do not claim
+
+- That the splash is a device result, a release screen or a UI test pass.
+- That the poster was recreated or that the banner is new artwork.
+
+---
+
+# Handoff — 2026-11-05 (companion app chrome cleanup)
+
+## What happened
+
+- Removed the second title bar above every app screen. The page title and
+  subtitle now appear once; the sidebar and the page header carry the navigation
+  context.
+- Removed the ordinal numbers from the sidebar and the section breadcrumb, so
+  Overview, Library, Transfer and the rest are identified by name and icon only.
+- Replaced all-caps UI labels with title case: meta labels, tags, table headings,
+  device facts, brand text, footer, generated-cover lettering and the tiny
+  device diagram labels. Uppercase now survives only for acronyms and
+  device-supplied volume names.
+- Moved Add music into the Overview and Library page headers now that the global
+  top bar is gone. The sidebar keeps the device card and refresh action.
+- Removed the generated initials from placeholder covers; sample covers are now
+  abstract geometry only.
+- Updated [`../docs/companion-app.md`](../docs/companion-app.md) and
+  [`../tools/desktop/README.md`](../tools/desktop/README.md).
+- Evidence: `swift test` passes 21 tests; `swift build -c release` passes;
+  host screenshots of Overview, Library and Transfer were reviewed. The app was
+  run only against a mounted volume and did not write to it.
+
+## What is next
+
+1. Run the macOS companion task matrix and a real device transfer on a backed-up
+   test volume.
+2. Review the post-cleanup screens on the target window sizes and with the
+   accessibility font setting.
+3. Continue the installer only after the signed release exists.
+
+## Do not claim
+
+- No device transfer, UI test suite, notarization or support claim exists.
+- No firmware or installer behaviour changed in this session.
 
 ---
 
@@ -117,6 +348,10 @@ file grows. Do not rely on chat history for current state.
     a latest-episode caption.
   - **Audiobook wall** — the same wall for books, with author, duration and
     reading-progress caption.
+  - **Album view** — sleeve, year/rating, title, artist, genre, play and
+    Tracks/Notes/Credits tabs with a three-row visible track list.
+  - **Artist view** — plum portrait band, name, genre, play and
+    Overview/Albums/Tracks tabs with biography and facts.
 - All three use the off-white palette and 1 px rules. Home concepts have no
   now-playing hero, strip, progress bar or green playback dot.
 - Headers use the owner-supplied ITC Benguiat Std; body text remains IBM Plex

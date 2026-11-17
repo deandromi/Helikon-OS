@@ -3,9 +3,9 @@
 > Purpose: map “I need to change X” to the owning file or module.
 > Status: living document
 > Owner: architecture; each module owner
-> Last updated: 2026-11-05
+> Last updated: 2026-11-11
 > Source: repository inspection; design paper §3, §8–§19, Appendices A/B;
-> [`competitive-roadmap.md`](competitive-roadmap.md)
+> [`competitive-roadmap.md`](competitive-roadmap.md); [`disk-mode.md`](disk-mode.md)
 
 **Early host code exists.** The HFS+ read core and a read-only diagnostic
 bootloader core are real host-side code. The flashable bootloader, device
@@ -62,9 +62,10 @@ Helikon-OS/
     boot/                 _start, vectors, linker script, boot-info, bootstate, panic, stack
     lib/                  freestanding mem/string/CRC/SHA-256/endian/ring/pool/fixed/format
     board/6g/             BSP constants, board description, runtime wiring, write gate
-    hal/6g/               clock, PMU, backlight, LCD, ATA read/write/flush, buttons, CPU
+    hal/6g/               clock, PMU, backlight, LCD, ATA read/write/flush, buttons, CPU, CS42L55/I2S/DMA
     block/                block device with read-only gate, bounce, APM/MBR/raw scan
     diag/                 stage machine, RAM trace, crash record, RGB565 screen
+    player/               bounded WAV parser and PCM playback state
     hfs/hfs_block_adapter.c/.h  hfs read/write/flush over the block device
     hfs/hfs_file.c/.h     one-file read helper (lookup + inline/overflow)
     inner_image.c/.h      outer-file extent mapping + metadata guard
@@ -152,16 +153,35 @@ Helikon-OS/
       test_loader.c         manifest, SHA-256, bootstate and loader tests
       test_loader_hfs.c     HFS+ file-read adapter tests
       test_ed25519.c        RFC 8032, 192-byte and key-table tests
-  tools/desktop/            macOS companion app (SwiftPM, host only, in progress)
-    Sources/CompanionCore/   testable device, library, metadata, transfer and scrobble services
-    Sources/HelikonCompanion/ SwiftUI app shell and screens
-    Tests/CompanionCoreTests/ 21 host tests
+  tests/musicdb/
+    Makefile                HelikonDB fixture and reader test
+    test_hdb.c              fixture + optional real-library checks
+  tests/ui/
+    Makefile                launcher, Music, artist and audio host previews
+    test_launcher.c         launcher render and checks
+    test_music.c            hub/walls/browser render against the fixture HDB
+    test_audio.c            Now Playing render and WAV player state
+  tests/player/
+    Makefile                WAV container/parser host test
+    test_wav.c              RIFF/WAVE validation and profile rejection
+  tests/codec/
+    Makefile                codec registry and FLAC decoder host tests
+    test_codec.c            probe/open/read/seek/malformed/bit-exact tests
+    make_fixtures.py        synthetic FLAC/PCM fixture generator
+    fixtures/               synthetic constant/verbatim/fixed/LPC FLAC + PCM
+  tools/hdb_build.py        HelikonDB reference builder and inspector
+  tools/desktop/            macOS companion shell (SwiftPM, no feature modules)
+    Sources/HelikonCompanion/App/       app entry, splash state and empty shell
+    Sources/HelikonCompanion/Design/    paper/ink palette and button styles
+    Sources/HelikonCompanion/Features/ welcome splash only
+    Sources/HelikonCompanion/Resources/ owner poster crop for the welcome screen
     scripts/                 app bundle and icon generation
   docs/
     README.md               documentation index and reading order
     state.md                current phase and blockers
     invariants.md           safety invariants
     decisions.md            decisions and open decisions
+    helikondb.md            HelikonDB format, builder contract and reader
     tasks.md                task queue
     verification.md         proof checklist
     file-map.md             this file
@@ -182,7 +202,8 @@ Helikon-OS/
     competitive-roadmap.md  Rockbox parity matrix, differentiation, declines
     audio-formats.md        audio-format inventory, tiers, decoder plan, corpus
     hfsplus-write-engine.md writer deep dive
-    release.md              release process stub
+    release.md              release process, history and current release
+    releases/               archived release notes and quick starts
     security.md             agent security rules
     faq.md                  user FAQ
     design-paper.md         full source copy with provenance; Appendix I addendum
@@ -258,7 +279,7 @@ tools/
   podcast/                  host feed fetch and episode sync
   migrate/                  donor overlay and Rockbox/Apple importer
   installer/                guided install, backup, verification
-  desktop/                  macOS-first desktop app; MVP now in the current tree
+  desktop/                  macOS-first desktop app; shell now in the current tree
   service/                  framed USB service-mode host driver
 tests/
   fixtures/                 deterministic HFS+ images and trees
@@ -284,26 +305,27 @@ is created; do not let it drift.
 | `assets/branding/` | Owner-supplied Helikon-OS poster and branding notes | owner/branding | `assets/branding/README.md` | image opens, README embed resolves | Do not replace the poster without owner approval |
 | `assets/startup/` | 320×240 startup crop for the iPod screen | boot/UI | `assets/branding/README.md` | exact 320×240, no writes in future display path | Not wired into firmware yet; do not claim it displays |
 | `assets/fonts/` | Licensed IBM Plex Sans and Manrope subsets; owner-supplied Benguiat for the home/album concepts | UI lead | `assets/fonts/README.md` | OFL present, hashes match, host mockup renders | Do not commit the Benguiat `.otf` files; do not use the IBM Plex reserved name for a modified subset |
-| `assets/ui/` | Host 320×240 UI mockups: typography, launcher/index home concepts and three content walls | UI lead | `assets/ui/README.md`, `docs/ui.md`, D-52 | five 320×240 1× frames and 2× previews, no clipping, regeneration needs `BENGUIAT_DIR` | Host artifacts only; the owner chose the launcher; the walls are browsers, not home candidates |
+| `assets/ui/` | Host 320×240 UI mockups: typography, home concepts, three content walls and album/artist detail views | UI lead | `assets/ui/README.md`, `docs/ui.md`, D-52 | seven concept 1× frames and 2× previews, no clipping, regeneration needs `BENGUIAT_DIR` | Host artifacts only; the owner chose the launcher; walls and detail views are not home candidates |
 | `docs/` | Agent documentation | docs lead | `docs/conventions.md` | `git diff --check`, link check | One canonical file per topic; no duplicate `agent.md`/`decision-log.md` |
 | `docs/f2-bootstate-test.md` | F2 build, host gates and 6G bootstate runbook | firmware/test lead | T-055, D-02, `docs/hfsplus-write-engine.md` | host artifact check, clean `fsck_hfs`, next loader `GOOD`, device power-cut | Writes only `/.helikon/bootstate`; no other file; no device run yet |
 | `bootloader/` | Diagnostic core and splash exist; hardware entry/manifest still planned | boot lead | `bootloader/README.md`, `docs/architecture.md`, paper §5, §16 | 7 host tests; device tests planned | No filesystem writes; no overlay; no `--single`; no write modules linked; not flashable yet |
 | `firmware/boot/` | Entry, vectors, linker script, boot-info parser, bootstate parser/promoter, panic | boot lead | `docs/firmware-architecture.md` §3, ADR-0004, `docs/f2-bootstate-test.md` | boot-info, bootstate and fault tests | No C before stacks/BSS; entry never returns; the bootstate write is the only F2 filesystem write |
 | `firmware/lib/` | Freestanding mem/string/CRC/SHA-256/ring/pool helpers | firmware lead | `docs/firmware-architecture.md` §8.9 | host unit tests; no hosted symbols | No `malloc`, `stdio` or locale |
 | `firmware/board/6g/` | BSP constants, init sequence, memory map | hardware lead | ADR-0003, paper §6 | map assertions, board audit | No target `#ifdef` in shared core |
-| `firmware/hal/6g/` | S5L8702 clocks, GPIO, PMU, ATA read/write/flush, LCD, codec | hardware lead | paper §6–§7, `docs/architecture.md` | register-level bring-up, sleep/wake, PIO write/flush | No filesystem, UI or policy; no unmeasured overclock/undervolt |
+| `firmware/hal/6g/` | S5L8702 clocks, GPIO, PMU, ATA read/write/flush, LCD, CS42L55 codec, I2S and DMA; planned VIC and USB devicecore | hardware lead | paper §6–§7, `docs/architecture.md`, `docs/disk-mode.md` | register-level bring-up, sleep/wake, PIO write/flush, first PCM output; LBA48/USB planned | No filesystem, UI or policy; no unmeasured overclock/undervolt |
 | `firmware/block/` | Sector I/O, flush, power state | storage lead | paper §7, `docs/architecture.md` | read/write/flush, 512/4096, error injection | No paths/files/caches; a flush error must propagate |
 | `firmware/hfs/` | HFS+ read core and writer: volume, B-tree, catalog, Unicode, extents, journal, txn, in-place overwrite | HFS+ lead | paper §8, §10.4, `docs/hfsplus-write-engine.md` | 104 host tests; overwrite and crash tests; fuzz/malformed/macOS differential planned | Writes only through `hfs_txn`; never hide unsupported entries |
 | `firmware/hfs/hfs_catalog_write.c`, `hfs_btree_tree.c`, `hfs_bitmap.c`, `hfs_extents_write.c` | Catalog/bitmap/extents mutation | HFS+ lead | `docs/hfsplus-write-engine.md`, invariants I-03–I-15 | model/property/crash tests, `fsck_hfs` | No journal format, UI or boot policy; no direct writes outside a transaction |
 | `firmware/hfs/hfs_journal.c`, `hfs_txn.c` | Journal append/commit/replay, bounded transaction engine | journal lead | paper §9.3–§9.4, `docs/hfsplus-write-engine.md` | crash injection, idempotent replay | No product policy/UI; never delete/disable/zero the journal |
 | `firmware/vfs/` | Lookup, handles, capabilities, path rules | VFS lead | paper §10, `docs/architecture.md` | path/name tests, capability tests | No hardware registers; no overlay branch; no errno guessing |
-| `firmware/db/` | Immutable metadata/index reader | database lead | paper §12, D-07 | 10k-track browse, stale-entry fallback | No playback state; database is a cache, not truth |
-| `firmware/player/` | Buffer/decode/output state machine | audio lead | paper §13, §28.3.8 | audio matrix, gapless, seek | No filesystem internals; no unmeasured audiophile claims |
-| `firmware/ui/` | Screens, input, rendering | UI lead | paper §14, §28.3.3, `docs/ui.md` | task tests, frame trace, typography mockup | No storage policy; default UI must survive skin failure |
+| `firmware/db/` | HelikonDB v1 read-only catalog reader: header validation, fixed track/album/artist records, strings, indices, artwork, CRC | database lead | paper §12, D-07, D-33, D-53, `docs/helikondb.md` | `tests/musicdb` fixture + 100-song corpus | No iTunesDB, tagcache or device scan; caller owns buffers; catalog is a derived cache |
+| `firmware/player/` | Bounded PCM player (`wav.c`, `player.c`) feeding the four-buffer ring, with a codec-source bridge for compressed PCM | audio lead | paper §13, §28.3.8, `docs/audio-formats.md` §11 | WAV/player host tests, FLAC bridge test, audio previews, 6G WAV and FLAC runs | No filesystem internals; no unmeasured audiophile claims; only documented WAV/FLAC profiles |
+| `firmware/codec/` | Static codec registry (`codec.c`, `codec.h`) plus the native FLAC decoder (`flac/`) and WAV descriptor | audio lead | `docs/audio-formats.md` §11, D-34, T-097 | `tests/codec`; 879,952 frames bit-exact; 65,608-byte workspace; 6G FLAC image `6a2328ae…` clean | No `malloc`; caller-owned fixed workspace; 16-bit ring output only; no storage/VFS, MP3, ALAC or AAC yet |
+| `firmware/ui/` | Launcher renderer and the functional Music section (`music.c`: launcher-style hub, album/artist walls, lists and detail pages over an embedded HDB), the cleaned Music flow from `docs/ui.md` §6, the IBM Plex Sans atlas (`font_atlas.c`) and text renderer (`ui_text.c`), screens, input and focus | UI lead | paper §14, `docs/ui.md`, `docs/helikondb.md`, D-23/D-24 | `tests/ui` previews, frame trace, typography mockup; `5292c8ed…` device run found a ~20 s Artist-open stall | No storage policy; embedded catalog only in the pre-VFS test; default UI must survive skin failure |
 | `firmware/input/` | Click wheel/button events, debounce, focus | UI lead | `docs/firmware-architecture.md` §9.7 | event/acceleration tests | No storage or playback policy |
 | `firmware/skin/` | Documented WPS subset | UI lead | paper §28.3.4, D-10/D-15 | 20-skin corpus, hostile skin tests | No raw storage/playback policy; no full WPS engine; no unlicensed assets |
 | `firmware/sandbox/` | App/game runtime, quotas, host API | runtime lead | paper §15, §28.3.9–10, D-08 | escape/quota/crash tests | No raw block/NOR/PMU/GPIO; no legacy plugin binary compatibility |
-| `firmware/usb/` | Read-only LUN, descriptors, optional service mode | USB lead | paper §16, D-09 | read-only mount, descriptor/error tests | No filesystem writes; no writable mass-storage LUN; RAM-only relabel |
+| `firmware/usb/` | Normal read-only LUN, descriptors, service mode later; Helikon Disk Mode data/whole-disk LUN, BOT/SCSI and VIC/IRQ integration | USB lead | paper §16, D-09, D-54, `docs/disk-mode.md` | read-only mount, descriptor/error tests; Disk Mode host/mock tests planned | Normal profile never exposes a writable LUN; Disk Mode is exclusive and firmware does not mount HFS+ (I-16) |
 | `firmware/diag/` | Events, counters, recovery | diagnostics lead | paper §11.2, `docs/failures.md` | log/export tests | Do not write logs on a failing filesystem; bounded RAM ring |
 | `firmware/update/` | Staged update and bootstate promotion | release lead | paper §16, `docs/release.md` | signed manifest, staging, bootstate tests | No silent install; no unsigned image; loader verifies |
 | `tools/build-diagnostic-bootloader.sh` | Render the diagnostic image from a pinned donor checkout | boot/release lead | D-21, `bootloader/README.md` | Thumb build, `MOVE_AREA`, hash, `mks5lboot` dry-run | Uses a clean `git archive`; never modifies the donor checkout; image is unproven |
@@ -314,14 +336,18 @@ is created; do not let it drift.
 | `tools/firmware-size.py` | Print the F1 map/size/headroom and check undefined symbols | firmware lead | ADR-0003, T-054 | `__image_end`, `__bss_end`, raw-size equality, banned hosted symbols | Host check only; not a device measurement |
 | `tools/make-bootloader-splash.py` | Generate the pre-final owner splash PNG variants and 4bpp C data | boot/UI | T-045 | version, label mask, palette, packed base, preview | Requires the owner-provided ITC Benguiat file; font is not committed; historical design only |
 | `tools/make-final-bootloader-splash.py` | Generate the final splash variants and 4bpp C data from the owner green/red PNGs | boot/UI | T-045, `assets/bootloader/README.md` | pair-difference mask, palette, packed base, preview | Uses the exact owner PNGs; no font file required; 6bc6927c refresh is not device-tested |
-| `tools/render-ui-mockup.py` | Host 320×240 UI mockups, including launcher, index and album-wall concepts | UI lead | `docs/ui.md`, `assets/fonts/README.md`, `assets/ui/README.md`, D-52 | images are 320×240, previews 640×480; text fits; concept step requires `BENGUIAT_DIR` | Host artifact only; no font file committed; not a device panel run or accepted theme |
+| `tools/render-ui-mockup.py` | Host 320×240 UI mockups, including launcher, index, content walls, the cleaned Music flow and Now Playing states | UI lead | `docs/ui.md`, `assets/fonts/README.md`, `assets/ui/README.md`, D-52 | images are 320×240, previews 640×480; text fits; Plex-only `--only music-flow` path needs no Benguiat | Host artifact only; no font file committed; not a device panel run or accepted theme |
+| `tools/make-ui-font-atlas.py` | Generate the bounded IBM Plex Sans 4-bit/1-bit text atlas from the licensed subset | UI lead | `docs/ui.md` §6, D-23, `firmware/ui/FONT_ATLAS.md` | reproducible atlas, role sizes 11/12/14/17 px at 400/500/600, coverage check | Host generator only; atlas is data, not runtime rasterization; no unlicensed face committed |
 | `tools/hfsplus/` | Host inspector, fixtures, tests | test lead | paper §8, §17, donor `tools/hfsplus` | host tests, sanitizer | Donor code is reference; do not modify donor; no device claims |
 | `tools/db/` | Host database builder | database lead | paper §12, §28.4.1 | 10k-track parity | No on-device claim without device evidence |
 | `tools/migrate/` | Donor overlay exporter | migration lead | paper §22 | fixture/hash/verify tests | Host-side only; never a runtime overlay; never overwrite silently |
 | `tools/installer/` | Guided install, backup, model checks | release lead | paper §28.4.3, `docs/release.md` | clean-device install, recovery | No `--single`; no format as first response; backup first |
-| `tools/desktop/` | macOS-first companion app, SwiftPM target | host lead | [`companion-app.md`](companion-app.md), paper §28.4.2, D-09 | `swift test`, release build; task matrix not run | No silent overwrite; host scrobbling opt-in; no installer claim; no secrets |
+| `tools/desktop/` | macOS companion shell after the 2026-11-06 reset | host lead | [`companion-app.md`](companion-app.md), paper §28.4.2, D-09 | universal release build; `scripts/build-dmg.sh` creates and verifies the DMG; no test target yet | No feature code, device access, network or installer claim; ad-hoc signed, not notarized; no generated artwork |
 | `tests/` | Host volume/B-tree, disposable-image, Unicode and crash fixtures now; fuzz/model/device planned | test lead | `docs/testing.md`, `docs/fixtures.md`, `docs/validation.md` | all layers | No proprietary themes/art/fonts; no personal data; no disk images in repo |
 | `docs/adr/` | Long-form decisions | docs lead | `docs/decisions.md` | review | Only for decisions too large for `decisions.md`; do not duplicate |
+| `docs/disk-mode.md` | Canonical Helikon Disk Mode plan: writable-LUN exception, LUN layout, USB stack, LBA48 and capacity migration | firmware/USB lead | D-54, ADR-0005, paper §16.2/§28.4.2 | design review; no code/device claim | Normal USB stays read-only; Disk Mode is exclusive (I-16) |
+| `tests/usb/` | Host SCSI/BOT/descriptor/LUN tests and the USB controller mock (planned) | USB/test lead | `docs/disk-mode.md`, T-110–T-112 | host tests + sanitizers | No device writes; no vendor commands |
+| `tools/collect-ipod-evidence.sh` | Read-only macOS evidence collector for Apple Disk Mode (planned) | boot/test lead | T-108, `docs/disk-mode.md` | dry-run and redaction check | Never writes `/dev/*`; redacts serial numbers |
 | `docs/log/` | Dated work logs | docs lead | `docs/log/TEMPLATE.md` | review | One file per active day/session; no secrets |
 | `docs/prompts/` | Reusable task prompts | docs lead | `docs/prompts/README.md` | review | Prompts link to docs; they are not a second spec |
 

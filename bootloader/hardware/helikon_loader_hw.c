@@ -68,46 +68,71 @@ static uint8_t catalog_scratch[LOADER_SCRATCH_SIZE]
 static uint8_t extents_scratch[LOADER_SCRATCH_SIZE]
     __attribute__((aligned(4)));
 
+/*
+ * The ATA logical sector size is not always 512. The 6G iFlash bridge can
+ * report 4096-byte logical sectors, and the loader's old hard-coded 512-byte
+ * arithmetic then read the APM at the wrong LBA and failed with "No HFS+
+ * partition found". Keep one bounce sector sized for the largest supported
+ * logical sector and use the live storage_info value.
+ */
+static uint32_t loader_sector_size = 512u;
+static uint8_t loader_sector[4096] __attribute__((aligned(4)));
+
+static uint32_t loader_sector_bytes(void)
+{
+    uint32_t size = loader_sector_size;
+    if (size < 512u || size > sizeof(loader_sector) ||
+        (size & (size - 1u)) != 0u)
+        return 512u;
+    return size;
+}
+
 static int loader_read(void *context, uint64_t offset, void *buffer,
                        size_t length)
 {
     uint8_t *dest = buffer;
-    uint8_t sector[512];
+    uint32_t sector_size = loader_sector_bytes();
     (void)context;
 
     while (length > 0) {
-        uint32_t in_sector = (uint32_t)(offset & 511u);
-        uint64_t lba = offset >> 9;
-        size_t chunk = 512u - in_sector;
+        uint32_t in_sector = (uint32_t)(offset % sector_size);
+        uint64_t lba = offset / sector_size;
+        size_t chunk = sector_size - in_sector;
 
         if (chunk > length)
             chunk = length;
 
         /*
          * HFS+ B-tree nodes are several sectors. Read all complete sectors in
-         * one ATA command when the destination is aligned; an iFlash SD can
-         * otherwise spend minutes in one-sector command overhead.
+         * one ATA command when the destination is aligned and large enough;
+         * an iFlash SD can otherwise spend minutes in one-sector command
+         * overhead. A short read must use the bounce buffer, because the
+         * caller's buffer may be exactly one 512-byte record.
          */
-        if (in_sector == 0 && length >= 512u &&
+        if (in_sector == 0 && length >= sector_size &&
             ((uintptr_t)dest & 3u) == 0) {
-            size_t sectors = length / 512u;
+            size_t sectors = length / sector_size;
+            /*
+             * The iFlash bridge on the reference 6G has returned corrupted
+             * data for large multi-sector PIO reads (the catalog B-tree node
+             * failed validation while the same bytes read correctly over USB).
+             * Read one sector per command until the bridge quirk is measured;
+             * the loader only reads a small catalog/manifest/image.
+             */
+            if (sectors > 1u)
+                sectors = 1u;
             if (ata_read_sectors(IF_MD(0,) (sector_t)lba, (int)sectors,
                                  dest) != 0)
                 return -1;
-            size_t bytes = sectors * 512u;
+            size_t bytes = sectors * sector_size;
             dest += bytes;
             offset += bytes;
             length -= bytes;
-        } else if (in_sector == 0 && chunk == sizeof(sector)) {
-            if (ata_read_sectors(IF_MD(0,) (sector_t)lba, 1, dest) != 0)
-                return -1;
-            dest += sizeof(sector);
-            offset += sizeof(sector);
-            length -= sizeof(sector);
         } else {
-            if (ata_read_sectors(IF_MD(0,) (sector_t)lba, 1, sector) != 0)
+            if (ata_read_sectors(IF_MD(0,) (sector_t)lba, 1,
+                                 loader_sector) != 0)
                 return -1;
-            memcpy(dest, sector + in_sector, chunk);
+            memcpy(dest, loader_sector + in_sector, chunk);
             dest += chunk;
             offset += chunk;
             length -= chunk;
@@ -223,7 +248,6 @@ void helikon_loader_main(void)
 
     /* The donor main already painted the splash before storage init. */
     progress("storage ready");
-    sleep(HZ / 2);
 
     if (button_hold()) {
         show_message("Hold switch is on.", "Unlock it and reboot.");
@@ -235,6 +259,7 @@ void helikon_loader_main(void)
 
     progress("partition scan");
     storage_get_info(0, &info);
+    loader_sector_size = info.sector_size;
     disk_size = (uint64_t)info.num_sectors * info.sector_size;
 
     count = hfs_partition_scan(loader_read, NULL, disk_size, info.sector_size,
@@ -248,13 +273,18 @@ void helikon_loader_main(void)
         }
     }
 
-    if (best == NULL)
-        fail("No HFS+ partition found.", HELIKON_LOADER_OK);
+    if (best == NULL) {
+        char detail[48];
+        snprintf(detail, sizeof(detail), "scan %d sect %u", count,
+                 (unsigned)info.sector_size);
+        show_message("No HFS+ partition found.", detail);
+        power_off_after_button();
+    }
 
     progress("HFS+ volume");
     struct hfs_volume volume;
-    int rc = hfs_volume_probe(&volume, loader_read, NULL, best->offset,
-                              best->length);
+    int rc = hfs_volume_probe_readonly(&volume, loader_read, NULL,
+                                       best->offset, best->length);
     if (rc != HFS_OK) {
         if (rc == HFS_ERR_DIRTY)
             fail_hfs("Journal is dirty; no replay.", rc);
@@ -320,23 +350,6 @@ void helikon_loader_main(void)
         fail("Manifest changed during boot.", HELIKON_LOADER_OK);
 
     char line[48];
-    const char *lines[6];
-    int n = 0;
-    lines[n++] = "HELIKON-OS LOADER TEST";
-    lines[n++] = "Firmware verified.";
-    snprintf(line, sizeof(line), "Version: %lu",
-             (unsigned long)result.manifest.image_version);
-    lines[n++] = line;
-    snprintf(line, sizeof(line), "Load: 0x%08lx",
-             (unsigned long)result.manifest.load_address);
-    lines[n++] = line;
-    snprintf(line, sizeof(line), "Size: %lu bytes",
-             (unsigned long)result.manifest.image_size);
-    lines[n++] = line;
-    lines[n++] = result.bootstate_valid ? "Boot state: GOOD"
-                                        : "Boot state: DEFAULT";
-    show_lines(lines, n);
-    sleep(HZ * 2);
 
     if ((result.manifest.flags & HELIKON_MANIFEST_FLAG_DEVELOPMENT) == 0) {
         show_message("Production handoff is disabled",
@@ -344,14 +357,18 @@ void helikon_loader_main(void)
         power_off_after_button();
     }
 
-    show_message("Executing signed test payload...", "");
-    sleep(HZ);
+    /*
+     * No confirmation screen and no fixed delay: the image is verified and in
+     * DRAM, so jump immediately. The splash stays up while storage work runs;
+     * the firmware's first frame replaces it.
+     */
 
     /*
-     * This loader build is PIO-only so the iFlash SD bridge is not left in a
-     * DMA state that the firmware's PIO ATA init cannot recover. Leave the
-     * controller active and let the firmware reset and identify it.
+     * Stamp the handoff in the reserved boot-info page and pass a zero
+     * boot-info pointer: the page is not filled yet (T-059).
      */
+    *(volatile uint32_t *)HELIKON_HANDOFF_MARKER_ADDR =
+        HELIKON_HANDOFF_MARKER;
 
     /*
      * Hand the firmware a cold ATA device. The donor init/IDENTIFY is only

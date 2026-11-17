@@ -23,11 +23,39 @@ void helikon_cpu_disable_interrupts(void)
     __asm__ volatile("msr cpsr_c, %0" : : "r"(value) : "memory");
 }
 
+void helikon_cpu_enable_interrupts(void)
+{
+    uint32_t value;
+    __asm__ volatile("mrs %0, cpsr" : "=r"(value));
+    value &= ~0x80u; /* Clear IRQ disable only; FIQ stays as it was. */
+    __asm__ volatile("msr cpsr_c, %0" : : "r"(value) : "memory");
+}
+
+int helikon_cpu_irq_enabled(void)
+{
+    uint32_t value;
+    __asm__ volatile("mrs %0, cpsr" : "=r"(value));
+    return (value & 0x80u) == 0u;
+}
+
 void helikon_cpu_data_sync(void)
 {
     uint32_t zero = 0;
     /* Drain the write buffer (ARM926 TRM, CP15 c7 c10). */
     __asm__ volatile("mcr p15, 0, %0, c7, c10, 4" : : "r"(zero) : "memory");
+}
+
+void helikon_cpu_clean_dcache_range(const void *address, size_t length)
+{
+    uintptr_t start = (uintptr_t)address & ~(uintptr_t)31u;
+    uintptr_t end = ((uintptr_t)address + length + 31u) & ~(uintptr_t)31u;
+    for (uintptr_t line = start; line < end; line += 32u) {
+        __asm__ volatile("mcr p15, 0, %0, c7, c14, 1"
+                         :
+                         : "r"(line)
+                         : "memory");
+    }
+    helikon_cpu_data_sync();
 }
 
 void helikon_cpu_idle(void)

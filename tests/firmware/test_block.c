@@ -10,6 +10,10 @@
 
 #define DISK_SECTORS 128u
 #define SECTOR_SIZE 512u
+#define APM_UNIT SECTOR_SIZE
+#define APM_ENTRIES 2u
+/* Apple sbBlkCount is the device size, not the partition-map entry count. */
+#define APM_SB_BLOCK_COUNT 0x0ffffff0u
 
 struct fake_disk {
     uint8_t data[DISK_SECTORS * SECTOR_SIZE];
@@ -79,20 +83,20 @@ static void build_apm(struct fake_disk *disk)
     disk->data[1] = 0x52u; /* 'R' */
     disk->data[2] = 0x02u; /* unit 512, big-endian */
     disk->data[3] = 0x00u;
-    put_be32(disk->data + 4, 2u);
+    put_be32(disk->data + 4, APM_SB_BLOCK_COUNT);
 
-    uint8_t *entry1 = disk->data + SECTOR_SIZE;
+    uint8_t *entry1 = disk->data + APM_UNIT;
     entry1[0] = 0x50u; /* 'P' */
     entry1[1] = 0x4du; /* 'M' */
-    put_be32(entry1 + 4, 2u);
+    put_be32(entry1 + 4, APM_ENTRIES);
     put_be32(entry1 + 8, 4u);  /* start block */
     put_be32(entry1 + 12, 64u); /* block count */
     helikon_memcpy(entry1 + 48, "Apple_HFS", 10u);
 
-    uint8_t *entry2 = disk->data + 2u * SECTOR_SIZE;
+    uint8_t *entry2 = disk->data + 2u * APM_UNIT;
     entry2[0] = 0x50u;
     entry2[1] = 0x4du;
-    put_be32(entry2 + 4, 2u);
+    put_be32(entry2 + 4, APM_ENTRIES);
     put_be32(entry2 + 8, 68u);
     put_be32(entry2 + 12, 60u);
     helikon_memcpy(entry2 + 48, "Apple_Free", 10u);
@@ -194,15 +198,53 @@ int main(void)
              helikon_block_write(&device, 0, 1, write_sector, 100));
 
     struct helikon_partition parts[4];
+    struct helikon_partition_map map;
     unsigned int count = 0;
     build_apm(&disk);
-    int rc = helikon_partition_scan(&device, parts, 4, scratch,
-                                    sizeof(scratch), 100, &count);
+    int rc = helikon_partition_scan_info(&device, parts, 4, scratch,
+                                         sizeof(scratch), 100, &count, &map);
     CHECK_EQ(1, rc);
     CHECK_EQ(1, count);
     CHECK_EQ(4 * SECTOR_SIZE, parts[0].offset);
     CHECK_EQ(64 * SECTOR_SIZE, parts[0].length);
     CHECK_EQ(0xaf, parts[0].type);
+    /*
+     * The entry count must come from pmMapBlkCnt in the first PM record, not
+     * from the huge sbBlkCount at block-0 offset 4.
+     */
+    CHECK_EQ(HELIKON_PARTITION_MAP_APM, map.kind);
+    CHECK_EQ(APM_UNIT, map.unit);
+    CHECK_EQ(APM_UNIT, map.sb_block_size);
+    CHECK_EQ(APM_SB_BLOCK_COUNT, map.sb_block_count);
+    CHECK_EQ(APM_ENTRIES, map.pm_map_blk_count);
+    CHECK_EQ(4u, map.hfs_start);
+    CHECK_EQ(64u, map.hfs_blocks);
+    CHECK_EQ(APM_UNIT, map.hfs_unit);
+
+    build_apm(&disk);
+    put_be32(disk.data + APM_UNIT + 4, 0u); /* zero pmMapBlkCnt */
+    rc = helikon_partition_scan_info(&device, parts, 4, scratch,
+                                     sizeof(scratch), 100, &count, &map);
+    CHECK_EQ(0, rc);
+    CHECK_EQ(0, count);
+    CHECK_EQ(0u, map.pm_map_blk_count);
+
+    build_apm(&disk);
+    put_be32(disk.data + APM_UNIT + 4, 5000u); /* unbounded pmMapBlkCnt */
+    rc = helikon_partition_scan_info(&device, parts, 4, scratch,
+                                     sizeof(scratch), 100, &count, &map);
+    CHECK_EQ(0, rc);
+    CHECK_EQ(0, count);
+    CHECK_EQ(5000u, map.pm_map_blk_count);
+
+    build_apm(&disk);
+    put_be32(disk.data + 4, 0xffffffffu); /* larger sbBlkCount still ignored */
+    rc = helikon_partition_scan_info(&device, parts, 4, scratch,
+                                     sizeof(scratch), 100, &count, &map);
+    CHECK_EQ(1, rc);
+    CHECK_EQ(1, count);
+    CHECK_EQ(0xffffffffu, map.sb_block_count);
+    CHECK_EQ(APM_ENTRIES, map.pm_map_blk_count);
 
     build_apm(&disk);
     disk.data[4 * SECTOR_SIZE + 1024] = 0x00u; /* corrupt HFS signature */

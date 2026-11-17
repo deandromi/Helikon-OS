@@ -3,10 +3,10 @@
 > Purpose: why the design is what it is, and what is still undecided.
 > Status: living document
 > Owner: project owner
-> Last updated: 2026-11-05
+> Last updated: 2026-11-11
 > Source: design paper §18, §25, §28; Helikon-OS README; Rockbox iPod
 > Classic manual `0d5c2b0604-261105`; [`competitive-roadmap.md`](competitive-roadmap.md);
-> [`audio-formats.md`](audio-formats.md)
+> [`audio-formats.md`](audio-formats.md); [`disk-mode.md`](disk-mode.md)
 
 This file is the index and short-form record. Use `docs/adr/` only for a
 decision too large to explain here. Do not invent an owner decision. Mark
@@ -39,7 +39,7 @@ re-litigate them.
 | D-04 | Journal ownership | accepted | owner | §25.4, §9.3 |
 | D-05 | B-tree cache and transaction limits | proposed | owner | §25.5, §19.2 |
 | D-06 | Unicode policy | accepted | owner | §25.6, §10.4 |
-| D-07 | Database location | proposed | owner | §25.7, §12.2 |
+| D-07 | Database location | accepted | owner | §25.7, §12.2; [helikondb.md](helikondb.md) |
 | D-08 | App/game runtime | proposed | owner | §25.8, §28.3.9–10 |
 | D-09 | Desktop app transport | proposed | owner | §25.9, §28.4.2 |
 | D-10 | Skin compatibility scope | proposed | owner | §25.10, §28.3.4 |
@@ -65,7 +65,7 @@ re-litigate them.
 | D-30 | Install, dual boot and uninstall model | proposed | owner | §26.7, §28.4.3; D-26 |
 | D-31 | Update and recovery model | proposed | owner | §16, §28.2.5; D-01, D-02 |
 | D-32 | Filesystem object semantics | proposed | owner | §10.3–§10.4; D-06 |
-| D-33 | Library index architecture | proposed | owner | §12, §28.4.1; D-07 |
+| D-33 | Library index architecture | accepted | owner | §12, §28.4.1; D-07; [helikondb.md](helikondb.md) |
 | D-34 | Codec and container tiers | proposed | owner | §13, Appendix B of the Rockbox manual |
 | D-35 | Sound-processing scope | proposed | owner | §6, §13; goal 16 |
 | D-36 | Theme package and trust model | proposed | owner | §14, §28.3.4; D-10, D-15 |
@@ -85,6 +85,8 @@ re-litigate them.
 | D-50 | Audio output ceiling and resampling | proposed | owner | §13, §28.3.8; audio-formats |
 | D-51 | Audio metadata, artwork and gapless policy | proposed | owner | §9.4, §28.3.8; D-06; audio-formats |
 | D-52 | Display face for home-screen headers (ITC Benguiat) | proposed | owner | §14, §28.3.4; D-23 |
+| D-53 | Music catalog ownership (native HelikonDB, no iTunesDB) | accepted | owner | §12, §28.4.1; D-07, D-33; [helikondb.md](helikondb.md) |
+| D-54 | Helikon Disk Mode and the writable LUN | accepted | owner | §16.2, §28.4.2; D-09, D-38; [ADR-0005](adr/0005-helikon-disk-mode.md) |
 
 The paper's §25 lists 17 decisions. D-18, D-19, D-20 and D-26 are added from §18,
 §28.4.4 and the bootloader recovery policy. D-18 and D-20 are accepted; D-19 was
@@ -241,19 +243,23 @@ accept, reject or narrow one of them.
 
 ## D-07 — Database location
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.7, §12.2.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-06. **Paper:** §25.7, §12.2; [`helikondb.md`](helikondb.md).
 - **Context:** the README asks for improved database building on iPods. A
   full in-RAM rebuild is not planned; the paper proposes a host builder first
   and an incremental on-device builder later.
 - **Options:** (a) host-built immutable database only; (b) host builder first,
   incremental on-device builder in v1.x; (c) on-device full rebuild in v1.
-- **Decision:** unresolved. The paper recommends (b); it is not an owner
-  acceptance.
-- **Consequences:** do not claim on-device building in v1. The database is a
-  cache, not the source of truth; a stale entry falls back to a catalog scan and
-  reports `DB_STALE`.
-- **Follow-up:** choose schema ownership, migration policy and evidence for the
-  10k-track/power-cut tests.
+- **Decision:** option (b), concretely one immutable `/.helikon/music.hdb`
+  built by the companion during USB sync, a read-only lazy reader in the
+  firmware, and a small runtime journal on the device. The device does not scan
+  the music tree for a normal build. The format, records and builder contract
+  are frozen in [`helikondb.md`](helikondb.md).
+- **Consequences:** a stale catalog is rebuilt on the next host sync; a missing
+  path is skipped and reported, never repaired by an on-device scan. No iTunesDB
+  is read or written (D-53). The database stays a derived cache, not the source
+  of truth.
+- **Follow-up:** T-066 production companion builder, T-067 journal, T-056/T-088
+  Music screens, 10k-track and power-cut evidence.
 
 ## D-08 — App/game runtime
 
@@ -286,6 +292,10 @@ accept, reject or narrow one of them.
   mode is not a raw block device and must never bypass the transaction engine.
 - **Follow-up:** define the protocol boundary and threat model; keep read-only
   LUN as the fallback.
+- **Amendment (2026-11-11):** D-54 narrows option (c). A writable LUN is allowed
+  only in the explicit, exclusive Helikon Disk Mode; the normal USB profile stays
+  read-only and the service mode remains the cross-platform path. See
+  [`disk-mode.md`](disk-mode.md).
 
 ## D-10 — Skin compatibility scope
 
@@ -760,26 +770,27 @@ accept, reject or narrow one of them.
 
 ## D-33 — Library index architecture
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §12, §28.4.1; D-07; [`competitive-roadmap.md`](competitive-roadmap.md) §5.3.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-06. **Paper:** §12, §28.4.1; D-07, D-53; [`helikondb.md`](helikondb.md).
 - **Context:** Rockbox builds a database on the device, can load it to RAM, and
   has a 1,800-byte metadata budget with a 500-byte per-item limit on the Classic
-  (manual Appendix B.2.3). D-07 is unresolved between a host builder and an
-  on-device builder. A 10k-track library needs a bounded, resumable index.
+  (manual Appendix B.2.3). The owner rejected an iTunesDB dependency. A
+  10k-track library needs a bounded, lazily read index.
 - **Options:** (a) SQLite on device; (b) a compact host-built immutable
-  generation plus an on-device delta log; (c) a flat tagcache rebuild on every
+  generation plus an on-device runtime log; (c) a flat tagcache rebuild on every
   change.
-- **Proposed direction:** option (b). The host builder owns the full scan,
-  normalization, artwork references and optional descriptions. The device owns a
-  versioned delta log for adds, deletes, renames, ratings and play state. The
-  index uses a string pool and typed columns, is validated on mount and is
-  swapped atomically. The runtime keeps a bounded page cache, not the whole
-  library in RAM. A stale or corrupt generation falls back to a catalog scan and
-  reports `DB_STALE`; it never blocks playback.
-- **Consequences:** two builders must agree; schema migration is a release
-  concern; the host app becomes part of the library path. The database remains a
-  cache, not the source of truth.
-- **Follow-up:** T-066 (host builder), T-067 (device builder), T-083 (desktop
-  app). D-07 still decides the v1/v1.x sequencing and the device-only path.
+- **Decision:** option (b). HelikonDB uses fixed 88/48/48-byte records, a
+  deduplicated UTF-8 string pool, sorted track/album/artist tables, four
+  precomputed index arrays (title, recent, genre, album title) and a separate
+  artwork table. The companion owns the full scan, normalization, ratings,
+  biographies, profile pictures and artwork. The device reads only the current
+  view and writes only the play journal. No SQLite, no tagcache and no on-device
+  library scan.
+- **Consequences:** library changes require a host rebuild; the host app is part
+  of the library path. The catalog is a derived cache, never the source of
+  truth. A corrupt generation is ignored in favour of the previous one or a
+  host rebuild; playback never blocks on it.
+- **Follow-up:** T-066 (host builder), T-067 (journal), T-083 (desktop app),
+  10k-track and device timing evidence.
 
 ## D-34 — Codec and container tiers
 
@@ -899,6 +910,9 @@ accept, reject or narrow one of them.
   recovery path. No Windows/Linux write claim until the service mode passes.
 - **Follow-up:** T-076 (composite USB), T-077 (service mode), T-091 (security
   review).
+- **Amendment (2026-11-11):** D-54 allows a writable LUN only in the explicit,
+  exclusive Helikon Disk Mode. The normal profile stays read-only; the service
+  mode remains the cross-platform path. See [`disk-mode.md`](disk-mode.md).
 
 ## D-39 — Anti-corruption algorithm and coverage
 
@@ -1346,6 +1360,55 @@ not authorize a product change.
   say “matches Rockbox” or “better than Rockbox”.
 - **Affected docs:** `competitive-roadmap.md`, `roadmap.md`, `tasks.md`,
   `goals.md`, `faq.md`, `validation.md`.
+
+## D-53 — Music catalog ownership (native HelikonDB, no iTunesDB)
+
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-06. **Paper:** §12, §28.4.1; D-07, D-33; [`helikondb.md`](helikondb.md).
+- **Context:** the owner rejected any iTunesDB dependency and accepted one
+  native HelikonDB file. Apple’s library, Rockbox tagcache and SQLite on the
+  device are all out.
+- **Decision:** HelikonDB is the only music catalog. The companion scans tags on
+  the host and writes one immutable `/.helikon/music.hdb`; the firmware reads it
+  lazily and writes only the play journal. No iTunesDB, libgpod metadata,
+  Rockbox tagcache or device scan is part of the path.
+- **Consequences:** the Apple firmware does not see Helikon-managed library
+  changes; Apple-firmware parity is out of scope. A dual-boot Rockbox library
+  remains separate. Existing audio files can still be imported by reading their
+  tags on the host.
+- **Follow-up:** T-066 production builder, T-067 journal, T-056/T-088 Music
+  screens, 10k-track and power-cut evidence.
+
+## D-54 — Helikon Disk Mode and the writable LUN
+
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-11. **Paper:** §16.2, §28.4.2; D-09, D-38; [ADR-0005](adr/0005-helikon-disk-mode.md); [disk-mode.md](disk-mode.md).
+- **Context:** the normal USB profile is read-only under D-09/D-38. The owner
+  needs a Helikon-owned way to write to the iPod without Apple Disk Mode, and
+  the 6G needs LBA48 to address more than the Apple LBA28 limit of 128 GiB. A
+  writable LUN is unsafe only while the firmware can also mount and write the
+  volume.
+- **Options:** (a) keep the read-only LUN and wait for the service mode; (b) add
+  an explicit, exclusive Disk Mode with a writable LUN; (c) add a writable LUN to
+  the normal firmware profile.
+- **Decision:** option (b). Helikon Disk Mode is a separate, explicit,
+  exclusive mode. Normal firmware USB remains read-only. The default LUN is the
+  largest HFS+ data partition, exposed as a bare volume; the whole-disk LUN is
+  an expert mode, read-only by default and writable only as an explicit restore
+  mode. The firmware does not mount HFS+ while the host owns the LUN; the host
+  filesystem is the only writer, as in Apple Disk Mode. The firmware flushes on
+  eject, checks the journal after the host releases the volume, and reboots
+  before it mounts the volume again. LBA48 is runtime-probed. Capacity migration
+  is host-side and starts with a second larger HFS+ partition; growing the
+  existing partition is expert-only. macOS is the first write host.
+- **Consequences:** the old writable-LUN rejection remains true for normal
+  operation; the Disk Mode exception is narrow and explicit. The firmware
+  transaction engine is not bypassed because the firmware is not a writer while
+  the host owns the volume; the optional post-eject replay still goes through
+  `hfs_txn`. The USB stack, VIC/IRQ, LBA48 and a new device-test matrix are
+  required. A dirty journal, surprise removal or a failed flush must fail safe.
+  No second image path, no bootloader write and no firmware format/repair.
+- **Follow-up:** T-108–T-115; ADR-0005; [disk-mode.md](disk-mode.md);
+  [invariants.md](invariants.md) I-16; one 6G/iFlash SD LBA48 probe before any
+  writable LUN.
 
 ## Adding a decision
 

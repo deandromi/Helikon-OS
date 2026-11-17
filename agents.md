@@ -1,9 +1,9 @@
 # agents.md — working contract for Helikon-OS
 
 **Purpose:** working contract and documentation index.
-**Status:** living document; design-stage project. No firmware implementation exists.
+**Status:** living document; pre-phase 0 with an Alpha 2.0.0 development release.
 **Owner:** project owner; every agent
-**Last updated:** 2026-11-04
+**Last updated:** 2026-11-11
 **Source:** root `README.md`, `docs/design-paper.md`
 **Entry point:** read this file first, then `docs/README.md`.
 
@@ -12,25 +12,37 @@ the manual. The design source is `docs/design-paper.md`; current truth is
 `docs/state.md`; settled and open choices are in `docs/decisions.md`.
 
 ## 1. Project identity and status
-Helikon-OS is a planned native-HFS+ bootloader and firmware for the iPod Classic
-6th generation, with the 7th generation as the next named port. It is a
-greenfield design, not a working firmware release.
+Helikon-OS is a native-HFS+ bootloader and firmware project for the iPod Classic
+6th generation, with the 7th generation as the next named port. It is in
+pre-phase 0 and has an Alpha 2.0.0 development release; it is not a production or
+supported firmware release.
 
-- **Design stage:** a host HFS+ read/write core, an F1 read-only firmware tree,
-  a read-only diagnostic bootloader image, an inner-image write diagnostic and
-  an outer-volume write diagnostic exist. F1 has one owner-reported 6G run. The
-  F2 write path exists and is host-verified: ATA write/flush, bootstate
-  promotion, in-place HFS+ overwrite and the `WRITE` stage; it has no device
-  run. There is no production firmware-loading bootloader, installer or release
-  artifact. A separate DFU-only loader test image verifies a signed test payload
-  and loads the F1/F2 development image. The read-only diagnostic image has two
-  owner-reported 6G runs; the inner-image write image has one owner-reported 6G
-  run with every stage PASS and a clean inner `fsck_hfs`; the outer-volume image
-  has one successful owner-reported 6G run. These are development runs, not
-  firmware support claims.
+- **Current release:** Alpha 2.0.0 “Launchers and Interfaces” (`alpha-2.0.0`)
+  ships the loader test image, the storage-free launcher and Music-hub firmware
+  sets, and a universal macOS companion shell DMG. It does not include a
+  firmware-owned filesystem write. The firmware uses a build-local test key; the
+  companion is ad-hoc signed and not notarized. The owner reports 6G testing
+  complete for the release set; the per-image evidence was not attached at cut
+  time. This is a development release, not a support claim.
+- **What exists:** a host HFS+ read/write core, an F1 read-only firmware tree,
+  the launcher and Music-hub UI images, HelikonDB v1, a read-only diagnostic
+  bootloader image, an inner-image write diagnostic and an outer-volume write
+  diagnostic. F1 has one owner-reported 6G run. An F2/T-055 firmware write path
+  exists and is host-verified (ATA write/flush, bootstate promotion, in-place
+  HFS+ overwrite and the `WRITE` stage), but it is unfinished and unconfirmed
+  due to a currently unfixable bug; it is **not** part of Alpha 2.0.0. There is
+  no production firmware-loading bootloader, installer, signed update path or
+  working companion. A separate DFU-only loader test image verifies a signed
+  manifest/image and loads the development images. The read-only diagnostic
+  image has two owner-reported 6G runs; the inner-image write image has one
+  owner-reported 6G run with every stage PASS and a clean inner `fsck_hfs`; the
+  outer-volume image has one successful owner-reported 6G run. These are
+  development runs, not firmware support claims.
 - **Current repository content:** the owner-authored root `README.md`, this
-  documentation set, `firmware/` (F1 tree and HFS+ core), `bootloader/`
-  (diagnostic core, hardware glue and built image) and `tests/`.
+  documentation set, `firmware/` (F1 tree, HFS+ core, launcher/Music-hub UI and
+  HelikonDB reader), `bootloader/` (diagnostic core, loader test image and
+  hardware glue), `tools/desktop/` (companion shell and DMG tooling), `tests/`
+  and the archived release notes in `docs/releases/`.
 - **Donor release:** the V3.2 release of `hfsplus-rockboxed-ipod` is an
   overlay-based Rockpod/Rockbox fork. It is separate from Helikon-OS and is not
   evidence for Helikon-OS.
@@ -68,8 +80,11 @@ writes in `/.rockpod-rw`) is the opposite of Helikon-OS by design.
    `/.rockpod-rw`, no namespace overlay, no shadow namespace, no hidden
    container and no FAT mount. A non-HFS+ volume returns `NOT_HFS`.
 2. **Journal every metadata change.** Catalog, bitmap, extents, volume-header and
-   journal changes go through the transaction engine. Release builds use
-   journaled writes. A non-journaled writer is a disposable-volume prototype.
+   journal changes made by the firmware go through the transaction engine.
+   Release builds use journaled writes. A non-journaled writer is a
+   disposable-volume prototype. A host-owned write in Helikon Disk Mode is not a
+   firmware metadata change; it is allowed only in the explicit, exclusive mode
+   and is governed by I-16/D-54.
 3. **`fsck_hfs` compatibility is a release gate.** After every crash and
    power-cut test, `fsck_hfs` must report zero repairs. One catalog or bitmap
    inconsistency blocks release.
@@ -140,8 +155,9 @@ docs/prompts/             reusable task prompts
 `docs/file-map.md` is the authoritative map, including donor files referenced by
 the paper. A directory shown as planned does not exist yet.
 ## 6. Build and test commands
-**The F1 read-only firmware skeleton and the F2 bootstate write path can be
-built and host-tested. F1 has one owner-reported 6G run; F2 has no device run.
+**The F1 read-only firmware skeleton and the F2 bootstate write candidate can be
+built and host-tested. F1 has one owner-reported 6G run; F2 is blocked and
+unconfirmed due to a currently unfixable bug and is not part of Alpha 2.0.0.
 F3–F5, the production firmware handoff and a release firmware image cannot.**
 The
 read-only diagnostic bootloader and the separate DFU-only loader test image can
@@ -423,6 +439,6 @@ The handoff template is in `docs/handoff.md`. A dated log entry belongs in
 ## 13. Full documentation index
 [Index](docs/README.md) · [Firmware architecture](docs/firmware-architecture.md) · [UI design](docs/ui.md) · [outer-volume test](docs/outer-volume-test.md) · [state](docs/state.md) · [invariants](docs/invariants.md) · [decisions](docs/decisions.md) · [tasks](docs/tasks.md) · [verification](docs/verification.md) · [file map](docs/file-map.md) · [architecture](docs/architecture.md).
 [Failures](docs/failures.md) · [device matrix](docs/device-matrix.md) · [handoff](docs/handoff.md) · [conventions](docs/conventions.md) · [glossary](docs/glossary.md) · [testing](docs/testing.md) · [validation](docs/validation.md) · [goals](docs/goals.md).
-[Roadmap](docs/roadmap.md) · [write engine](docs/hfsplus-write-engine.md) · [release](docs/release.md) · [security](docs/security.md) · [FAQ](docs/faq.md) · [design paper](docs/design-paper.md) · [logo assets](assets/logo/README.md) · [branding assets](assets/branding/README.md) · [bootloader](bootloader/README.md) · [ADRs](docs/adr/README.md) · [ADR template](docs/adr/0001-template.md).
+[Roadmap](docs/roadmap.md) · [write engine](docs/hfsplus-write-engine.md) · [release](docs/release.md) · [release notes archive](docs/releases/README.md) · [security](docs/security.md) · [FAQ](docs/faq.md) · [design paper](docs/design-paper.md) · [logo assets](assets/logo/README.md) · [branding assets](assets/branding/README.md) · [bootloader](bootloader/README.md) · [ADRs](docs/adr/README.md) · [ADR template](docs/adr/0001-template.md).
 [Log](docs/log/README.md) · [log template](docs/log/TEMPLATE.md) · [latest log](docs/log/2026-11-04.md) · [prompts](docs/prompts/README.md) · [session-start prompt](docs/prompts/session-start.md) · [build firmware prompt](docs/prompts/build-firmware.md) · [writer review](docs/prompts/review-hfsplus-writer.md) · [device matrix prompt](docs/prompts/run-device-matrix.md) · [docs audit](docs/prompts/audit-docs-for-contradictions.md).
 [Contributing](CONTRIBUTING.md) · [security policy](SECURITY.md) · [license](LICENSE) · [notice](NOTICE) · [issue templates](.github/ISSUE_TEMPLATE/) · [DFU runbook](bootloader/DFU.md) · [write diagnostic](bootloader/WRITE_DIAG.md).

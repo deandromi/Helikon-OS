@@ -2,14 +2,17 @@
 
 > Purpose: record what actually ran on which hardware. No claim without a
 > recorded run.
-> Status: owner-closed for the current single-device phase (2026-11-04); unrun rows are future coverage
+> Status: owner-reported Alpha 2.0.0 release-set run on one 6G; per-image detail pending
 > Owner: test lead; device owners
-> Last updated: 2026-11-04
-> Source: design paper §1, §24, §28.2.4, §28.4.5; `docs/verification.md`
+> Last updated: 2026-11-11
+> Source: design paper §1, §24, §28.2.4, §28.4.5; `docs/verification.md`;
+> [`disk-mode.md`](disk-mode.md)
 
-**Owner status 2026-11-04:** the current device-matrix task is closed with the
-6G/iFlash SD evidence below. Unrun adapter, power-cut and other-device rows are
-future coverage, not blockers for the bootloader-only Alpha release.
+**Owner status 2026-11-06:** the owner reports the Alpha 2.0.0 release-set 6G
+test is complete. The exact per-image screen photos, timings and post-run
+`fsck_hfs` were not attached to the repository, so the rows below distinguish
+the owner report from the older recorded runs. Unrun adapter, power-cut and
+other-device rows remain future coverage; this is not a support release.
 
 **Helikon-OS has four completed owner-reported diagnostic runs on one 6G:**
 two read-only-image runs (one partial/failed, one corrected report), one
@@ -17,11 +20,19 @@ inner-image write run, and one outer-volume write run. The loader test image
 also has owner-reported passes on `3979de6f…` and the final-splash `6bc6927c…`
 with 6.5 s startup and a clean `fsck_hfs -fn`. The outer diagnostic also
 had two earlier boots on 2026-11-04: the first reached rename and the second
-stopped at `Cleanup: FAIL` (`-14`); the third reported every stage PASS. This is
-recorded evidence for those tests, not a support claim.
-Every unrun row below is `planned`, `unproven` or `fail`. Do not add a device to
-a supported list because it has the same SoC, because the donor ran on it, or
-because a build links.
+stopped at `Cleanup: FAIL` (`-14`); the third reported every stage PASS. Alpha
+2.0.0 adds the loader `7f13e7e5…`, launcher `b3218ccd…` and Music hub
+`de6491a9…` as owner-reported rows. F2/T-055 is not part of Alpha 2.0.0 and has
+no confirmed 6G result. This is recorded evidence for those tests, not a support
+claim. Every unrun row below is `planned`, `unproven`, `not run` or `fail`. Do
+not add a device to a supported list because it has the same SoC, because the
+donor ran on it, or because a build links.
+
+**Test packaging (owner rule, 2026-11-09):** one image per device test. Combine
+every pending functional change into one image and ask the owner to install and
+test that single image. Do not ask the owner to test separate images for
+separate features. Split an image only when a specific failure must be isolated,
+and state why in the request and the device-matrix row.
 
 ## 1. Target policy
 
@@ -55,10 +66,24 @@ images, backups or serial numbers to the repository.
 | iPod Classic 6G (reference) | `open question` | iFlash SD | loader test `3979de6f…` | Alpha splash + lower-bound catalog descent | `pass` | Owner report 2026-11-04: everything works, very fast and consistent; splash and loader path complete. Startup 6.5 s; post-run `fsck_hfs` still to record. One device/iFlash SD only | owner/boot |
 | iPod Classic 6G (reference) | `open question` | iFlash SD | loader test `6bc6927c…` | Final Alpha splash + no stage line | `pass` | Owner report 2026-11-04: device check passed; 6.5 s startup; post-run `fsck_hfs -fn` clean. One device/iFlash SD only | owner/boot |
 | iPod Classic 6G (reference) | `open question` | iFlash SD | loader test `8f80e40d…` | PIO-only loader, ATA left active | `not run` | Host-only: test key reused and the 12-byte payload verifies through the loader host core. Not device-tested yet | boot lead |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | loader test `7f13e7e5…` (106,184 bytes) | Alpha 2.0.0 loader: signed manifest/image, DRAM read, ATA left active, jump | `partial` | Owner report 2026-11-06: Alpha 2.0.0 release-set 6G testing completed; screen photo and timings not attached. Host: `check-loader-artifact.sh` passes for the release sets. One device/iFlash SD only | owner/boot |
 | iPod Classic 6G (reference) | `open question` | iFlash SD | F1 firmware `d7916411…` (39,108 bytes) | read-only firmware boot: banner, ATA, HFS+ probe, manifest read, PASS, power-off | `pass` | Owner report 2026-11-04: F1 device run completed and accepted as the T-054 gate; no filesystem write; photo/timings/`fsck` not attached. One device/iFlash SD only | owner/firmware |
-| iPod Classic 6G (reference) | `open question` | iFlash SD | F2 firmware `f33f2791…` (76,160 bytes) | bootstate `TRYING` → `GOOD`, next loader boot, `fsck_hfs` clean | `not run` | Host-only: `tools/check-f2-artifact.sh` promotes and the loader selects `GOOD`; overwrite crash matrix passes. No device run yet | firmware/HFS+ |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | F2 firmware `1d6d4c92…` (76,080 bytes) | bootstate `TRYING` → `GOOD`, next loader boot, `fsck_hfs` clean | `not run` — **blocked** | Not part of Alpha 2.0.0. The write gate is unfinished and unconfirmed due to a currently unfixable bug; there is no confirmed 6G result. Host: `tools/check-f2-artifact.sh` promotes and the loader selects `GOOD`; overwrite crash matrix passes | firmware/HFS+ |
 | iPod Classic 6G (reference) | `open question` | iFlash SD | F2 ATA adopt probe `beec14c2…` (77,136 bytes) | adopt the loader's live ATA controller, then full F2 run | `not run` | Host-only: probe artifact promotes through `hfs_txn`. The probe shows adopt result, raw PIO ready/CSD/DAD and continues to `WRITE` when adopt succeeds | firmware/HFS+ |
-| iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | journal replay | `not run` | none | journal lead |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | launcher image `b3218ccd…` (84,276 bytes) | launcher home: six cells, focus, MENU, 60 s power-off | `partial` | Owner report 2026-11-06: Alpha 2.0.0 release-set 6G testing completed; screen photo/timing not attached. Host: `tests/ui` and loader host check pass. No ATA/storage | firmware/UI |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | Music hub/wall image `de6491a9…` (474,252 bytes) | embedded 100-song HDB; launcher → Music hub → Albums/Artists walls or Tracks; covers, monograms, ratings, detail pages | `partial` | Owner report 2026-11-06: Alpha 2.0.0 release-set 6G testing completed; screen photo/timing not attached. Host: `check-loader-artifact.sh` passes; `tests/ui` renders the launcher, hub, both walls, tracks and three detail screens. No ATA/storage; playback is F5 | firmware/UI |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | Artist-view/input image `b5425283…` (583,820 bytes) | `assets/ui/artist-view` layout, portrait band, OVERVIEW/ALBUMS/TRACKS tabs; cold-boot input init no longer fails without a button press | `not run` | Host: `check-loader-artifact.sh` passes; `tests/ui` renders artist overview/albums/tracks and checks tab/selection markers. No ATA/storage; playback is F5. Device run pending | firmware/UI |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | First PCM audio image `3dbbfd5a…` (4,109,284 bytes, version 14) | CS42L55/I2S/PL080 DMA; 20 s embedded 44.1 kHz stereo WAV at `AUDIO_TRACK=0`; Now Playing progress, PLAY pause, MENU stop | `not run` | Host: loader check passes; `tests/ui` renders now-playing/paused; `tests/player` WAV parser/state pass. No ATA/storage; compressed codecs and VFS remain. Device audio run pending | firmware/audio |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | WAV ring image `18f5fe39…` (4,111,124 bytes) | four-buffer PL080 LLI ring; embedded 44.1 kHz stereo WAV; pause/resume | `pass` | Owner report 2026-11-08: audio clean; stutter, pops and channel loss no longer observed; pause/resume works. PR #17 merged as `2420c64`. Screen photo and `fsck_hfs` not attached. One 6G/iFlash SD only | owner/firmware |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | FLAC player image `6a2328ae…` (2,560,056 bytes, version 15) | embedded native FLAC, 16-bit stereo 44.1 kHz; registry probe, decode into the four-buffer ring; pause/resume | `pass` | Owner report 2026-11-08: FLAC audio clean; pause/resume works. Rebuilt after merging `main` `5fa0510`: identical SHA-256, so the tested image matches the branch. Host codec/player/UI/firmware tests pass; 879,952 frames bit-exact. Screen photo and `fsck_hfs` not attached. One 6G/iFlash SD only | owner/firmware |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | Cleaned Music-flow image `5292c8ed…` (4,195,680 bytes, version 15) | IBM Plex atlas; Artists → Artist (`ALBUMS` default) → single-page Album → Now Playing | `fail` | Owner report 2026-11-08: selecting an artist stalls for almost 20 s; repeated presses eventually start a song. T-088 device gate not passed; PR #21 open and unmerged. Screen photo and `fsck_hfs` not attached. Host `tests/ui` passes; one 6G/iFlash SD only | owner/firmware/UI |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | none (firmware) | journal replay | `not run` | none | journal lead |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | none (host) | P0 Apple Disk Mode evidence: USB descriptors, LUN block size, APM/MBR, HFS+ geometry, `fsck_hfs -n` | `not run` | Read-only captures only; no device write | boot/test |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | T-109 probe (pending) | read-only ATA/LBA48/APM probe: IDENTIFY 83/86/100–103/60–61/106/117–118, partition map, HFS+ geometry, LUN candidate | `not run` | No USB, no write | firmware/storage |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | T-110 USB enumeration (pending) | macOS enumerates Helikon Disk Mode; descriptors and 100 connect/disconnect cycles | `not run` | No LUN yet | firmware/USB |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | T-111 read-only LUN (pending) | macOS mounts the largest HFS+ partition read-only and reads a known file | `not run` | No write | firmware/USB |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | T-112 writable LUN (pending) | 1 GB host write + SHA-256 read-back; `fsck_hfs -fn`; safe eject; surprise-unplug journal test | `not run` | Verified backup required | firmware/USB |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | T-114 capacity (pending) | >128 GiB volume or second partition; LBA48 boundary and last-LBA read/write | `not run` | Requires a card >128 GiB | firmware/USB/test |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | sleep/wake 100 cycles | `not run` | none | test lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | USB read-only | `not run` | none | USB lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | update/rollback | `not run` | none | release lead |
@@ -73,11 +98,13 @@ has one owner-reported 6G device run (2026-11-04), accepted as the T-054 gate.
 This is not a support claim. The current loader test image does not fill the
 boot-info page (T-059), so F1 uses the missing/invalid fallback.
 
-The F2 image `f33f2791…` (76,160 bytes) is host-verified: the real artifact is
-installed in a disposable HFS+ image, the `TRYING` slot is promoted to `GOOD`
-through `hfs_txn`, `fsck_hfs` is clean and the loader host core selects `GOOD`.
-There is no successful F2 device run yet; do not add a support row or claim a
-device power cut. The first installed F2 image (`bb30bbf…`) blanked the screen
+The current F2 candidate `1d6d4c92…` (76,080 bytes) is host-verified: the real
+artifact is installed in a disposable HFS+ image, the `TRYING` slot is promoted
+to `GOOD` through `hfs_txn`, `fsck_hfs` is clean and the loader host core selects
+`GOOD`. The write gate is unfinished and unconfirmed due to a currently
+unfixable bug, so F2 is **not** part of Alpha 2.0.0 and has no confirmed 6G
+result. Do not add a support row or claim a device power cut. The first installed
+F2 image (`bb30bbf…`) blanked the screen
 immediately after the loader's `Executing signed test payload...` line because
 its 601 KB BSS overlapped the loader test image's BSS/framebuffer/LCD DMA
 scratch. The corrected image reserves `0x08800000`–`0x0888ffff` and starts BSS
