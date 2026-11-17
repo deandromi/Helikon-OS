@@ -147,7 +147,8 @@ int hfs_fork_read(const struct hfs_volume *volume,
     return length == 0 ? HFS_OK : HFS_ERR_FORMAT;
 }
 
-static int check_journal(struct hfs_volume *volume, uint32_t info_block)
+static int check_journal(struct hfs_volume *volume, uint32_t info_block,
+                         int allow_dirty)
 {
     uint8_t info[52];
     uint8_t header[44];
@@ -163,10 +164,18 @@ static int check_journal(struct hfs_volume *volume, uint32_t info_block)
     uint32_t flags = be32(info);
     /* kJIJournalInFSMask=1, kJIJournalOnOtherDeviceMask=2,
      * kJIJournalNeedInitMask=4. */
-    if ((flags & 2u) != 0 || (flags & 1u) == 0)
-        return HFS_ERR_UNSUPPORTED;
-    if ((flags & 4u) != 0)
-        return HFS_ERR_DIRTY;
+    if ((flags & 2u) != 0 || (flags & 1u) == 0) {
+        if (!allow_dirty)
+            return HFS_ERR_UNSUPPORTED;
+        volume->journal_dirty = 1;
+        return HFS_OK;
+    }
+    if ((flags & 4u) != 0) {
+        if (!allow_dirty)
+            return HFS_ERR_DIRTY;
+        volume->journal_dirty = 1;
+        return HFS_OK;
+    }
 
     uint64_t offset = be64(info + 36);
     uint64_t size = be64(info + 44);
@@ -188,9 +197,11 @@ static int check_journal(struct hfs_volume *volume, uint32_t info_block)
          * write path must refuse until the journal is initialized. This keeps
          * the loader and read-only firmware working without weakening writes.
          */
-        if ((volume->attributes & (1u << 8)) != 0u &&
-            (volume->attributes & (1u << 11)) == 0u) {
+        if (allow_dirty ||
+            ((volume->attributes & (1u << 8)) != 0u &&
+             (volume->attributes & (1u << 11)) == 0u)) {
             volume->journal_uninitialized = 1;
+            volume->journal_dirty = 1;
             volume->journal_info_offset =
                 (uint64_t)info_block * volume->block_size;
             volume->journal_info_size = volume->block_size;
@@ -225,7 +236,13 @@ static int check_journal(struct hfs_volume *volume, uint32_t info_block)
     volume->journal_info_size = volume->block_size;
     volume->journal_offset = offset;
     volume->journal_size = size;
-    return start == end ? HFS_OK : HFS_ERR_DIRTY;
+
+    if (start == end)
+        return HFS_OK;
+    if (!allow_dirty)
+        return HFS_ERR_DIRTY;
+    volume->journal_dirty = 1;
+    return HFS_OK;
 }
 
 static void volume_reset(struct hfs_volume *volume, hfs_read_fn read,
@@ -239,7 +256,8 @@ static void volume_reset(struct hfs_volume *volume, hfs_read_fn read,
 }
 
 static int parse_header(struct hfs_volume *volume, const uint8_t *header,
-                        uint64_t partition_length, int recovery)
+                        uint64_t partition_length, int recovery,
+                        int allow_dirty)
 {
     uint16_t signature = be16(header);
 
@@ -264,12 +282,15 @@ static int parse_header(struct hfs_volume *volume, const uint8_t *header,
     volume->recovery = recovery ? 1 : 0;
 
     if ((volume->attributes & (1u << 8)) == 0 ||
-        (volume->attributes & (1u << 11)) != 0)
-        return HFS_ERR_DIRTY;
+        (volume->attributes & (1u << 11)) != 0) {
+        if (!allow_dirty)
+            return HFS_ERR_DIRTY;
+        volume->journal_dirty = 1;
+    }
 
     if ((volume->attributes & (1u << 13)) != 0) {
         volume->journaled = 1;
-        int rc = check_journal(volume, be32(header + 12));
+        int rc = check_journal(volume, be32(header + 12), allow_dirty);
         if (rc != HFS_OK)
             return rc;
     }
@@ -291,8 +312,9 @@ static int parse_header(struct hfs_volume *volume, const uint8_t *header,
     return HFS_OK;
 }
 
-int hfs_volume_probe(struct hfs_volume *volume, hfs_read_fn read,
-                     void *context, uint64_t base, uint64_t length)
+static int volume_probe(struct hfs_volume *volume, hfs_read_fn read,
+                        void *context, uint64_t base, uint64_t length,
+                        int allow_dirty)
 {
     uint8_t primary[HFS_VOLUME_HEADER_SIZE];
     uint8_t alternate[HFS_VOLUME_HEADER_SIZE];
@@ -312,7 +334,7 @@ int hfs_volume_probe(struct hfs_volume *volume, hfs_read_fn read,
         if (signature == 0x4858u)
             return HFS_ERR_UNSUPPORTED;
         if (signature == 0x482bu && be16(primary + 2) == 4) {
-            rc = parse_header(volume, primary, length, 0);
+            rc = parse_header(volume, primary, length, 0, allow_dirty);
             if (rc == HFS_OK)
                 return HFS_OK;
             if (rc != HFS_ERR_NOT_HFS && rc != HFS_ERR_FORMAT &&
@@ -329,7 +351,7 @@ int hfs_volume_probe(struct hfs_volume *volume, hfs_read_fn read,
                                    sizeof(alternate));
     if (alternate_rc == HFS_OK && be16(alternate) == 0x482bu &&
         be16(alternate + 2) == 4) {
-        int alt = parse_header(volume, alternate, length, 1);
+        int alt = parse_header(volume, alternate, length, 1, allow_dirty);
         if (alt == HFS_OK)
             return HFS_OK;
         if (alt != HFS_ERR_NOT_HFS)
@@ -338,6 +360,18 @@ int hfs_volume_probe(struct hfs_volume *volume, hfs_read_fn read,
 
     volume->length = 0;
     return rc;
+}
+
+int hfs_volume_probe(struct hfs_volume *volume, hfs_read_fn read,
+                     void *context, uint64_t base, uint64_t length)
+{
+    return volume_probe(volume, read, context, base, length, 0);
+}
+
+int hfs_volume_probe_readonly(struct hfs_volume *volume, hfs_read_fn read,
+                              void *context, uint64_t base, uint64_t length)
+{
+    return volume_probe(volume, read, context, base, length, 1);
 }
 
 const char *hfs_strerror(int error)

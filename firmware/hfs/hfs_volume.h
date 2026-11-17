@@ -53,6 +53,7 @@ struct hfs_volume {
     uint64_t journal_info_size;
     uint8_t journaled;
     uint8_t journal_uninitialized;
+    uint8_t journal_dirty;
     uint8_t recovery;
 };
 
@@ -63,6 +64,15 @@ struct hfs_volume {
  */
 int hfs_volume_probe(struct hfs_volume *volume, hfs_read_fn read,
                      void *context, uint64_t base, uint64_t length);
+
+/*
+ * Read-only probe: a dirty, external or uninitialized journal is recorded in
+ * journal_dirty/journal_uninitialized and the volume is accepted so a read-only
+ * consumer (the firmware loader) can read the catalog. The writer still calls
+ * hfs_journal_open() and must refuse/replay before any write.
+ */
+int hfs_volume_probe_readonly(struct hfs_volume *volume, hfs_read_fn read,
+                              void *context, uint64_t base, uint64_t length);
 
 /*
  * Read a fork whose extents are fully inline. Extents-overflow reads are a
