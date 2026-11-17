@@ -178,7 +178,7 @@ path is a regression.
 
 ---
 
-## 4. Parity policy (D-29 proposed)
+## 4. Parity policy (D-29 accepted 2026-11-17)
 
 Every row in the matrix gets one label:
 

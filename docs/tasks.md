@@ -34,13 +34,15 @@ UI fonts/mockup and the splash must not take device testing time from the
 writer. T-017 is rejected; the journaled writer was implemented directly.
 T-030 is complete through T-032/T-040/T-047.
 
-**Competitive horizon, 2026-11-05.** T-060–T-107 are the planned implementation
-line for the Rockbox comparison in
+**Competitive horizon, 2026-11-05; decisions accepted 2026-11-17.** T-060–T-107
+are the planned implementation line for the Rockbox comparison in
 [`competitive-roadmap.md`](competitive-roadmap.md) and the audio-format plan in
 [`audio-formats.md`](audio-formats.md). They are not additional P0 work and do
-not authorize device testing ahead of the writer. H1 tasks become release gates
-only when the owner accepts D-29 and the relevant decision; H2 and H3 tasks
-remain v1.x/v2. The status of every row is `planned`.
+not authorize device testing ahead of the writer. The owner accepted D-29–D-52
+on 2026-11-17 (D-08, D-13, D-14 and D-47 excepted), so the decision gates in
+the H1 rows are satisfied and H1 tasks can become release gates when their
+implementation and evidence land; H2 and H3 tasks remain v1.x/v2. The status of
+every row is `planned`.
 
 **Alpha 2.0.0 release, 2026-11-06.** `alpha-2.0.0` publishes the loader, the
 launcher/Music-hub firmware sets and a universal companion DMG as a development
