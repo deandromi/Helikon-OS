@@ -12,7 +12,55 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
-# Handoff — 2026-11-17 (branch cleanup, decision batch, codec research)
+# Handoff — 2026-11-17 (T-056 read-only VFS, host part)
+
+## What happened
+
+- **T-056 host part implemented.** `firmware/vfs/` (`vfs.h`/`vfs.c`) is a
+  read-only VFS over the HFS+ read core: `vfs_mount` (read-only probe,
+  dirty journal recorded, never replayed), `vfs_stat`, `vfs_file_open/read/
+  seek/position/close`, `vfs_dir_open/next/close` and a READ_ONLY stub for
+  writes. Handles are `{generation, slot}` values; slot reuse mintes a new
+  generation, so stale/aliased handles refuse with `HELIKON_ERR_ARGUMENT`.
+  Paths are exact UTF-8 with the read core's existing traversal rules.
+- **Extents handle is lazy.** A volume whose extents file has zero blocks
+  mounts without opening the extents B-tree; fully-inline forks read through
+  `hfs_fork_read` and never touch it. Overflow forks open it lazily on first
+  read using the caller-provided extent scratch; a failure is sticky and
+  reads fail closed with `HELIKON_ERR_FORMAT`. `vfs_mount` still fails fast
+  when a real (non-empty) extents file is malformed.
+- **Tests.** New `tests/vfs/` suite (8 tests over the shared generated HFS+
+  fixture): argument checks, mount+stat, path validation matrix, NOT_HFS,
+  open/read/EOF, seek SET/CUR/END with bounded past-size seek, handle
+  generation/close-stale, directory semantics (`NOT_DIR`/`IS_DIR`, entries,
+  close-stale) and the write stub. `make -C tests/vfs test` and `sanitize`
+  both pass. Regressions: `tests/hfsplus`, `tests/firmware` (after
+  `clean` — stale sanitizer objects had broken the plain link) and
+  `tests/bootloader` unaffected. `firmware/vfs` is built into the 6G image;
+  cross-build passes, raw image 77,812 bytes with ~8.3 MB headroom.
+- **Docs.** `testing.md` records the `tests/vfs` commands; `file-map.md`
+  adds `firmware/vfs/` and `tests/vfs/` to the current tree and updates the
+  vfs row; `tasks.md` T-056 is `in progress` with evidence; `state.md`
+  runtime-tree row notes the F3 start.
+
+## What is not done / next
+
+- T-056 device half: browse a real library on the 6G through the VFS,
+  storage-backed Music-hub wiring, UI responsiveness on a large directory.
+- No device run for the VFS; nothing here is device-validated.
+- Candidate next coding-spree items (device-free): storage-backed music
+  browse wiring over the VFS plus HDB, Rockbox codec framework port start
+  (MP3/libmad), `docs/hfsplus-write-engine.md` D-05 cache-limit work.
+
+## Commands run
+
+- `make -C tests/vfs test`, `make -C tests/vfs sanitize`
+- `make -C tests/hfsplus test`
+- `make -C tests/firmware clean && make -C tests/firmware test`, then
+  `make -C tests/firmware sanitize` and a final `clean`
+- `make -C firmware BOARD=6g` + `size` (pinned toolchain)
+
+---
 
 ## What happened
 

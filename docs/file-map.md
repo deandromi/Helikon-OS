@@ -99,6 +99,9 @@ Helikon-OS/
       hfs_btree_write.c/.h  node-level record insert/delete/split and offset tables
       hfs_btree_tree.c/.h   tree-level insert, parent/root split, rebalance, fork growth
       hfs_fork_io.c/.h      fork block staging into a transaction
+    vfs/
+      vfs.h               read-only VFS API; mount, entries, handles, kinds
+      vfs.c               mount/path/lookup/iterate/read/seek implementation
   tests/
     firmware/
       Makefile              host tests for the F1/F2 freestanding modules
@@ -169,6 +172,11 @@ Helikon-OS/
     test_codec.c            probe/open/read/seek/malformed/bit-exact tests
     make_fixtures.py        synthetic FLAC/PCM fixture generator
     fixtures/               synthetic constant/verbatim/fixed/LPC FLAC + PCM
+  tests/vfs/
+    Makefile                read-only VFS host test build/sanitizer targets
+    test_vfs.c              mount, path rules, open/read/seek/EOF, handle
+                            generation and directory semantics on an HFS+
+                            fixture (shared hfsplus fixture builders)
   tools/hdb_build.py        HelikonDB reference builder and inspector
   tools/desktop/            macOS companion shell (SwiftPM, no feature modules)
     Sources/HelikonCompanion/App/       app entry, splash state and empty shell
@@ -317,7 +325,7 @@ is created; do not let it drift.
 | `firmware/hfs/` | HFS+ read core and writer: volume, B-tree, catalog, Unicode, extents, journal, txn, in-place overwrite | HFS+ lead | paper §8, §10.4, `docs/hfsplus-write-engine.md` | 104 host tests; overwrite and crash tests; fuzz/malformed/macOS differential planned | Writes only through `hfs_txn`; never hide unsupported entries |
 | `firmware/hfs/hfs_catalog_write.c`, `hfs_btree_tree.c`, `hfs_bitmap.c`, `hfs_extents_write.c` | Catalog/bitmap/extents mutation | HFS+ lead | `docs/hfsplus-write-engine.md`, invariants I-03–I-15 | model/property/crash tests, `fsck_hfs` | No journal format, UI or boot policy; no direct writes outside a transaction |
 | `firmware/hfs/hfs_journal.c`, `hfs_txn.c` | Journal append/commit/replay, bounded transaction engine | journal lead | paper §9.3–§9.4, `docs/hfsplus-write-engine.md` | crash injection, idempotent replay | No product policy/UI; never delete/disable/zero the journal |
-| `firmware/vfs/` | Lookup, handles, capabilities, path rules | VFS lead | paper §10, `docs/architecture.md` | path/name tests, capability tests | No hardware registers; no overlay branch; no errno guessing |
+| `firmware/vfs/` | Read-only VFS (`vfs.c`/`vfs.h`): mount over the HFS+ read core, bounded path validation, generation-checked file/directory handles, stat/iterate/read/seek; close is stale, writes are a READ_ONLY stub | VFS lead | paper §10, `docs/architecture.md`, T-056 | `tests/vfs` (8 tests, sanitizer-clean); no device run yet | Read-only; no hardware registers; no overlay branch; no errno guessing; empty extents file mounts, overflow forks fail closed if the extents B-tree never opens |
 | `firmware/db/` | HelikonDB v1 read-only catalog reader: header validation, fixed track/album/artist records, strings, indices, artwork, CRC | database lead | paper §12, D-07, D-33, D-53, `docs/helikondb.md` | `tests/musicdb` fixture + 100-song corpus | No iTunesDB, tagcache or device scan; caller owns buffers; catalog is a derived cache |
 | `firmware/player/` | Bounded PCM player (`wav.c`, `player.c`) feeding the four-buffer ring, with a codec-source bridge for compressed PCM | audio lead | paper §13, §28.3.8, `docs/audio-formats.md` §11 | WAV/player host tests, FLAC bridge test, audio previews, 6G WAV and FLAC runs | No filesystem internals; no unmeasured audiophile claims; only documented WAV/FLAC profiles |
 | `firmware/codec/` | Static codec registry (`codec.c`, `codec.h`) plus the native FLAC decoder (`flac/`) and WAV descriptor | audio lead | `docs/audio-formats.md` §11, D-34, T-097 | `tests/codec`; 879,952 frames bit-exact; 65,608-byte workspace; 6G FLAC image `6a2328ae…` clean | No `malloc`; caller-owned fixed workspace; 16-bit ring output only; no storage/VFS, MP3, ALAC or AAC yet |

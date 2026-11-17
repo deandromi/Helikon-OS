@@ -13,7 +13,10 @@ firmware modules. The portable HFS+/bootloader suites are 136 tests (105 HFS+,
 31 bootloader), sanitizer-clean. The F1 firmware adds nine host test groups
 (`tests/firmware/`: boot-info, block/partition, stages, lib, ring, pool, screen
 and trace), also sanitizer-clean. F2 adds a tenth group for bootstate parsing
-and promotion. The writer foundation covers the Apple HFS+
+and promotion. The F3 read-only VFS adds a host suite (`tests/vfs/`) over a
+generated HFS+ fixture, covering path validation, open/read/seek/EOF, bounded
+seek, generation-checked handles and directory semantics; it is sanitizer-clean.
+The writer foundation covers the Apple HFS+
 journal append/replay path, a bounded transaction engine, the allocation
 bitmap, node-level B-tree insert/delete and fork block staging; the disposable
 image and crash matrices add the macOS-visible behaviour. The F1 read-only image
@@ -222,6 +225,8 @@ driver against the host toolchain:
 ```sh
 make -C tests/firmware test
 make -C tests/firmware sanitize
+make -C tests/vfs test
+make -C tests/vfs sanitize
 ```
 
 The launcher and music browser have host previews and checks:
@@ -428,6 +433,8 @@ make -C tests/bootloader test
 make -C tests/bootloader sanitize
 make -C tests/firmware test
 make -C tests/firmware sanitize
+make -C tests/vfs test
+make -C tests/vfs sanitize
 ```
 
 The target firmware build is:

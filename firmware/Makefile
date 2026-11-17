@@ -34,7 +34,7 @@ ARCH := -mcpu=arm926ej-s -marm -mno-thumb-interwork -mfloat-abi=soft
 CFLAGS := -std=c99 -O2 -g -ffreestanding -fno-builtin -nostdinc \
           -isystem $(GCC_INCLUDE) -DHELIKON_IMAGE_VERSION=$(VERSION) \
           -Ilib -Iboot -Iboard/$(BOARD) -Ihal/$(BOARD) -Iblock -Idiag -Ihfs \
-          -Iui -Idb -Iplayer -Icodec \
+          -Ivfs -Iui -Idb -Iplayer -Icodec \
           -Wall -Wextra -Werror -Wconversion -Wshadow -Wundef \
           -Wpointer-arith -ffunction-sections -fdata-sections -fno-common \
           -fno-stack-protector -fno-unwind-tables \
@@ -72,10 +72,11 @@ PLAYER_SRC := player/player.c player/wav.c \
               codec/flac/flac_decoder.c hal/$(BOARD)/audio.c
 endif
 LIBRARY_SRC := db/hdb.c
+VFS_SRC := vfs/vfs.c
 
 ALL_SRC := $(BOOT_SRC) $(LIB_SRC) $(BOARD_SRC) $(HAL_SRC) $(BLOCK_SRC) \
            $(DIAG_SRC) $(HFS_ADAPTER_SRC) $(HFS_SRC) $(UI_SRC) \
-           $(PLAYER_SRC) $(LIBRARY_SRC)
+           $(PLAYER_SRC) $(LIBRARY_SRC) $(VFS_SRC)
 OBJS := $(patsubst %.c,$(BUILD)/%.o,$(patsubst %.S,$(BUILD)/%.o,$(ALL_SRC)))
 
 ifneq ($(HDB),)
