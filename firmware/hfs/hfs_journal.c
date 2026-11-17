@@ -200,6 +200,8 @@ int hfs_journal_open(struct hfs_journal *journal,
     static uint8_t header[HFS_JOURNAL_MAX_SECTOR];
     if (journal == NULL || volume == NULL || volume->read == NULL)
         return HFS_ERR_ARGUMENT;
+    if (volume->journal_uninitialized != 0u)
+        return HFS_ERR_UNSUPPORTED;
     if (volume->journal_offset < 1536u || volume->journal_size < 1024u ||
         volume->journal_offset > volume->length ||
         volume->journal_size > volume->length - volume->journal_offset)

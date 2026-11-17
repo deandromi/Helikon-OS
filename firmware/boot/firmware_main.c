@@ -131,6 +131,22 @@ static void append_i32(char *buffer, size_t size, int32_t value)
     text_append(buffer, size, number);
 }
 
+#ifdef HELIKON_DIAG_ATA_PROBE
+static void append_u64(char *buffer, size_t size, uint64_t value)
+{
+    char number[24];
+    helikon_format_u64(number, sizeof(number), value);
+    text_append(buffer, size, number);
+}
+
+static void append_hex16(char *buffer, size_t size, uint16_t value)
+{
+    char number[8];
+    helikon_format_hex32(number, sizeof(number), value, 4u);
+    text_append(buffer, size, number);
+}
+#endif
+
 static const char *boot_info_label(int status)
 {
     if (status == HELIKON_OK)
@@ -353,9 +369,9 @@ static void paint_failure(struct boot_context *ctx, int stage, int error,
     helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
     helikon_screen_text(&ctx->screen, 16, 112, 2, line);
 
-    helikon_screen_text(&ctx->screen, 16, 132, 2, reason);
+    helikon_screen_text(&ctx->screen, 16, 140, 2, reason);
     helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_NEUTRAL);
-    helikon_screen_text(&ctx->screen, 16, 168, 2,
+    helikon_screen_text(&ctx->screen, 16, 176, 2,
                         "No filesystem write was attempted.");
     helikon_screen_text(&ctx->screen, 16, 188, 2, "Powering off.");
     present_or_trace(ctx, HELIKON_TRACE_ERROR, HELIKON_STAGE_FAIL);
@@ -478,9 +494,268 @@ static void boot_power_off(struct boot_context *ctx)
         helikon_cpu_idle();
 }
 
+#ifdef HELIKON_DIAG_ATA_PROBE
+static void paint_ata_probe_page1(struct boot_context *ctx,
+                                  const struct helikon_ata_probe *probe,
+                                  int rc)
+{
+    paint_title(ctx, "ATA PROBE 1/2");
+    char line[64];
+
+    helikon_strlcpy(line, "ADOPT ", sizeof(line));
+    append_i32(line, sizeof(line), probe->adopt_rc);
+    text_append(line, sizeof(line), " LBA48 ");
+    append_i32(line, sizeof(line), probe->adopt_lba48);
+    helikon_screen_set_foreground(&ctx->screen,
+                                  probe->adopt_rc == HELIKON_OK
+                                      ? HELIKON_COLOR_SUCCESS
+                                      : HELIKON_COLOR_FAILURE);
+    helikon_screen_text(&ctx->screen, 16, 56, 2, line);
+
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+    helikon_strlcpy(line, "CTL ", sizeof(line));
+    append_u32(line, sizeof(line), probe->adopt_control);
+    text_append(line, sizeof(line), " PWR ");
+    append_i32(line, sizeof(line), probe->adopt_power);
+    text_append(line, sizeof(line), " RDY ");
+    append_u32(line, sizeof(line), probe->adopt_ready);
+    helikon_screen_text(&ctx->screen, 16, 72, 2, line);
+
+    helikon_strlcpy(line, "CSD ", sizeof(line));
+    append_u32(line, sizeof(line), probe->adopt_csd);
+    text_append(line, sizeof(line), " DAD ");
+    append_u32(line, sizeof(line), probe->adopt_dad);
+    helikon_screen_text(&ctx->screen, 16, 88, 2, line);
+
+    helikon_strlcpy(line, "FIRST ", sizeof(line));
+    append_i32(line, sizeof(line), probe->first_stage);
+    text_append(line, sizeof(line), " RC ");
+    append_i32(line, sizeof(line), probe->first_rc);
+    text_append(line, sizeof(line), " HDD ");
+    append_i32(line, sizeof(line), probe->first_hdd_rc);
+    text_append(line, sizeof(line), " ID ");
+    append_i32(line, sizeof(line), probe->first_identify_rc);
+    helikon_screen_text(&ctx->screen, 16, 104, 2, line);
+
+    helikon_strlcpy(line, "SECOND ", sizeof(line));
+    append_i32(line, sizeof(line), probe->second_stage);
+    text_append(line, sizeof(line), " RC ");
+    append_i32(line, sizeof(line), probe->second_rc);
+    helikon_screen_text(&ctx->screen, 16, 120, 2, line);
+
+    helikon_strlcpy(line, "SECTORS ", sizeof(line));
+    append_u32(line, sizeof(line), probe->total_sectors);
+    text_append(line, sizeof(line), " ID82 ");
+    append_u32(line, sizeof(line), probe->identify_82);
+    helikon_screen_text(&ctx->screen, 16, 136, 2, line);
+
+    helikon_strlcpy(line, "CEATA ", sizeof(line));
+    append_i32(line, sizeof(line), probe->adopt_ceata);
+    text_append(line, sizeof(line), " PD11 ");
+    append_hex16(line, sizeof(line), probe->adopt_pdat11);
+    text_append(line, sizeof(line), " LID ");
+    if (probe->identify_attempted) {
+        append_i32(line, sizeof(line), probe->identify_stage);
+        text_append(line, sizeof(line), "/");
+        append_i32(line, sizeof(line), probe->identify_rc);
+    } else {
+        text_append(line, sizeof(line),
+                    probe->adopt_ceata ? "SKIP" : "-");
+    }
+    helikon_screen_text(&ctx->screen, 16, 152, 2, line);
+
+    helikon_strlcpy(line, "RESULT ", sizeof(line));
+    text_append(line, sizeof(line), rc == HELIKON_OK ? "OK" : "FAIL");
+    helikon_screen_set_foreground(&ctx->screen,
+                                  rc == HELIKON_OK ? HELIKON_COLOR_SUCCESS
+                                                   : HELIKON_COLOR_FAILURE);
+    helikon_screen_text(&ctx->screen, 16, 168, 2, line);
+
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_NEUTRAL);
+    helikon_screen_text(&ctx->screen, 16, 198, 2,
+                        "PLAY/SEL NEXT  MENU QUIT");
+    (void)present_or_trace(ctx, HELIKON_TRACE_INFO, HELIKON_STAGE_ATA);
+}
+
+static void paint_ata_probe_page2(
+    struct boot_context *ctx, const struct helikon_ata_probe *probe,
+    const struct helikon_partition_map *map,
+    const struct helikon_partition *part, uint32_t lun_block,
+    const struct hfs_volume *volume, int hfs_rc, int part_rc)
+{
+    paint_title(ctx, "ATA PROBE 2/2");
+    char line[64];
+
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+    helikon_strlcpy(line, "ID83 ", sizeof(line));
+    append_hex16(line, sizeof(line), probe->identify_83);
+    text_append(line, sizeof(line), " ID86 ");
+    append_hex16(line, sizeof(line), probe->identify_86);
+    helikon_screen_text(&ctx->screen, 16, 56, 2, line);
+
+    if (probe->identify_valid) {
+        helikon_strlcpy(line, "LBA28 ", sizeof(line));
+        append_u32(line, sizeof(line), probe->lba28_sectors);
+        text_append(line, sizeof(line), " SECT");
+        helikon_screen_text(&ctx->screen, 16, 68, 2, line);
+
+        helikon_strlcpy(line, "LBA48 ", sizeof(line));
+        append_u64(line, sizeof(line), probe->lba48_sectors);
+        text_append(line, sizeof(line), " SECT");
+        helikon_screen_text(&ctx->screen, 16, 80, 2, line);
+    } else {
+        helikon_screen_text(&ctx->screen, 16, 68, 2, "LBA28 UNKNOWN");
+        helikon_screen_text(&ctx->screen, 16, 80, 2, "LBA48 UNKNOWN");
+    }
+
+    helikon_strlcpy(line, "SEC ", sizeof(line));
+    append_u32(line, sizeof(line), probe->log_sector_size);
+    text_append(line, sizeof(line), "/");
+    append_u32(line, sizeof(line), probe->physical_sector_size);
+    text_append(line, sizeof(line), " L48 ");
+    append_i32(line, sizeof(line), probe->lba48);
+    helikon_screen_text(&ctx->screen, 16, 92, 2, line);
+
+    if (probe->capacity_bytes != 0u) {
+        helikon_strlcpy(line, "CAP ", sizeof(line));
+        append_u64(line, sizeof(line), probe->capacity_bytes);
+        text_append(line, sizeof(line), " B");
+    } else {
+        helikon_strlcpy(line, "CAP UNKNOWN", sizeof(line));
+    }
+    helikon_screen_text(&ctx->screen, 16, 104, 2, line);
+
+    if (map->kind == (uint8_t)HELIKON_PARTITION_MAP_APM) {
+        helikon_strlcpy(line, "APM SB ", sizeof(line));
+        append_u32(line, sizeof(line), map->sb_block_size);
+        text_append(line, sizeof(line), " C ");
+        append_u32(line, sizeof(line), map->sb_block_count);
+    } else if (map->kind == (uint8_t)HELIKON_PARTITION_MAP_MBR) {
+        helikon_strlcpy(line, "MBR U ", sizeof(line));
+        append_u32(line, sizeof(line), map->unit);
+        text_append(line, sizeof(line),
+                    map->hfs_unit != 0u ? " HFS" : " NO HFS");
+    } else if (map->kind == (uint8_t)HELIKON_PARTITION_MAP_HFS) {
+        helikon_strlcpy(line, "MAP HFS WHOLE U ", sizeof(line));
+        append_u32(line, sizeof(line), map->unit);
+    } else {
+        if (part_rc < 0) {
+            helikon_strlcpy(line, "MAP ERR ", sizeof(line));
+            append_i32(line, sizeof(line), part_rc);
+        } else {
+            helikon_strlcpy(line, "MAP NONE", sizeof(line));
+        }
+    }
+    helikon_screen_text(&ctx->screen, 16, 116, 2, line);
+
+    if (map->hfs_unit != 0u) {
+        if (map->kind == (uint8_t)HELIKON_PARTITION_MAP_APM) {
+            helikon_strlcpy(line, "MAP E", sizeof(line));
+            append_u32(line, sizeof(line), map->pm_map_blk_count);
+            text_append(line, sizeof(line), " HFS ");
+        } else {
+            helikon_strlcpy(line, "MAP HFS ", sizeof(line));
+        }
+        append_u32(line, sizeof(line), map->hfs_start);
+        text_append(line, sizeof(line), " ");
+        append_u32(line, sizeof(line), map->hfs_blocks);
+        text_append(line, sizeof(line), " U");
+        append_u32(line, sizeof(line), map->hfs_unit);
+    } else {
+        helikon_strlcpy(line, "MAP NO HFS ENTRY", sizeof(line));
+    }
+    helikon_screen_text(&ctx->screen, 16, 128, 2, line);
+
+    if (part != NULL) {
+        helikon_strlcpy(line, "PART OFF ", sizeof(line));
+        append_u64(line, sizeof(line), part->offset);
+        helikon_screen_text(&ctx->screen, 16, 140, 2, line);
+
+        helikon_strlcpy(line, "PART LEN ", sizeof(line));
+        append_u64(line, sizeof(line), part->length);
+        helikon_screen_text(&ctx->screen, 16, 152, 2, line);
+
+        helikon_strlcpy(line, "LUN OFF ", sizeof(line));
+        append_u64(line, sizeof(line), part->offset);
+        helikon_screen_text(&ctx->screen, 16, 164, 2, line);
+
+        helikon_strlcpy(line, "LUN LEN ", sizeof(line));
+        append_u64(line, sizeof(line), part->length);
+        helikon_screen_text(&ctx->screen, 16, 176, 2, line);
+    } else {
+        helikon_screen_text(&ctx->screen, 16, 140, 2, "PART NONE");
+    }
+
+    helikon_strlcpy(line, "LUN BLK ", sizeof(line));
+    append_u32(line, sizeof(line), lun_block);
+    helikon_screen_text(&ctx->screen, 16, 188, 2, line);
+
+    helikon_strlcpy(line, "HFS+ ", sizeof(line));
+    if (hfs_rc == HELIKON_OK && volume != NULL) {
+        text_append(line, sizeof(line), "OK BS ");
+        append_u32(line, sizeof(line), volume->block_size);
+    } else {
+        text_append(line, sizeof(line), "ERR ");
+        append_i32(line, sizeof(line), hfs_rc);
+    }
+    helikon_screen_text(&ctx->screen, 16, 200, 2, line);
+
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_NEUTRAL);
+    helikon_screen_text(&ctx->screen, 16, 214, 2,
+                        "PLAY/SEL BACK  MENU QUIT");
+    (void)present_or_trace(ctx, HELIKON_TRACE_INFO, HELIKON_STAGE_ATA);
+}
+
+static void ata_probe_view(struct boot_context *ctx,
+                           const struct helikon_ata_probe *probe,
+                           const struct helikon_partition_map *map,
+                           const struct helikon_partition *part,
+                           uint32_t lun_block, const struct hfs_volume *volume,
+                           int hfs_rc, int part_rc, int rc)
+    __attribute__((noreturn));
+
+static void ata_probe_view(struct boot_context *ctx,
+                           const struct helikon_ata_probe *probe,
+                           const struct helikon_partition_map *map,
+                           const struct helikon_partition *part,
+                           uint32_t lun_block, const struct hfs_volume *volume,
+                           int hfs_rc, int part_rc, int rc)
+{
+    int page = 0;
+    paint_ata_probe_page1(ctx, probe, rc);
+
+    if (helikon_board_input_init(&ctx->board, BOOT_POWER_TIMEOUT_MS) !=
+        HELIKON_OK) {
+        helikon_clock_delay_us(&ctx->board.clock, 60000000u);
+        boot_power_off(ctx);
+    }
+
+    uint64_t start = helikon_clock_now_us(&ctx->board.clock);
+    while (!helikon_clock_expired(&ctx->board.clock, start, 120000u)) {
+        uint32_t events = 0;
+        int32_t wheel = 0;
+        int hold = 0;
+        if (helikon_buttons_poll(&ctx->board.buttons, &events, &wheel, &hold,
+                                 20) == HELIKON_OK) {
+            if ((events & (HELIKON_BUTTON_PLAY | HELIKON_BUTTON_SELECT)) != 0u) {
+                page ^= 1;
+                if (page == 0)
+                    paint_ata_probe_page1(ctx, probe, rc);
+                else
+                    paint_ata_probe_page2(ctx, probe, map, part, lun_block,
+                                         volume, hfs_rc, part_rc);
+            }
+            if ((events & HELIKON_BUTTON_MENU) != 0u || wheel != 0 || hold)
+                break;
+        }
+        helikon_clock_delay_us(&ctx->board.clock, 20000u);
+    }
+    boot_power_off(ctx);
+}
+#endif
+
 #if defined(HELIKON_DIAG_EARLY_DISPLAY) || defined(HELIKON_DIAG_PMU_SPLIT) || \
-    defined(HELIKON_DIAG_PMU_PROBE) || defined(HELIKON_DIAG_I2C) || \
-    defined(HELIKON_DIAG_ATA_PROBE)
+    defined(HELIKON_DIAG_PMU_PROBE) || defined(HELIKON_DIAG_I2C)
 static void diag_finish(struct boot_context *ctx)
 {
     if (ctx->screen_ready) {
@@ -961,69 +1236,73 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
     stage_begin(ctx, HELIKON_STAGE_ATA);
 #ifdef HELIKON_DIAG_ATA_PROBE
     struct helikon_ata_probe ata_probe;
+    struct helikon_partition_map part_map;
+    const struct helikon_partition *selected = NULL;
+    unsigned int part_count = 0;
+    int part_rc = HELIKON_ERR_IO;
+    int hfs_rc = HELIKON_ERR_IO;
+    uint32_t lun_block = 512u;
+
+    helikon_memset(&part_map, 0, sizeof(part_map));
+
     rc = helikon_ata_init_probe(&ctx->board.ata, &ctx->board.pmu,
                                 &ctx->board.clock, BOOT_STORAGE_TIMEOUT_MS,
                                 &ata_probe);
-    paint_title(ctx, "ATA PROBE");
-    char ata_line[64];
-    helikon_strlcpy(ata_line, "ADOPT ", sizeof(ata_line));
-    append_i32(ata_line, sizeof(ata_line), ata_probe.adopt_rc);
-    text_append(ata_line, sizeof(ata_line), " LBA48 ");
-    append_i32(ata_line, sizeof(ata_line), ata_probe.adopt_lba48);
-    helikon_screen_set_foreground(&ctx->screen,
-                                  ata_probe.adopt_rc == HELIKON_OK
-                                      ? HELIKON_COLOR_SUCCESS
-                                      : HELIKON_COLOR_FAILURE);
-    helikon_screen_text(&ctx->screen, 16, 56, 2, ata_line);
-    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
-    helikon_strlcpy(ata_line, "CTL ", sizeof(ata_line));
-    append_u32(ata_line, sizeof(ata_line), ata_probe.adopt_control);
-    text_append(ata_line, sizeof(ata_line), " PWR ");
-    append_i32(ata_line, sizeof(ata_line), ata_probe.adopt_power);
-    text_append(ata_line, sizeof(ata_line), " RDY ");
-    append_u32(ata_line, sizeof(ata_line), ata_probe.adopt_ready);
-    helikon_screen_text(&ctx->screen, 16, 76, 2, ata_line);
-    helikon_strlcpy(ata_line, "CSD ", sizeof(ata_line));
-    append_u32(ata_line, sizeof(ata_line), ata_probe.adopt_csd);
-    text_append(ata_line, sizeof(ata_line), " DAD ");
-    append_u32(ata_line, sizeof(ata_line), ata_probe.adopt_dad);
-    helikon_screen_text(&ctx->screen, 16, 96, 2, ata_line);
-    helikon_strlcpy(ata_line, "FIRST ", sizeof(ata_line));
-    append_i32(ata_line, sizeof(ata_line), ata_probe.first_stage);
-    text_append(ata_line, sizeof(ata_line), " RC ");
-    append_i32(ata_line, sizeof(ata_line), ata_probe.first_rc);
-    text_append(ata_line, sizeof(ata_line), " HDD ");
-    append_i32(ata_line, sizeof(ata_line), ata_probe.first_hdd_rc);
-    text_append(ata_line, sizeof(ata_line), " ID ");
-    append_i32(ata_line, sizeof(ata_line), ata_probe.first_identify_rc);
-    helikon_screen_text(&ctx->screen, 16, 116, 2, ata_line);
-    helikon_strlcpy(ata_line, "SECOND ", sizeof(ata_line));
-    append_i32(ata_line, sizeof(ata_line), ata_probe.second_stage);
-    text_append(ata_line, sizeof(ata_line), " RC ");
-    append_i32(ata_line, sizeof(ata_line), ata_probe.second_rc);
-    helikon_screen_text(&ctx->screen, 16, 136, 2, ata_line);
-    helikon_strlcpy(ata_line, "SECTORS ", sizeof(ata_line));
-    append_u32(ata_line, sizeof(ata_line), ata_probe.total_sectors);
-    text_append(ata_line, sizeof(ata_line), " ID82 ");
-    append_u32(ata_line, sizeof(ata_line), ata_probe.identify_82);
-    helikon_screen_text(&ctx->screen, 16, 156, 2, ata_line);
-    helikon_strlcpy(ata_line, "CEATA ", sizeof(ata_line));
-    append_i32(ata_line, sizeof(ata_line), ata_probe.adopt_ceata);
-    text_append(ata_line, sizeof(ata_line), " PDAT11 ");
-    append_u32(ata_line, sizeof(ata_line), ata_probe.adopt_pdat11);
-    helikon_screen_text(&ctx->screen, 16, 176, 2, ata_line);
-    helikon_strlcpy(ata_line, "RESULT ", sizeof(ata_line));
-    text_append(ata_line, sizeof(ata_line),
-                rc == HELIKON_OK ? "OK" : "FAIL");
-    helikon_screen_set_foreground(&ctx->screen,
-                                  rc == HELIKON_OK ? HELIKON_COLOR_SUCCESS
-                                                   : HELIKON_COLOR_FAILURE);
-    helikon_screen_text(&ctx->screen, 16, 196, 2, ata_line);
-    present_or_trace(ctx, HELIKON_TRACE_INFO, HELIKON_STAGE_ATA);
-    if (rc != HELIKON_OK)
-        diag_finish(ctx);
-    stage_pass(ctx, HELIKON_STAGE_ATA);
-    paint_stages_checked(ctx, HELIKON_STAGE_ATA);
+    if (rc == HELIKON_OK &&
+        helikon_board_storage_attach(&ctx->board) == HELIKON_OK) {
+        part_rc = helikon_partition_scan_info(
+            &ctx->board.block, ctx->partitions, BOOT_PARTITION_CAP,
+            ctx->block_scratch, sizeof(ctx->block_scratch),
+            BOOT_READ_TIMEOUT_MS, &part_count, &part_map);
+        if (part_rc >= 0) {
+            for (unsigned int i = 0; i < part_count; ++i) {
+                if (ctx->partitions[i].type != 0xafu)
+                    continue;
+                if (selected == NULL ||
+                    ctx->partitions[i].length > selected->length)
+                    selected = &ctx->partitions[i];
+            }
+        }
+        if (selected != NULL) {
+            ctx->partitions[0] = *selected;
+            int adapter_rc = helikon_hfs_block_adapter_init(
+                &ctx->adapter, &ctx->board.block, ctx->block_scratch,
+                sizeof(ctx->block_scratch), BOOT_READ_TIMEOUT_MS);
+            if (adapter_rc == HELIKON_OK) {
+                hfs_rc = hfs_volume_probe(&ctx->volume, helikon_hfs_block_read,
+                                          &ctx->adapter, selected->offset,
+                                          selected->length);
+            } else {
+                hfs_rc = adapter_rc;
+            }
+        }
+    }
+
+    if (rc == HELIKON_OK) {
+        /*
+         * The probe is read-only, so the late IDENTIFY runs only after the
+         * partition and HFS+ reads have completed. A failure leaves the
+         * adopted read geometry intact for the screen.
+         */
+        (void)helikon_ata_probe_identify(&ctx->board.ata,
+                                         BOOT_STORAGE_TIMEOUT_MS, &ata_probe);
+    }
+
+    if (selected != NULL) {
+        if (ata_probe.log_sector_size == 4096u) {
+            lun_block = 4096u;
+        } else if (hfs_rc == HELIKON_OK &&
+                   ctx->volume.block_size == 4096u &&
+                   (selected->offset & 4095u) == 0u &&
+                   (selected->length & 4095u) == 0u) {
+            lun_block = 4096u;
+        }
+    }
+
+    if (rc == HELIKON_OK)
+        stage_pass(ctx, HELIKON_STAGE_ATA);
+    ata_probe_view(ctx, &ata_probe, &part_map, selected, lun_block,
+                   &ctx->volume, hfs_rc, part_rc, rc);
 #else
     rc = helikon_board_storage_init(&ctx->board, BOOT_STORAGE_TIMEOUT_MS);
     if (rc != HELIKON_OK)

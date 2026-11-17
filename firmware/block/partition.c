@@ -66,7 +66,7 @@ static int add_partition(struct helikon_partition *parts, unsigned int capacity,
 static int scan_apm(const struct helikon_block_device *device,
                     struct helikon_partition *parts, unsigned int capacity,
                     uint8_t *scratch, size_t scratch_size, uint32_t timeout_ms,
-                    unsigned int *count)
+                    unsigned int *count, struct helikon_partition_map *map)
 {
     uint8_t record[PARTITION_RECORD_SIZE];
 
@@ -78,9 +78,34 @@ static int scan_apm(const struct helikon_block_device *device,
         return HELIKON_ERR_UNSUPPORTED;
 
     uint32_t unit = helikon_be16(record + 2);
-    uint32_t entries = helikon_be32(record + 4);
+    uint32_t sb_blocks = helikon_be32(record + 4);
+    if (map != NULL) {
+        map->kind = (uint8_t)HELIKON_PARTITION_MAP_APM;
+        map->unit = unit;
+        map->sb_block_size = unit;
+        map->sb_block_count = sb_blocks;
+    }
     if (unit < 512u || unit > 4096u || (unit & (unit - 1u)) != 0u ||
-        entries == 0u || entries > 4096u ||
+        (uint64_t)unit > helikon_block_capacity_bytes(device))
+        return HELIKON_ERR_FORMAT;
+
+    /*
+     * Apple's block-0 offset 4 is sbBlkCount, the size of the device in
+     * blocks, not the number of partition-map entries. The entry count is
+     * pmMapBlkCnt in the first PM record at block 1. Read that record first
+     * and bound the count before iterating.
+     */
+    rc = helikon_block_read_bytes(device, unit, record, sizeof(record),
+                                  scratch, scratch_size, timeout_ms);
+    if (rc != HELIKON_OK)
+        return rc;
+    if (helikon_be16(record) != 0x504du)
+        return HELIKON_ERR_FORMAT;
+
+    uint32_t entries = helikon_be32(record + 4);
+    if (map != NULL)
+        map->pm_map_blk_count = entries;
+    if (entries == 0u || entries > 4096u ||
         (uint64_t)(entries + 1u) * unit >
             helikon_block_capacity_bytes(device))
         return HELIKON_ERR_FORMAT;
@@ -99,6 +124,11 @@ static int scan_apm(const struct helikon_block_device *device,
 
         uint32_t start = helikon_be32(record + 8);
         uint32_t blocks = helikon_be32(record + 12);
+        if (map != NULL && map->hfs_unit == 0u) {
+            map->hfs_start = start;
+            map->hfs_blocks = blocks;
+            map->hfs_unit = unit;
+        }
         rc = add_partition(parts, capacity, count, (uint64_t)start * unit,
                            (uint64_t)blocks * unit, unit, 0xaf, device);
         if (rc == HELIKON_ERR_BUFFER)
@@ -112,7 +142,7 @@ static int scan_apm(const struct helikon_block_device *device,
 static int scan_mbr(const struct helikon_block_device *device,
                     struct helikon_partition *parts, unsigned int capacity,
                     uint8_t *scratch, size_t scratch_size, uint32_t timeout_ms,
-                    unsigned int *count)
+                    unsigned int *count, struct helikon_partition_map *map)
 {
     uint8_t record[PARTITION_RECORD_SIZE];
 
@@ -122,6 +152,8 @@ static int scan_mbr(const struct helikon_block_device *device,
         return rc;
     if (record[510] != 0x55u || record[511] != 0xaau)
         return HELIKON_ERR_UNSUPPORTED;
+    if (map != NULL)
+        map->kind = (uint8_t)HELIKON_PARTITION_MAP_MBR;
 
     for (unsigned int i = 0; i < 4u; ++i) {
         const uint8_t *entry = record + 446u + i * 16u;
@@ -140,6 +172,12 @@ static int scan_mbr(const struct helikon_block_device *device,
             if (probe_hfs(device, offset, length, scratch, scratch_size,
                           timeout_ms) != 0xaf)
                 continue;
+            if (map != NULL && map->hfs_unit == 0u) {
+                map->hfs_start = start;
+                map->hfs_blocks = blocks;
+                map->hfs_unit = units[u];
+                map->unit = units[u];
+            }
             rc = add_partition(parts, capacity, count, offset, length,
                                units[u], 0xaf, device);
             if (rc == HELIKON_ERR_BUFFER)
@@ -150,27 +188,30 @@ static int scan_mbr(const struct helikon_block_device *device,
     return HELIKON_OK;
 }
 
-int helikon_partition_scan(const struct helikon_block_device *device,
-                           struct helikon_partition *parts,
-                           unsigned int capacity, uint8_t *scratch,
-                           size_t scratch_size, uint32_t timeout_ms,
-                           unsigned int *count)
+int helikon_partition_scan_info(const struct helikon_block_device *device,
+                                struct helikon_partition *parts,
+                                unsigned int capacity, uint8_t *scratch,
+                                size_t scratch_size, uint32_t timeout_ms,
+                                unsigned int *count,
+                                struct helikon_partition_map *map)
 {
     if (device == NULL || parts == NULL || capacity == 0u || scratch == NULL ||
         scratch_size < PARTITION_RECORD_SIZE || count == NULL)
         return HELIKON_ERR_ARGUMENT;
 
     *count = 0;
+    if (map != NULL)
+        helikon_memset(map, 0, sizeof(*map));
 
     int rc = scan_apm(device, parts, capacity, scratch, scratch_size,
-                      timeout_ms, count);
+                      timeout_ms, count, map);
     if (rc != HELIKON_OK && rc != HELIKON_ERR_UNSUPPORTED &&
         rc != HELIKON_ERR_FORMAT)
         return rc;
 
     if (*count == 0u) {
         rc = scan_mbr(device, parts, capacity, scratch, scratch_size,
-                      timeout_ms, count);
+                      timeout_ms, count, map);
         if (rc != HELIKON_OK && rc != HELIKON_ERR_UNSUPPORTED &&
             rc != HELIKON_ERR_FORMAT)
             return rc;
@@ -184,8 +225,24 @@ int helikon_partition_scan(const struct helikon_block_device *device,
                                device->info.sector_size, 0xaf, device);
             if (rc != HELIKON_OK)
                 return rc;
+            if (map != NULL) {
+                map->kind = (uint8_t)HELIKON_PARTITION_MAP_HFS;
+                map->unit = device->info.sector_size;
+                map->hfs_unit = device->info.sector_size;
+                map->hfs_start = 0u;
+            }
         }
     }
 
     return (int)*count;
+}
+
+int helikon_partition_scan(const struct helikon_block_device *device,
+                           struct helikon_partition *parts,
+                           unsigned int capacity, uint8_t *scratch,
+                           size_t scratch_size, uint32_t timeout_ms,
+                           unsigned int *count)
+{
+    return helikon_partition_scan_info(device, parts, capacity, scratch,
+                                       scratch_size, timeout_ms, count, NULL);
 }

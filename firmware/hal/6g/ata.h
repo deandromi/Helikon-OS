@@ -19,10 +19,18 @@ struct helikon_ata {
     struct helikon_pmu *pmu;
     struct helikon_clock *clock;
     uint16_t identify[256];
+    /*
+     * Adopt-mode sector buffer. It is larger than one 512-byte sector so a
+     * 4 KiB logical-sector device cannot overflow it before IDENTIFY has
+     * reported the real logical sector size.
+     */
+    uint16_t adopt_sector[2048];
     int identify_valid;
     uint32_t sector_size;
+    uint32_t physical_sector_size;
     uint64_t total_sectors;
     int lba48;
+    int ceata; /* PDAT11 bit 1; recorded, CE-ATA commands are not implemented */
     int write_cache;
     int can_flush;
     int powered;
@@ -52,10 +60,32 @@ struct helikon_ata_probe {
     int second_rc;
     int second_hdd_rc;
     int second_identify_rc;
-    uint32_t total_sectors;
+    uint32_t total_sectors; /* low 32 bits; capacity_bytes is authoritative */
     uint16_t identify_80;
     uint16_t identify_82;
     uint16_t identify_83;
+    uint16_t identify_60;
+    uint16_t identify_61;
+    uint16_t identify_86;
+    uint16_t identify_100;
+    uint16_t identify_101;
+    uint16_t identify_102;
+    uint16_t identify_103;
+    uint16_t identify_106;
+    uint16_t identify_117;
+    uint16_t identify_118;
+    uint32_t lba28_sectors;
+    uint64_t lba48_sectors;
+    uint32_t log_sector_size;
+    uint32_t physical_sector_size;
+    uint64_t capacity_bytes;
+    int lba48;
+    int lba48_supported;
+    int lba48_enabled;
+    int identify_valid;
+    int identify_attempted;
+    int identify_stage;
+    int identify_rc;
 };
 
 /*
@@ -71,6 +101,17 @@ struct helikon_ata_probe {
 int helikon_ata_init_probe(struct helikon_ata *ata, struct helikon_pmu *pmu,
                            struct helikon_clock *clock, uint32_t timeout_ms,
                            struct helikon_ata_probe *probe);
+
+/*
+ * Diagnostic-only late IDENTIFY. Call after the probe has finished all reads.
+ * If init already obtained a valid IDENTIFY table this is a no-op. Otherwise it
+ * runs the full reset/IDENTIFY path once, records the attempt and fills the raw
+ * words and derived geometry. On failure the adopted read geometry is restored
+ * so the probe screen still shows the safe read result. CE-ATA is not
+ * identified: the call is refused with HELIKON_ERR_UNSUPPORTED.
+ */
+int helikon_ata_probe_identify(struct helikon_ata *ata, uint32_t timeout_ms,
+                               struct helikon_ata_probe *probe);
 #endif
 
 /* Buffer must be at least count * sector_size bytes and 2-byte aligned. */
