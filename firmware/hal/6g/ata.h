@@ -41,8 +41,26 @@ int helikon_ata_init(struct helikon_ata *ata, struct helikon_pmu *pmu,
                      struct helikon_clock *clock, uint32_t timeout_ms);
 
 #ifdef HELIKON_DIAG_ATA_PROBE
+/*
+ * Earliest-possible handoff probe: a soft ATA enable and one sector read
+ * before PMU, backlight or LCD initialization. It answers whether the bus is
+ * still alive at firmware entry.
+ */
+struct helikon_ata_early {
+    int rc;
+    int stage;
+    int lba48;
+    uint16_t csd;
+    uint16_t dad;
+    uint32_t ready;
+};
+
+int helikon_ata_early_probe(struct helikon_ata *ata, uint32_t timeout_ms,
+                            struct helikon_ata_early *early);
+
 struct helikon_ata_probe {
     int adopt_rc;
+    int adopt_stage;
     int adopt_lba48;
     int adopt_power;
     int adopt_ceata;
@@ -93,8 +111,8 @@ struct helikon_ata_probe {
  * with a plain sector read, then reports the failing substep of the full reset
  * path and retries it once. Substeps:
  * 8 adopt entry, 9 soft controller ready, 10 soft sector read,
- * 11 soft success, 12 reset without IDENTIFY, 13 reset sector read,
- * 14 adopt success;
+ * 11 soft success, 12 reset without IDENTIFY, 13 device SRST,
+ * 14 reset sector read, 15 adopt success;
  * 0 HDD power, 1 controller ready, 2 identify, 3 sector geometry,
  * 4 SET FEATURES 0x03, 5 SET FEATURES 0xAA, 6 write-cache hint, 7 success.
  */

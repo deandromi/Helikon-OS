@@ -53,6 +53,14 @@
 
 #define BOOT_INFO_PATH "/.helikon/firmware.manifest"
 #define BOOTSTATE_PATH "/.helikon/bootstate"
+
+/*
+ * Loader handoff marker, shared with
+ * bootloader/hardware/helikon_loader_hw.c. It lives in the reserved boot-info
+ * page before T-059 fills the page.
+ */
+#define HELIKON_HANDOFF_MARKER_ADDR 0x087ff800u
+#define HELIKON_HANDOFF_MARKER 0x484c4f31u /* "HLO1" */
 #define BOOTSTATE_NAME_UNITS 9u
 #define BOOT_MANIFEST_SIZE 256u
 #define BOOT_CATALOG_SCRATCH 32768u
@@ -1066,6 +1074,17 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
     int rc = helikon_board_clock_init(&ctx->board, BOOT_CLOCK_TIMEOUT_MS);
     if (rc != HELIKON_OK)
         boot_fail(ctx, HELIKON_STAGE_PMU, rc, "The clock did not start.");
+#ifdef HELIKON_DIAG_ATA_PROBE
+    /*
+     * Earliest handoff test: one soft ATA sector read before PMU, backlight
+     * or LCD. A failure here means the loader left the bus dead; a success
+     * means F2's later init (or the reset path) is what breaks it.
+     */
+    struct helikon_ata_early early_ata;
+    ctx->board.ata.clock = &ctx->board.clock;
+    ctx->board.ata.pmu = NULL;
+    (void)helikon_ata_early_probe(&ctx->board.ata, 800u, &early_ata);
+#endif
     helikon_trace_add(&ctx->trace, HELIKON_TRACE_INFO, HELIKON_TRACE_HAL,
                       0x2000u, (uint32_t)helikon_cpu_control(), 0u);
 

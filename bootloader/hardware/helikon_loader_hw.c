@@ -237,6 +237,15 @@ void helikon_loader_main(void)
     uint64_t disk_size;
     int count;
 
+    /*
+     * Keep ATA alive across the handoff. The donor default is 7 s; the
+     * manifest and "Executing" screens can idle the disk long enough for the
+     * spindown thread to power the controller and drive down before the jump.
+     * A zero timeout means never sleep in this driver.
+     */
+    ata_spindown(0);
+    ata_spin();
+
     /* The donor main already painted the splash before storage init. */
     progress("storage ready");
 
@@ -362,9 +371,29 @@ void helikon_loader_main(void)
         HELIKON_HANDOFF_MARKER;
 
     /*
+     * Hand the firmware a cold ATA device. The donor init/IDENTIFY is only
+     * proven from power-on; a live handoff has failed on this iFlash SD even
+     * with a controller reset, SRST and a disabled spindown. The image is
+     * already in DRAM, so the loader no longer needs the disk.
+     */
+    ide_power_enable(false);
+    sleep(HZ * 2);
+    ide_power_enable(true);
+    sleep(HZ * 2);
+
+    /*
+     * Stamp the handoff. The marker lives in the boot-info page so the
+     * payload can tell which loader ran even before T-059 fills the page.
+     * It is written before the cache flush, so it reaches DRAM.
+     */
+    *(volatile uint32_t *)HELIKON_HANDOFF_MARKER_ADDR =
+        HELIKON_HANDOFF_MARKER;
+
+    /*
      * The image is already at its linked address in DRAM. Flush/invalidate
      * the caches before executing it. The test payload returns "HELO"; a real
-     * firmware entry point would not return.
+     * firmware entry point would not return. Pass a zero boot-info pointer
+     * explicitly: without T-059 the loader has no page to hand over.
      */
     progress("jump");
     uint32_t (*entry)(uintptr_t, uint32_t) =

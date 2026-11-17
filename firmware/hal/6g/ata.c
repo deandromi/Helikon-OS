@@ -386,7 +386,9 @@ static int ata_adopt(struct helikon_ata *ata, uint32_t timeout_ms,
     /*
      * A soft enable does not always restart a controller the loader clocked
      * down: PIO ready stays 0 until the donor CFG/SWRST reset runs. Reset the
-     * controller, but still do not send IDENTIFY.
+     * controller, then reset the device interface itself with SRST. The donor
+     * uses this exact sequence in its error-recovery path; a controller reset
+     * alone does not clear a wedged device interface. Still no IDENTIFY.
      */
     if (attempt != NULL)
         attempt->stage = 12;
@@ -394,11 +396,24 @@ static int ata_adopt(struct helikon_ata *ata, uint32_t timeout_ms,
     rc = ata_wait_ready_bits(ata, 0x2u, timeout_ms);
     if (rc != HELIKON_OK)
         return rc;
+
     if (attempt != NULL)
         attempt->stage = 13;
+    rc = ata_write_cbr(ata, &S5L_ATA_PIO_DAD, 0x6u, timeout_ms);
+    if (rc == HELIKON_OK) {
+        helikon_clock_delay_us(ata->clock, 10u);
+        rc = ata_write_cbr(ata, &S5L_ATA_PIO_DAD, 0x0u, timeout_ms);
+    }
+    if (rc == HELIKON_OK)
+        rc = ata_wait_rdy(ata, timeout_ms);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    if (attempt != NULL)
+        attempt->stage = 14;
     rc = ata_adopt_read(ata, timeout_ms);
     if (rc == HELIKON_OK && attempt != NULL)
-        attempt->stage = 14;
+        attempt->stage = 15;
     return rc;
 }
 
@@ -484,6 +499,54 @@ int helikon_ata_init(struct helikon_ata *ata, struct helikon_pmu *pmu,
 }
 
 #ifdef HELIKON_DIAG_ATA_PROBE
+int helikon_ata_early_probe(struct helikon_ata *ata, uint32_t timeout_ms,
+                            struct helikon_ata_early *early)
+{
+    if (ata == NULL || early == NULL || ata->clock == NULL ||
+        !ata->clock->initialized)
+        return HELIKON_ERR_ARGUMENT;
+
+    early->rc = HELIKON_ERR_IO;
+    early->stage = 0;
+    early->lba48 = 0;
+    early->csd = 0;
+    early->dad = 0;
+    early->ready = 0;
+    ata->identify_valid = 0;
+    ata->sector_size = 0u;
+    ata->total_sectors = 0u;
+    ata->lba48 = 0;
+    ata->can_flush = 0;
+    ata->powered = 0;
+    ata->initialized = 0;
+
+    /* Same soft enable as adopt phase A, with no PMU or reset. */
+    S5L_PCON(7) = 0x44444444u;
+    S5L_PCON(8) = 0x44444444u;
+    S5L_PCON(9) = 0x44444444u;
+    S5L_PCON(10) = (S5L_PCON(10) & ~0xffffu) | 0x4444u;
+    S5L_PWRCON(S5L_CLOCKGATE_ATA >> 5) &=
+        ~(1u << (S5L_CLOCKGATE_ATA & 0x1fu));
+    S5L_ATA_CONTROL = 1u;
+    helikon_clock_delay_us(ata->clock, 200000u);
+    S5L_ATA_PIO_TIME = 0x191f7u;
+    S5L_ATA_PIO_LHR = 0u;
+    S5L_ATA_CFG = 1u << 6;
+
+    early->stage = 1;
+    int rc = ata_wait_ready_bits(ata, 0x2u, timeout_ms);
+    if (rc == HELIKON_OK) {
+        early->stage = 2;
+        rc = ata_adopt_read(ata, timeout_ms);
+        early->lba48 = ata->lba48;
+    }
+    early->rc = rc;
+    early->ready = S5L_ATA_PIO_READY;
+    early->csd = (uint16_t)(S5L_ATA_PIO_CSD & 0xffffu);
+    early->dad = (uint16_t)(S5L_ATA_PIO_DAD & 0xffffu);
+    return rc;
+}
+
 static void ata_probe_reset(struct helikon_ata *ata)
 {
     ata->identify_valid = 0;
@@ -574,6 +637,7 @@ int helikon_ata_init_probe(struct helikon_ata *ata, struct helikon_pmu *pmu,
     ata_probe_reset(ata);
 
     probe->adopt_rc = HELIKON_ERR_IO;
+    probe->adopt_stage = -1;
     probe->adopt_lba48 = 0;
     probe->adopt_power = -1;
     probe->adopt_ceata = 0;
@@ -609,6 +673,7 @@ int helikon_ata_init_probe(struct helikon_ata *ata, struct helikon_pmu *pmu,
     adopt.identify_rc = HELIKON_OK;
     int rc = ata_adopt(ata, timeout_ms, &adopt);
     probe->adopt_rc = rc;
+    probe->adopt_stage = adopt.stage;
     probe->adopt_lba48 = ata->lba48;
     probe->adopt_word0 = ata->adopt_sector[0];
     probe->adopt_csd = (uint16_t)(S5L_ATA_PIO_CSD & 0xffffu);
