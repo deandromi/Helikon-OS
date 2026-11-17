@@ -40,6 +40,11 @@
 #define S5L_CLOCKGATE_DMAC0 25u
 #define S5L_CLOCKGATE_CWHEEL 33u
 
+/* VIC (donor s5l87xx.h): two 32-source banks at 0x38e00000/0x38e01000. */
+#define S5L_VIC_BASE 0x38e00000u
+#define S5L_VIC_BANK_STRIDE 0x1000u
+#define S5L_VIC_IRQ_USB_FUNC 19u
+
 /* 16/32-bit timer; timer E is the free-running microsecond counter. */
 #define S5L_TIMER_BASE 0x3c700000u
 #define S5L_TECON (HELIKON_REG32(S5L_TIMER_BASE + 0xa0u))

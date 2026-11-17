@@ -27,10 +27,11 @@ FW_OBJS := $(BUILD)/lib/mem.o $(BUILD)/lib/string.o $(BUILD)/lib/crc32.o \
            $(BUILD)/block/partition.o $(BUILD)/block/ata_geometry.o \
            $(BUILD)/diag/stages.o \
            $(BUILD)/diag/trace.o $(BUILD)/diag/crash.o \
-           $(BUILD)/diag/screen.o $(BUILD)/hfs/hfs_block_adapter.o
+           $(BUILD)/diag/screen.o $(BUILD)/hal/6g/vic.o \
+           $(BUILD)/hfs/hfs_block_adapter.o
 
 TESTS := test_lib test_boot_info test_bootstate test_block test_ata_geometry \
-         test_stages test_ring test_pool test_screen test_trace test_hfs_file
+         test_stages test_ring test_pool test_screen test_trace test_hfs_file test_vic
 
 .PHONY: all test sanitize clean
 
@@ -88,6 +89,12 @@ test_trace: test_trace.c test_check.h $(BUILD)/diag/trace.o \
 	$(HOSTCC) $(TEST_CFLAGS) test_trace.c $(BUILD)/diag/trace.o \
 	  $(BUILD)/lib/ring.o $(BUILD)/lib/mem.o $(LDFLAGS) -o $@
 
+VIC_TEST_CFLAGS := $(TEST_CFLAGS) -DHELIKON_HOST_TEST -I../../firmware/hal/6g
+
+test_vic: test_vic.c test_check.h $(BUILD)/hal/6g/vic.o
+	$(HOSTCC) $(VIC_TEST_CFLAGS) test_vic.c $(BUILD)/hal/6g/vic.o \
+	  $(LDFLAGS) -o $@
+
 HFS_TEST_CFLAGS := $(CFLAGS) -I../../firmware/hfs \
                    -idirafter ../../firmware/lib -I../hfsplus
 HFS_TEST_SRC := ../../firmware/hfs/hfs_file.c \
@@ -115,6 +122,7 @@ test: $(TESTS)
 	./test_screen
 	./test_trace
 	./test_hfs_file
+	./test_vic
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
