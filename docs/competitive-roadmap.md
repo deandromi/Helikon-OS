@@ -4,7 +4,7 @@
 > what “a strong alternative in every aspect” means, feature by feature.
 > Status: living document; comparison and plan, not evidence
 > Owner: product owner; docs lead maintains the matrix
-> Last updated: 2026-11-05
+> Last updated: 2026-11-11
 > Source: Rockbox iPod Classic manual, version `0d5c2b0604-261105` (built
 > 2026-11-04, 285 pages); design paper §23, §28; decisions D-29–D-51;
 > [`audio-formats.md`](audio-formats.md)
@@ -315,8 +315,8 @@ The matrix is grouped by user job. Horizon codes are defined in §6. Tasks are i
 
 | Capability | Rockbox baseline (manual) | Helikon-OS target | Label | Horizon | Task |
 |---|---|---|---|---|---|
-| USB mass storage | Mounts as MSC/UMS; drag-and-drop music transfer (§3.1.4) | Read-only LUN; service mode for writes (D-09) | `differ` | H1–H2 | T-076, T-077 |
-| Writable USB LUN | The host can write the FAT volume directly | Rejected; every write goes through the VFS/transaction engine | `decline` | — | D-09 |
+| USB mass storage | Mounts as MSC/UMS; drag-and-drop music transfer (§3.1.4) | Normal read-only LUN; Helikon Disk Mode gives a writable data-volume LUN (D-54) | `differ` | H1–H2 | T-076, T-108–T-115 |
+| Writable USB LUN | The host can write the FAT volume directly | Rejected in normal firmware; allowed only in the explicit, exclusive Helikon Disk Mode (D-54) | `differ` | H1 | T-108–T-112 |
 | USB HID | HID composite and keypad modes (§8.6.12) | HID keyboard/media keys; no writable LUN | `match` | H2 | T-076 |
 | Charge-only mode | Hold a button or select charge-only (§3.3) | Same; safe default when the host is unknown | `match` | H1 | T-076 |
 | Desktop app | Rockbox Utility handles install, uninstall, themes, fonts and voice (§2.2.1) | Full macOS-first app: backup, tag, rate, describe, playlists, podcast, install, verify, scrobble | `exceed` | H1–H2 | T-083 |
@@ -396,7 +396,7 @@ These are deliberate. A future owner decision may reopen one; an agent may not.
 | Full Rockbox WPS engine | Large tag language, unbounded assets, conflicts with the lightweight and safety goals | Documented WPS subset plus a native declarative theme (D-10/D-15) |
 | Rockbox plugin/game binary compatibility | Native plugins expose broad hardware and are not a capability sandbox | Signed sandboxed apps/games with quotas (D-08/D-44) |
 | FAT32 support | The defining product promise is native HFS+ (B-02) | `NOT_HFS` screen; backup and conversion guidance; no hidden FAT fallback |
-| Writable USB mass-storage LUN | A raw writable LUN bypasses the transaction engine | Read-only LUN plus a framed service mode (D-09/D-38) |
+| Writable USB mass-storage LUN | A raw writable LUN in normal firmware bypasses the transaction engine | Read-only LUN in normal firmware; writable LUN only in the explicit, exclusive Helikon Disk Mode (D-54/I-16) |
 | Self-healing repair | HFS+ data is not checksummed and silent repair can destroy evidence | Detect, quarantine, restore from backup (D-11/D-39) |
 | Video, image and text viewers in v1 | Not audio; CPU, code size and test cost; not a P0 use case | Optional sandboxed viewers after v2 |
 | Native DSD or native >48 kHz output | The CS42L55 is a 24-bit, 48 kHz-class PCM DAC | Decode and downsample to PCM; label the output rate honestly |

@@ -16,6 +16,10 @@
 uint32_t helikon_cpu_control(void);
 uint32_t helikon_cpu_mode(void);
 void helikon_cpu_disable_interrupts(void);
+/* Clear the CPSR I bit only; the F bit is left unchanged. */
+void helikon_cpu_enable_interrupts(void);
+/* 1 when the CPSR I bit is clear, 0 when IRQs are masked. */
+int helikon_cpu_irq_enabled(void);
 void helikon_cpu_data_sync(void);
 void helikon_cpu_clean_dcache_range(const void *address, size_t length);
 void helikon_cpu_idle(void);

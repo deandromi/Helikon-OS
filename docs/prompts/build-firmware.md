@@ -6,9 +6,10 @@
 > 6G run (2026-11-04); F2/T-055 is host-verified but blocked and unconfirmed
 > due to a currently unfixable bug. It is not part of Alpha 2.0.0.
 > Owner: firmware lead; docs lead
-> Last updated: 2026-11-06
+> Last updated: 2026-11-11
 > Source: `agents.md`, `docs/firmware-architecture.md`, ADR-0003, ADR-0004,
-> `bootloader/LOADER.md`, `docs/tasks.md`, `docs/invariants.md`
+> `bootloader/LOADER.md`, `docs/tasks.md`, `docs/invariants.md`,
+> `docs/disk-mode.md`
 
 **This is a prompt, not a specification.** The canonical sources are
 `agents.md`, the root `README.md`, `docs/design-paper.md`, `docs/state.md`,
@@ -92,7 +93,9 @@ unless the owner explicitly assigns it; F1 can run with the zero-`r0` fallback.
 
 Until the phase gate says otherwise, do not build:
 
-- USB mass storage or a USB service mode;
+- USB work outside the owner-authorized Disk Mode tasks T-109–T-115; the normal
+  USB profile stays read-only and no writable LUN is allowed outside the
+  explicit, exclusive Helikon Disk Mode (D-54/ADR-0005);
 - a database or metadata index;
 - skins, apps, games or a sandbox;
 - podcast, car or desktop-app features;
@@ -180,7 +183,10 @@ you did **not** attempt. Do not "try one more write".
   `firmware/player/`, `firmware/ui/`, `firmware/input/`, `firmware/lib/` or
   `firmware/diag/` code.
 - No kernel, startup file, linker script, boot-info parser, panic path, HAL,
-  block driver, VFS, player, UI, database or USB.
+  block driver, VFS, player, UI, database or USB stack.
+- No USB stack, VIC/IRQ handler, LUN or Helikon Disk Mode implementation. D-54
+  authorizes the Disk Mode line, but T-109 (read-only ATA/LBA48/APM probe) is the
+  first step and no writable LUN exists.
 - No firmware image, manifest, signed firmware or device run.
 - No release key and no certificate verifier (T-053).
 
@@ -191,6 +197,11 @@ you did **not** attempt. Do not "try one more write".
 - Click wheel, buttons, hold switch.
 - CS42L55 codec, line-out and headphone.
 - ATA/LBA48, 512-byte logical sectors, 4096-byte support.
+- USB device: Synopsys DesignWare OTG, `OTGBASE 0x38400000`, PHY
+  `0x3C400000`, IRQ 19, 7 endpoints, UTMI 16-bit. No Helikon USB stack exists.
+- 6G Apple firmware uses LBA28 and is limited to 128 GiB; the Rockbox `ipod6g`
+  port uses `HAVE_LBA48`. Helikon must prove LBA48 on the actual iFlash bridge
+  before it claims a larger volume.
 - PMU, battery, charging, backlight, ATA sleep.
 - Loader image window `0x08000000`–`0x08800000` (8 MiB).
 - No network. No external USB DAC on the 6G. No FAT mount, no overlay.
@@ -1109,6 +1120,10 @@ a loop.
 - The write engine may replay before the first write, but only if F2/F3 authorizes
   it and the replay is bounded/idempotent.
 - If replay fails, stay read-only and preserve the journal.
+- **Disk Mode exception (D-54):** after a host-owned Helikon Disk Mode session,
+  the firmware may replay a committed journal through the write engine before it
+  reboots, because the host has released the volume. The normal read path stays
+  read-only. See [`../disk-mode.md`](../disk-mode.md).
 
 ### 13.4 Bad image / bad bootstate
 

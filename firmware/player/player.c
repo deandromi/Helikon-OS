@@ -6,6 +6,18 @@
 
 #include "error.h"
 
+static int player_pcm_source(void *context, int16_t *pcm, size_t max_frames,
+                             size_t *frames)
+{
+    struct helikon_player *player = context;
+    int rc = helikon_codec_read(&player->codec, pcm, max_frames, frames);
+    if (rc != HELIKON_OK) {
+        player->last_error = rc;
+        player->last_stage = HELIKON_AUDIO_STAGE_CODEC_DATA;
+    }
+    return rc;
+}
+
 int helikon_player_open(struct helikon_player *player, const uint8_t *data,
                         size_t size, struct helikon_pmu *pmu,
                         struct helikon_clock *clock, uint32_t timeout_ms)
@@ -15,20 +27,47 @@ int helikon_player_open(struct helikon_player *player, const uint8_t *data,
 
     player->opened = 0;
     player->started = 0;
+    player->compressed = 0;
     player->offset = 0u;
     player->last_error = HELIKON_OK;
     player->last_stage = HELIKON_AUDIO_STAGE_NONE;
     player->audio.stage = HELIKON_AUDIO_STAGE_NONE;
+
     int rc = helikon_wav_parse(data, size, &player->wav);
     if (rc != HELIKON_OK) {
-        player->last_error = rc;
-        return rc;
+        const struct helikon_codec_ops *ops = NULL;
+        struct helikon_codec_info info;
+        rc = helikon_codec_probe(data, size, &ops, &info);
+        if (rc != HELIKON_OK) {
+            player->last_error = rc;
+            if (size >= 4u && data[0] == 'f' && data[1] == 'L' &&
+                data[2] == 'a' && data[3] == 'C')
+                player->last_stage = HELIKON_AUDIO_STAGE_CODEC_DATA;
+            return rc;
+        }
+        rc = helikon_codec_open(&player->codec, ops, data, size,
+                                player->codec_workspace,
+                                sizeof(player->codec_workspace));
+        if (rc != HELIKON_OK) {
+            player->last_error = rc;
+            player->last_stage = HELIKON_AUDIO_STAGE_CODEC_DATA;
+            return rc;
+        }
+        player->compressed = 1;
+        player->wav.sample_rate = info.sample_rate;
+        player->wav.duration_ms = info.duration_ms;
+        player->wav.channels = 2u;
+        player->wav.bits = 16u;
+        player->wav.pcm = NULL;
+        player->wav.bytes = 0u;
     }
 
     rc = helikon_audio_init(&player->audio, pmu, clock, timeout_ms);
     if (rc != HELIKON_OK) {
         player->last_error = rc;
         player->last_stage = player->audio.stage;
+        if (player->compressed)
+            helikon_codec_close(&player->codec);
         return rc;
     }
     rc = helikon_audio_set_rate(&player->audio, player->wav.sample_rate);
@@ -36,6 +75,8 @@ int helikon_player_open(struct helikon_player *player, const uint8_t *data,
         player->last_error = rc;
         player->last_stage = player->audio.stage;
         helikon_audio_stream_stop(&player->audio);
+        if (player->compressed)
+            helikon_codec_close(&player->codec);
         return rc;
     }
     player->opened = 1;
@@ -50,13 +91,21 @@ int helikon_player_play_chunk(struct helikon_player *player,
         return HELIKON_ERR_ARGUMENT;
 
     if (!player->started) {
-        size_t frame_bytes = (size_t)player->wav.channels * 2u;
-        if (frame_bytes == 0u)
-            return HELIKON_ERR_FORMAT;
-        size_t frames = player->wav.bytes / frame_bytes;
-        int rc = helikon_audio_stream_start(
-            &player->audio, (const int16_t *)(const void *)player->wav.pcm,
-            frames, player->wav.channels);
+        int rc;
+        if (player->compressed) {
+            rc = helikon_audio_stream_start_source(
+                &player->audio, player_pcm_source, player,
+                player->codec.info.total_frames);
+        } else {
+            size_t frame_bytes = (size_t)player->wav.channels * 2u;
+            if (frame_bytes == 0u)
+                return HELIKON_ERR_FORMAT;
+            size_t frames = player->wav.bytes / frame_bytes;
+            rc = helikon_audio_stream_start(
+                &player->audio,
+                (const int16_t *)(const void *)player->wav.pcm, frames,
+                player->wav.channels);
+        }
         if (rc != HELIKON_OK) {
             player->last_error = rc;
             player->last_stage = player->audio.stage;
@@ -103,6 +152,9 @@ void helikon_player_stop(struct helikon_player *player)
     if (player == NULL || !player->opened)
         return;
     helikon_audio_stream_stop(&player->audio);
+    if (player->compressed)
+        helikon_codec_close(&player->codec);
+    player->compressed = 0;
     player->started = 0;
     player->opened = 0;
 }
@@ -158,6 +210,17 @@ const char *helikon_player_error_text(const struct helikon_player *player)
         return "I2S FIFO";
     case HELIKON_AUDIO_STAGE_STREAM_UNDERRUN:
         return "UNDERRUN";
+    case HELIKON_AUDIO_STAGE_CODEC_DATA:
+        switch (player->last_error) {
+        case HELIKON_ERR_FORMAT:
+            return "FLAC FORMAT";
+        case HELIKON_ERR_UNSUPPORTED:
+            return "FLAC PROFILE";
+        case HELIKON_ERR_BUFFER:
+            return "FLAC BUFFER";
+        default:
+            return "FLAC DATA";
+        }
     case HELIKON_AUDIO_STAGE_NONE:
     default:
         break;

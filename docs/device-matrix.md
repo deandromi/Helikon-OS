@@ -4,8 +4,9 @@
 > recorded run.
 > Status: owner-reported Alpha 2.0.0 release-set run on one 6G; per-image detail pending
 > Owner: test lead; device owners
-> Last updated: 2026-11-06
-> Source: design paper §1, §24, §28.2.4, §28.4.5; `docs/verification.md`
+> Last updated: 2026-11-11
+> Source: design paper §1, §24, §28.2.4, §28.4.5; `docs/verification.md`;
+> [`disk-mode.md`](disk-mode.md)
 
 **Owner status 2026-11-06:** the owner reports the Alpha 2.0.0 release-set 6G
 test is complete. The exact per-image screen photos, timings and post-run
@@ -26,6 +27,12 @@ no confirmed 6G result. This is recorded evidence for those tests, not a support
 claim. Every unrun row below is `planned`, `unproven`, `not run` or `fail`. Do
 not add a device to a supported list because it has the same SoC, because the
 donor ran on it, or because a build links.
+
+**Test packaging (owner rule, 2026-11-09):** one image per device test. Combine
+every pending functional change into one image and ask the owner to install and
+test that single image. Do not ask the owner to test separate images for
+separate features. Split an image only when a specific failure must be isolated,
+and state why in the request and the device-matrix row.
 
 ## 1. Target policy
 
@@ -67,7 +74,16 @@ images, backups or serial numbers to the repository.
 | iPod Classic 6G (reference) | `open question` | iFlash SD | Music hub/wall image `de6491a9…` (474,252 bytes) | embedded 100-song HDB; launcher → Music hub → Albums/Artists walls or Tracks; covers, monograms, ratings, detail pages | `partial` | Owner report 2026-11-06: Alpha 2.0.0 release-set 6G testing completed; screen photo/timing not attached. Host: `check-loader-artifact.sh` passes; `tests/ui` renders the launcher, hub, both walls, tracks and three detail screens. No ATA/storage; playback is F5 | firmware/UI |
 | iPod Classic 6G (reference) | `open question` | iFlash SD | Artist-view/input image `b5425283…` (583,820 bytes) | `assets/ui/artist-view` layout, portrait band, OVERVIEW/ALBUMS/TRACKS tabs; cold-boot input init no longer fails without a button press | `not run` | Host: `check-loader-artifact.sh` passes; `tests/ui` renders artist overview/albums/tracks and checks tab/selection markers. No ATA/storage; playback is F5. Device run pending | firmware/UI |
 | iPod Classic 6G (reference) | `open question` | iFlash SD | First PCM audio image `3dbbfd5a…` (4,109,284 bytes, version 14) | CS42L55/I2S/PL080 DMA; 20 s embedded 44.1 kHz stereo WAV at `AUDIO_TRACK=0`; Now Playing progress, PLAY pause, MENU stop | `not run` | Host: loader check passes; `tests/ui` renders now-playing/paused; `tests/player` WAV parser/state pass. No ATA/storage; compressed codecs and VFS remain. Device audio run pending | firmware/audio |
-| iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | journal replay | `not run` | none | journal lead |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | WAV ring image `18f5fe39…` (4,111,124 bytes) | four-buffer PL080 LLI ring; embedded 44.1 kHz stereo WAV; pause/resume | `pass` | Owner report 2026-11-08: audio clean; stutter, pops and channel loss no longer observed; pause/resume works. PR #17 merged as `2420c64`. Screen photo and `fsck_hfs` not attached. One 6G/iFlash SD only | owner/firmware |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | FLAC player image `6a2328ae…` (2,560,056 bytes, version 15) | embedded native FLAC, 16-bit stereo 44.1 kHz; registry probe, decode into the four-buffer ring; pause/resume | `pass` | Owner report 2026-11-08: FLAC audio clean; pause/resume works. Rebuilt after merging `main` `5fa0510`: identical SHA-256, so the tested image matches the branch. Host codec/player/UI/firmware tests pass; 879,952 frames bit-exact. Screen photo and `fsck_hfs` not attached. One 6G/iFlash SD only | owner/firmware |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | Cleaned Music-flow image `5292c8ed…` (4,195,680 bytes, version 15) | IBM Plex atlas; Artists → Artist (`ALBUMS` default) → single-page Album → Now Playing | `fail` | Owner report 2026-11-08: selecting an artist stalls for almost 20 s; repeated presses eventually start a song. T-088 device gate not passed; PR #21 open and unmerged. Screen photo and `fsck_hfs` not attached. Host `tests/ui` passes; one 6G/iFlash SD only | owner/firmware/UI |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | none (firmware) | journal replay | `not run` | none | journal lead |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | none (host) | P0 Apple Disk Mode evidence: USB descriptors, LUN block size, APM/MBR, HFS+ geometry, `fsck_hfs -n` | `not run` | Read-only captures only; no device write | boot/test |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | T-109 probe (pending) | read-only ATA/LBA48/APM probe: IDENTIFY 83/86/100–103/60–61/106/117–118, partition map, HFS+ geometry, LUN candidate | `not run` | No USB, no write | firmware/storage |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | T-110 USB enumeration (pending) | macOS enumerates Helikon Disk Mode; descriptors and 100 connect/disconnect cycles | `not run` | No LUN yet | firmware/USB |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | T-111 read-only LUN (pending) | macOS mounts the largest HFS+ partition read-only and reads a known file | `not run` | No write | firmware/USB |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | T-112 writable LUN (pending) | 1 GB host write + SHA-256 read-back; `fsck_hfs -fn`; safe eject; surprise-unplug journal test | `not run` | Verified backup required | firmware/USB |
+| iPod Classic 6G (reference) | `open question` | iFlash SD | T-114 capacity (pending) | >128 GiB volume or second partition; LBA48 boundary and last-LBA read/write | `not run` | Requires a card >128 GiB | firmware/USB/test |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | sleep/wake 100 cycles | `not run` | none | test lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | USB read-only | `not run` | none | USB lead |
 | iPod Classic 6G (reference) | `open question` | `open question` | none (firmware) | update/rollback | `not run` | none | release lead |

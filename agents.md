@@ -3,7 +3,7 @@
 **Purpose:** working contract and documentation index.
 **Status:** living document; pre-phase 0 with an Alpha 2.0.0 development release.
 **Owner:** project owner; every agent
-**Last updated:** 2026-11-06
+**Last updated:** 2026-11-11
 **Source:** root `README.md`, `docs/design-paper.md`
 **Entry point:** read this file first, then `docs/README.md`.
 
@@ -80,8 +80,11 @@ writes in `/.rockpod-rw`) is the opposite of Helikon-OS by design.
    `/.rockpod-rw`, no namespace overlay, no shadow namespace, no hidden
    container and no FAT mount. A non-HFS+ volume returns `NOT_HFS`.
 2. **Journal every metadata change.** Catalog, bitmap, extents, volume-header and
-   journal changes go through the transaction engine. Release builds use
-   journaled writes. A non-journaled writer is a disposable-volume prototype.
+   journal changes made by the firmware go through the transaction engine.
+   Release builds use journaled writes. A non-journaled writer is a
+   disposable-volume prototype. A host-owned write in Helikon Disk Mode is not a
+   firmware metadata change; it is allowed only in the explicit, exclusive mode
+   and is governed by I-16/D-54.
 3. **`fsck_hfs` compatibility is a release gate.** After every crash and
    power-cut test, `fsck_hfs` must report zero repairs. One catalog or bitmap
    inconsistency blocks release.

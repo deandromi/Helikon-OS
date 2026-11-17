@@ -5,9 +5,10 @@
 > Status: living document — design paper; F1 has one owner-reported 6G run, the
 > F2 write path exists and is host-verified, and F3–F5 are design only.
 > Owner: architecture lead; firmware lead
-> Last updated: 2026-11-05
+> Last updated: 2026-11-11
 > Source: design paper §5–§19, §27; `docs/architecture.md`; `docs/ui.md`;
-> ADR-0003; ADR-0004; [`competitive-roadmap.md`](competitive-roadmap.md)
+> ADR-0003; ADR-0004; [`disk-mode.md`](disk-mode.md);
+> [`competitive-roadmap.md`](competitive-roadmap.md)
 
 **Evidence statement.** This paper describes the firmware design and the F1/F2
 implementation. The F1/T-054 source tree exists under `firmware/` and has one
@@ -1065,11 +1066,15 @@ font or artwork file fails.
 
 USB is not in F1–F5. The boundary is defined so it does not leak into the core:
 
-- read-only mass storage by default;
-- no writable LUN;
+- the normal profile is read-only mass storage plus optional HID/charge modes;
+- a writable LUN exists only in the explicit, exclusive Helikon Disk Mode
+  (D-54, ADR-0005, I-16); the firmware does not mount HFS+ while the host owns
+  the LUN;
 - descriptors and strings in RAM, not in the filesystem;
 - an optional framed service mode later, with its own protocol and trust model;
 - no network stack on the device.
+
+The canonical Disk Mode plan is [`disk-mode.md`](disk-mode.md).
 
 ### 6.14 Diagnostics
 
@@ -1276,14 +1281,20 @@ A shutdown must not start a new write. If a flush fails, show the error and do
 not pretend the shutdown was clean. A power-off during a transaction is a crash,
 not a shutdown; the journal handles it on the next boot.
 
-### 7.7 USB (later)
+### 7.7 USB and Disk Mode (later)
 
-Not in F1–F5. The future flow is read-only mass storage:
+Not in F1–F5. The normal profile is read-only mass storage. Helikon Disk Mode
+(D-54) is a separate, exclusive mode:
 
-- enumerate as a read-only LUN;
-- expose the HFS+ volume without a write path;
-- no host write, no format, no repair;
+- enumerate a read-only LUN in the normal profile;
+- in Disk Mode, enumerate the writable data-volume LUN or the expert whole-disk
+  LUN; the firmware does not mount HFS+ while the host owns the volume;
+- flush on eject, check the journal after release and reboot before mounting the
+  volume again;
+- no format, no repair, no bootloader write;
 - an optional service mode with a framed protocol and its own trust review.
+
+See [`disk-mode.md`](disk-mode.md).
 
 ### 7.8 Update staging (later)
 
@@ -1295,7 +1306,9 @@ The firmware does not install updates in F1–F5. The future flow:
 4. the loader verifies and jumps;
 5. bootstate records the result.
 
-No silent update, no writable USB, no unsigned image.
+No silent update, no unsigned image and no writable LUN in normal firmware. A
+host may stage files in Helikon Disk Mode (D-54); the loader still verifies
+every image before a jump.
 
 ### 7.9 Failure flows
 
@@ -2008,10 +2021,11 @@ from a skin or an app.
 
 ### 10.5 USB
 
-The future USB path is read-only by default. A writable mass-storage LUN would
-let a host bypass the transaction engine and corrupt the volume; it is rejected.
-A service mode, if added, is a framed protocol with its own trust review and no
-raw block access.
+The normal USB path is read-only. A writable mass-storage LUN is allowed only in
+the explicit, exclusive Helikon Disk Mode (D-54/I-16), where the firmware does
+not mount HFS+ and the host filesystem is the only writer. A service mode, if
+added, is a framed protocol with its own trust review and no raw block access.
+A writable LUN in normal firmware remains rejected.
 
 ### 10.6 Update staging
 
@@ -2468,7 +2482,7 @@ tasks are T-060–T-107. None exists today.
 | Advanced DSP | D-35 | T-071 | T-070 | Claim an audible benefit without measurement |
 | Native theme and WPS subset | D-36 | T-072, T-073 | F4 | Execute theme code; let a theme break the default UI |
 | Accessibility and localization | D-37 | T-074, T-075 | F4 | Ship a locale without native review |
-| USB composite and service mode | D-38 | T-076, T-077 | F5 + security review | Expose a writable LUN or raw block access |
+| USB composite and service mode | D-38, D-54 | T-076, T-077, T-108–T-115 | F5 + security review | Expose a writable LUN in normal firmware or raw block access; Disk Mode must stay exclusive (I-16) |
 | Signed update and recovery | D-31 | T-064 | F2, T-053 | Write around `hfs_txn`; add an A/B path |
 | Anti-corruption | D-39 | T-078 | writer, T-065 | Self-heal, rewrite or delete a mismatch |
 | Power manager and thermal policy | D-41 | T-080 | F5 | Publish an unmeasured battery percentage |

@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include "ata.h"
 
+#include "ata_geometry.h"
 #include "error.h"
 #include "s5l8702_regs.h"
 
@@ -188,31 +189,13 @@ static int ata_set_feature(struct helikon_ata *ata, uint8_t feature,
 
 static int ata_parse_geometry(struct helikon_ata *ata)
 {
-    uint32_t sectors28 = ((uint32_t)ata->identify[61] << 16) |
-                         ata->identify[60];
-    if ((ata->identify[83] & 0x0400u) != 0u &&
-        sectors28 == 0x0fffffffu) {
-        ata->total_sectors =
-            ((uint64_t)ata->identify[103] << 48) |
-            ((uint64_t)ata->identify[102] << 32) |
-            ((uint64_t)ata->identify[101] << 16) |
-            ata->identify[100];
-        ata->lba48 = 1;
-    } else {
-        ata->total_sectors = sectors28;
-        ata->lba48 = 0;
-    }
-
-    ata->sector_size = 512u;
-    if ((ata->identify[106] & 0xd000u) == 0x5000u) {
-        uint32_t bytes = ((uint32_t)ata->identify[117] |
-                          ((uint32_t)ata->identify[118] << 16)) *
-                         2u;
-        if (bytes >= 512u && bytes <= 4096u &&
-            (bytes & (bytes - 1u)) == 0u)
-            ata->sector_size = bytes;
-    }
-    return ata->total_sectors == 0u ? HELIKON_ERR_IO : HELIKON_OK;
+    struct helikon_ata_geometry geometry;
+    int rc = helikon_ata_geometry_parse(ata->identify, ata->ceata, &geometry);
+    ata->total_sectors = geometry.total_sectors;
+    ata->sector_size = geometry.logical_sector_size;
+    ata->physical_sector_size = geometry.physical_sector_size;
+    ata->lba48 = geometry.lba48;
+    return rc;
 }
 
 static int ata_configure_identified(struct helikon_ata *ata,
@@ -303,6 +286,7 @@ static void ata_controller_reset(struct helikon_ata *ata)
 static int ata_adopt_read(struct helikon_ata *ata, uint32_t timeout_ms)
 {
     ata->sector_size = 512u;
+    ata->physical_sector_size = 512u;
     ata->total_sectors = 0xffffffffu;
     ata->write_cache = 0;
     ata->identify_valid = 0;
@@ -312,14 +296,15 @@ static int ata_adopt_read(struct helikon_ata *ata, uint32_t timeout_ms)
     ata->initialized = 1;
 
     ata->lba48 = 1;
-    int rc = helikon_ata_read(ata, 0u, 1u, ata->identify, timeout_ms);
+    int rc = helikon_ata_read(ata, 0u, 1u, ata->adopt_sector, timeout_ms);
     if (rc != HELIKON_OK) {
         (void)ata_wait_not_bsy(ata, timeout_ms);
         ata->lba48 = 0;
-        rc = helikon_ata_read(ata, 0u, 1u, ata->identify, timeout_ms);
+        rc = helikon_ata_read(ata, 0u, 1u, ata->adopt_sector, timeout_ms);
     }
     if (rc != HELIKON_OK) {
         ata->sector_size = 0u;
+        ata->physical_sector_size = 0u;
         ata->total_sectors = 0u;
         ata->can_flush = 0;
         ata->powered = 0;
@@ -473,8 +458,10 @@ int helikon_ata_init(struct helikon_ata *ata, struct helikon_pmu *pmu,
     ata->clock = clock;
     ata->identify_valid = 0;
     ata->sector_size = 0;
+    ata->physical_sector_size = 0;
     ata->total_sectors = 0;
     ata->lba48 = 0;
+    ata->ceata = 0;
     ata->write_cache = 0;
     ata->can_flush = 0;
     ata->powered = 0;
@@ -501,12 +488,77 @@ static void ata_probe_reset(struct helikon_ata *ata)
 {
     ata->identify_valid = 0;
     ata->sector_size = 0;
+    ata->physical_sector_size = 0;
     ata->total_sectors = 0;
     ata->lba48 = 0;
     ata->write_cache = 0;
     ata->can_flush = 0;
     ata->powered = 0;
     ata->initialized = 0;
+}
+
+static void ata_probe_clear_identify(struct helikon_ata_probe *probe)
+{
+    probe->identify_60 = 0;
+    probe->identify_61 = 0;
+    probe->identify_80 = 0;
+    probe->identify_82 = 0;
+    probe->identify_83 = 0;
+    probe->identify_86 = 0;
+    probe->identify_100 = 0;
+    probe->identify_101 = 0;
+    probe->identify_102 = 0;
+    probe->identify_103 = 0;
+    probe->identify_106 = 0;
+    probe->identify_117 = 0;
+    probe->identify_118 = 0;
+    probe->lba28_sectors = 0;
+    probe->lba48_sectors = 0;
+    probe->log_sector_size = 0;
+    probe->physical_sector_size = 0;
+    probe->capacity_bytes = 0;
+    probe->lba48 = 0;
+    probe->lba48_supported = 0;
+    probe->lba48_enabled = 0;
+    probe->identify_valid = 0;
+}
+
+static void ata_probe_fill(struct helikon_ata *ata,
+                           struct helikon_ata_probe *probe)
+{
+    ata_probe_clear_identify(probe);
+    probe->identify_valid = ata->identify_valid != 0;
+    probe->total_sectors = (uint32_t)ata->total_sectors;
+    probe->log_sector_size = ata->sector_size;
+    probe->physical_sector_size = ata->physical_sector_size;
+    probe->lba48 = ata->lba48;
+    if (!ata->identify_valid)
+        return; /* adopt mode: capacity is not proven, report it as zero */
+
+    probe->identify_60 = ata->identify[60];
+    probe->identify_61 = ata->identify[61];
+    probe->identify_80 = ata->identify[80];
+    probe->identify_82 = ata->identify[82];
+    probe->identify_83 = ata->identify[83];
+    probe->identify_86 = ata->identify[86];
+    probe->identify_100 = ata->identify[100];
+    probe->identify_101 = ata->identify[101];
+    probe->identify_102 = ata->identify[102];
+    probe->identify_103 = ata->identify[103];
+    probe->identify_106 = ata->identify[106];
+    probe->identify_117 = ata->identify[117];
+    probe->identify_118 = ata->identify[118];
+
+    struct helikon_ata_geometry geometry;
+    (void)helikon_ata_geometry_parse(ata->identify, ata->ceata, &geometry);
+    probe->lba28_sectors = geometry.lba28_sectors;
+    probe->lba48_sectors = geometry.lba48_sectors;
+    probe->log_sector_size = geometry.logical_sector_size;
+    probe->physical_sector_size = geometry.physical_sector_size;
+    probe->capacity_bytes = geometry.capacity_bytes;
+    probe->lba48 = geometry.lba48;
+    probe->lba48_supported = geometry.lba48_supported;
+    probe->lba48_enabled = geometry.lba48_enabled;
 }
 
 int helikon_ata_init_probe(struct helikon_ata *ata, struct helikon_pmu *pmu,
@@ -531,12 +583,21 @@ int helikon_ata_init_probe(struct helikon_ata *ata, struct helikon_pmu *pmu,
     probe->adopt_dad = 0;
     probe->adopt_ready = 0;
     probe->adopt_control = 0;
+    probe->first_stage = -1;
+    probe->first_rc = HELIKON_OK;
+    probe->first_hdd_rc = HELIKON_OK;
+    probe->first_identify_rc = HELIKON_OK;
     probe->second_stage = -1;
     probe->second_rc = HELIKON_OK;
     probe->second_hdd_rc = HELIKON_OK;
     probe->second_identify_rc = HELIKON_OK;
+    probe->identify_attempted = 0;
+    probe->identify_stage = -1;
+    probe->identify_rc = HELIKON_OK;
+    ata_probe_clear_identify(probe);
 
     probe->adopt_ceata = (S5L_PDAT(11) & 0x2u) != 0u;
+    ata->ceata = probe->adopt_ceata;
     uint8_t power = 0xffu;
     if (helikon_pmu_read(pmu, HELIKON_PMU_REG_AUTOENA, &power, timeout_ms) ==
         HELIKON_OK)
@@ -549,7 +610,7 @@ int helikon_ata_init_probe(struct helikon_ata *ata, struct helikon_pmu *pmu,
     int rc = ata_adopt(ata, timeout_ms, &adopt);
     probe->adopt_rc = rc;
     probe->adopt_lba48 = ata->lba48;
-    probe->adopt_word0 = ata->identify[0];
+    probe->adopt_word0 = ata->adopt_sector[0];
     probe->adopt_csd = (uint16_t)(S5L_ATA_PIO_CSD & 0xffffu);
     probe->adopt_dad = (uint16_t)(S5L_ATA_PIO_DAD & 0xffffu);
     probe->adopt_ready = S5L_ATA_PIO_READY;
@@ -559,14 +620,12 @@ int helikon_ata_init_probe(struct helikon_ata *ata, struct helikon_pmu *pmu,
         probe->first_rc = HELIKON_OK;
         probe->first_hdd_rc = HELIKON_OK;
         probe->first_identify_rc = HELIKON_OK;
-        probe->total_sectors = (uint32_t)ata->total_sectors;
-        probe->identify_80 = 0;
-        probe->identify_82 = 0;
-        probe->identify_83 = 0;
+        ata_probe_fill(ata, probe);
         return HELIKON_OK;
     }
 
     ata_probe_reset(ata);
+    ata->ceata = probe->adopt_ceata;
     struct ata_attempt first;
     first.stage = -1;
     first.hdd_rc = HELIKON_OK;
@@ -582,6 +641,7 @@ int helikon_ata_init_probe(struct helikon_ata *ata, struct helikon_pmu *pmu,
     } else {
         helikon_clock_delay_us(clock, 100000u);
         ata_probe_reset(ata);
+        ata->ceata = probe->adopt_ceata;
         struct ata_attempt second;
         second.stage = -1;
         second.hdd_rc = HELIKON_OK;
@@ -595,10 +655,75 @@ int helikon_ata_init_probe(struct helikon_ata *ata, struct helikon_pmu *pmu,
             ata->initialized = 1;
     }
 
-    probe->total_sectors = (uint32_t)ata->total_sectors;
-    probe->identify_80 = ata->identify[80];
-    probe->identify_82 = ata->identify[82];
-    probe->identify_83 = ata->identify[83];
+    ata_probe_fill(ata, probe);
+    return rc;
+}
+
+int helikon_ata_probe_identify(struct helikon_ata *ata, uint32_t timeout_ms,
+                               struct helikon_ata_probe *probe)
+{
+    if (ata == NULL || probe == NULL)
+        return HELIKON_ERR_ARGUMENT;
+
+    /*
+     * CE-ATA uses a different command set. Record that it was detected and do
+     * not send an ATA IDENTIFY to it.
+     */
+    if (probe->adopt_ceata) {
+        probe->identify_attempted = 1;
+        probe->identify_stage = -1;
+        probe->identify_rc = HELIKON_ERR_UNSUPPORTED;
+        return HELIKON_ERR_UNSUPPORTED;
+    }
+
+    probe->identify_attempted = 1;
+    probe->identify_stage = -1;
+    if (ata->identify_valid) {
+        probe->identify_rc = HELIKON_OK;
+        ata_probe_fill(ata, probe);
+        return HELIKON_OK;
+    }
+
+    /*
+     * Keep the adopted read geometry so a failed late IDENTIFY still leaves
+     * the probe screen with the evidence that sector 0 and the partition
+     * table were read successfully.
+     */
+    uint32_t saved_sector = ata->sector_size;
+    uint32_t saved_physical = ata->physical_sector_size;
+    uint64_t saved_total = ata->total_sectors;
+    int saved_lba48 = ata->lba48;
+    int saved_write_cache = ata->write_cache;
+    int saved_can_flush = ata->can_flush;
+    int saved_powered = ata->powered;
+    int saved_initialized = ata->initialized;
+
+    ata_probe_reset(ata);
+    ata->ceata = probe->adopt_ceata;
+    struct ata_attempt attempt;
+    attempt.stage = -1;
+    attempt.hdd_rc = HELIKON_OK;
+    attempt.identify_rc = HELIKON_OK;
+    int rc = ata_power_up(ata, timeout_ms, &attempt);
+    probe->identify_stage = attempt.stage;
+    probe->identify_rc = rc;
+    if (rc == HELIKON_OK)
+        ata->initialized = 1;
+
+    if (ata->identify_valid) {
+        ata_probe_fill(ata, probe);
+        return rc;
+    }
+
+    ata->sector_size = saved_sector;
+    ata->physical_sector_size = saved_physical;
+    ata->total_sectors = saved_total;
+    ata->lba48 = saved_lba48;
+    ata->write_cache = saved_write_cache;
+    ata->can_flush = saved_can_flush;
+    ata->powered = saved_powered;
+    ata->initialized = saved_initialized;
+    ata_probe_fill(ata, probe);
     return rc;
 }
 #endif

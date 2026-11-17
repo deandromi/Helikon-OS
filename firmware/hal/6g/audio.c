@@ -291,9 +291,22 @@ static void peak_push_buffer(struct helikon_audio *audio,
 static uint32_t dma_fill_buffer(struct helikon_audio *audio, uint32_t index)
 {
     int16_t *buffer = dma_buffers[index];
-    size_t copied = helikon_audio_stream_fill(
-        buffer, AUDIO_DMA_FRAMES, audio->stream_pcm, audio->stream_frames,
-        &audio->stream_cursor, audio->stream_channels);
+    size_t copied = 0u;
+
+    if (audio->stream_source != NULL) {
+        int rc = audio->stream_source(audio->stream_source_context, buffer,
+                                      AUDIO_DMA_FRAMES, &copied);
+        if (rc != HELIKON_OK || copied > AUDIO_DMA_FRAMES) {
+            audio->stream_error =
+                rc != HELIKON_OK ? rc : HELIKON_ERR_BUFFER;
+            audio->stage = HELIKON_AUDIO_STAGE_CODEC_DATA;
+            copied = 0u;
+        }
+    } else {
+        copied = helikon_audio_stream_fill(
+            buffer, AUDIO_DMA_FRAMES, audio->stream_pcm, audio->stream_frames,
+            &audio->stream_cursor, audio->stream_channels);
+    }
     uint32_t count_frames;
 
     if (copied == 0u) {
@@ -360,11 +373,11 @@ static int dma_next_lli_index(void)
     return -1;
 }
 
-static void dma_process_completions(struct helikon_audio *audio,
-                                    int next_index)
+static int dma_process_completions(struct helikon_audio *audio,
+                                   int next_index)
 {
     if (next_index < 0)
-        return;
+        return HELIKON_OK;
 
     uint32_t count =
         helikon_audio_ring_distance(audio->stream_play,
@@ -374,7 +387,10 @@ static void dma_process_completions(struct helikon_audio *audio,
         audio->stream_played += audio->stream_buffer_frames[completed];
         audio->stream_play = dma_next_index(completed);
         (void)dma_fill_buffer(audio, completed);
+        if (audio->stream_error != 0)
+            return audio->stream_error;
     }
+    return HELIKON_OK;
 }
 
 static void i2s_stop(void)
@@ -454,6 +470,9 @@ int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
     audio->running = 0;
     audio->paused = 0;
     audio->stream_pcm = NULL;
+    audio->stream_source = NULL;
+    audio->stream_source_context = NULL;
+    audio->stream_error = 0;
     audio->stream_frames = 0u;
     audio->stream_cursor = 0u;
     audio->stream_played = 0u;
@@ -493,36 +512,27 @@ int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
     return HELIKON_OK;
 }
 
-int helikon_audio_stream_start(struct helikon_audio *audio,
-                               const int16_t *pcm, size_t frames,
-                               uint32_t channels)
+static int stream_prepare(struct helikon_audio *audio)
 {
-    if (audio == NULL || !audio->initialized || pcm == NULL ||
-        frames == 0u || (channels != 1u && channels != 2u)) {
-        if (audio != NULL)
-            audio->stage = HELIKON_AUDIO_STAGE_BUFFER;
-        return HELIKON_ERR_ARGUMENT;
-    }
-    if (audio->stream_started)
-        return HELIKON_ERR_BUSY;
-
-    audio->stream_pcm = pcm;
-    audio->stream_frames = frames;
     audio->stream_cursor = 0u;
     audio->stream_played = 0u;
-    audio->stream_channels = channels;
     audio->stream_play = 0u;
     audio->stream_underruns = 0u;
     audio->peak_head = 0u;
     audio->peak_release = 0u;
     for (uint32_t index = 0u; index < HELIKON_AUDIO_PEAK_BARS; ++index)
         audio->peak_history[index] = 0u;
+    audio->stream_error = 0;
     audio->paused = 0;
     audio->stream_started = 1;
 
     audio->stage = HELIKON_AUDIO_STAGE_BUFFER;
     for (uint32_t index = 0u; index < HELIKON_AUDIO_RING_BUFFERS; ++index)
         (void)dma_fill_buffer(audio, index);
+    if (audio->stream_error != 0) {
+        audio->stream_started = 0;
+        return audio->stream_error;
+    }
 
     audio->stage = HELIKON_AUDIO_STAGE_DMA_SETUP;
     int rc = dma_stop_channel(audio);
@@ -551,6 +561,48 @@ int helikon_audio_stream_start(struct helikon_audio *audio,
     return HELIKON_OK;
 }
 
+int helikon_audio_stream_start(struct helikon_audio *audio,
+                               const int16_t *pcm, size_t frames,
+                               uint32_t channels)
+{
+    if (audio == NULL || !audio->initialized || pcm == NULL ||
+        frames == 0u || (channels != 1u && channels != 2u)) {
+        if (audio != NULL)
+            audio->stage = HELIKON_AUDIO_STAGE_BUFFER;
+        return HELIKON_ERR_ARGUMENT;
+    }
+    if (audio->stream_started)
+        return HELIKON_ERR_BUSY;
+
+    audio->stream_pcm = pcm;
+    audio->stream_source = NULL;
+    audio->stream_source_context = NULL;
+    audio->stream_frames = frames;
+    audio->stream_channels = channels;
+    return stream_prepare(audio);
+}
+
+int helikon_audio_stream_start_source(struct helikon_audio *audio,
+                                      helikon_audio_pcm_source source,
+                                      void *context, size_t frames)
+{
+    if (audio == NULL || !audio->initialized || source == NULL ||
+        frames == 0u) {
+        if (audio != NULL)
+            audio->stage = HELIKON_AUDIO_STAGE_BUFFER;
+        return HELIKON_ERR_ARGUMENT;
+    }
+    if (audio->stream_started)
+        return HELIKON_ERR_BUSY;
+
+    audio->stream_pcm = NULL;
+    audio->stream_source = source;
+    audio->stream_source_context = context;
+    audio->stream_frames = frames;
+    audio->stream_channels = 2u;
+    return stream_prepare(audio);
+}
+
 int helikon_audio_stream_service(struct helikon_audio *audio)
 {
     if (audio == NULL || !audio->initialized || !audio->stream_started)
@@ -566,7 +618,11 @@ int helikon_audio_stream_service(struct helikon_audio *audio)
 
     uint32_t old_play = audio->stream_play;
     audio->stage = HELIKON_AUDIO_STAGE_BUFFER;
-    dma_process_completions(audio, dma_next_lli_index());
+    int process_rc = dma_process_completions(audio, dma_next_lli_index());
+    if (process_rc != HELIKON_OK) {
+        audio->stage = HELIKON_AUDIO_STAGE_CODEC_DATA;
+        return process_rc;
+    }
     audio->stage = HELIKON_AUDIO_STAGE_NONE;
 
     if (audio->paused) {
@@ -653,6 +709,9 @@ void helikon_audio_stream_stop(struct helikon_audio *audio)
     audio->peak_release = 0u;
     for (uint32_t index = 0u; index < HELIKON_AUDIO_PEAK_BARS; ++index)
         audio->peak_history[index] = 0u;
+    audio->stream_source = NULL;
+    audio->stream_source_context = NULL;
+    audio->stream_error = 0;
     audio->stage = HELIKON_AUDIO_STAGE_NONE;
 }
 

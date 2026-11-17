@@ -3,8 +3,9 @@
 > Purpose: define the test pyramid and the evidence each layer produces.
 > Status: living document
 > Owner: test lead
-> Last updated: 2026-11-06
-> Source: design paper §17, §24, §26, §28; `docs/verification.md`
+> Last updated: 2026-11-11
+> Source: design paper §17, §24, §26, §28; `docs/verification.md`;
+> [`disk-mode.md`](disk-mode.md)
 
 **Helikon-OS has a host test tree.** It covers the HFS+ read/write core, the
 read-only diagnostic bootloader core, the host firmware loader and the F1
@@ -332,12 +333,34 @@ Device tests require a recorded inventory and backup. Minimum matrix:
 - 100-cycle sleep/wake and resume;
 - playback, seek, next/previous, volume, line-out/headphone, charging;
 - USB read-only mount and log export;
+- Helikon Disk Mode enumeration, read-only mount, writable 1 GB host transfer,
+  safe eject, surprise unplug, journal replay and Apple Disk Mode fallback;
 - DFU install/uninstall and Apple recovery;
 - update/rollback and migration;
 - per-target 7G/port matrix before a support claim.
 
 Record the exact model/revision, adapter/card, firmware/bootloader hash, test,
 result and evidence in [`device-matrix.md`](device-matrix.md).
+
+### 6.1 Helikon Disk Mode and LBA48
+
+Disk Mode has a separate bring-up ladder because it adds USB and a host-owned
+write path. The canonical matrix is [`disk-mode.md`](disk-mode.md) §13.
+
+- Host unit/mock: SCSI parser, CBW/CSW, descriptors, LUN mapping, LBA48
+  encoding, malformed commands.
+- P0: read-only Apple Disk Mode evidence on macOS.
+- P1: read-only ATA/LBA48/APM probe on one 6G/iFlash SD.
+- P2: enumeration on macOS; 100 connect/disconnect cycles.
+- P3: read-only mount and file read.
+- P4: 1 GB host write + SHA-256 read-back + `fsck_hfs -fn`.
+- P5: LBA 2^28−1/2^28/2^28+1 and last LBA; >128 GiB volume or second partition.
+- P6: surprise unplug, journal replay, Apple Disk Mode fallback, Helikon boot
+  after host write.
+- P9: SCSI/BOT fuzz, 100 cycles, throughput and battery.
+
+No Disk Mode test may run on the only copy of the library. A verified backup is
+required before P4.
 
 ## 7. Power-loss tests
 

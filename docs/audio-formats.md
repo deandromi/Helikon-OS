@@ -607,9 +607,11 @@ superseded: Tier 2 is a hard v1.x parity requirement, not an optional study.
 
 ## 11. Functional four-codec player — next implementation plan
 
-> Status: first PCM/WAV path implemented (CS42L55 + I2S + DMA + bounded WAV
-> player + Now Playing). No compressed decoder and no storage-backed playback;
-> device run pending. The Alpha 2.0.0 Music images are storage-free UI demos.
+> Status: the PCM/WAV path is device-proven (four-buffer PL080 LLI ring, bounded
+> WAV player, pause/resume); the first compressed tranche (bounded codec
+> registry + native FLAC, 16-bit ring output) is merged and device-proven on
+> image `6a2328ae…`. No storage-backed playback, seek UI or MP3/ALAC/AAC yet.
+> The Alpha 2.0.0 Music images are storage-free UI demos.
 
 ### 11.1 First release scope
 

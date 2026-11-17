@@ -13,16 +13,21 @@
 #include <stdint.h>
 
 #include "audio.h"
+#include "codec.h"
 #include "wav.h"
 
 struct helikon_player {
     struct helikon_wav wav;
     struct helikon_audio audio;
+    struct helikon_codec codec;
+    uint8_t codec_workspace[HELIKON_CODEC_WORKSPACE_MAX]
+        __attribute__((aligned(8)));
     size_t offset;
     int last_error;
     uint32_t last_stage;
     int opened;
     int started;
+    int compressed;
 };
 
 int helikon_player_open(struct helikon_player *player, const uint8_t *data,

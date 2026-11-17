@@ -34,7 +34,7 @@ ARCH := -mcpu=arm926ej-s -marm -mno-thumb-interwork -mfloat-abi=soft
 CFLAGS := -std=c99 -O2 -g -ffreestanding -fno-builtin -nostdinc \
           -isystem $(GCC_INCLUDE) -DHELIKON_IMAGE_VERSION=$(VERSION) \
           -Ilib -Iboot -Iboard/$(BOARD) -Ihal/$(BOARD) -Iblock -Idiag -Ihfs \
-          -Iui -Idb -Iplayer \
+          -Iui -Idb -Iplayer -Icodec \
           -Wall -Wextra -Werror -Wconversion -Wshadow -Wundef \
           -Wpointer-arith -ffunction-sections -fdata-sections -fno-common \
           -fno-stack-protector -fno-unwind-tables \
@@ -50,8 +50,9 @@ LIB_SRC := lib/mem.c lib/string.c lib/crc32.c lib/sha256.c lib/ring.c \
 BOARD_SRC := board/$(BOARD)/board.c
 HAL_SRC := hal/$(BOARD)/cpu.c hal/$(BOARD)/clock.c hal/$(BOARD)/pmu.c \
            hal/$(BOARD)/backlight.c hal/$(BOARD)/lcd.c hal/$(BOARD)/ata.c \
-           hal/$(BOARD)/buttons.c
-BLOCK_SRC := block/block.c block/bounce.c block/partition.c
+           hal/$(BOARD)/buttons.c hal/$(BOARD)/vic.c
+BLOCK_SRC := block/block.c block/bounce.c block/partition.c \
+             block/ata_geometry.c
 DIAG_SRC := diag/stages.c diag/trace.c diag/crash.c diag/screen.c
 HFS_ADAPTER_SRC := hfs/hfs_block_adapter.c hfs/hfs_file.c
 HFS_SRC := hfs/hfs_volume.c hfs/hfs_btree.c hfs/hfs_catalog.c \
@@ -66,7 +67,9 @@ UI_SRC := $(if $(filter 1,$(UI)),ui/launcher.c ui/launcher_run.c \
           ui/launcher_assets.c ui/ui_text.c ui/font_atlas.c ui/music.c,)
 PLAYER_SRC :=
 ifneq ($(AUDIO),)
-PLAYER_SRC := player/player.c player/wav.c hal/$(BOARD)/audio.c
+PLAYER_SRC := player/player.c player/wav.c \
+              codec/codec.c codec/flac/flac_codec.c \
+              codec/flac/flac_decoder.c hal/$(BOARD)/audio.c
 endif
 LIBRARY_SRC := db/hdb.c
 

@@ -5,8 +5,9 @@
 > key) are still pending.
 > Status: Alpha 2.0.0 development release published; no stable or beta release.
 > Owner: release lead; project owner for signing/support decisions
-> Last updated: 2026-11-06
-> Source: design paper §16, §18, §28.2.5, §28.4.3; `docs/validation.md`
+> Last updated: 2026-11-11
+> Source: design paper §16, §18, §28.2.5, §28.4.3; `docs/validation.md`;
+> `docs/disk-mode.md`
 
 **Alpha 2.0.0 “Launchers and Interfaces”** is published as a normal GitHub
 release at tag `alpha-2.0.0`
@@ -111,8 +112,10 @@ Design flow; none implemented.
 5. The firmware commits a boot-state record through the transaction engine.
 6. On failure, the old image remains bootable; recovery offers rollback/DFU.
 
-No writable USB mass-storage LUN. No host write that bypasses the transaction
-engine. No update on a dirty/damaged volume.
+No writable USB mass-storage LUN in the normal firmware profile. Helikon Disk
+Mode is the only exception: the host owns the volume, the firmware does not mount
+HFS+, and the loader still verifies every staged image. No silent install and no
+update on a dirty/damaged volume. See [disk-mode.md](disk-mode.md) and D-54.
 
 ## 4. Boot state and rollback
 
