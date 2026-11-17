@@ -5,7 +5,7 @@
 > Status: living document; Tier plan plus a first 16-bit PCM/WAV playback
 > path; no compressed decoder and no device run.
 > Owner: audio lead; firmware lead
-> Last updated: 2026-11-07
+> Last updated: 2026-11-17
 > Source: Rockbox iPod Classic manual `0d5c2b0604-261105`, Appendix B.1–B.2
 > and §4.3.3, §7.21–§7.22, §13.5.8; Rockbox codec performance page, iPod
 > Classic run `b320bba`, 2014-12-12; Apple iPod classic technical
@@ -696,3 +696,115 @@ HE-AAC v1/v2, native >48 kHz output, 24-bit output before T-098, native DSD,
 multichannel downmix, gapless across all formats, ReplayGain/EQ and transactional
 resume. Gapless and resume are hardening gates, not prerequisites for first
 sound.
+
+---
+
+## 12. Codec-framework research and licence evidence (2026-11-17)
+
+Device-free research for the T-097 framework work and the first decoder ports.
+Three passes (Rockbox codec-framework internals, decoder selection deep-dive,
+Helikon integration plan) plus direct reads of licence headers were pinned to
+the official Rockbox GitHub mirror at commit
+`97986f2cdaec1585856d708966858c56f5dedc6b` (master, 2026-11-17). Layout note
+for anyone following Helikon docs that cite the classic tree: codec, DSP and
+metadata sources now live under `lib/rbcodec/` (`codecs/`, `dsp/`,
+`metadata/`); the loader and playback orchestration stayed in `apps/`
+(`codecs.c`, `codec_thread.c`, `playback.c`, `pcmbuf.c`, `buffering.c`).
+
+### 12.1 Licences of the Rockbox bundled libraries (headers read at the pinned commit)
+
+| Library | Upstream identity | Licence | Helikon-OS verdict |
+|---|---|---|---|
+| libmad | libmad-0.15.1b (2004-02-17), Underbit Technologies | GPL-2.0-or-later | Clean for MP3; MP3 patents expired (2017, US) |
+| libalac | reverse-engineered decoder v0.1.0, David Hammerton 2005 | MIT-style permission notice | Clean for ALAC; preserve the notice. Preferred over Apple's 2011 Apache-2.0 reference decoder, which would force GPL-3 for the combined work |
+| libm4a | `demux.c` Hammerton 2005 (MIT-style); `m4a.c/.h` Dave Chapman 2005 (GPL-2.0-or-later) | MIT + GPL-2+ | Clean shared MP4 demuxer for ALAC and AAC-LC |
+| libfaad | FAAD2 CVS snapshot 2005-02-02, M. Bakker / Ahead Software AG | GPL-2.0-or-later plus an Ahead-only commercial non-GPL clause in `COPYING` | Licence-compatible; Rockbox's `README.rockbox` pins this snapshot because a "non GPL compatible clause" was added in that same 2005-02-02 CVS commit and later versions are unusable. Pin the snapshot; never take later FAAD2. The SBR/PS (`sbr_*`) and DRM files separate cleanly, enabling the LC-only crop. The Via Licensing AAC patent pool remains the D-49 release gate |
+| wrapper codecs (`mpa.c`, `alac.c`, `aac.c`) | Dave Chapman 2005 | GPL-2.0-or-later | Reference material; Helikon writes its own wrappers around its own codec API |
+| codec shared glue (`lib/codeclib.*`) | Dave Chapman 2005 et al. | GPL-2.0-or-later | Pattern reference only |
+| `ffmpeg_bitstream.c`, `ffmpeg_get_bits.h` | FFmpeg (Bellard 2000-01, Niedermayer 2002-04, Merritt 2010) | LGPL-2.1-or-later | Usable via the LGPL→GPL route; record provenance as LGPL-derived if copied |
+| metadata parsers (`mp4.c` Holmgren 2005; `mp3.c` Stenberg 2002) | Rockbox | GPL-2.0-or-later | Second opinions for container sniffing; Helikon probes by header first |
+| libtremor, libopus | Xiph.org | BSD-style | Clean for the later Tier 1 ports |
+
+Any port records the upstream commit, import date and file list per D-49, and
+keeps a Rockbox-style `README` import note (import date, source version,
+modifications) in each ported directory.
+
+### 12.2 Framework contracts Rockbox proves (adopt)
+
+1. The `codec_api` streaming vocabulary — bounded `request_buffer`/`advance_buffer`
+   over a readable stream, `seek_buffer`/`seek_complete`, `set_elapsed`/
+   `set_offset`, and a `get_command` yield point inside the decode loop — is a
+   field-proven match for Helikon's planned `helikon_codec_source` read/seek
+   callbacks and `IDLE→…→SEEKING` state machine. Seek stays a codec-owned
+   time→offset translation (Xing/LAME TOC for VBR, byte math for CBR, frame
+   index for FLAC) over player-owned transport.
+2. Per-chunk PCM ring descriptors (`struct chunkdesc`: size, elapsed, offset
+   riding with the audio) put the playback clock at the DMA consumer. Helikon's
+   four-buffer PL080 ring can carry the same metadata without new hardware.
+3. The DSP control surface is minimal and sufficient: set frequency, sample
+   depth (fractional bits), stereo mode, replay gain; flush at every
+   discontinuity. Helikon's `source_bits`/`output_bits` descriptor fields map
+   onto it, including the TPDF-dither-to-16 policy Rockbox uses at output.
+4. Storage reads are bounded and chunked (32 KiB) on a separate context with a
+   watermark (buffer margin + spinup + 5 s wording for spinning storage); the
+   decode loop never spins — it sleeps ~50 ms on a full PCM ring.
+5. Host/device parity: IRAM and cache attributes vanish under a host build
+   define, which is what makes Rockbox's host codec tests possible; Helikon
+   should give its per-codec sections the same compile-time neutrality.
+
+### 12.3 Mechanisms Helikon-OS replaces (do not copy)
+
+1. No on-device code loading. Rockbox loads `.codec` images from
+   `/.rockbox/codecs` into a 512 KiB code region; the signed-image invariant
+   (I-14) forbids this. Codecs are statically linked into the image behind the
+   registry; only the reuse behavior (same-family decoder stays resident)
+   carries over.
+2. No shrinkable whole-DRAM buffer. Rockbox wagers ~60 MiB on one movable
+   audiobuf and shrinks it under pressure by stopping playback; Helikon's
+   ADR-0003 fixed 24 MiB audio region prefers explicit `BUFFER_FULL`/
+   `NO_SPACE` outcomes, a miniature pinned ring of handles, and stop/re-map/
+   resume instead of live shrink.
+3. No `malloc` facade. Rockbox's `codeclib` redefines `malloc`/`free` as a bump
+   arena over the codec-buffer tail (its `codec_free` is a no-op). Helikon's
+   per-codec static workspace stays; upstream libraries get pre-wired static
+   structures (the libmad pattern in `mpa.c`, `FAAD_STATIC_ALLOC` in libfaad)
+   or a workspace bump arena, all inside the declared budget.
+4. No three-thread pipeline under the cooperative runtime. The
+   buffering/codec/audio split transfers as function boundaries; execution
+   becomes ISR top-halves plus deferred work in the main loop.
+5. No extension-only probing and no 1800/500-byte tag caps; Helikon's header
+   probe stays, and tag coverage follows the host index (§5.5).
+6. Metadata parsing never shares a stack or buffer with decode; in Helikon it
+   runs deferred, published by a generation-tagged pointer swap.
+
+### 12.4 Size accounting and the workspace cap
+
+Verified Rockbox 6G numbers: `CODEC_SIZE` 512 KiB, codec IRAM window 80 KiB
+(top of IRAM0; IRAM1 unused as slower than DRAM), codec thread stack 9 KiB,
+pcmbuf ~529 KiB (3 s at 44.1 kHz s16 stereo, watermark 2 s), metadata pools
+1800/500 bytes, clocks 54/216 MHz.
+
+| Codec | Estimated Helikon workspace | Note |
+|---|---|---|
+| FLAC (native, done) | 65,608 B | measured in the host test |
+| MP3 / libmad | small (tens of KiB) | cost is code size plus IRAM-resident state (overlap 4.6 KiB, sbsample 9.2 KiB, main data, 8 KiB stream buffer in Rockbox) |
+| ALAC / libalac | ~48 KiB plus a 32 KiB IRAM candidate (`outputbuffer[2][4096]`) | the interleaved s32 output buffer dominates; moving it to the codec fast section keeps DRAM workspace comfortably inside 128 KiB |
+| AAC-LC / libfaad crop | likely 256–400 KiB — UNVERIFIED, measure | first codec to collide with the 128 KiB `HELIKON_CODEC_WORKSPACE_MAX` |
+
+Rule until T-096/T-101 produce numbers: every descriptor carries a **measured**
+`workspace_bytes` and `stack_bytes`; keep `HELIKON_CODEC_WORKSPACE_MAX` at
+128 KiB for the MP3 and ALAC ports; if the measured AAC-LC workspace exceeds
+128 KiB, raise the cap by a dated amendment inside the 512 KiB
+`CODEC_SIZE` envelope and record it as an open question resolved by
+measurement — do not reserve the envelope up front.
+
+### 12.5 Port order and rejected candidates
+
+The order stays as §11.3: after WAV and the native FLAC — **MP3 (libmad) →
+ALAC (libalac + libm4a) → AAC-LC (libfaad LC crop)**. MP3 is the most common
+format, the licence is the cleanest and the patents are expired; ALAC adds the
+shared MP4 demuxer that AAC later reuses; AAC-LC lands last because of the
+D-49 patent gate, not licence incompatibility. Candidates rejected by the
+research passes: minimp3 and dr_mp3 (float DSP), Helix MP3 (Real RPSL),
+fdk-aac (non-standard licence, C++), and Apple's Apache-2.0 ALAC reference
+decoder (GPL-3 forcing). HE-AAC v1/v2 stays out of the first player per §11.5.

@@ -3,7 +3,7 @@
 > Purpose: what to do next, with dependencies and acceptance criteria.
 > Status: living document
 > Owner: project owner; task owners as listed
-> Last updated: 2026-11-11
+> Last updated: 2026-11-17
 > Source: design paper §23–§28, `docs/state.md`,
 > [`competitive-roadmap.md`](competitive-roadmap.md), Rockbox iPod Classic
 > manual `0d5c2b0604-261105`, [`disk-mode.md`](disk-mode.md)
@@ -43,6 +43,18 @@ on 2026-11-17 (D-08, D-13, D-14 and D-47 excepted), so the decision gates in
 the H1 rows are satisfied and H1 tasks can become release gates when their
 implementation and evidence land; H2 and H3 tasks remain v1.x/v2. The status of
 every row is `planned`.
+
+**Cleanup and decision batch, 2026-11-17.** The owner ordered the branching
+cleanup and accepted all proposed decisions. PRs #27–#30 squash-merged the
+branch backlog into `main` (LBA48/APM probe code, VIC/IRQ entry path, loader
+live-sector-size reads with a dirty-journal read-only guard, the cleaned Music
+flow with a device-blocked ~20 s Artist-open stall, and the F2 ATA
+SRST/iFlash/handoff chain); only `main` exists locally and on GitHub, and a
+pre-cleanup bundle is at `Helikon-OS-pre-cleanup-2026-11-05.bundle`. PR #31
+records the accepted D-29–D-52 batch (D-08, D-13, D-14 and D-47 excepted).
+[`audio-formats.md`](audio-formats.md) §12 records the codec-framework and
+licence research. T-109 still needs its probe device run. F2/T-055 remains
+blocked; PR #30 improved the F2 ATA path without unblocking it.
 
 **Alpha 2.0.0 release, 2026-11-06.** `alpha-2.0.0` publishes the loader, the
 launcher/Music-hub firmware sets and a universal companion DMG as a development
