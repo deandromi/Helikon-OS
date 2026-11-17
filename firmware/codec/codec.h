@@ -16,6 +16,12 @@
 /* The accepted codec workspace budget; FLAC uses well under this. */
 #define HELIKON_CODEC_WORKSPACE_MAX (128u * 1024u)
 
+/* Descriptor capability flags (per family, from the opening header). */
+#define HELIKON_CODEC_CAP_SEEK    0x00000001u
+#define HELIKON_CODEC_CAP_GAPLESS 0x00000002u
+#define HELIKON_CODEC_CAP_RESUME  0x00000004u
+
+/* Per-file information flags. */
 #define HELIKON_CODEC_FLAG_SEEK 0x00000001u
 
 struct helikon_codec_info {
@@ -32,8 +38,22 @@ struct helikon_codec_info {
 
 struct helikon_codec;
 
+/*
+ * A decoder is a static descriptor. The probe decides by header, never by
+ * file name: `extensions` is an informational NULL-terminated lowercase
+ * list used by the library browser only. `capabilities` reports the
+ * family-wide contract; a caller still receives a specific error from a
+ * seek that a particular file cannot serve. `stack_bytes` is the measured
+ * or bounded worst-case decode path stack; `min_clock_hz` and
+ * `recommended_clock_hz` are the CPU-clock gates from the framework plan.
+ */
 struct helikon_codec_ops {
     const char *name;
+    const char *const *extensions;
+    uint32_t capabilities;
+    uint32_t stack_bytes;
+    uint32_t min_clock_hz;
+    uint32_t recommended_clock_hz;
     int (*probe)(const uint8_t *data, size_t size,
                  struct helikon_codec_info *info);
     int (*open)(struct helikon_codec *codec, void *workspace,
@@ -75,3 +95,14 @@ extern const struct helikon_codec_ops helikon_wav_codec_ops;
 extern const struct helikon_codec_ops helikon_flac_codec_ops;
 
 #endif
+
+/* Descriptor extensions helpers: registry and browser queries. */
+
+/* Returns 1 if the descriptor's `extensions` list contains `path`'s
+ * extension (case-insensitive, after the final dot). */
+int helikon_codec_matches_extension(const struct helikon_codec_ops *ops,
+                                    const char *path);
+
+/* Walks the registry; returns the count or fills up to `ops` entries. */
+unsigned int helikon_codec_registry(const struct helikon_codec_ops **ops,
+                                    unsigned int max_ops);

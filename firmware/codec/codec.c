@@ -7,6 +7,7 @@
 
 #include "error.h"
 #include "mem.h"
+#include "mp3/mp3.h"
 #include "wav.h"
 
 struct wav_state {
@@ -116,8 +117,15 @@ static void wav_close(struct helikon_codec *codec)
         codec->state = NULL;
 }
 
+static const char *const wav_extensions[] = { "wav", NULL };
+
 const struct helikon_codec_ops helikon_wav_codec_ops = {
     .name = "wav",
+    .extensions = wav_extensions,
+    .capabilities = HELIKON_CODEC_CAP_SEEK,
+    .stack_bytes = 2048u,
+    .min_clock_hz = 54000000u,
+    .recommended_clock_hz = 216000000u,
     .probe = wav_probe,
     .open = wav_open,
     .read = wav_read,
@@ -128,13 +136,63 @@ const struct helikon_codec_ops helikon_wav_codec_ops = {
 static const struct helikon_codec_ops *const codec_registry[] = {
     &helikon_wav_codec_ops,
     &helikon_flac_codec_ops,
+    &helikon_mp3_codec_ops,
 };
+
+int helikon_codec_matches_extension(const struct helikon_codec_ops *ops,
+                                    const char *path)
+{
+    if (ops == NULL || ops->extensions == NULL || path == NULL)
+        return 0;
+    int have_dot = 0;
+    const char *dot = path;
+    for (; *path != '\0'; ++path) {
+        if (*path == '.') {
+            dot = path + 1;
+            have_dot = 1;
+        }
+    }
+    if (!have_dot)
+        return 0;
+    for (const char *const *ext = ops->extensions; *ext != NULL; ++ext) {
+        const char *candidate = *ext;
+        const char *remaining = dot;
+        while (*candidate != '\0' && *remaining != '\0') {
+            char left = *candidate;
+            if (left >= 'A' && left <= 'Z')
+                left = (char)(left - 'A' + 'a');
+            char right = *remaining;
+            if (right >= 'A' && right <= 'Z')
+                right = (char)(right - 'A' + 'a');
+            if (left != right)
+                break;
+            ++candidate;
+            ++remaining;
+        }
+        if (*candidate == '\0' && *remaining == '\0')
+            return 1;
+    }
+    return 0;
+}
+
+unsigned int helikon_codec_registry(const struct helikon_codec_ops **ops,
+                                    unsigned int max_ops)
+{
+    const size_t count =
+        sizeof(codec_registry) / sizeof(codec_registry[0]);
+    if (ops != NULL) {
+        for (size_t index = 0;
+             index < count && (unsigned int)index < max_ops; ++index)
+            ops[index] = codec_registry[index];
+    }
+    return (unsigned int)count;
+}
 
 int helikon_codec_probe(const uint8_t *data, size_t size,
                         const struct helikon_codec_ops **ops,
                         struct helikon_codec_info *info)
 {
-    if (data == NULL || ops == NULL || info == NULL)
+    if (data == NULL || ops == NULL || info == NULL || size == 0u)
         return HELIKON_ERR_ARGUMENT;
 
     for (size_t index = 0u;
