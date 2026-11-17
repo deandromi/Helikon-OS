@@ -100,9 +100,10 @@ editing, settings rollback and others) are in
 ## Horizon lanes (across the phase gates, not a second schedule)
 
 These lanes run across phases 0–12. They do **not** renumber the phases, do not
-authorize device work ahead of the writer gate and are not v1 commitments until
-the owner accepts D-29 and the relevant decision. H4 is continuous; H1–H3 start
-only after the dependency named in the row. Tasks are in
+authorize device work ahead of the writer gate and are not v1 commitments; the
+owner accepted D-29–D-52 on 2026-11-17 (D-08/D-13/D-14/D-47 excepted), so the
+H1 gates are settled and H1–H3 start only after the dependency named in the
+row. H4 is continuous. Tasks are in
 [`tasks.md`](tasks.md).
 
 | Lane | Scope | Starts after | Tasks | Exit criterion |
@@ -172,8 +173,8 @@ The gate in [`competitive-roadmap.md`](competitive-roadmap.md) §8.1 is:
 12. a non-coder completes install, play, update and restore with the checklist.
 
 If any of these fails, v1 is not a Rockbox alternative regardless of the feature
-count. The threshold is proposed under D-29 and is not a release gate until the
-owner accepts it.
+count. The threshold is accepted under D-29 (2026-11-17) and is a v1 release
+gate.
 
 ## Differentiation bets
 
@@ -263,7 +264,7 @@ rollback method is not ready.
   defines the measured ceiling and resampling policy.
 - No “better than Rockbox” claim until the differential evidence exists in
   [`validation.md`](validation.md) or [`device-matrix.md`](device-matrix.md).
-- No v1.x date for the horizon lanes; D-30–D-51 are proposed.
+- No v1.x date for the horizon lanes; D-30–D-51 are accepted (2026-11-17).
 
 ## Related
 

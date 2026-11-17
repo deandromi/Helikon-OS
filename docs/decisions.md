@@ -3,7 +3,7 @@
 > Purpose: why the design is what it is, and what is still undecided.
 > Status: living document
 > Owner: project owner
-> Last updated: 2026-11-11
+> Last updated: 2026-11-17
 > Source: design paper §18, §25, §28; Helikon-OS README; Rockbox iPod
 > Classic manual `0d5c2b0604-261105`; [`competitive-roadmap.md`](competitive-roadmap.md);
 > [`audio-formats.md`](audio-formats.md); [`disk-mode.md`](disk-mode.md)
@@ -37,18 +37,18 @@ re-litigate them.
 | D-02 | Boot state and fallback | accepted | owner | §25.2, §5.3 |
 | D-03 | Journal strategy | accepted | owner | §25.3, §9.3 |
 | D-04 | Journal ownership | accepted | owner | §25.4, §9.3 |
-| D-05 | B-tree cache and transaction limits | proposed | owner | §25.5, §19.2 |
+| D-05 | B-tree cache and transaction limits | accepted | owner | §25.5, §19.2 |
 | D-06 | Unicode policy | accepted | owner | §25.6, §10.4 |
 | D-07 | Database location | accepted | owner | §25.7, §12.2; [helikondb.md](helikondb.md) |
 | D-08 | App/game runtime | proposed | owner | §25.8, §28.3.9–10 |
-| D-09 | Desktop app transport | proposed | owner | §25.9, §28.4.2 |
-| D-10 | Skin compatibility scope | proposed | owner | §25.10, §28.3.4 |
-| D-11 | Anti-corruption scope | proposed | owner | §25.11, §28.2.2 |
-| D-12 | Battery target | proposed | owner | §25.12, §28.3.1 |
+| D-09 | Desktop app transport | accepted | owner | §25.9, §28.4.2 |
+| D-10 | Skin compatibility scope | accepted | owner | §25.10, §28.3.4 |
+| D-11 | Anti-corruption scope | accepted | owner | §25.11, §28.2.2 |
+| D-12 | Battery target | accepted | owner | §25.12, §28.3.1 |
 | D-13 | 7G and port scope | proposed | owner | §25.13, §28.4.5 |
 | D-14 | Car protocol | proposed | owner | §25.14, §28.3.7 |
-| D-15 | Theme format | proposed | owner | §25.15, §14.2 |
-| D-16 | Update transport | proposed | owner | §25.16, §16.2 |
+| D-15 | Theme format | accepted | owner | §25.15, §14.2 |
+| D-16 | Update transport | accepted | owner | §25.16, §16.2 |
 | D-17 | Product identity | accepted | owner | §25.17, Appendix D |
 | D-18 | Licensing | accepted | owner/legal | §18, §28.4.4 |
 | D-19 | Code of conduct | rejected | owner | §18, §28.4.4 |
@@ -61,30 +61,30 @@ re-litigate them.
 | D-26 | Bootloader recovery/OF selection | accepted | owner | §5, §16, §21 |
 | D-27 | Firmware memory map and image layout | accepted | owner | §19.2, §27; ADR-0003 |
 | D-28 | Firmware entry ABI and boot information | accepted | owner | §5.3, §16; ADR-0004 |
-| D-29 | Competitive parity and differentiation policy | proposed | owner | §23, §28.4.6; competitive roadmap |
-| D-30 | Install, dual boot and uninstall model | proposed | owner | §26.7, §28.4.3; D-26 |
-| D-31 | Update and recovery model | proposed | owner | §16, §28.2.5; D-01, D-02 |
-| D-32 | Filesystem object semantics | proposed | owner | §10.3–§10.4; D-06 |
+| D-29 | Competitive parity and differentiation policy | accepted | owner | §23, §28.4.6; competitive roadmap |
+| D-30 | Install, dual boot and uninstall model | accepted | owner | §26.7, §28.4.3; D-26 |
+| D-31 | Update and recovery model | accepted | owner | §16, §28.2.5; D-01, D-02 |
+| D-32 | Filesystem object semantics | accepted | owner | §10.3–§10.4; D-06 |
 | D-33 | Library index architecture | accepted | owner | §12, §28.4.1; D-07; [helikondb.md](helikondb.md) |
-| D-34 | Codec and container tiers | proposed | owner | §13, Appendix B of the Rockbox manual |
-| D-35 | Sound-processing scope | proposed | owner | §6, §13; goal 16 |
-| D-36 | Theme package and trust model | proposed | owner | §14, §28.3.4; D-10, D-15 |
-| D-37 | Accessibility and localization | proposed | owner | §14, §28.3.3; goal 2 |
-| D-38 | USB profile and service mode | proposed | owner | §16.2, §28.4.2; D-09 |
-| D-39 | Anti-corruption algorithm and coverage | proposed | owner | §9.4, §28.2.2; D-11 |
-| D-40 | Performance budgets and measurement | proposed | owner | §19.2, §24, §28.6 |
-| D-41 | Power and thermal policy | proposed | owner | §19, §28.3.1; D-12 |
-| D-42 | Adapter compatibility policy | proposed | owner | §7, §28.2.4; goal 6 |
-| D-43 | Podcast and audiobook model | proposed | owner | §28.3.6; goal 19 |
-| D-44 | App/game runtime and package format | proposed | owner | §25.8, §28.3.9–10; D-08 |
-| D-45 | Migration and coexistence | proposed | owner | §22, §28.4.3; goal 10 |
-| D-46 | Release, support and governance | proposed | owner | §18, §28.4.4; D-18, D-20 |
+| D-34 | Codec and container tiers | accepted | owner | §13, Appendix B of the Rockbox manual |
+| D-35 | Sound-processing scope | accepted | owner | §6, §13; goal 16 |
+| D-36 | Theme package and trust model | accepted | owner | §14, §28.3.4; D-10, D-15 |
+| D-37 | Accessibility and localization | accepted | owner | §14, §28.3.3; goal 2 |
+| D-38 | USB profile and service mode | accepted | owner | §16.2, §28.4.2; D-09 |
+| D-39 | Anti-corruption algorithm and coverage | accepted | owner | §9.4, §28.2.2; D-11 |
+| D-40 | Performance budgets and measurement | accepted | owner | §19.2, §24, §28.6 |
+| D-41 | Power and thermal policy | accepted | owner | §19, §28.3.1; D-12 |
+| D-42 | Adapter compatibility policy | accepted | owner | §7, §28.2.4; goal 6 |
+| D-43 | Podcast and audiobook model | accepted | owner | §28.3.6; goal 19 |
+| D-44 | App/game runtime and package format | accepted | owner | §25.8, §28.3.9–10; D-08 |
+| D-45 | Migration and coexistence | accepted | owner | §22, §28.4.3; goal 10 |
+| D-46 | Release, support and governance | accepted | owner | §18, §28.4.4; D-18, D-20 |
 | D-47 | Porting contract and hardware matrix | proposed | owner | §28.4.5; D-13 |
-| D-48 | Privacy, telemetry and network policy | proposed | owner | §19.3, §28.3.9 |
-| D-49 | Decoder provenance and licensing | proposed | owner | §13, §18; audio-formats |
-| D-50 | Audio output ceiling and resampling | proposed | owner | §13, §28.3.8; audio-formats |
-| D-51 | Audio metadata, artwork and gapless policy | proposed | owner | §9.4, §28.3.8; D-06; audio-formats |
-| D-52 | Display face for home-screen headers (ITC Benguiat) | proposed | owner | §14, §28.3.4; D-23 |
+| D-48 | Privacy, telemetry and network policy | accepted | owner | §19.3, §28.3.9 |
+| D-49 | Decoder provenance and licensing | accepted | owner | §13, §18; audio-formats |
+| D-50 | Audio output ceiling and resampling | accepted | owner | §13, §28.3.8; audio-formats |
+| D-51 | Audio metadata, artwork and gapless policy | accepted | owner | §9.4, §28.3.8; D-06; audio-formats |
+| D-52 | Display face for home-screen headers (ITC Benguiat) | accepted | owner | §14, §28.3.4; D-23 |
 | D-53 | Music catalog ownership (native HelikonDB, no iTunesDB) | accepted | owner | §12, §28.4.1; D-07, D-33; [helikondb.md](helikondb.md) |
 | D-54 | Helikon Disk Mode and the writable LUN | accepted | owner | §16.2, §28.4.2; D-09, D-38; [ADR-0005](adr/0005-helikon-disk-mode.md) |
 
@@ -97,12 +97,12 @@ inner-image write diagnostic; D-25 records the separate outer-volume diagnostic
 and its backup gate. D-27/D-28 record the firmware memory map and entry ABI.
 See C-08.
 
-**D-29–D-52 are proposed, not accepted.** They were added on 2026-11-05 as the
-decision layer for the Rockbox competitive review in
+**D-29–D-52 were accepted by the owner on 2026-11-17** (D-47 remains
+`proposed`) as the decision layer for the Rockbox competitive review in
 [`competitive-roadmap.md`](competitive-roadmap.md) and the audio-format review
 in [`audio-formats.md`](audio-formats.md). They do not change D-01–D-28, the 25
-README goals, the phase gates or any implementation status. Only the owner can
-accept, reject or narrow one of them.
+README goals, the phase gates or any implementation status. D-08, D-13 and D-14
+remain open; D-17 is accepted with the name clearance itself still open.
 
 ## D-01 — Boot image verification
 
@@ -196,7 +196,8 @@ accept, reject or narrow one of them.
 
 ## D-05 — B-tree cache and transaction limits
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.5, §19.2.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §25.5, §19.2.
+- **Accepted (2026-11-17):** D-05 accepted (2026-11-17): fixed static budgets inside the paper’s 2–4 MiB write-engine target until a device measurement exists; every cache keeps a maximum, hit/miss counters and an eviction policy, and a transaction that cannot fit fails with `NO_SPACE` before changing anything.
 - **Context:** the writer needs a B-tree node cache, a name cache and a dirty-set
   budget inside 64 MiB without starving audio/UI.
 - **Options:** fixed static budgets; high/low watermarks; one cache per volume;
@@ -279,7 +280,8 @@ accept, reject or narrow one of them.
 
 ## D-09 — Desktop app transport
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.9, §28.4.2.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §25.9, §28.4.2.
+- **Accepted (2026-11-17):** D-09 option (a) accepted (2026-11-17): macOS Disk Mode staging is the first path; option (b) remains the cross-platform service-mode path; option (c) stays rejected outside the explicit, exclusive Helikon Disk Mode (D-54).
 - **Context:** macOS can write HFS+ in Disk Mode. Windows/Linux cannot reliably
   write HFS+ without a bundled driver. A Helikon-OS USB service mode could expose
   framed file operations through the device's own VFS/transaction engine.
@@ -299,7 +301,8 @@ accept, reject or narrow one of them.
 
 ## D-10 — Skin compatibility scope
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.10, §28.3.4.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §25.10, §28.3.4.
+- **Accepted (2026-11-17):** D-10 option (b) accepted (2026-11-17): a documented WPS subset with a 20-skin corpus, visible unsupported-tag placeholders and hard caps; full compatibility is not promised.
 - **Context:** the README asks for Rockbox skins. A full WPS engine is large and
   the assets have varied licences. The paper proposes a documented subset.
 - **Options:** (a) full WPS engine and bundled themes; (b) documented subset with
@@ -313,7 +316,8 @@ accept, reject or narrow one of them.
 
 ## D-11 — Anti-corruption scope
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.11, §28.2.2.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §25.11, §28.2.2.
+- **Accepted (2026-11-17):** D-11 accepted (2026-11-17): sidecar checksums, verify-on-open for critical files, a charging/idle scrub and quarantine, with no self-healing claim; algorithm and coverage are fixed by D-39.
 - **Context:** HFS+ journals metadata but does not checksum file data. The README
   asks for active anti-corruption.
 - **Options:** checksum sidecar (SHA-256 or BLAKE3), covered file classes,
@@ -328,7 +332,8 @@ accept, reject or narrow one of them.
 
 ## D-12 — Battery target
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.12, §28.3.1.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §25.12, §28.3.1.
+- **Accepted (2026-11-17):** D-12 accepted (2026-11-17): the “at least 10% over Rockbox” goal stays a measurement goal, not a promise; the baseline and rig must exist (T-079/T-101) before any release-note claim.
 - **Context:** the README asks for improved battery life over Rockbox. That is a
   comparative measurement, not a design slogan.
 - **Options:** exact percentage target (the paper uses "at least 10%" as an
@@ -370,7 +375,8 @@ accept, reject or narrow one of them.
 
 ## D-15 — Theme format
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.15, §14.2.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §25.15, §14.2.
+- **Accepted (2026-11-17):** D-15 accepted (2026-11-17): the native theme format stays deferred; D-36 is the package-format authority, and the WPS subset is a compatibility path, never the native engine.
 - **Context:** the new UI needs one theme format for colours, fonts, spacing and
   backgrounds. The Rockbox WPS subset is a compatibility path, not the design
   centre.
@@ -384,7 +390,8 @@ accept, reject or narrow one of them.
 
 ## D-16 — Update transport
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-03. **Paper:** §25.16, §16.2.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §25.16, §16.2.
+- **Accepted (2026-11-17):** D-16 option (a) accepted (2026-11-17): stage under `/.helikon/update/` through the read-only USB profile (or Helikon Disk Mode per D-54), verified by the bootloader; bootloader changes remain DFU-only.
 - **Context:** firmware can be staged as native files under `/.helikon/update/`
   over USB read-only + macOS, or installed only through DFU.
 - **Options:** (a) USB read-only + macOS staging, then bootloader verification;
@@ -670,7 +677,7 @@ accept, reject or narrow one of them.
 
 ## D-29 — Competitive parity and differentiation policy
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §23, §28.4.6; [`competitive-roadmap.md`](competitive-roadmap.md).
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §23, §28.4.6; [`competitive-roadmap.md`](competitive-roadmap.md).
 - **Context:** the owner wants Helikon-OS to be a strong alternative to Rockbox
   in every aspect and better in several. Rockbox has a much larger codec,
   plugin, theme and device catalogue. “Every aspect” is unbounded unless it is
@@ -693,7 +700,7 @@ accept, reject or narrow one of them.
 
 ## D-30 — Install, dual boot and uninstall model
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §26.7, §28.4.3; D-26; [`competitive-roadmap.md`](competitive-roadmap.md) §5.1.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §26.7, §28.4.3; D-26; [`competitive-roadmap.md`](competitive-roadmap.md) §5.1.
 - **Context:** Rockbox on the Classic requires FAT32; HFS+ iPods are unsupported
   and the manual links a conversion guide. Rockbox installation uses Rockbox
   Utility or a manual `mks5lboot` DFU flow and needs administrator/root for the
@@ -720,7 +727,7 @@ accept, reject or narrow one of them.
 
 ## D-31 — Update and recovery model
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §16, §28.2.5; D-01, D-02; [`competitive-roadmap.md`](competitive-roadmap.md) §5.1.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §16, §28.2.5; D-01, D-02; [`competitive-roadmap.md`](competitive-roadmap.md) §5.1.
 - **Context:** Rockbox updates by unzipping a build over the existing install;
   ROLO can load another `.ipod` file. No signature is documented. Helikon-OS has
   a signed manifest and a single-image fail-closed bootstate (D-01/D-02), but no
@@ -745,7 +752,7 @@ accept, reject or narrow one of them.
 
 ## D-32 — Filesystem object semantics
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §10.3–§10.4; D-06, B-02.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §10.3–§10.4; D-06, B-02.
 - **Context:** HFS+ can contain regular files, folders, symlinks, hard links,
   resource forks, extended attributes and macOS private metadata. Rockbox on the
   Classic is FAT32 and does not expose these HFS+ objects. A Helikon-OS VFS that
@@ -794,7 +801,7 @@ accept, reject or narrow one of them.
 
 ## D-34 — Codec and container tiers
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §13, §28.3.8; Rockbox manual Appendix B; [`audio-formats.md`](audio-formats.md).
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §13, §28.3.8; Rockbox manual Appendix B; [`audio-formats.md`](audio-formats.md).
 - **Context:** Rockbox documents 36 audio format families for the iPod Classic
   in Appendix B.1 and Opus elsewhere in the manual, for 37 total. The owner
   requires Helikon-OS to support at least all of them, and more only where the
@@ -829,7 +836,7 @@ accept, reject or narrow one of them.
 
 ## D-35 — Sound-processing scope
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §13, §28.3.8; Rockbox manual §6.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §13, §28.3.8; Rockbox manual §6.
 - **Context:** Rockbox has a parametric EQ, crossfeed, dither, timestretch, Haas
   surround, perceptual bass, auditory-fatigue reduction and a compressor. All of
   them cost CPU, battery and test time; some are subtle and easy to get wrong.
@@ -850,7 +857,7 @@ accept, reject or narrow one of them.
 
 ## D-36 — Theme package and trust model
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §14, §28.3.4; D-10, D-15.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §14, §28.3.4; D-10, D-15.
 - **Context:** Rockbox themes are text files with assets and fonts; a theme can
   change visual settings and load many images. Helikon-OS needs a native theme
   format and a Rockbox WPS subset, but must not import arbitrary behaviour or
@@ -871,7 +878,7 @@ accept, reject or narrow one of them.
 
 ## D-37 — Accessibility and localization
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §14, §28.3.3; goal 2; Rockbox manual §8.10–§8.11.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §14, §28.3.3; goal 2; Rockbox manual §8.10–§8.11.
 - **Context:** Rockbox has voice menus, talk clips, language files and a
   blind-users FAQ reference. Helikon-OS has a typography scale but no voice,
   large-text, high-contrast or localization pipeline. Accessibility is part of
@@ -891,7 +898,7 @@ accept, reject or narrow one of them.
 
 ## D-38 — USB profile and service mode
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §16.2, §28.4.2; D-09; [`competitive-roadmap.md`](competitive-roadmap.md) §5.6.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §16.2, §28.4.2; D-09; [`competitive-roadmap.md`](competitive-roadmap.md) §5.6.
 - **Context:** Rockbox exposes a writable mass-storage LUN and USB HID/keypad
   modes. D-09 rejects a writable LUN for Helikon-OS because it bypasses the VFS
   and transaction engine. Windows/Linux still need a write path.
@@ -916,7 +923,7 @@ accept, reject or narrow one of them.
 
 ## D-39 — Anti-corruption algorithm and coverage
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §9.4, §28.2.2; D-11.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §9.4, §28.2.2; D-11.
 - **Context:** HFS+ journals metadata but does not checksum file data. Rockbox
   documents no data checksum or scrub. The project has a SHA-256 implementation
   in the bootloader and a write engine; the checksum index design exists but the
@@ -940,7 +947,7 @@ accept, reject or narrow one of them.
 
 ## D-40 — Performance budgets and measurement
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §19.2, §24, §28.6.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §19.2, §24, §28.6.
 - **Context:** “cleaner”, “faster” and “better RAM” are not claims until they
   have budgets and a measurement method. The loader currently starts in about
   6.5 s; the project targets 2–3 s. The UI has a 30 fps/200 ms goal but no
@@ -961,7 +968,7 @@ accept, reject or narrow one of them.
 
 ## D-41 — Power and thermal policy
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §19, §28.3.1; D-12; Rockbox manual §13.5.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §19, §28.3.1; D-12; Rockbox manual §13.5.
 - **Context:** Rockbox documents backlight, display-off, accessory power,
   line-out, anti-skip, ReplayGain, codec and DSP settings that affect battery.
   Helikon-OS has a design budget but no measured baseline. Battery claims are
@@ -982,7 +989,7 @@ accept, reject or narrow one of them.
 
 ## D-42 — Adapter compatibility policy
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §7, §28.2.4; goal 6; Rockbox manual §2.1.2.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §7, §28.2.4; goal 6; Rockbox manual §2.1.2.
 - **Context:** iFlash adapters are ATA bridges with different sector sizes,
   power-management support and error behaviour. Rockbox documents SD quirks and
   older corruption bugs. Helikon-OS has one outer-volume run and no adapter
@@ -1002,7 +1009,7 @@ accept, reject or narrow one of them.
 
 ## D-43 — Podcast and audiobook model
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §28.3.6; goal 19.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §28.3.6; goal 19.
 - **Context:** the device has no network. Rockbox’s Classic manual has no
   dedicated podcast workflow; it has file playback, resume and speed/pitch
   tools. Helikon-OS has a desktop app in the plan. Podcast state must survive a
@@ -1022,7 +1029,7 @@ accept, reject or narrow one of them.
 
 ## D-44 — App/game runtime and package format
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §25.8, §28.3.9–10; D-08.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §25.8, §28.3.9–10; D-08.
 - **Context:** Rockbox plugins and games are native binaries in the same system.
   Helikon-OS excludes that model. The runtime is a P2 feature and cannot delay
   writer work.
@@ -1043,7 +1050,7 @@ accept, reject or narrow one of them.
 
 ## D-45 — Migration and coexistence
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §22, §28.4.3; goal 10.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §22, §28.4.3; goal 10.
 - **Context:** users arrive with an Apple-managed library, a Rockbox install, a
   donor overlay or a mix. Helikon-OS must not destroy the old state to prove it
   is native. The donor overlay is migration material, not a runtime format.
@@ -1062,7 +1069,7 @@ accept, reject or narrow one of them.
 
 ## D-46 — Release, support and governance
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §18, §28.4.4; D-18, D-20.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §18, §28.4.4; D-18, D-20.
 - **Context:** Rockbox has release, current and daily builds and a long community
   history. Helikon-OS has one bootloader-only Alpha tag, no CI, no reproducible
   release and no support window. “Regular updates” is a README goal, not a
@@ -1102,7 +1109,7 @@ accept, reject or narrow one of them.
 
 ## D-48 — Privacy, telemetry and network policy
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §19.3, §28.3.9.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §19.3, §28.3.9.
 - **Context:** a local music player does not need a network stack. The desktop
   app may scrobble or fetch podcasts, and support needs logs. A vague privacy
   policy becomes an accidental data path.
@@ -1122,7 +1129,7 @@ accept, reject or narrow one of them.
 
 ## D-49 — Decoder provenance and licensing
 
-- **Status:** proposed. **Owner:** owner/legal. **Date:** 2026-11-05. **Paper:** §13, §18; [`audio-formats.md`](audio-formats.md).
+- **Status:** accepted. **Owner:** owner/legal. **Date:** 2026-11-17. **Paper:** §13, §18; [`audio-formats.md`](audio-formats.md).
 - **Context:** Helikon-OS is GPL-2.0-or-later. Rockbox is GPL-2.0-or-later and
   has working decoders for every format in its manual. Some upstream libraries
   are BSD, LGPL or GPL; some codecs have patent or distribution questions. A
@@ -1146,7 +1153,7 @@ accept, reject or narrow one of them.
 
 ## D-50 — Audio output ceiling and resampling
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §13, §28.3.8; [`audio-formats.md`](audio-formats.md) §2.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §13, §28.3.8; [`audio-formats.md`](audio-formats.md) §2.
 - **Context:** the 6G uses a Cirrus Logic CS42L55, a 24-bit, 48 kHz-class
   stereo codec. Apple documents the stock audio format list but not the internal
   output width. Rockbox plays high-resolution files by downmixing/downsampling
@@ -1170,7 +1177,7 @@ accept, reject or narrow one of them.
 
 ## D-51 — Audio metadata, artwork and gapless policy
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §9.4, §28.3.8; D-06, D-33; [`audio-formats.md`](audio-formats.md) §5.5.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §9.4, §28.3.8; D-06, D-33; [`audio-formats.md`](audio-formats.md) §5.5.
 - **Context:** Rockbox supports ID3, APE, Vorbis, MP4, ASF and codec-specific
   tags, but the Classic has a 1,800-byte total / 500-byte item limit, only one
   tag type per extension, no multi-value tags and no normalization. Album art
@@ -1196,7 +1203,7 @@ accept, reject or narrow one of them.
 
 ## D-52 — Display face for home-screen headers (ITC Benguiat)
 
-- **Status:** proposed. **Owner:** owner. **Date:** 2026-11-05. **Paper:** §14, §28.3.4; D-23.
+- **Status:** accepted. **Owner:** owner. **Date:** 2026-11-17. **Paper:** §14, §28.3.4; D-23.
 - **Context:** D-23 accepts IBM Plex Sans as the single UI family and Manrope
   Bold for the wordmark. The owner’s bootloader splash is owner artwork using
   ITC Benguiat. On 2026-11-05 the owner directed the home-screen headers to use

@@ -539,9 +539,9 @@ No row is `pass` without a recorded run.
 
 - **D-34** — codec and container tiers. Revised by this document: Tier 2 is
   full Rockbox audio parity, not an optional subset.
-- **D-49** — decoder provenance and licensing (proposed).
-- **D-50** — audio output ceiling, bit depth and resampling (proposed).
-- **D-51** — audio metadata, artwork and gapless policy (proposed).
+- **D-49** — decoder provenance and licensing (accepted 2026-11-17).
+- **D-50** — audio output ceiling, bit depth and resampling (accepted 2026-11-17).
+- **D-51** — audio metadata, artwork and gapless policy (accepted 2026-11-17).
 
 ### 8.2 Tasks
 
@@ -678,9 +678,9 @@ gate, not the four-codec player. The 20 s 44.1 kHz stereo excerpt used for the
 Implement in this order: **WAV → FLAC → MP3 → ALAC → AAC-LC**. WAV proves the
 output path; FLAC is the cheapest real decoder; MP3 is the most common; ALAC
 and AAC bring the MP4 container. Prefer Rockbox fixed-point decoders where they
-fit; use maintained upstream libraries only after the T-096 provenance and
-D-49 licence/patent review. AAC release requires an explicit licensing
-decision.
+fit; use maintained upstream libraries only after the T-096 provenance and the
+accepted D-49 licence/patent review. AAC release still requires the explicit
+AAC patent/licensing decision (open; the D-49 gate).
 
 ### 11.4 Acceptance
 

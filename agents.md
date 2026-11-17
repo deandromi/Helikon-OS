@@ -392,17 +392,20 @@ bootloader scope, D-22 separate inner-image write diagnostic scope, D-23 default
 UI typography (IBM Plex Sans UI, Manrope Bold logo), D-24 grayscale
 anti-aliased UI text/icons with a 1-bit fallback, D-25 separate outer-volume
 write diagnostic scope, D-26 no in-bootloader OF/recovery menu, D-27 firmware
-memory map and image layout, D-28 firmware entry ABI and boot-info page. The
-real outer-volume write test requires a full verified backup and the separate
-diagnostic in `docs/outer-volume-test.md`.
+memory map and image layout, D-28 firmware entry ABI and boot-info page, D-07
+HelikonDB v1 location and ownership (2026-11-06), D-05 B-tree cache and
+transaction budgets, D-09 desktop app transport, D-10 skin compatibility scope,
+D-11 anti-corruption scope, D-12 battery target, D-15 theme format, D-16 update
+transport, and the D-29–D-52 competitive-review and audio batch (all
+2026-11-17). The real outer-volume write test requires a full verified backup
+and the separate diagnostic in `docs/outer-volume-test.md`.
 **Rejected:** D-19 Contributor Covenant (owner deleted the file; no replacement).
 
-**Open:** D-05 B-tree cache and transaction limits ·
-D-07 database location · D-08 app/game runtime · D-09 desktop app transport ·
-D-10 skin compatibility scope · D-11 anti-corruption scope · D-12 battery
-target · D-13 7G and port scope ·
-D-14 car protocol · D-15 theme format · D-16 update transport · D-17 name
-clearance.
+**Open:** D-08 app/game runtime (D-44 records the accepted WASM-first
+direction) · D-13 7G and port scope · D-14 car protocol · D-17 name clearance ·
+D-47 porting contract and hardware matrix (keeps D-13). D-52 is accepted; the
+Benguiat font-embedding licence remains a gate before T-042/T-057. The AAC
+patent/licensing decision remains open inside the accepted D-49 gate.
 
 ## 11. Handoff protocol
 At the start of a session, use

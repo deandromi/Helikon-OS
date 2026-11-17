@@ -201,8 +201,8 @@ supported today.
 
 ### 8.1 Competitive differential evidence
 
-The Rockbox comparison is not a release gate until the owner accepts D-29. When
-accepted, each row below needs a Rockbox baseline (version/commit, device,
+The Rockbox comparison is a release gate since the owner accepted D-29 on
+2026-11-17. Each row below needs a Rockbox baseline (version/commit, device,
 adapter, battery health, media and settings) and a Helikon-OS image hash. A
 single unrecorded row means the corresponding claim is not allowed.
 
