@@ -379,6 +379,14 @@ int main(int argc, char **argv)
               "album no-art placeholder ground"))
         return 1;
 
+    /* The time slot stays empty with a valid atlas: the firmware has no RTC, so
+     * a placeholder clock would be furniture for a value it cannot produce. */
+    draw_artists_list_screen(&target, 0u, 0u, 0u);
+    if (check(!any_ink(200u, 8u, 76u, 16u), "top bar draws no placeholder clock"))
+        return 1;
+    if (check(!any_ink(150u, 8u, 50u, 16u), "time slot left of the battery is empty"))
+        return 1;
+
     helikon_text_set_fallback(1);
     draw_artists_list_screen(&target, 0u, 0u, 0u);
     snprintf(path, sizeof(path), "%s-artists-fallback.ppm", prefix);

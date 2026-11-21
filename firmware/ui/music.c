@@ -1104,13 +1104,13 @@ static void draw_top_bar(struct helikon_screen *target, const char *label)
 {
     helikon_text_draw(target, (int32_t)MUSIC_X, 20, MUSIC_FONT_11,
                       MUSIC_MUTED, label, 0u);
-    if (helikon_text_fallback_active()) {
+    /* The time slot stays empty: the HAL has a monotonic timer, not an RTC, so
+     * drawing "--:--" there would be permanent furniture for a value the
+     * product cannot produce. A font-atlas fallback is the one thing that does
+     * belong in this slot today, because it is a build error worth seeing. */
+    if (helikon_text_fallback_active())
         helikon_text_draw_right(target, 274, 20, MUSIC_FONT_11, MUSIC_MUTED,
                                 "FONT FALLBACK", 110u);
-    } else {
-        helikon_text_draw_right(target, 274, 20, MUSIC_FONT_11, MUSIC_MUTED,
-                                "--:--", 60u);
-    }
     draw_battery(target);
     draw_rule(target, 30u, MUSIC_RULE);
 }
