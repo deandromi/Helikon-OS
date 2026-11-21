@@ -57,6 +57,8 @@ tests/player/test_wav
 tests/player/test_player
 tests/usb/test_usb
 tests/usb/test_usb_sanitize
+tests/usb/test_usb_hal
+tests/usb/test_usb_hal_sanitize
 tests/usb/*.dSYM/
 tests/vfs/test_vfs
 tests/vfs/*.dSYM/

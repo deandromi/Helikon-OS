@@ -206,8 +206,8 @@ The LUN must not be exposed with a guessed capacity. In order:
 Modules, as they exist on 2026-11-21 and as they are still missing:
 
 ```text
-firmware/hal/6g/vic.c/.h          VIC, IRQ 19, spurious-IRQ handling          missing
-firmware/hal/6g/usb.c/.h          DesignWare device core, PHY, clocks, EP0/1/2  missing
+firmware/hal/6g/vic.c/.h          VIC, IRQ 19, spurious-IRQ handling          merged
+firmware/hal/6g/usb.c/.h          DesignWare device core, PHY, clocks, EP0/1/2  host-tested
 firmware/usb/usb_descriptors.c    device/config/interface/endpoint/string      host-tested
 firmware/usb/usb_control.c        chapter 9 requests, endpoint halt, MSC class
                                   requests (GET_MAX_LUN, BULK_ONLY_RESET)      host-tested
@@ -223,9 +223,17 @@ descriptor reads, one CBW per command, a CSW afterwards, a sparse 4 TB fake disk
 for the capacity and high-LBA cases. Those are host tests: no controller, no PHY
 and no device are involved, so nothing here is a device claim.
 
-What the host tests do not cover, and T-110 still owes: the DesignWare register
-programming and PHY bring-up, IRQ 19 and the packet pump, the 100
-connect/disconnect cycles, and a macOS enumeration of "Helikon Disk Mode".
+The controller driver (`firmware/hal/6g/usb.c`) now exists too: the PHY
+sequence, clock gates, core reset, FIFO budget, EP0/EP1/EP2 over PIO, the RX/TX
+pumps and the event queue, all behind the `usb_hw.h` seam. `tests/usb` runs that
+sequence against a mock register file, so the values written to GUSBCFG, the
+FIFO split, the interrupt mask, the EP0 arming and the bus-reset path are
+pinned. It cross-builds into the 6G image. **It has never run on hardware**, and
+a mock cannot prove the silicon.
+
+What T-110 still owes: a recorded 6G enumeration, the 100 connect/disconnect
+cycles, the macOS view of "Helikon Disk Mode", and the mode module
+(`disk_mode.c`) that decides when the LUN exists at all.
 
 The hardware layer is a Helikon implementation with the donor
 `usb-designware.c` and `usb-s5l8702.c` as the register-level reference. No

@@ -12,6 +12,70 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (thirtieth block: the controller driver, proved against a mock core)
+
+## What happened
+
+- `firmware/hal/6g/usb_hw.h`: every S5L8702 USB fact in one place — OTG base
+  `0x38400000`, PHY `0x3C400000`, IRQ 19, clock gates 2/35, the PHY offsets and
+  values, the DesignWare register map and bit fields, the FIFO budget
+  (`0x360` RX, `0x40` non-periodic TX, one `0x180` EP1 TX), and the seam the
+  driver is written against. Values are donor facts; each is labelled.
+- `firmware/hal/6g/usb.c/.h`: the device driver over that seam. PHY sequence,
+  clock gates, core reset, FIFO programming and flush, GUSBCFG PHYIF16/TRDT(5),
+  interrupt masks, EP0 arming, `SET_ADDRESS` written to DCFG before the status
+  stage, EP1 IN / EP2 OUT configured on CONFIGURATION, PIO pumps, the RX drain
+  for SETUP/OUT packets, the endpoint-interrupt path, bus reset, disconnect, and
+  a 16-slot event queue. Every poll is bounded; no allocation, no threads.
+- `firmware/hal/6g/usb_target.c`: the only file that touches real memory, timer E
+  and VIC IRQ 19, plus the 32-bit FIFO packing the core requires.
+- `tests/usb/test_usb_hal.c`: a mock DesignWare register file, mock FIFOs and a
+  mock VIC/clock. It checks the PHY values and delays, GUSBCFG, the three FIFO
+  registers and their starts, GAHBCFG/DCFG/DCTL, every mask bit, EP0's arming,
+  a SETUP packet's bytes, an 18-byte EP0 IN answer, ENUMDNE → high speed,
+  SET_ADDRESS, EP1/EP2 configuration at 512 bytes, a 1024-byte bulk IN, a CBW
+  arriving on EP2 with its completion event, bus reset clearing address and
+  configuration, disconnect, a spurious call, and shutdown.
+
+## Bugs the mock found (all fixed)
+
+- AHBIDLE was waited on with the wrong polarity; a core that is idle would have
+  timed out and aborted init. It is a "wait for set" bit, unlike CSRST and the
+  FIFO-flush bits.
+- The event queue pushed its overflow notice recursively, which could recurse
+  again; it now drops and counts.
+- EP0's NAK was cleared by writing the read-only status bit instead of CNAK.
+- RXFLVL was left asserted after a drain that had nothing to consume, which in
+  the mock (and on a core with a refused packet) re-raises the line forever.
+
+## Evidence (host only, no device run)
+
+- `make -C tests/usb test` PASS: `PASS usb`, `PASS usb_hal`.
+- `make -C tests/usb sanitize` PASS for both binaries; the sanitizer builds are
+  separate files, so they cannot poison a later plain run.
+- Full host matrix re-run after the change: firmware, hfsplus, vfs, codec,
+  musicdb, player, ui, image, bootloader, usb all pass.
+- Cross-build: `make -C firmware BOARD=6g` links `hal/6g/usb.o` and
+  `usb_target.o`, image 80,004 bytes, 8,304,508 bytes headroom.
+- **Not claimed:** nothing enumerated, nothing mounted, no device run. The mock
+  proves the sequence the driver writes, not what the silicon does with it.
+
+## Open / next
+
+- `firmware/usb/disk_mode.c`: the mode state machine and its opt-in gate, the
+  LUN window (whole disk for restore/format, or the largest HFS+ partition),
+  flush on eject, the "firmware must not mount while the host owns the LUN"
+  rule, and the UI status screen. Wire `firmware/usb/*` and the HAL into the
+  build behind that mode.
+- Then the host-side format runbook: backup gate, DFU install of the Disk Mode
+  image, `diskutil`/`newfs_hfs` writing an APM with a >128 GB HFS+ partition,
+  `fsck_hfs -fn`, and a `device-matrix.md` row that stays `not run` until the
+  owner does it.
+- D-56 still needs the owner: the VID/PID in the descriptors is a labelled
+  placeholder.
+
+---
+
 # Handoff — 2026-11-21 (twenty-ninth block: the USB device core answers a laptop's SCSI)
 
 ## What happened

@@ -276,6 +276,21 @@ make -C tests/player test
 make -C tests/player sanitize
 ```
 
+The USB stack has two host suites. `tests/usb` drives the device core the way a
+laptop does — descriptors, every control request, CBW/CSW and the SCSI commands
+over a sparse 4 TB fake disk — and `test_usb_hal` runs the controller driver's
+register sequence against a mock DesignWare register file, a mock FIFO pair and
+a mock VIC/clock, so an init mistake shows up on the host instead of as a silent
+device that never enumerates:
+
+```sh
+make -C tests/usb test
+make -C tests/usb sanitize
+```
+
+Neither suite touches a device, and the HAL suite proves the sequence, not the
+silicon: only a 6G run can do that.
+
 A storage-backed decode has its own differential test: `tests/library` mounts a
 real journaled HFS+ image (created by the script), decodes `/Music/first.mp3`
 through the VFS and the read-ahead window, and requires the PCM to match a

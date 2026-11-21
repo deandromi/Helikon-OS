@@ -12,11 +12,16 @@
 > [tools/build-diagnostic-bootloader.sh](../tools/build-diagnostic-bootloader.sh)
 > (`55603bd4bc2524ded900fa17feae99a223b04349`)
 
-**This is a design and research document. No USB stack exists, no host has
-enumerated Helikon-OS, no LUN has been mounted and no host write has been
-performed.** The only hardware evidence is the donor Rockbox driver and the
-existing Helikon ATA/HFS+ code. Read it with [disk-mode.md](disk-mode.md)
-§7–§9 and [ADR-0005](adr/0005-helikon-disk-mode.md).
+**Status note, 2026-11-21: the host half now exists.** The descriptors, the
+chapter 9 and MSC class requests, the bulk-only transport and the SCSI command
+set are implemented in `firmware/usb/` and covered by `tests/usb`; the
+controller driver is in `firmware/hal/6g/usb.c` and is covered by a mock
+register suite. **No host has enumerated Helikon-OS, no LUN has been mounted and
+no host write has been performed**, and the driver has never run on a 6G. The
+hardware evidence is still the donor Rockbox driver plus the Helikon ATA/HFS+
+code. Read the rest of this document as the design it was, with §2 tracked
+against `usb_hw.h`. Read it with [disk-mode.md](disk-mode.md) §7–§9 and
+[ADR-0005](adr/0005-helikon-disk-mode.md).
 
 ## 1. Scope
 
