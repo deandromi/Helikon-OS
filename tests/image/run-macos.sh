@@ -168,6 +168,32 @@ echo "macOS delete verified"
 hdiutil detach "$MOUNT" >/dev/null 2>&1
 MOUNTED=""
 
+"$HERE/hfs_image_test" "$IMAGE" overflow
+fsck_image "$IMAGE"
+
+hdiutil attach -nobrowse -mountpoint "$MOUNT" "$IMAGE" \
+    >"$TMP/mount.log" 2>&1 || fail "could not remount after the overflow append"
+MOUNTED=1
+[ -f "$MOUNT/Overflow File" ] || fail "macOS did not see the overflow file"
+SIZE=$(stat -f%z "$MOUNT/Overflow File")
+[ "$SIZE" -eq 49152 ] || fail "overflow file size is $SIZE, expected 49152"
+python3 "$HERE/check-overflow.py" "$MOUNT/Overflow File"
+echo "macOS overflow append verified"
+hdiutil detach "$MOUNT" >/dev/null 2>&1
+MOUNTED=""
+
+"$HERE/hfs_image_test" "$IMAGE" overflow-cleanup
+fsck_image "$IMAGE"
+
+hdiutil attach -nobrowse -mountpoint "$MOUNT" "$IMAGE" \
+    >"$TMP/mount.log" 2>&1 || fail "could not remount after overflow cleanup"
+MOUNTED=1
+[ ! -e "$MOUNT/Overflow File" ] || fail "overflow file survived cleanup"
+[ ! -e "$MOUNT/Hole 00" ] || fail "hole file survived cleanup"
+echo "macOS overflow cleanup verified"
+hdiutil detach "$MOUNT" >/dev/null 2>&1
+MOUNTED=""
+
 "$HERE/hfs_image_test" "$IMAGE" unicode
 fsck_image "$IMAGE"
 
@@ -205,4 +231,4 @@ PY
 hdiutil detach "$MOUNT" >/dev/null 2>&1
 MOUNTED=""
 
-echo "PASS: disposable image create/append/rename/truncate/delete/Unicode, fsck_hfs clean"
+echo "PASS: disposable image create/append/rename/truncate/delete/overflow/Unicode, fsck_hfs clean"

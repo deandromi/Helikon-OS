@@ -106,6 +106,22 @@ unreadable catalog, the build is wrong.
 **Do not** run `fsck_hfs` with repair flags on the only copy, or use a repair
 result as evidence that the writer is correct. A repair means failure.
 
+Recorded `fsck_hfs` messages seen during development, their writer cause and the
+fix:
+
+- **`Unused node is not erased (node = N)`** — a B-tree node was unmarked in the
+  free-node bitmap but its old descriptor and records were still on disk. Freeing
+  a node must stage a zeroed node first (`free_node()`). Do not "fix" it by
+  deleting the node map or rebuilding the tree.
+- **Missing free space with a clean `fsck_hfs`** — a delete removed the catalog
+  record but never freed the fork's blocks, so the bitmap kept them allocated.
+  `fsck_hfs` does not report the leak; the free-block count and the image test's
+  arithmetic do. A delete frees the fork first.
+- **`HFS_ERR_BUSY` in a delete transaction** — the volume header (free count) was
+  already staged by the bitmap and the catalog counts stage collided with it.
+  Metadata updaters of the same block merge through `hfs_txn_read()` and
+  `hfs_txn_stage_replace()`; never re-read the block from disk mid-transaction.
+
 ## 5. Update failure
 
 | Failure | Safe response |

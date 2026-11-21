@@ -196,6 +196,29 @@ static void map_set(struct tree_header *header, uint32_t node, int used)
     header->dirty = 1;
 }
 
+/*
+ * Free a node: erase its contents and clear its bit in the free-node bitmap.
+ *
+ * fsck_hfs reports "Unused node is not erased" when a node is only unmarked in
+ * the bitmap but its old descriptor and records are still on disk, so the
+ * zeroed node is staged first: a replayed transaction then never leaves a
+ * stale node behind, even if the bitmap write lands after the node write.
+ */
+static int free_node(struct hfs_btree *btree, struct hfs_txn *tx,
+                     struct tree_header *header, uint32_t node)
+{
+    static const uint8_t erased[HFS_MAX_NODE_SIZE];
+    if (btree->node_size > sizeof(erased))
+        return HFS_ERR_UNSUPPORTED;
+    int rc = stage_node(btree, tx, node, erased);
+    if (rc != HFS_OK)
+        return rc;
+    map_set(header, node, 0);
+    ++header->free_nodes;
+    return HFS_OK;
+}
+
+
 static uint32_t fork_offset(const struct hfs_btree *btree)
 {
     if (btree->fork == &btree->volume->catalog)
@@ -965,8 +988,9 @@ static int rebalance_leaf_prev(struct hfs_btree *btree,
         rc = stage_node(btree, tx, parent_node, parent);
         if (rc != HFS_OK)
             return rc;
-        map_set(header, node_number, 0);
-        ++header->free_nodes;
+        rc = free_node(btree, tx, header, node_number);
+        if (rc != HFS_OK)
+            return rc;
         rc = stage_node(btree, tx, prev, prev_node);
         if (rc != HFS_OK)
             return rc;
@@ -1275,8 +1299,9 @@ static int merge_leaf_next(struct hfs_btree *btree,
     } else {
         header->last_leaf = node_number;
     }
-    map_set(header, next, 0);
-    ++header->free_nodes;
+    rc = free_node(btree, tx, header, next);
+    if (rc != HFS_OK)
+        return rc;
     rc = stage_node(btree, tx, node_number, node);
     if (rc != HFS_OK)
         return rc;
@@ -1470,8 +1495,9 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
                 uint32_t root_child = be32(root_record + HFS_BTREE_KEY_LENGTH +
                                            root_key_length);
                 if (root_child == node_number) {
-                    map_set(&header, path[0].node, 0);
-                    ++header.free_nodes;
+                    rc = free_node(btree, tx, &header, path[0].node);
+                    if (rc != HFS_OK)
+                        return rc;
                     header.root_node = node_number;
                     header.depth = 1;
                     rc = stage_node(btree, tx, node_number, node);
@@ -1522,8 +1548,9 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
          * root leaf with no records: that is what a freshly formatted volume
          * looks like, and the reader and create_root() both understand it.
          */
-        map_set(&header, node_number, 0);
-        ++header.free_nodes;
+        rc = free_node(btree, tx, &header, node_number);
+        if (rc != HFS_OK)
+            return rc;
         header.depth = 0;
         header.root_node = 0;
         header.first_leaf = 0;
@@ -1559,10 +1586,12 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
         rc = unlink_leaf(btree, &header, tx, node_number, node);
         if (rc != HFS_OK)
             return rc;
-        map_set(&header, node_number, 0);
-        ++header.free_nodes;
-        map_set(&header, path[level - 1u].node, 0);
-        ++header.free_nodes;
+        rc = free_node(btree, tx, &header, node_number);
+        if (rc != HFS_OK)
+            return rc;
+        rc = free_node(btree, tx, &header, path[level - 1u].node);
+        if (rc != HFS_OK)
+            return rc;
 
         rc = hfs_btree_node_delete(grandparent, btree->node_size,
                                    grandparent_child);
@@ -1616,8 +1645,9 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
             return rc;
     }
 
-    map_set(&header, node_number, 0);
-    ++header.free_nodes;
+    rc = free_node(btree, tx, &header, node_number);
+    if (rc != HFS_OK)
+        return rc;
     return store_header(btree, tx, &header);
 }
 

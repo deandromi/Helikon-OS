@@ -39,6 +39,15 @@ int hfs_txn_stage_replace(struct hfs_txn *tx, uint64_t sector,
  * staged block overlapped, 0 if none, or a negative error. */
 int hfs_txn_overlay(const struct hfs_txn *tx, uint64_t offset, void *buffer,
                     size_t length);
+/*
+ * Read volume bytes with every already-staged range overlaid on the on-disk
+ * content. The volume header is touched by more than one updater in a single
+ * transaction (the bitmap records free_blocks, the catalog records the
+ * file/folder counts), so an updater must see the earlier stages or it would
+ * drop them.
+ */
+int hfs_txn_read(struct hfs_txn *tx, const struct hfs_volume *volume,
+                 uint64_t offset, void *buffer, uint32_t size);
 int hfs_txn_commit(struct hfs_txn *tx);
 void hfs_txn_abort(struct hfs_txn *tx);
 

@@ -131,6 +131,50 @@ That is catalog corruption even if the file "looks fine" on the device.
 - Keep the read-only extents path and the write path consistent; shared
   validation, separate mutation.
 
+Implementation notes (2026-11-21, host-verified):
+
+- **An append must start from every existing extent.** `hfs_catalog_append_file()`
+  reads the fork with `hfs_fork_parse()` and then walks the inline extents *and*
+  the overflow records through `collect_fork_extents()`, so a fork that already
+  overflowed keeps growing. The first implementation read only the eight inline
+  extents and rejected the second overflow append with `UNSUPPORTED` because
+  `fork.blocks != inline_blocks`. The list is capped at `APPEND_EXTENT_MAX`
+  (32) extents; a longer fork fails closed instead of truncating silently.
+- **A delete frees the fork before it removes the record.**
+  `hfs_catalog_delete_file()` truncates the file first: the inline extents and
+  the overflow records return their blocks to the bitmap, then the catalog and
+  thread records go away and the counts drop. Deleting the record alone leaked
+  every block the file owned, which `fsck_hfs` does not report but a later
+  mount sees as missing free space.
+- **Reads splice the two halves.** `hfs_catalog_read_file()` falls back to
+  `hfs_extents_read()` when `fork.blocks > inline_blocks`, so an overflowed file
+  can be played or copied without a resident buffer of the whole file.
+
+### 5.1 One transaction, one block, two updaters
+
+The volume header records both the free-block count (bitmap) and the
+file/folder counts (catalog), and a delete in one transaction does exactly
+both. Two rules keep that safe:
+
+- **Merge, never collide.** `hfs_volume_stage()` and the bitmap's header
+  staging both use `hfs_txn_stage_replace()`. The plain `hfs_txn_stage()`
+  rejects a sector that is already staged with `BUSY`, so the second updater
+  used to fail every one-block delete after the truncate had already staged the
+  header.
+- **Read through the overlay.** `hfs_txn_read()` returns the on-disk block with
+  every staged range applied, and both updaters start from it. Re-reading the
+  volume from disk mid-transaction would silently drop the other updater's
+  fields (free count or file count) instead of merging them.
+
+### 5.2 Freeing a B-tree node erases it
+
+`free_node()` stages a zeroed node and then clears its bit in the free-node
+bitmap. Only clearing the bit leaves the old descriptor and records on disk,
+which `fsck_hfs` reports as `Unused node is not erased (node = N)` — the
+message that ended the first overflow run. The zeroed node is staged first so a
+replay that lands the node write after the bitmap write still leaves no stale
+node behind.
+
 ## 6. Journal and transaction ordering
 
 ### 6.1 Release path: journaled writes

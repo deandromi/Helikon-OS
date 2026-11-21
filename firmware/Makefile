@@ -94,15 +94,27 @@ endif
 
 ELF := $(BUILD)/firmware.elf
 RAW := $(BUILD)/firmware.raw
-CONFIG_STAMP := $(BUILD)/config-$(BOARD)-v$(VERSION)
+CONFIG_STAMP := $(BUILD)/config.stamp
+# The object set and the compile flags both depend on these variables, so the
+# stamp records them. A plain "config-$(BOARD)-v$(VERSION)" name only tracked
+# the version: a UI/AUDIO/HDB build left objects that the next plain build
+# linked, which silently produced images for the wrong configuration.
+CONFIG_TEXT := BOARD=$(BOARD) VERSION=$(VERSION) UI=$(UI) \
+               AUDIO=$(AUDIO) AUDIO_TRACK=$(AUDIO_TRACK) HDB=$(HDB) \
+               EXTRA_CFLAGS=$(EXTRA_CFLAGS)
 
-.PHONY: all size test image clean
+.PHONY: all size test image clean FORCE
 
 all: $(ELF) $(RAW)
 
-$(CONFIG_STAMP):
+# Rewrite the stamp only when the configuration actually changed, so an
+# unchanged rebuild stays incremental.
+$(CONFIG_STAMP): FORCE
 	@mkdir -p $(BUILD)
-	@touch $@
+	@printf '%s\n' '$(CONFIG_TEXT)' > $@.tmp
+	@if cmp -s $@.tmp $@; then rm -f $@.tmp; else mv $@.tmp $@; fi
+
+FORCE:
 
 $(BUILD)/%.o: %.c $(CONFIG_STAMP)
 	@mkdir -p $(dir $@)

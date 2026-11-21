@@ -33,10 +33,11 @@ test_catalog: test_catalog.c test_image.c test_fs_image.c \
               $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode.h \
               $(HFS)/hfs_unicode_data.c \
               $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h \
+              $(HFS)/hfs_extents.c $(HFS)/hfs_extents.h \
               $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_catalog.c test_image.c test_fs_image.c \
 	  $(HFS)/hfs_catalog.c $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c \
-	  $(HFS)/hfs_btree.c \
+	  $(HFS)/hfs_btree.c $(HFS)/hfs_extents.c \
 	  $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
 
 test_extents: test_extents.c test_image.c test_image.h test_check.h \
@@ -120,10 +121,12 @@ test_catalog_index: test_catalog_index.c test_image.c test_image.h test_check.h 
                     $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode.h \
                     $(HFS)/hfs_unicode_data.c \
                     $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h \
+                    $(HFS)/hfs_extents.c $(HFS)/hfs_extents.h \
                     $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_catalog_index.c test_image.c \
 	  $(HFS)/hfs_catalog.c $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c \
-	  $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
+	  $(HFS)/hfs_btree.c $(HFS)/hfs_extents.c $(HFS)/hfs_volume.c \
+	  $(LDFLAGS) -o $@
 
 test_catalog_compare: test_catalog_compare.c test_check.h \
                       $(HFS)/hfs_catalog_compare.c $(HFS)/hfs_catalog_compare.h \
@@ -150,6 +153,7 @@ test_catalog_write: test_catalog_write.c test_image.c test_image.h test_check.h 
                     $(HFS)/hfs_fork_io.c $(HFS)/hfs_fork_io.h \
                     $(HFS)/hfs_volume_write.c $(HFS)/hfs_volume_write.h \
                     $(HFS)/hfs_txn.c $(HFS)/hfs_txn.h \
+                    $(HFS)/hfs_extents.c $(HFS)/hfs_extents.h \
                     $(HFS)/hfs_journal.c $(HFS)/hfs_journal.h \
                     $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h \
                     $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
@@ -160,7 +164,7 @@ test_catalog_write: test_catalog_write.c test_image.c test_image.h test_check.h 
 	  $(HFS)/hfs_btree_tree.c \
 	  $(HFS)/hfs_btree_write.c $(HFS)/hfs_fork_io.c \
 	  $(HFS)/hfs_volume_write.c $(HFS)/hfs_bitmap.c \
-	  $(HFS)/hfs_extents_write.c \
+	  $(HFS)/hfs_extents_write.c $(HFS)/hfs_extents.c \
 	  $(HFS)/hfs_txn.c $(HFS)/hfs_journal.c \
 	  $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
 
