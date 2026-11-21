@@ -3,6 +3,12 @@ import SwiftUI
 // MARK: - Palette
 
 enum HColor {
+    // Surfaces and text carry the brand: paper and ink, with no dark variant.
+    // Contrast is measured against `paper` (#F3F0E7):
+    //   ink 13.97:1, inkSoft 10.4:1, muted 4.72:1 (all pass AA for text)
+    //   rule 1.28:1, ruleStrong 1.9:1 (decoration only, never text)
+    // Small secondary text uses `muted`. There is no lighter text colour, so a
+    // note that reads as too quiet on paper has to shrink or go, not fade.
     static let posterPaper = Color(hex: 0xEFEDE5)
     static let paper = Color(hex: 0xF3F0E7)
     static let paperLight = Color(hex: 0xFAF8F2)
@@ -10,7 +16,6 @@ enum HColor {
     static let ink = Color(hex: 0x23221E)
     static let inkSoft = Color(hex: 0x3B3933)
     static let muted = Color(hex: 0x6F6A5F)
-    static let faint = Color(hex: 0xA9A294)
     static let rule = Color(hex: 0xD5CFC1)
     static let ruleStrong = Color(hex: 0xB9B2A2)
 }

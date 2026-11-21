@@ -64,8 +64,8 @@ struct SplashView: View {
                 Spacer(minLength: 16)
 
                 Text("Pre-release \(AppModel.version) · The installer is not available in this build.")
-                    .font(HFont.body(9.5))
-                    .foregroundStyle(HColor.faint)
+                    .font(HFont.body(10))
+                    .foregroundStyle(HColor.muted)
                     .padding(.bottom, 2)
             }
             .padding(.horizontal, 36)

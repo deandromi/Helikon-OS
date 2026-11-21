@@ -22,79 +22,63 @@ private struct CompanionShell: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        HStack(spacing: 0) {
-            SidebarShell()
-                .frame(width: 248)
-            VerticalHairline()
-            VStack(alignment: .leading, spacing: 20) {
-                EyebrowLabel(text: "Helikon-OS companion")
+        VStack(alignment: .leading, spacing: 0) {
+            header
+
+            VStack(alignment: .leading, spacing: 16) {
                 Text("A clean slate.")
-                    .font(HFont.display(38))
+                    .font(HFont.display(34))
                     .foregroundStyle(HColor.ink)
-                Text("The previous feature set has been removed. The library, transfer, metadata, podcast, audiobook, scrobbler and installer surfaces are gone; this shell is ready for the capabilities Helikon-OS actually has.")
-                    .font(HFont.body(13.5))
-                    .foregroundStyle(HColor.muted)
-                    .lineSpacing(3)
-                    .frame(maxWidth: 620, alignment: .leading)
-                Hairline()
-                    .frame(maxWidth: 620)
-                Text("No features are wired in this build.")
-                    .font(HFont.body(11))
-                    .foregroundStyle(HColor.faint)
+                    .padding(.bottom, 2)
+                Text(
+                    "The previous feature set has been removed: the library, "
+                        + "transfer, metadata, podcast, audiobook, scrobbler and "
+                        + "installer surfaces are gone, and none of the "
+                        + "replacement capabilities ship yet. This shell is "
+                        + "ready for the ones Helikon-OS actually has."
+                )
+                .font(HFont.body(13.5))
+                .foregroundStyle(HColor.muted)
+                .lineSpacing(3)
+                .frame(maxWidth: 560, alignment: .leading)
                 Button("Show welcome screen") {
                     model.showSplash()
                 }
                 .buttonStyle(SecondaryButtonStyle())
+                .padding(.top, 6)
             }
-            .padding(.horizontal, 36)
-            .padding(.top, 38)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background(HColor.paper)
+            .padding(.horizontal, 34)
+            .padding(.top, 30)
+
+            Spacer(minLength: 24)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(HColor.paper)
     }
-}
 
-private struct SidebarShell: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 10) {
-                    MountainMark()
-                        .frame(width: 30, height: 19)
-                    Text("Helikon")
-                        .font(HFont.display(23, weight: .semibold))
-                        .tracking(0.2)
-                        .foregroundStyle(HColor.ink)
-                }
+    /// One band across the top instead of a full-height empty rail. The traffic
+    /// lights overlay a hidden title bar, so the band starts below them.
+    private var header: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 10) {
+                MountainMark()
+                    .frame(width: 26, height: 16)
+                Text("Helikon")
+                    .font(HFont.display(19, weight: .semibold))
+                    .tracking(0.2)
+                    .foregroundStyle(HColor.ink)
                 Text("Companion")
-                    .font(HFont.display(12))
-                    .tracking(0.7)
+                    .font(HFont.body(11))
                     .foregroundStyle(HColor.muted)
-                    .padding(.leading, 40)
+                Spacer(minLength: 12)
+                EyebrowLabel(text: "PRE-RELEASE \(AppModel.version)")
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 38)
+            .padding(.horizontal, 20)
+            .padding(.top, 34)
+            .padding(.bottom, 12)
 
-            Spacer()
-
-            VStack(alignment: .leading, spacing: 7) {
-                Hairline()
-                    .padding(.bottom, 5)
-                Text("Pre-release · \(AppModel.version)")
-                    .font(HFont.body(9.5, weight: .medium))
-                    .foregroundStyle(HColor.muted)
-                Text("No feature modules are present in this build.")
-                    .font(HFont.body(9.5))
-                    .foregroundStyle(HColor.faint)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(.horizontal, 22)
-            .padding(.bottom, 20)
+            Hairline()
         }
         .background(HColor.paperDeep)
-        .overlay(alignment: .trailing) {
-            VerticalHairline()
-        }
     }
 }

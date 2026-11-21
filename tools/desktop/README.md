@@ -5,7 +5,7 @@
 > Status: `in progress` — app shell only; no data, network, device, transfer or
 > installer functionality.
 > Owner: host/product
-> Last updated: 2026-11-06
+> Last updated: 2026-11-21
 > Source: owner reset instruction 2026-11-06; paper §28.4.2, goals 19/20
 
 This is a Swift package for `HelikonCompanion.app`. It is a separate host product,
@@ -29,7 +29,7 @@ cd tools/desktop
 # Debug build, open immediately
 ./scripts/build-app.sh --debug --open
 
-# Open directly to the empty shell, skipping the welcome screen
+# Open directly to the shell, skipping the welcome screen
 open "dist/Helikon Companion.app" --args --skip-splash
 ```
 
@@ -45,8 +45,8 @@ source icon and needs Pillow; a committed 1024 px PNG is enough for normal build
 
 | Area | Status | Evidence |
 |---|---|---|
-| Welcome screen | `in progress` | Owner banner crop; Open companion only; host screenshot reviewed |
-| App shell | `in progress` | Release build and app bundle pass; empty sidebar; no navigation |
+| Welcome screen | `in progress` | Owner banner crop; Open companion only; shown on first run and from the app menu |
+| App shell | `in progress` | Release build and app bundle pass; one top band, no sidebar, no navigation |
 | Features | removed | Library, metadata, transfer, podcasts, audiobooks, scrobbler, install and settings code deleted |
 | Tests | none | No test target after the reset; previous 21 core tests were removed with their modules |
 | Device access | none | The shell does not enumerate or read a volume |
@@ -63,10 +63,21 @@ the standard Gatekeeper right-click-to-open path.
   `assets/branding/helikon-os-poster.png` into
   `Sources/HelikonCompanion/Resources/helikon-os-banner.png` (1600×1054). It is
   not redrawn, recoloured or generated.
-- The shell has a brand-only sidebar and a single empty-state page. There are no
-  navigation items and no feature buttons.
-- No all-caps UI labels; acronyms and device-supplied text are the exception.
-- The welcome screen can be reopened from the app menu.
+- The welcome is a first-run card. Dismissing it stores
+  `com.helikon.companion.hasSeenSplash` and later launches open the shell
+  directly; `--skip-splash` overrides it for scripted launches, and the app menu
+  item reopens it on demand.
+- The shell is one top band (wordmark, pre-release version) over a single
+  empty-state page. There is no sidebar and no navigation until a destination
+  exists; the window opens at 900×508 and resizes down to 720×480.
+- Text colour floors: `ink` 13.97:1 and `muted` 4.72:1 on `paper`; `rule` and
+  `ruleStrong` are for hairlines only and are never used for text. There is no
+  colour lighter than `muted` in the palette.
+- The window is light-only (`preferredColorScheme(.light)`) because the palette
+  has no dark variant; the app no longer overrides the system-wide appearance, so
+  sheets and menus keep the user's setting.
+- No all-caps UI labels; acronyms and device-supplied text are the exception. The
+  pre-release version uses the shared tracked eyebrow style.
 
 ## What was removed
 
@@ -115,7 +126,8 @@ The app has no `CompanionCore` target and no test target after the reset.
 - No network request.
 - No installer or bootloader action.
 - No device database or library metadata write.
-- The only runtime state is whether the welcome screen is visible.
+- The only runtime state is whether the welcome screen has been seen and whether
+  it is visible now.
 
 ## What not to claim
 

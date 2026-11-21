@@ -9,7 +9,10 @@ struct HelikonCompanionApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(model)
-                .frame(minWidth: 1120, minHeight: 720)
+                .frame(minWidth: 720, minHeight: 480)
+                // The window is paper and ink only; there is no dark variant.
+                // The override is scoped to this window so system sheets, menus
+                // and other apps keep the user's appearance.
                 .preferredColorScheme(.light)
         }
         .windowStyle(.hiddenTitleBar)
@@ -26,7 +29,6 @@ struct HelikonCompanionApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApplication.shared.appearance = NSAppearance(named: .aqua)
         DispatchQueue.main.async {
             for window in NSApplication.shared.windows {
                 window.isMovableByWindowBackground = true
