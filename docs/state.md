@@ -49,8 +49,15 @@ USB remains read-only. The plan is in [`disk-mode.md`](disk-mode.md) and
 [ADR-0005](adr/0005-helikon-disk-mode.md). The first runtime step is T-109, a
 read-only ATA/LBA48/APM probe on the 6G/iFlash SD; its host-side probe code and
 the VIC/IRQ entry path have merged, but the recorded device run is still
-pending. There is no USB stack, no LUN, no LBA48 write and no >128 GiB volume
-yet; this line does not unblock F2/T-055.
+pending. On the host, the LBA48 addressing path is now pinned at and above the
+old 128 GiB limit: the geometry parser reports an exact 1 TB / 512 GB capacity
+and selects LBA48 (`tests/firmware/test_ata_geometry.c`), an Apple partition map
+may place an HFS+ partition above 2^28 sectors without losing a byte of it
+(`tests/firmware/test_block.c`), and a volume whose base sits above 128 GiB
+probes with the base folded into every read (`tests/hfsplus/test_volume.c`).
+There is still no USB stack, no LUN, no LBA48 write, no capacity-migration tool,
+and **no device has mounted a volume above 128 GiB**; this line does not unblock
+F2/T-055. D-55 keeps the CE-ATA question open rather than claiming CE-ATA.
 
 ## What exists
 

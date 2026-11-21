@@ -87,6 +87,7 @@ re-litigate them.
 | D-52 | Display face for home-screen headers (ITC Benguiat) | accepted | owner | §14, §28.3.4; D-23 |
 | D-53 | Music catalog ownership (native HelikonDB, no iTunesDB) | accepted | owner | §12, §28.4.1; D-07, D-33; [helikondb.md](helikondb.md) |
 | D-54 | Helikon Disk Mode and the writable LUN | accepted | owner | §16.2, §28.4.2; D-09, D-38; [ADR-0005](adr/0005-helikon-disk-mode.md) |
+| D-55 | CE-ATA devices: LBA48 path or explicit rejection | proposed (open) | owner | §16.2; D-54; [disk-mode.md](disk-mode.md) |
 
 The paper's §25 lists 17 decisions. D-18, D-19, D-20 and D-26 are added from §18,
 §28.4.4 and the bootloader recovery policy. D-18 and D-20 are accepted; D-19 was
@@ -1416,6 +1417,35 @@ not authorize a product change.
 - **Follow-up:** T-108–T-115; ADR-0005; [disk-mode.md](disk-mode.md);
   [invariants.md](invariants.md) I-16; one 6G/iFlash SD LBA48 probe before any
   writable LUN.
+
+## D-55 — CE-ATA devices: LBA48 path or explicit rejection
+
+- **Status:** proposed; open question for the owner. **Owner:** owner. **Date:**
+  2026-11-21. **Paper:** §16.2; D-54; [disk-mode.md](disk-mode.md) §10.2.
+- **Context:** `disk-mode.md` §10.2 says Helikon "does not implement CE-ATA yet
+  and must reject it explicitly rather than misparse it". The code does something
+  else: `firmware/block/ata_geometry.c` follows the pinned donor rule —
+  `lba48 = ceata || (lba48_supported && lba28_sectors == 2^28 - 1)` — so a device
+  that raises the CE-ATA bit selects the LBA48 register path, while
+  `firmware/hal/6g/ata.h` records that CE-ATA *commands* are not implemented.
+  Both halves are deliberate: Rockbox's `ipod6g` port uses the same rule, and the
+  internal 6G drive reports CE-ATA.
+- **Options:** (a) keep the donor rule and amend §10.2 to describe it (LBA48
+  addressing is not CE-ATA protocol); (b) reject CE-ATA devices explicitly at
+  probe time, which would strand any device that sets the bit — including, if the
+  donor rule is right about the 6G's own drive, the reference target; (c)
+  implement enough CE-ATA to claim support, which is a protocol project of its
+  own and has no host test that means anything without hardware.
+- **Decision:** unresolved. The code keeps the donor behaviour until the owner
+  chooses, because changing it could remove the only working 6G path and there is
+  no device available to check which devices set the bit.
+- **Consequences while open:** the firmware may select LBA48 for a CE-ATA
+  device. That is an addressing choice, not a claim of CE-ATA support, and it
+  must not be described as one. The 6G geometry probe (T-109) records the CE-ATA
+  bit, so one device run would settle which rule the reference unit needs.
+- **Follow-up:** T-109's recorded run; amend §10.2 when the owner decides;
+  [device-matrix.md](device-matrix.md) must not claim CE-ATA support in the
+  meantime.
 
 ## Adding a decision
 

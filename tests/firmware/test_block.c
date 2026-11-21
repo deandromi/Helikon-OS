@@ -111,6 +111,39 @@ static void build_apm(struct fake_disk *disk)
     put_be32(hfs + 48, 32u);
 }
 
+/*
+ * The same APM shape with a partition that starts above the LBA28 limit, as an
+ * Apple 6G map does not, but a card larger than 128 GiB does once the owner adds
+ * a partition there (disk-mode.md §11, option A). The scan must keep the 32-bit
+ * APM fields in 64-bit byte offsets.
+ */
+static void build_apm_above_128gib(struct fake_disk *disk, uint32_t start,
+                                   uint32_t blocks, uint32_t sb_count)
+{
+    helikon_memset(disk, 0, sizeof(*disk));
+    disk->data[0] = 0x45u; /* 'E' */
+    disk->data[1] = 0x52u; /* 'R' */
+    disk->data[2] = 0x02u; /* unit 512, big-endian */
+    disk->data[3] = 0x00u;
+    put_be32(disk->data + 4, sb_count);
+
+    uint8_t *entry1 = disk->data + APM_UNIT;
+    entry1[0] = 0x50u; /* 'P' */
+    entry1[1] = 0x4du; /* 'M' */
+    put_be32(entry1 + 4, APM_ENTRIES);
+    put_be32(entry1 + 8, start);
+    put_be32(entry1 + 12, blocks);
+    helikon_memcpy(entry1 + 48, "Apple_HFS", 10u);
+
+    uint8_t *entry2 = disk->data + 2u * APM_UNIT;
+    entry2[0] = 0x50u;
+    entry2[1] = 0x4du;
+    put_be32(entry2 + 4, APM_ENTRIES);
+    put_be32(entry2 + 8, start + blocks);
+    put_be32(entry2 + 12, 1u);
+    helikon_memcpy(entry2 + 48, "Apple_Free", 10u);
+}
+
 int main(void)
 {
     struct fake_disk disk;
@@ -271,6 +304,62 @@ int main(void)
     rc = helikon_partition_scan(&device, parts, 4, scratch,
                                 sizeof(scratch), 100, &count);
     CHECK_EQ(HELIKON_ERR_IO, rc);
+
+    /*
+     * A 1 TB card: 1,953,125,000 sectors of 512 bytes. The APM is still read at
+     * LBA 0..2, but the partition it describes starts above 2^28 sectors, so the
+     * byte offset needs 64-bit arithmetic (the old limit is 128 GiB).
+     */
+    const uint32_t one_tb_sectors = 1953125000u; /* exactly 1,000,000,000,000 B */
+    const uint32_t above_lba28 = 0x10000004u;    /* 4 GiB above the old limit */
+    const uint32_t length_sectors = 0x10000000u; /* 128 GiB */
+
+    struct helikon_block_info big_info = {
+        .sector_size = SECTOR_SIZE,
+        .sector_count = one_tb_sectors,
+        .flags = HELIKON_BLOCK_FLAG_READ_ONLY
+    };
+    struct helikon_block_device big;
+    CHECK_EQ(HELIKON_OK, helikon_block_init(&big, &ops, &disk, &big_info));
+    CHECK_EQ(1000000000000ull, helikon_block_capacity_bytes(&big));
+
+    build_apm_above_128gib(&disk, above_lba28, length_sectors,
+                           one_tb_sectors);
+    rc = helikon_partition_scan(&big, parts, 4, scratch, sizeof(scratch), 100,
+                                &count);
+    CHECK_EQ(1, rc);
+    CHECK_EQ(1, count);
+    CHECK_EQ(0xaf, parts[0].type);
+    CHECK_EQ((uint64_t)above_lba28 * SECTOR_SIZE, parts[0].offset);
+    CHECK_EQ((uint64_t)length_sectors * SECTOR_SIZE, parts[0].length);
+    /* The values a 32-bit offset would have wrapped. */
+    CHECK(parts[0].offset > 128ull * 1024ull * 1024ull * 1024ull);
+    CHECK_EQ(0ull, parts[0].offset % SECTOR_SIZE);
+    CHECK_EQ(128ull * 1024ull * 1024ull * 1024ull, parts[0].length);
+
+    /* A partition that starts below the limit and ends above it. */
+    build_apm_above_128gib(&disk, 0x0ffffff8u, 0x10000010u, one_tb_sectors);
+    rc = helikon_partition_scan(&big, parts, 4, scratch, sizeof(scratch), 100,
+                                &count);
+    CHECK_EQ(1, rc);
+    CHECK_EQ(1, count);
+    CHECK_EQ(0x0ffffff8ull * SECTOR_SIZE, parts[0].offset);
+    CHECK(parts[0].offset < 128ull * 1024ull * 1024ull * 1024ull);
+    CHECK(parts[0].offset + parts[0].length >
+          128ull * 1024ull * 1024ull * 1024ull);
+    CHECK_EQ((uint64_t)0x10000010u * SECTOR_SIZE, parts[0].length);
+
+    /* The map fields keep the 32-bit APM numbers next to the byte offsets. */
+    struct helikon_partition_map big_map;
+    build_apm_above_128gib(&disk, above_lba28, length_sectors,
+                           one_tb_sectors);
+    rc = helikon_partition_scan_info(&big, parts, 4, scratch, sizeof(scratch),
+                                     100, &count, &big_map);
+    CHECK_EQ(1, rc);
+    CHECK_EQ(one_tb_sectors, big_map.sb_block_count);
+    CHECK_EQ(above_lba28, big_map.hfs_start);
+    CHECK_EQ(length_sectors, big_map.hfs_blocks);
+    CHECK_EQ(APM_UNIT, big_map.hfs_unit);
 
     return helikon_test_report("block/partition");
 }

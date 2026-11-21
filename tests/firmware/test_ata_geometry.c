@@ -4,6 +4,10 @@
 
 #include "test_check.h"
 
+/* The old firmware policy limit: 2^28 sectors of 512 bytes. */
+#define ATA_LBA28_MAX_SECTORS 0x0fffffffu
+#define ATA_LBA28_BYTES (128ull * 1024ull * 1024ull * 1024ull)
+
 static void clear_identify(uint16_t identify[HELIKON_ATA_IDENTIFY_WORDS])
 {
     for (unsigned int i = 0; i < HELIKON_ATA_IDENTIFY_WORDS; ++i)
@@ -202,11 +206,52 @@ static void test_empty(void)
     CHECK(!geometry.valid);
 }
 
+/*
+ * The card this plan exists for: 1 TB of 512-byte sectors, which reports the
+ * LBA28 maximum and a 48-bit count (the shape an iFlash SD card above 128 GiB
+ * has). The point is that capacity_bytes is exact and the selection rule does
+ * not silently fall back to 128 GiB.
+ */
+static void test_one_terabyte_card(void)
+{
+    uint16_t identify[HELIKON_ATA_IDENTIFY_WORDS] = { 0 };
+    struct helikon_ata_geometry geometry;
+
+    set_lba28(identify, ATA_LBA28_MAX_SECTORS);
+    set_lba48(identify, 1953125000ull); /* 1,000,000,000,000 bytes */
+    identify[83] = 0x0400u;
+    identify[86] = 0x0400u;
+
+    CHECK_EQ(HELIKON_OK,
+             helikon_ata_geometry_parse(identify, 0, &geometry));
+    CHECK_EQ(1, geometry.lba48);
+    CHECK_EQ(1953125000ull, geometry.total_sectors);
+    CHECK_EQ(1000000000000ull, geometry.capacity_bytes);
+    /* 1 TB is almost eight times the old limit; nothing truncates it. */
+    CHECK(geometry.capacity_bytes > 7ull * ATA_LBA28_BYTES);
+
+    /* 512 GB: still above the limit, still exact. */
+    set_lba48(identify, 976562500ull); /* 500,000,000,000 bytes */
+    CHECK_EQ(HELIKON_OK,
+             helikon_ata_geometry_parse(identify, 0, &geometry));
+    CHECK_EQ(1, geometry.lba48);
+    CHECK_EQ(500000000000ull, geometry.capacity_bytes);
+
+    /* A 128 GiB card sits exactly on the limit and stays LBA28. */
+    set_lba28(identify, 0x10000000u);
+    identify[86] = 0u;
+    CHECK_EQ(HELIKON_OK,
+             helikon_ata_geometry_parse(identify, 0, &geometry));
+    CHECK_EQ(0, geometry.lba48);
+    CHECK_EQ(ATA_LBA28_BYTES, geometry.capacity_bytes);
+}
+
 int main(void)
 {
     test_lba28_512();
     test_lba48_full_word();
     test_lba28_boundary();
+    test_one_terabyte_card();
     test_sector_sizes();
     test_ceata();
     test_empty();
