@@ -12,6 +12,98 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (twenty-first block: the review becomes four fixes)
+
+## What happened
+
+- The owner approved **every** treatment batch the twentieth block proposed and
+  asked for `.unslopovich/chart.md`. Four PRs landed, one per surface, each with
+  its own tests and its own "no device run" note:
+  - **#57 firmware Music flow.** Footers rule at 226 and speak one grammar
+    (`MENU BACK` / `SELECT OPEN`); empty lists say `NO TRACKS IN LIBRARY`; the
+    error screen maps the player stage to a cause sentence, says what SELECT
+    does and drops the duplicate mapping and the `OUT -` row; `STOPPED AT THE
+    START` when nothing played; OPENING keeps its footer instead of
+    `PLEASE WAIT`; `YEAR -`, a lone dash and unrated stars are gone; the artist
+    tab row and the Overview facts line lose their counts; the visualizer
+    baseline moves FAINT (1.23:1) -> RULE; the wall caption uses a middle dot.
+    `tools/render-ui-mockup.py` also stopped crashing: `render_legacy()` used
+    `extend` on single-path mockups, and a default run now skips the legacy group
+    with a note when the owner's licensed Benguiat faces are unreadable.
+  - **#58 artist tab row.** It is now the focus stop `docs/ui.md` 6.5 always
+    described: the wheel enters it from the first body item, the wheel up steps
+    back through tabs, the wheel down returns to the body, LEFT/RIGHT change the
+    tab while focused and move the body selection otherwise, SELECT returns, and
+    MENU keeps its one meaning. Labels moved to x=26/94/178 so the 2x16 focus
+    bar keeps an 8 px gutter and nothing shifts on focus.
+  - **#59 companion.** The welcome is a first-run card
+    (`com.helikon.companion.hasSeenSplash`, `--skip-splash` still works, the app
+    menu reopens it); the 248 pt rail is a single top band; the window floor is
+    720x480 and it opens at 900x508; `HColor.faint` (2.22:1) is gone and every
+    text use is `muted` (4.72:1) with the floors recorded in the palette; the
+    app-wide `NSApplication.appearance` override is dropped, so only the window
+    stays light.
+  - **#60 boot splash label.** The label colours moved to
+    `bootloader/splash_label.h`: deep green `#007A3D` (4.79:1 on panel) and deep
+    red `#C81E1E` (4.78:1), from 2.10:1 and 3.14:1. No owner artwork, palette or
+    mask byte changed. `tests/bootloader/test_splash_color.c` measures the
+    RGB565 values the panel shows and fails below 4.5:1.
+- `.unslopovich/chart.md` records the standing context and the accepted
+  exceptions (paper palette and serif, 11 px caps on a fixed 320x240 panel, muted
+  5.00:1, no dark mode or text scaling, owner boot artwork, no footer hint row on
+  artist and album pages, `SORT: NAME` as truthful inert metadata).
+- The firmware report's visualizer item was **corrected** in its visit file: the
+  baseline was always drawn; the defect was 1.23:1 contrast, not a missing row.
+- The mockups were made honest about generated art. `artist_portrait()` drew a
+  person glyph for an artist with art and a monogram for one without, so the
+  artists list looked like favouritism and contradicted `docs/ui.md` 6.4, and
+  the same artist carried different counts on the list and on its own page.
+  Each artist now has its own generated line art, missing art is a monogram
+  everywhere, and the counts agree across screens.
+- A follow-up review re-scored the treated surfaces and left the remaining
+  problem on the record: firmware 13 -> 17/24, companion 10 -> 16/24, splash
+  14 -> 17/24 (`.unslopovich/visits/2026-11-21-1605-follow-up.md`). The biggest
+  open item is discoverability, not correctness: the artist tab row is reachable
+  only by scrolling up past the first item and no footer mentions it, so two of
+  the three panes can stay invisible to a first-time user.
+
+## Evidence (host only, no device run)
+
+- `make -C tests/ui test` PASS, including new probes for the focused tab row (bar
+  absent at rest, 2 px wide when focused, underline kept) and the reworded error
+  screen.
+- 34 music-flow and now-playing PNGs re-rendered from the changed code path and
+  byte-identical across two clean runs; `clipping-check.txt` PASS.
+- Plain 6G image 80,004 B; music-hub image 768,184 B with MP3 linked; F2 image +
+  `./tools/check-f2-artifact.sh` PASS.
+- hfsplus, vfs, firmware, bootloader (test + sanitize, with the new splash
+  colour check), image (test, loader-test), codec and musicdb suites PASS.
+- Companion: `swift build` PASS, `scripts/build-app.sh --debug` PASS, a host
+  harness compiled against the shipped `AppModel.swift` proves first-run ->
+  persisted -> skipped -> reopened, and the launched window measures 900x508.
+  Screenshots are still refused (Screen Recording), so nothing visual was seen.
+- Loader test image is now `8c161d0e…` (106,760 bytes); the same tree with the
+  previous label colours builds `90925547…` at the same size, so the colour change
+  adds no bytes. It has **not** been on a device.
+
+## Open / next
+
+- **Dropped, not done:** the Music hub is still a second launcher. Removing it
+  (`draw_hub`, `run_hub`, `helikon_music_hub_*`, `tools/make-launcher-assets.py`,
+  docs and tests) is a navigation change the owner has not answered, and the hub
+  is the only pinned second entry point while the launcher cells are stubs.
+- The boot splash states still differ by colour alone. Different words or a shape
+  live in the owner mask: an owner decision, recorded in the asset README.
+- The splash label change invalidates the device-tested loader hash. The last
+  device-tested image remains `6bc6927c…`; the new build needs a run before any
+  claim.
+- Not fixed from the review: the `--:--` / `FONT FALLBACK` clock slot in
+  `draw_top_bar()` (the firmware cannot read the RTC without the clock HAL being
+  wired into that path), five launcher cells that open a build note, and
+  `SORT: NAME` staying inert (accepted in the chart).
+
+---
+
 # Handoff — 2026-11-21 (twentieth block: every interface reviewed)
 
 ## What happened

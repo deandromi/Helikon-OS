@@ -1334,13 +1334,17 @@ def sleeve_placeholder(size):
     return art.resize((size, size), Image.Resampling.LANCZOS)
 
 
-def artist_portrait(size, name, has_art):
-    if not has_art:
+def artist_portrait(size, name, art_kind):
+    """Generated line art when there is art, monogram when there is not.
+
+    The firmware draws a monogram for a missing image and generated line art
+    otherwise; it never draws a person glyph. Passing a `kind` here keeps the
+    committed mockups honest and keeps one artist looking the same on every
+    screen.
+    """
+    if art_kind is None:
         return monogram_image(size, name)
-    art = Image.new("RGB", (size, size), HOME_PAPER_LIGHT)
-    icon = launcher_icon(size, "artist", HOME_MUTED)
-    art.paste(icon, (0, 0), icon)
-    return art
+    return cover_art(size, art_kind)
 
 
 def draw_rating(draw, right, baseline, rating):
@@ -1399,22 +1403,22 @@ def draw_artists_list(long_names=False):
                      (204, 60, 100, 14), "artists sort", HOME_MUTED)
 
     names = (
-        ("Aurora Strings", "12 ALBUMS · 148 TRACKS", True),
-        ("Bellweather Trio", "4 ALBUMS · 42 TRACKS", True),
-        ("Cinder Choir", "NO ALBUMS", False),
-        ("Dunmore Ensemble", "7 ALBUMS · 63 TRACKS", True),
+        ("Aurora Strings", "4 ALBUMS · 42 TRACKS", "wave"),
+        ("Bellweather Trio", "2 ALBUMS · 19 TRACKS", "record"),
+        ("Cinder Choir", "NO ALBUMS", None),
+        ("Dunmore Ensemble", "7 ALBUMS · 63 TRACKS", "columns"),
     )
     if long_names:
         names = (
             ("The Extraordinarily Long Name Of A Contemporary Chamber Ensemble",
-             "NO ALBUMS", False),
+             "NO ALBUMS", None),
             ("A Band With A Very Long Name That Must Be Truncated In The List",
-             "COUNTS UNAVAILABLE", False),
-            ("Cinder Choir", "NO ALBUMS", False),
-            ("Dunmore Ensemble", "7 ALBUMS · 63 TRACKS", True),
+             "COUNTS UNAVAILABLE", "arch"),
+            ("Cinder Choir", "NO ALBUMS", None),
+            ("Dunmore Ensemble", "7 ALBUMS · 63 TRACKS", "columns"),
         )
 
-    for index, (name, counts, has_art) in enumerate(names):
+    for index, (name, counts, art_kind) in enumerate(names):
         y = 78 + index * 36
         selected = index == 0
         if selected:
@@ -1423,7 +1427,7 @@ def draw_artists_list(long_names=False):
         require_rect(24, y + 3, 28, 28, f"artist row {index + 1} art")
         draw.rectangle((24, y + 3, 51, y + 30),
                        outline=HOME_INK if selected else HOME_RULE, width=1)
-        art = artist_portrait(26, name, has_art)
+        art = artist_portrait(26, name, art_kind)
         image.paste(art, (25, y + 4))
         title_font = ui_font(14, 500 if selected else 400)
         put_fitted(draw, name, title_font, 60, y + 14, 244,
@@ -1465,7 +1469,8 @@ def draw_artist_view(tab, empty_overview=False, tab_focused=False):
 
     require_rect(256, 32, 44, 44, "artist portrait")
     draw.rectangle((256, 32, 299, 75), outline=HOME_RULE, width=1)
-    portrait = artist_portrait(42, name, not empty_overview)
+    portrait = artist_portrait(42, name,
+                               None if empty_overview else "wave")
     image.paste(portrait, (257, 33))
 
     require_rect(16, 84, 288, 1, "artist identity rule")
