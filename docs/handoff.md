@@ -12,6 +12,45 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (thirty-third block: the host script that actually formats the thing)
+
+## What happened
+
+- `tools/disk-mode-format.sh`: the macOS half of the whole-disk LUN. It refuses
+  more than it does — wrong OS, a slice instead of a whole disk, a device that
+  is not a block device, the disk macOS booted from, a missing or empty
+  `--backup` record, and any confirmation other than `FORMAT <volume>`.
+  `--dry-run` prints the three commands and changes nothing.
+- When the checks pass it runs exactly: `diskutil unmountDisk force`,
+  `diskutil partitionDisk <disk> APM "Journaled HFS+" <name> 0b`, then
+  `diskutil eject`. `APM` is the map an iPod needs and `0b` uses the whole disk,
+  which is how the >128 GiB volume appears in one step.
+- `docs/disk-mode.md` §11.1 records the procedure, the guards and exactly how
+  far the script has been tested; `docs/device-matrix.md` gained the Disk Mode
+  row, still `not run`; `docs/tasks.md` T-112 moved to `in progress` with the
+  host half named.
+
+## Evidence (host only, no iPod)
+
+- `bash -n`, `--help`, the boot-disk refusal, the missing-backup refusal, the
+  slice refusal, and a full `--dry-run` against a 2 GiB disk image attached with
+  `hdiutil` (which exercises the `diskutil info` parsing and the three commands'
+  text).
+- Nothing was formatted on a device, and nothing was mounted on an iPod. The
+  script has never seen a real Disk Mode LUN.
+
+## Open / next
+
+- The owner's run: flash `build/firmware/6g-diskmode/`, connect, confirm macOS
+  sees one new external disk, `--dry-run`, read it, then the real run, then
+  `fsck_hfs -fn`, then the normal firmware. Record it in `device-matrix.md`.
+- If enumeration does not happen, the suspects are unchanged: PHY/clock
+  bring-up, the FIFO split, the EP0 status stage, the VIC line.
+- D-56 (VID/PID) is still the owner's decision before any release ships the
+  placeholder.
+
+---
+
 # Handoff — 2026-11-21 (thirty-second block: an image whose only job is to hand over the disk)
 
 ## What happened
