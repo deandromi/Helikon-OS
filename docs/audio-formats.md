@@ -1516,3 +1516,56 @@ The Music hub still plays its embedded blob: the call sites that resolve a track
 to a path and open it through the VFS are the next piece of T-058, followed by
 next/previous with a queue, an underrun/read-latency measurement and a device
 run. Nothing here is device evidence.
+
+## 23. Play queue for next/previous — T-058 host piece (2026-11-21)
+
+Status: `implemented` as host code with host tests, not yet called by the Music
+hub. No device run.
+
+### 23.1 What landed
+
+`firmware/player/queue.c/.h` is the next/previous state machine the Now Playing
+screen will drive. It stores track ids only and knows nothing about HDB records,
+HFS+ paths or the codec, so the caller resolves an id to a file.
+
+- `helikon_queue_set()` replaces the contents (an empty set is legal and clears),
+  refuses more than `HELIKON_QUEUE_CAPACITY` (512) ids, and rewinds to the first
+  id. Nothing is allocated: one id array and one order array live in the struct.
+- Two orders over the same ids. Natural order is the list as given; shuffle is a
+  Fisher-Yates permutation seeded by the caller (xorshift32, a zero seed is
+  nudged rather than frozen), so a seed reproduces an order and a test can pin
+  it. Enabling shuffle mid-track keeps the playing id first instead of jumping to
+  another song, and disabling it restores the natural order around the current
+  id.
+- `next`/`previous` return what happened instead of a bare error code:
+  `MOVED`, `WRAPPED`, `END`, `RESTART` or `EMPTY`. With repeat off the ends are
+  hard stops — the position does not move, so a caller that ignores the answer
+  cannot silently wrap. `REPEAT_ALL` wraps; `REPEAT_ONE` answers `RESTART` and
+  keeps the id, which is the caller's cue to restart the track rather than seek
+  to the next one.
+- `helikon_queue_select()` jumps to an index in play order, `current()` reports
+  the id, and every entry point refuses a null queue or an out-of-range index
+  with `HELIKON_ERR_ARGUMENT`.
+
+### 23.2 Evidence (host only, no device run)
+
+`tests/player/test_queue.c` (test and sanitize targets) covers: the natural walk
+forward and back, both hard stops with their "nothing moved" checks, repeat-all
+wrapping in both directions, repeat-one restarting without moving, an unknown
+repeat mode refused, a shuffled walk that visits all eight ids exactly once and
+then ends, two fresh permutations from the same seed matching step for step,
+shuffle on/off preserving the playing id, an empty queue (`NOT_FOUND`/`EMPTY`), an
+empty set clearing a previous list, the capacity boundary accepted and one past
+it refused, and every null-argument path.
+
+The module is in the AUDIO source set, so the music-hub image still links at
+768,176 B — nothing calls it yet and `--gc-sections` drops it, exactly as the tag
+readers were dropped before their caller existed.
+
+### 23.3 Remaining
+
+The Music hub has to own a queue: build it from the album or list being played,
+and bind next/previous to `helikon_queue_next`/`previous` plus
+`helikon_player_open_media` for the resolved track. That call site is also the
+first place the queue's `END`/`RESTART` answers matter, and it needs a mounted
+VFS, which the firmware does not yet have. Then the device run.

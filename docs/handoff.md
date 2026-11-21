@@ -12,6 +12,56 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (twenty-seventh block: next/previous has an order to walk)
+
+## What happened
+
+- T-058's next missing piece: the play order. The queue stores track ids and
+  answers what happened, so the Now Playing screen can bind next/previous
+  without inventing its own list logic.
+- `firmware/player/queue.c/.h`: two orders over the same ids (natural and a
+  seeded Fisher-Yates shuffle), `HELIKON_QUEUE_CAPACITY` 512, no allocation.
+  `next`/`previous` return `MOVED`, `WRAPPED`, `END`, `RESTART` or `EMPTY`
+  instead of an error code. With repeat off the ends are hard stops and the
+  position does not move, so a caller that ignores the answer cannot silently
+  wrap; repeat-all wraps; repeat-one answers `RESTART` and keeps the id, which is
+  the caller's cue to restart the track rather than seek to another.
+- Shuffle keeps the playing id first when it is enabled mid-track and the
+  natural order returns around the current id when it is turned off. A zero seed
+  is nudged rather than frozen, so a seed always produces an order.
+- Tests caught one real bug on the way: `queue_shuffle()` and
+  `queue_position_of()` compared the order slot (an index into `ids`) with a
+  track id, so "shuffle keeps the playing id" failed and shuffle-off restored
+  the wrong position. Both now compare `ids[order[i]]`.
+
+## Evidence (host only, no device run)
+
+- `make -C tests/player test` and `sanitize` PASS (`PASS play queue`).
+- `test_queue.c` pins the natural walk, both hard stops, repeat-all wrapping in
+  both directions, repeat-one restarting without moving, an unknown repeat mode
+  refused, a shuffled walk that visits all eight ids exactly once, two fresh
+  permutations from the same seed matching step for step, shuffle on/off keeping
+  the playing id, the empty queue, the empty set clearing a list, the capacity
+  boundary (accepted, and one past refused) and every null path.
+- `firmware/Makefile` puts `player/queue.c` in the AUDIO set; the music-hub image
+  still links at 768,176 B because nothing calls it yet and `--gc-sections`
+  drops it.
+- Docs: `audio-formats.md` §23, `tasks.md` T-058, `state.md`, `file-map.md`.
+
+## Open / next
+
+- The hub call site is now the only thing missing before the queue is real: build
+  the queue from the list being played, bind next/previous to
+  `helikon_queue_next`/`previous` plus `helikon_player_open_media` for the
+  resolved track, and keep the embedded blob as the fallback. It needs a mounted
+  VFS in the firmware, which does not exist yet — that mount is the first piece
+  of the next block.
+- After that: I2S/DMA output on the device, an underrun/read-latency measurement,
+  and the device run. T-059's device half still waits on a real signed firmware
+  image (T-051, blocked with T-055).
+
+---
+
 # Handoff — 2026-11-21 (twenty-sixth block: audio is decoded from a real volume, not a fake)
 
 ## What happened

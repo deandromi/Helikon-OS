@@ -71,8 +71,9 @@ Helikon-OS/
     player/               bounded WAV parser, PCM playback state (buffer and
                           pull-source opens), the VFS media adapter
                           (vfs_media.c) that feeds a codec source from an open
-                          file, and the read-ahead window (read_ahead.c) that
-                          turns small decoder pulls into few large reads
+                          file, the read-ahead window (read_ahead.c) that
+                          turns small decoder pulls into few large reads, and
+                          the play queue (queue.c) behind next/previous
     hfs/hfs_block_adapter.c/.h  hfs read/write/flush over the block device
     hfs/hfs_file.c/.h     one-file read helper (lookup + inline/overflow)
     inner_image.c/.h      outer-file extent mapping + metadata guard
@@ -191,6 +192,7 @@ Helikon-OS/
     test_wav.c              RIFF/WAVE validation and profile rejection
     test_player.c           buffer and media opens, bounded chunks, HAL mocks
     test_read_ahead.c       window hits, straddles, bypass, EOF latch, errors
+    test_queue.c            natural and shuffled order, repeat, ends, capacity
   tests/codec/
     Makefile                codec registry, MP3 (libmad) and FLAC host tests
     test_codec.c            probe/open/read/seek/malformed/bit-exact tests,
