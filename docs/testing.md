@@ -288,6 +288,18 @@ make -C tests/usb test
 make -C tests/usb sanitize
 ```
 
+The mode machine also builds into a separate firmware image:
+
+```sh
+PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g DISKMODE=1
+```
+
+It lands in `build/firmware/6g-diskmode/` — a variant directory, because the
+flag changes `boot/firmware_main.c` and a stale object would produce an image
+that claims to be one thing and behaves as the other. The image is 39,532 bytes
+and contains no `hfs_volume_probe` symbol: it cannot mount the volume it hands to
+the host.
+
 A third suite, `test_disk_mode`, runs the mode machine with a fake transport:
 the opt-in gate, descriptors and SET_ADDRESS, a whole-disk 4 TB window,
 INQUIRY, a read and a write above 128 GiB landing on the fake medium, the

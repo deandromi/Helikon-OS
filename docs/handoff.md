@@ -12,6 +12,52 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (thirty-second block: an image whose only job is to hand over the disk)
+
+## What happened
+
+- `firmware/boot/firmware_main.c` gained a Disk Mode entry behind
+  `HELIKON_DISK_MODE_IMAGE`. It runs as early as ATA allows: initialise the
+  disk, attach the block device, start the VIC line 19, the USB core and the
+  mode in restore mode, then loop on `helikon_usb_pump()` /
+  `helikon_usb_pop()` / `helikon_disk_mode_event()` until the host ejects or
+  MENU is pressed.
+- `firmware/Makefile`: `DISKMODE=1` adds the define and, more importantly,
+  moves the build to `build/firmware/6g-diskmode/`. Without the variant
+  directory a stale object from the normal build would poison the image.
+- The screen is deliberately minimal: CONNECT USB / WAITING FOR THE HOST / HOST
+  CONNECTED / EJECTED - SAFE, plus the state name from
+  `helikon_disk_mode_state_name()`.
+- Why this shape: the host must own every sector while the LUN is open, so this
+  image never mounts HFS+. That is checkable, not just claimed: the linked image
+  contains no `hfs_volume_probe` symbol because nothing calls the mount path and
+  `--gc-sections` drops the tree.
+
+## Evidence (host and build only, no device run)
+
+- `make -C firmware BOARD=6g DISKMODE=1` PASS: raw image 39,532 bytes,
+  8,344,980 bytes headroom, `nm` shows `helikon_usb_init`,
+  `helikon_disk_mode_start` and `helikon_usb_ep1_send`, and no
+  `hfs_volume_probe`.
+- `make -C firmware BOARD=6g` PASS: unchanged at 80,004 bytes.
+- All ten host suites PASS after the change.
+- Nothing has enumerated, mounted or written on a device, and no part of this
+  boot path has run on hardware.
+
+## Open / next
+
+- The host-side runbook: backup gate, DFU install of the Disk Mode image,
+  `diskutil`/`newfs_hfs` writing an APM with a >128 GB HFS+ volume,
+  `fsck_hfs -fn`, eject, then the normal firmware. It should be a script that
+  refuses to run without a verified backup.
+- `device-matrix.md` rows for P2–P5 stay `not run` until the owner does them.
+- If the 6G does not enumerate, the first suspects are, in order: PHY/clock
+  bring-up (`usb_hw.h` values are donor facts), the FIFO split, the EP0 status
+  stage, and the VIC line. Each has a host test that pins the sequence, so a
+  failure is a silicon or sequence question, not a code-shape question.
+
+---
+
 # Handoff — 2026-11-21 (thirty-first block: Disk Mode decides when a host may write)
 
 ## What happened

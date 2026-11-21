@@ -24,7 +24,10 @@ CC := $(CROSS)gcc
 OBJCOPY := $(CROSS)objcopy
 NM := $(CROSS)nm
 SIZE := $(CROSS)size
-BUILD ?= ../build/firmware/$(BOARD)
+# The Disk Mode image gets its own build directory: the flag changes the code
+# in `boot/firmware_main.c`, and a stale object from the other variant would
+# produce an image that claims to be one thing and behaves as the other.
+BUILD ?= ../build/firmware/$(BOARD)$(if $(filter 1,$(DISKMODE)),-diskmode,)
 OUT := $(BUILD)/out
 
 GCC_INCLUDE := $(shell $(CC) -print-file-name=include)
@@ -81,8 +84,15 @@ PLAYER_SRC := player/player.c player/wav.c player/vfs_media.c \
 endif
 LIBRARY_SRC := db/hdb.c
 VFS_SRC := vfs/vfs.c
-# The USB device stack. Compiled always so it cannot rot; it only reaches the
-# image through a Disk Mode caller, which does not exist yet (T-110).
+# Helikon Disk Mode image (D-54): the whole disk as a writable USB LUN, for a
+# restore/format from a laptop. A separate image on purpose — the normal
+# firmware never exposes a writable LUN. `make -C firmware BOARD=6g DISKMODE=1`.
+ifeq ($(DISKMODE),1)
+CFLAGS += -DHELIKON_DISK_MODE_IMAGE
+endif
+
+# The USB device stack. Compiled always so it cannot rot; without DISKMODE it
+# is garbage-collected out of the image because nothing calls it (T-110).
 USB_SRC := usb/usb_descriptors.c usb/usb_control.c usb/usb_msc.c \
            usb/disk_mode.c
 

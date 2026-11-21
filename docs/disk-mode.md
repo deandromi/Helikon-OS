@@ -385,6 +385,24 @@ MENU: reboot after eject.
 - Entry from the launcher Settings tile; a boot gesture is future work and must
   not conflict with Apple Menu+Play or DFU Menu+Select.
 
+### 12.1 The image on 2026-11-21
+
+`make -C firmware BOARD=6g DISKMODE=1` builds a Disk Mode firmware image. It is
+a separate image on purpose: the normal firmware never exposes a writable LUN.
+
+- It initialises ATA and attaches the block device, then starts the USB stack
+  and the mode machine with `restore_mode = 1` — the whole disk, writable.
+- It never mounts HFS+. That is not a promise in prose: the linked image has no
+  `hfs_volume_probe` symbol, because nothing in it calls the mount path and
+  `--gc-sections` drops the whole tree.
+- Build evidence: 39,532-byte raw image, 8,344,980 bytes headroom, own build
+  directory `build/firmware/6g-diskmode/`. The normal image is unchanged at
+  80,004 bytes.
+- The screen is the status line from §12 in its simple form: "CONNECT USB",
+  "WAITING FOR THE HOST", "HOST CONNECTED", "EJECTED - SAFE". MENU leaves.
+- **No device run.** Nothing has enumerated, nothing has mounted, no host write
+  has happened.
+
 ## 13. Test and evidence matrix
 
 | Layer | Test | Oracle | Evidence |
@@ -416,7 +434,7 @@ optionally a Linux host with `usbmon` for packet capture and fuzzing.
 |---|---|---|---|
 | P0 | T-108 | host evidence runbook and collector | read-only captures from Apple Disk Mode |
 | P1 | T-109 | read-only ATA/LBA48/APM probe image | one 6G run, photo and values |
-| P2 | T-110 | USB device core and enumeration | macOS sees the device |
+| P2 | T-110 | USB device core and enumeration | macOS sees the device. Host half done: core, controller driver and mode machine with host tests; the Disk Mode image builds (`DISKMODE=1`, 39,532 bytes). Device gate open |
 | P3 | T-111 | MSC read-only data LUN | macOS mounts and reads |
 | P4 | T-112 | MSC writable data LUN with flush/eject | 1 GB write, SHA-256, fsck |
 | P5 | T-109/T-112 | LBA48 boundary and 4K sectors | boundary writes/read-back |

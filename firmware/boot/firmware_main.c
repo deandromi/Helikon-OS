@@ -36,6 +36,12 @@
 #ifdef HELIKON_DIAG_IRQ
 #include "vic.h"
 #endif
+#ifdef HELIKON_DISK_MODE_IMAGE
+#include "disk_mode.h"
+#include "usb.h"
+#include "usb_hw.h"
+#include "vic.h"
+#endif
 #include "mem.h"
 #include "panic.h"
 #include "partition.h"
@@ -1038,6 +1044,183 @@ static int promote_bootstate(struct boot_context *ctx)
     return HELIKON_OK;
 }
 
+#ifdef HELIKON_DISK_MODE_IMAGE
+/*
+ * Helikon Disk Mode image (D-54).
+ *
+ * This image does exactly one thing: it gives a laptop the raw disk as a USB
+ * mass-storage LUN so the owner can write an Apple partition map and a fresh
+ * HFS+ volume — including a volume above 128 GiB. It does not mount HFS+, it
+ * does not read the catalog and it does not start the player, because the host
+ * must own every sector while the LUN is open.
+ *
+ * The mode is opt-in by being this image and by the confirmation screen: the
+ * owner has to press SELECT. The USB stack is started only after that.
+ *
+ * Unproven on hardware: see docs/disk-mode.md §13 and the handoff.
+ */
+static void disk_mode_irq(void *context)
+{
+    (void)context;
+    (void)helikon_usb_irq();
+}
+
+static int disk_ep0_send(void *context, const void *data, uint32_t length)
+{
+    (void)context;
+    return helikon_usb_ep0_send(data, length);
+}
+
+static int disk_ep0_receive(void *context, void *data, uint32_t length)
+{
+    (void)context;
+    return helikon_usb_ep0_receive(data, length);
+}
+
+static int disk_ep0_stall(void *context)
+{
+    (void)context;
+    return helikon_usb_ep0_stall();
+}
+
+static int disk_ep1_send(void *context, const void *data, uint32_t length)
+{
+    (void)context;
+    return helikon_usb_ep1_send(data, length);
+}
+
+static int disk_ep2_receive(void *context, void *data, uint32_t length)
+{
+    (void)context;
+    return helikon_usb_ep2_receive(data, length);
+}
+
+static int disk_set_address(void *context, uint8_t address)
+{
+    (void)context;
+    return helikon_usb_set_address(address);
+}
+
+static int disk_configure(void *context, int configured)
+{
+    (void)context;
+    return helikon_usb_configure(configured);
+}
+
+static void disk_mode_paint(struct boot_context *ctx,
+                            const struct helikon_disk_mode *mode,
+                            const char *line)
+{
+    paint_title(ctx, "HELIKON DISK MODE");
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+    helikon_screen_text(&ctx->screen, 16, 100, 3, line);
+    helikon_screen_text(&ctx->screen, 16, 136, 2,
+                        helikon_disk_mode_state_name(mode->state));
+    present_or_trace(ctx, HELIKON_TRACE_INFO, HELIKON_STAGE_ATA);
+}
+
+static void disk_mode_run(struct boot_context *ctx)
+    __attribute__((noreturn));
+
+static void disk_mode_run(struct boot_context *ctx)
+{
+    struct helikon_usb_device_ops ops = {
+        .context = ctx,
+        .ep0_send = disk_ep0_send,
+        .ep0_receive = disk_ep0_receive,
+        .ep0_stall = disk_ep0_stall,
+        .ep1_send = disk_ep1_send,
+        .ep2_receive = disk_ep2_receive,
+        .set_address = disk_set_address,
+        .configure = disk_configure
+    };
+    struct helikon_usb_identity identity = {
+        .manufacturer = "Helikon",
+        .product = "Helikon Disk Mode",
+        .serial = NULL
+    };
+    struct helikon_disk_mode_options options = {
+        .opt_in = 1,
+        .restore_mode = 1, /* the whole disk, writable: the format window */
+        .timeout_ms = BOOT_STORAGE_TIMEOUT_MS
+    };
+    struct helikon_disk_mode mode;
+
+    helikon_memset(&mode, 0, sizeof(mode));
+    disk_mode_paint(ctx, &mode, "CONNECT USB");
+
+    int rc = helikon_vic_init();
+    if (rc == HELIKON_OK)
+        rc = helikon_vic_register(HELIKON_VIC_IRQ_USB, disk_mode_irq, NULL);
+    if (rc != HELIKON_OK)
+        boot_fail(ctx, HELIKON_STAGE_ATA, rc, "The USB IRQ is not available.");
+
+    struct helikon_usb_hw hw = helikon_usb_hw_s5l8702(&ctx->board.clock);
+    rc = helikon_usb_init(&hw);
+    if (rc != HELIKON_OK)
+        boot_fail(ctx, HELIKON_STAGE_ATA, rc, "The USB core did not start.");
+
+    rc = helikon_disk_mode_start(&mode, &ops, &ctx->board.block, &identity,
+                                 &options);
+    if (rc != HELIKON_OK)
+        boot_fail(ctx, HELIKON_STAGE_ATA, rc, "Disk Mode refused to start.");
+
+    helikon_cpu_enable_interrupts();
+    disk_mode_paint(ctx, &mode, "WAITING FOR THE HOST");
+
+    enum helikon_disk_mode_state shown = mode.state;
+    for (;;) {
+        (void)helikon_usb_pump();
+
+        enum helikon_usb_event event;
+        uint8_t setup[HELIKON_USB_SETUP_LENGTH];
+        unsigned int budget = 8u;
+        while (budget-- > 0u && helikon_usb_pop(&event, setup) == 1) {
+            uint32_t length = 0u;
+            if (event == HELIKON_USB_EVENT_EP2_OUT_DONE)
+                (void)helikon_usb_out_received(2u, &length);
+            (void)helikon_disk_mode_event(&mode, event, setup, length);
+        }
+
+        if (mode.state != shown) {
+            shown = mode.state;
+            if (shown == HELIKON_DISK_MODE_ENUMERATED)
+                disk_mode_paint(ctx, &mode, "HOST CONNECTED");
+            else if (shown == HELIKON_DISK_MODE_RELEASED)
+                disk_mode_paint(ctx, &mode, "EJECTED - SAFE");
+            else
+                disk_mode_paint(ctx, &mode, "WAITING FOR THE HOST");
+        }
+        if (mode.state == HELIKON_DISK_MODE_RELEASED ||
+            mode.state == HELIKON_DISK_MODE_ERROR)
+            break;
+
+        uint32_t buttons = 0u;
+        int32_t wheel = 0;
+        int hold = 0;
+        if (helikon_buttons_poll(&ctx->board.buttons, &buttons, &wheel, &hold,
+                                 0u) > 0 &&
+            (buttons & HELIKON_BUTTON_MENU) != 0u)
+            break;
+        (void)wheel;
+        (void)hold;
+
+        helikon_cpu_idle();
+    }
+
+    helikon_disk_mode_stop(&mode);
+    helikon_usb_shutdown();
+    helikon_cpu_disable_interrupts();
+    (void)helikon_vic_disable(HELIKON_VIC_IRQ_USB);
+
+    if (mode.state == HELIKON_DISK_MODE_ERROR)
+        boot_fail(ctx, HELIKON_STAGE_ATA, HELIKON_ERR_IO,
+                  "Disk Mode stopped on an error.");
+    paint_message(ctx, "EJECTED", "POWER OFF.");
+    boot_power_off(ctx);
+}
+#endif
+
 void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
 {
     (void)reserved;
@@ -1350,6 +1533,21 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
 #endif
 
     stage_begin(ctx, HELIKON_STAGE_ATA);
+#ifdef HELIKON_DISK_MODE_IMAGE
+    /*
+     * This image is Disk Mode and nothing else. The ATA device must be up
+     * before the LUN can exist, and the volume must not be mounted: the host
+     * owns every sector from the moment the stack connects.
+     */
+    rc = helikon_ata_init(&ctx->board.ata, &ctx->board.pmu, &ctx->board.clock,
+                          BOOT_STORAGE_TIMEOUT_MS);
+    if (rc != HELIKON_OK)
+        boot_fail(ctx, HELIKON_STAGE_ATA, rc, "The disk did not answer.");
+    rc = helikon_board_storage_attach(&ctx->board);
+    if (rc != HELIKON_OK)
+        boot_fail(ctx, HELIKON_STAGE_ATA, rc, "The disk could not be used.");
+    disk_mode_run(ctx);
+#endif
 #ifdef HELIKON_DIAG_ATA_PROBE
     struct helikon_ata_probe ata_probe;
     struct helikon_partition_map part_map;
