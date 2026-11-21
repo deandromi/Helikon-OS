@@ -16,9 +16,10 @@ include ../libmad.mk
 
 .PHONY: test sanitize clean
 
-test: test_wav test_player
+test: test_wav test_player test_read_ahead
 	./test_wav
 	./test_player
+	./test_read_ahead
 
 # The media path links the codec registry (libmad included), so it runs under
 # the same sanitizers as the codec suite.
@@ -30,8 +31,15 @@ test_wav: test_wav.c ../../firmware/player/wav.c ../../firmware/player/wav.h \
 	$(CC) $(CFLAGS) -o $@ test_wav.c ../../firmware/player/wav.c \
 	      ../../firmware/lib/mem.c
 
+test_read_ahead: test_read_ahead.c ../../firmware/player/read_ahead.c \
+                 ../../firmware/player/read_ahead.h
+	$(CC) $(CFLAGS) -o $@ test_read_ahead.c \
+	      ../../firmware/player/read_ahead.c
+
 test_player: test_player.c ../../firmware/player/player.c \
              ../../firmware/player/player.h ../../firmware/player/wav.c \
+             ../../firmware/player/read_ahead.c \
+             ../../firmware/player/read_ahead.h \
              ../../firmware/player/wav.h ../../firmware/hal/6g/audio.h \
              ../../firmware/hal/6g/audio_dma.h \
              ../../firmware/hal/6g/audio_stream.h \
@@ -42,7 +50,8 @@ test_player: test_player.c ../../firmware/player/player.c \
              ../../firmware/codec/mp3/mp3_codec.c ../../firmware/codec/mp3/mp3.h \
              ../../firmware/lib/mem.c $(LIBMAD_OBJ)
 	$(CC) $(CFLAGS) -o $@ test_player.c ../../firmware/player/player.c \
-	      ../../firmware/player/wav.c ../../firmware/codec/codec.c \
+	      ../../firmware/player/wav.c ../../firmware/player/read_ahead.c \
+	      ../../firmware/codec/codec.c \
 	      ../../firmware/codec/flac/flac_codec.c \
 	      ../../firmware/codec/flac/flac_decoder.c \
 	      ../../firmware/codec/mp3/mp3_codec.c \
@@ -50,4 +59,4 @@ test_player: test_player.c ../../firmware/player/player.c \
 	      ../../firmware/lib/mem.c $(LIBMAD_OBJ)
 
 clean:
-	rm -rf test_wav test_player build_mad
+	rm -rf test_wav test_player test_read_ahead build_mad

@@ -167,9 +167,24 @@ int helikon_player_open_media(struct helikon_player *player,
     player->last_stage = HELIKON_AUDIO_STAGE_NONE;
     player->audio.stage = HELIKON_AUDIO_STAGE_NONE;
 
+    /*
+     * Every storage-backed stream pulls through the window, probe included, so
+     * the decoder's first 4 KiB request does not become a second disk read
+     * before the first frame is even parsed.
+     */
+    int rc = helikon_read_ahead_init(&player->read_ahead,
+                                     player->read_ahead_buffer,
+                                     sizeof(player->read_ahead_buffer), source,
+                                     &player->media_source);
+    if (rc != HELIKON_OK) {
+        player->last_error = rc;
+        return rc;
+    }
+    const struct helikon_codec_source *stream = &player->media_source;
+
     const struct helikon_codec_ops *ops = NULL;
     struct helikon_codec_info info;
-    int rc = helikon_codec_probe_source(source, &ops, &info);
+    rc = helikon_codec_probe_source(stream, &ops, &info);
     if (rc != HELIKON_OK) {
         player->last_error = rc;
         if (rc == HELIKON_ERR_UNSUPPORTED)
@@ -177,7 +192,7 @@ int helikon_player_open_media(struct helikon_player *player,
         return rc;
     }
 
-    rc = helikon_codec_open_source(&player->codec, ops, source,
+    rc = helikon_codec_open_source(&player->codec, ops, stream,
                                    player->codec_workspace,
                                    sizeof(player->codec_workspace));
     if (rc != HELIKON_OK) {

@@ -2,10 +2,10 @@
 
 > Purpose: list every audio format Rockbox documents for the iPod Classic 6G,
 > define what Helikon-OS must support, and record the 6G hardware/CPU ceiling.
-> Status: living document; Tier plan plus a first 16-bit PCM/WAV playback
-> path; no compressed decoder and no device run.
+> Status: living document; Tier plan plus the host playback stack (WAV, FLAC,
+> MP3, pull sources, read-ahead); no Music-hub caller and no device run.
 > Owner: audio lead; firmware lead
-> Last updated: 2026-11-17
+> Last updated: 2026-11-21
 > Source: Rockbox iPod Classic manual `0d5c2b0604-261105`, Appendix B.1–B.2
 > and §4.3.3, §7.21–§7.22, §13.5.8; Rockbox codec performance page, iPod
 > Classic run `b320bba`, 2014-12-12; Apple iPod classic technical
@@ -1385,3 +1385,86 @@ The library index (T-067) has to call these readers and store the result; then
 Ogg Vorbis comments (a different container for the same block), APE tags, MP4
 and ASF tags, multi-value fields, artwork, ReplayGain 1.0/2.0, cuesheets and
 chapters remain. Nothing here is device-tested.
+
+## 21. Read-ahead window over the pull source — T-058 host slice (2026-11-21)
+
+Status: `in progress` as host code with host tests. No Music-hub caller, no
+I2S/DMA run, no profile on the device and no device run.
+
+### 21.1 Why
+
+The pull-source model (14) gave the decoders absolute-offset reads, and the VFS
+adapter (15) served each one with a seek plus a read. That is correct and it is
+also one storage access per decoder call: a FLAC frame header (a few bytes), a
+4 KiB frame window, an MP3 reservoir refill. On a 1.8" disk the seek is the cost,
+not the bytes, so the layer that turns many small pulls into few large reads is
+the difference between a decoder that keeps up and one that starves the ring.
+
+### 21.2 What landed
+
+`firmware/player/read_ahead.c/.h` wraps any `struct helikon_codec_source` in a
+window the caller provides:
+
+- `helikon_read_ahead_init(read_ahead, buffer, capacity, downstream, source)`
+  fills `source`; `source->size` reports the downstream length unchanged, so a
+  decoder cannot tell which source it holds. `capacity == 0` is legal and makes
+  the wrapper a pass-through, so a caller with no spare buffer still works.
+- A request inside the window is answered from memory (a hit). A request that
+  straddles the window end is served partly from memory and finished with one
+  refill (a straddle). A miss refills with a single `capacity` request at the
+  requested offset and loops until the request is satisfied or the stream ends.
+- A request at least as large as the window is a bypass: it goes straight to the
+  media, because filling the window and copying out of it would cost more than
+  the read itself. The window survives a bypass — its bytes are still true.
+- Media is immutable while a track is open, so the window is never invalidated,
+  not even across a seek: a backward seek the player has already read costs no
+  storage access. That is what makes a decoder's reservoir re-read cheap.
+- A short read is not end of stream (a fork boundary or a bounce limit returns
+  fewer bytes than asked); only a zero-byte read latches the end, so the wrapper
+  stops asking. A downstream error is returned unchanged rather than being
+  reported as a short read, which a decoder would treat as a truncated file.
+- `struct helikon_read_ahead_stats` counts reads, bytes, hits, straddles,
+  bypasses and refills. Nothing in the decoder path reads them; the tests do.
+- `helikon_player_open_media()` now wraps the caller's source in a
+  `HELIKON_READ_AHEAD_BYTES` (16 KiB) window it owns, so the probe and the
+  decoder both pull through it. Callers still pass a plain source: the policy
+  and its buffer belong to the player, not to the Music hub.
+
+### 21.3 Evidence (host only, no device run)
+
+`tests/player` (`test` and `sanitize`) adds `test_read_ahead`:
+
+- 64 one-KiB pulls over a 64 KiB file cost 16 window reads (`refills == 16`,
+  `hits == 48`), each window filled with one 16 KiB request and every byte
+  fetched once;
+- a backward read inside the filled window costs no storage access;
+- a window-sized request bypasses (one read), and the window is still there
+  afterwards;
+- a request crossing the window end returns contiguous bytes with one refill and
+  is counted as a straddle;
+- a 5,000-byte file: a read past the end returns the remaining 1,000 bytes, a
+  read at the end returns 0 without touching the media, and the end stays
+  latched;
+- an unknown-size source latches its end from the zero read and keeps the read
+  count small;
+- every refusal is checked (null read-ahead, downstream, source, buffer) and a
+  pass-through with no buffer still returns bytes;
+- a media error mid-refill reaches the caller unchanged and leaves no partial
+  window behind.
+
+`test_player` gains one assertion at the seam: after opening a WAV through a
+media that returns 37 bytes at a time, the probe's 4 KiB request must have
+arrived at the media as one 16 KiB request.
+
+Full matrix re-run: `tests/{firmware,hfsplus,vfs,codec,musicdb,player,ui}`,
+`tests/image` and `tests/bootloader` pass, and their sanitizer targets pass
+(`player`, `hfsplus`, `vfs`, `codec`, `firmware`, `bootloader`). Cross-builds:
+plain 6G unchanged, the music-hub image still links at 768,176 B — the window
+lives in `.bss` and the raw image does not grow.
+
+### 21.4 Remaining for T-058
+
+The Music-hub call sites (open a track through the VFS, play, seek, next and
+previous), the I2S/DMA run, an underrun/read-latency measurement on the device,
+and the queue behind next/previous. The window is policy, not evidence: nothing
+here says the 6G keeps up.
