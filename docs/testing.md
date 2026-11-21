@@ -107,10 +107,26 @@ existing image or device path. The test:
   gone; runs `fsck_hfs -fn` after each stage;
 - creates a scripted Unicode corpus (NFC/NFD, CJK, emoji, Hangul, combining
   marks, U+2126, U+F900, `:`/`/`, 255-unit and rejected 256-unit names) and
-  verifies the macOS NFC tree and `fsck_hfs` clean.
+  verifies the macOS NFC tree and `fsck_hfs` clean;
+- creates 24 one-block files, deletes every second one and appends twelve
+  blocks to a new file, so the fork needs eight inline extents plus four
+  single-block overflow extents and the volume's empty extents tree takes its
+  first record; macOS reads the 49,152 bytes back with a per-block pattern, and
+  `fsck_hfs -fn` stays clean;
+- truncates and deletes the overflow file, requires the extents tree to be
+  empty and the blocks to be free again, remounts and checks the paths are gone.
 
 `fsck_hfs` zero repairs and macOS content parity are the pass criteria. This is
 host evidence; it is not a device run and does not authorize a library write.
+The free-block arithmetic is asserted too: creating the holes must lower
+`free_blocks` by 24, deleting the twelve holes must raise it by 12, and the
+overflow append must spend exactly twelve more. A delete that only removed
+catalog records used to leave the count unchanged and the blocks allocated.
+
+The host unit suites carry the same rules without macOS: `test_catalog_write.c`
+(`append past overflow`) builds a fork past eight extents and reads it back,
+`test_bitmap.c` (`header updates compose`) pins the one-transaction volume-header
+merge, and `test_btree_tree.c` asserts a freed node is erased.
 
 ### 5.2 Journal crash injection
 
@@ -469,6 +485,15 @@ make -C firmware BOARD=6g size
 make -C firmware BOARD=6g test
 make -C firmware BOARD=6g image
 ```
+
+`firmware/Makefile` keys its object files on a configuration stamp that records
+`BOARD`, `VERSION`, `UI`, `AUDIO`, `AUDIO_TRACK`, `HDB` and `EXTRA_CFLAGS`
+(`../build/firmware/<board>/config.stamp`). Changing any of them rebuilds; an
+unchanged rebuild stays incremental. This replaced a stamp that only tracked
+`BOARD`/`VERSION`, under which a music-hub build left UI/AUDIO/HDB objects that
+the next plain or F2 build linked — the F2 artifact check once validated a
+music-hub image. When a build's size looks like another configuration's, check
+the stamp before trusting the evidence.
 
 Donor commands remain reference-only; they do not test Helikon-OS:
 

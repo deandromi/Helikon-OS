@@ -84,6 +84,20 @@ int hfs_txn_overlay(const struct hfs_txn *tx, uint64_t offset, void *buffer,
     return overlapped;
 }
 
+int hfs_txn_read(struct hfs_txn *tx, const struct hfs_volume *volume,
+                 uint64_t offset, void *buffer, uint32_t size)
+{
+    if (tx == NULL || tx->journal == NULL || volume == NULL || buffer == NULL ||
+        size == 0u)
+        return HFS_ERR_ARGUMENT;
+    if (offset > volume->length || size > volume->length - offset)
+        return HFS_ERR_FORMAT;
+    if (volume->read(volume->context, volume->base + offset, buffer, size))
+        return HFS_ERR_IO;
+    int rc = hfs_txn_overlay(tx, offset, buffer, size);
+    return rc < 0 ? rc : HFS_OK;
+}
+
 int hfs_txn_commit(struct hfs_txn *tx)
 {
     if (tx == NULL || !tx->active || tx->journal == NULL)

@@ -142,8 +142,9 @@ Helikon-OS/
       test_catalog_write.c  empty-file catalog create/delete test
     image/
       Makefile              disposable-image writer test build
-      hfs_image_test.c      create/append/delete on a journaled HFS+ image
+      hfs_image_test.c      create/rename/truncate/delete/overflow/Unicode on a HFS+ image
       hfs_crash_test.c      journal write-failure injection and recovery
+      check-overflow.py     per-block pattern check of the overflow file (macOS mount)
       run-macos.sh          hdiutil + fsck_hfs + macOS mount driver
       run-crash-macos.sh    per-cut crash/replay/fsck driver
       write_diag_host.c     host outer/inner write-diagnostic runner

@@ -274,6 +274,48 @@ static int test_4k_journal_sector(void)
     return 0;
 }
 
+/*
+ * A delete frees the file's blocks and then decrements the file count in the
+ * same transaction: both updaters write the volume header, so the second one
+ * must merge with the first instead of colliding (that collision made every
+ * one-block delete fail with HFS_ERR_BUSY and left the block allocated), and
+ * the staged read must return the merged block.
+ */
+static int test_header_updates_compose(void)
+{
+    struct hfs_volume volume;
+    struct hfs_bitmap bitmap;
+    struct hfs_journal journal;
+    struct hfs_txn tx;
+    uint8_t block[TEST_BLOCK_SIZE];
+
+    make_volume_image(TEST_FREE_BLOCKS);
+    CHECK(open_bitmap(&bitmap, &volume) == HFS_OK);
+    make_txn(&tx, &journal);
+    uint32_t first = 0;
+    CHECK(hfs_bitmap_alloc(&bitmap, &tx, 0, 1, &first) == HFS_OK);
+    CHECK(first == 21);
+    CHECK(hfs_bitmap_free(&bitmap, &tx, first, 1) == HFS_OK);
+    CHECK(bitmap.free_blocks == TEST_FREE_BLOCKS);
+
+    struct hfs_volume_update update;
+    memset(&update, 0, sizeof(update));
+    update.set_file_count = 1;
+    update.file_count = 7;
+    CHECK(hfs_volume_stage(&tx, &volume, &update) == HFS_OK);
+
+    CHECK(hfs_txn_read(&tx, &volume, 1024, block, sizeof(block)) == HFS_OK);
+    CHECK(block[32] == 0 && block[33] == 0 && block[34] == 0 &&
+          block[35] == 7);
+    CHECK(block[48] == 0 && block[49] == 0 && block[50] == 0 &&
+          block[51] == TEST_FREE_BLOCKS);
+
+    /* Out-of-range reads are rejected, not truncated. */
+    CHECK(hfs_txn_read(&tx, &volume, volume.length, block, sizeof(block)) !=
+          HFS_OK);
+    return 0;
+}
+
 struct test_case {
     const char *name;
     int (*run)(void);
@@ -287,7 +329,8 @@ int main(void)
         { "free restores block", test_free_restores_block },
         { "no space", test_no_space },
         { "bad free range", test_bad_free_range },
-        { "4 KiB journal sector", test_4k_journal_sector }
+        { "4 KiB journal sector", test_4k_journal_sector },
+        { "header updates compose", test_header_updates_compose }
     };
 
     int failures = 0;

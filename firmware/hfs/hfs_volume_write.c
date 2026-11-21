@@ -27,6 +27,12 @@ static void put32(uint8_t *p, uint32_t value)
  * Stage the journal-sector-sized block containing a volume header, not just
  * the 512-byte header. A journal with 4 KiB sectors requires whole-sector
  * transaction blocks; a 512-byte stage is rejected by hfs_txn_stage().
+ *
+ * The block is merged, never replaced: hfs_bitmap_free() updates free_blocks
+ * in the same block earlier in the same transaction (a delete frees the file's
+ * blocks and then decrements the file count), so this function has to start
+ * from the staged content and use the replace-style stage. Using the plain
+ * stage made every such transaction fail with HFS_ERR_BUSY.
  */
 static int stage_one(struct hfs_txn *tx, const struct hfs_volume *volume,
                      uint64_t offset, const struct hfs_volume_update *update)
@@ -42,9 +48,9 @@ static int stage_one(struct hfs_txn *tx, const struct hfs_volume *volume,
         return HFS_ERR_FORMAT;
 
     static uint8_t block[4096];
-    if (volume->read(volume->context, volume->base + block_start, block,
-                     sector_size))
-        return HFS_ERR_IO;
+    int rc = hfs_txn_read(tx, volume, block_start, block, sector_size);
+    if (rc != HFS_OK)
+        return rc;
 
     uint8_t *header = block + (offset - block_start);
     if (update->set_modify_date)
@@ -58,7 +64,8 @@ static int stage_one(struct hfs_txn *tx, const struct hfs_volume *volume,
     put32(header + WRITE_COUNT_OFFSET,
           be32(header + WRITE_COUNT_OFFSET) + 1u);
 
-    return hfs_txn_stage(tx, block_start / sector_size, block, sector_size);
+    return hfs_txn_stage_replace(tx, block_start / sector_size, block,
+                                 sector_size);
 }
 
 int hfs_volume_stage(struct hfs_txn *tx, const struct hfs_volume *volume,

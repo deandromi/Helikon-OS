@@ -11,6 +11,7 @@
 #include "hfs_catalog_compare.h"
 #include "hfs_catalog_write.h"
 #include "hfs_journal.h"
+#include "hfs_extents.h"
 #include "hfs_txn.h"
 #include "hfs_volume.h"
 
@@ -26,6 +27,10 @@
 #define TEST_NAME_RENAMED "Helikon Test Renamed"
 #define TEST_SIZE 4096u
 #define TEST_PATTERN 0x5au
+#define HOLE_FILES 24u
+#define OVERFLOW_BLOCKS 12u
+#define OVERFLOW_NAME "Overflow File"
+#define OVERFLOW_SIZE (OVERFLOW_BLOCKS * TEST_SIZE)
 
 struct image {
     int fd;
@@ -419,6 +424,275 @@ static int delete_files(struct image *image)
     return HFS_OK;
 }
 
+/* ASCII to UTF-16BE name units, for the create/delete calls. */
+static size_t ascii_units(const char *ascii, uint8_t *out, size_t capacity)
+{
+    size_t length = strlen(ascii);
+    if (length == 0 || length > capacity)
+        return 0;
+    for (size_t i = 0; i < length; ++i) {
+        out[i * 2u] = 0;
+        out[i * 2u + 1u] = (uint8_t)ascii[i];
+    }
+    return length;
+}
+
+static int create_one_block_file(struct image *image, const char *ascii,
+                                 uint8_t pattern, uint32_t *cnid)
+{
+    uint8_t name[64];
+    size_t units = ascii_units(ascii, name, sizeof(name) / 2u);
+    if (units == 0)
+        return HFS_ERR_ARGUMENT;
+    uint8_t block[TEST_SIZE];
+    memset(block, pattern, sizeof(block));
+
+    struct hfs_txn tx;
+    int rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    rc = commit(&tx, hfs_catalog_create_file(&image->catalog, &tx, 2, name,
+                                             units, 0644,
+                                             hfs_catalog_key_compare, NULL,
+                                             cnid));
+    if (rc != HFS_OK)
+        return rc;
+    rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    return commit(&tx, hfs_catalog_append_file(&image->catalog, &tx, 2, name,
+                                               units, 0, block, sizeof(block),
+                                               hfs_catalog_key_compare, NULL));
+}
+
+static int delete_named_file(struct image *image, const char *ascii,
+                             uint32_t cnid)
+{
+    uint8_t name[64];
+    size_t units = ascii_units(ascii, name, sizeof(name) / 2u);
+    if (units == 0)
+        return HFS_ERR_ARGUMENT;
+    struct hfs_txn tx;
+    int rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    return commit(&tx, hfs_catalog_delete_file(&image->catalog, &tx, 2, name,
+                                               units, cnid,
+                                               hfs_catalog_key_compare, NULL));
+}
+
+/*
+ * Force a data fork past its eight inline extents: create one-block files,
+ * delete every other one, then append twelve blocks to a new file. The
+ * allocator fills the holes, so the fork needs four overflow extents — the
+ * first record the volume's empty extents B-tree will ever hold, which is the
+ * create-root path on a real macOS-formatted volume.
+ */
+static int create_overflow_file(struct image *image)
+{
+    uint32_t holes[HOLE_FILES];
+    char ascii[24];
+    struct stats start_stats;
+    if (read_stats(image, &start_stats) != HFS_OK)
+        return HFS_ERR_IO;
+    for (uint32_t i = 0; i < HOLE_FILES; ++i) {
+        snprintf(ascii, sizeof(ascii), "Hole %02u", i);
+        int rc = create_one_block_file(image, ascii, (uint8_t)(0x10u + i),
+                                       &holes[i]);
+        if (rc != HFS_OK) {
+            fprintf(stderr, "hole %u create failed: %d\n", i, rc);
+            return rc;
+        }
+    }
+    struct stats after_holes;
+    if (read_stats(image, &after_holes) != HFS_OK)
+        return HFS_ERR_IO;
+    if (after_holes.free_blocks + HOLE_FILES != start_stats.free_blocks)
+        return HFS_ERR_FORMAT;
+    for (uint32_t i = 1; i < HOLE_FILES; i += 2u) {
+        snprintf(ascii, sizeof(ascii), "Hole %02u", i);
+        int rc = delete_named_file(image, ascii, holes[i]);
+        if (rc != HFS_OK) {
+            fprintf(stderr, "hole %u delete failed: %d\n", i, rc);
+            return rc;
+        }
+    }
+
+    /*
+     * Deleting the hole files has to return their blocks to the bitmap; a
+     * delete that only removes the catalog record leaks every block it owned.
+     */
+    struct stats after_deletes;
+    if (read_stats(image, &after_deletes) != HFS_OK)
+        return HFS_ERR_IO;
+    if (after_deletes.free_blocks != after_holes.free_blocks + HOLE_FILES / 2u)
+        return HFS_ERR_FORMAT;
+    static uint8_t payload[OVERFLOW_SIZE];
+    for (uint32_t block = 0; block < OVERFLOW_BLOCKS; ++block) {
+        memset(payload + block * TEST_SIZE, (int)(0x40u + block), TEST_SIZE);
+    }
+    uint8_t name[64];
+    size_t units = ascii_units(OVERFLOW_NAME, name, sizeof(name) / 2u);
+    if (units == 0)
+        return HFS_ERR_ARGUMENT;
+    uint32_t cnid = 0;
+    struct hfs_txn tx;
+    int rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    rc = commit(&tx, hfs_catalog_create_file(&image->catalog, &tx, 2, name,
+                                             units, 0644,
+                                             hfs_catalog_key_compare, NULL,
+                                             &cnid));
+    if (rc != HFS_OK)
+        return rc;
+    /*
+     * One block per call: the allocator takes the lowest free run each time, so
+     * twelve single-block appends land in the twelve holes and the fork needs
+     * twelve extents instead of one contiguous run.
+     */
+    for (uint32_t block = 0; block < OVERFLOW_BLOCKS; ++block) {
+        rc = hfs_txn_begin(&tx, &image->journal);
+        if (rc != HFS_OK)
+            return rc;
+        rc = commit(&tx, hfs_catalog_append_file(
+                            &image->catalog, &tx, 2, name, units,
+                            (uint64_t)block * TEST_SIZE,
+                            payload + block * TEST_SIZE, TEST_SIZE,
+                            hfs_catalog_key_compare, NULL));
+        if (rc != HFS_OK) {
+            fprintf(stderr, "overflow append block %u failed: %d\n", block,
+                    rc);
+            return rc;
+        }
+    }
+
+    struct hfs_entry entry;
+    rc = hfs_catalog_lookup_ascii(&image->catalog, 2, OVERFLOW_NAME, &entry);
+    if (rc != HFS_OK)
+        return rc;
+    if (entry.kind != 2 || entry.data.size != OVERFLOW_SIZE ||
+        entry.data.blocks != OVERFLOW_BLOCKS) {
+        fprintf(stderr, "overflow entry size=%llu blocks=%u\n",
+                (unsigned long long)entry.data.size, entry.data.blocks);
+        return HFS_ERR_FORMAT;
+    }
+
+    static uint8_t readback[OVERFLOW_SIZE];
+    size_t done = 0;
+    rc = hfs_catalog_read_file(&image->catalog, &entry, 0, readback,
+                               sizeof(readback), &done);
+    if (rc != HFS_OK || done != sizeof(readback))
+        return rc != HFS_OK ? rc : HFS_ERR_FORMAT;
+    if (memcmp(readback, payload, sizeof(payload)) != 0)
+        return HFS_ERR_FORMAT;
+
+    /*
+     * The fork must sit exactly on the boundary the exercise targets: eight
+     * inline extents, the rest in the overflow tree. hfs_extents_collect()
+     * returns only the overflow extents, so the two counts have to add up to
+     * the fork's block count.
+     */
+    uint32_t inline_blocks = 0;
+    for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i)
+        inline_blocks += entry.data.extents[i].count;
+
+    static uint8_t extent_scratch[32768];
+    struct hfs_extents extents;
+    rc = hfs_extents_open(&extents, &image->volume, extent_scratch,
+                          sizeof(extent_scratch));
+    if (rc != HFS_OK)
+        return rc;
+    struct hfs_extent list[32];
+    size_t count = 0;
+    rc = hfs_extents_collect(&extents, entry.id, inline_blocks,
+                             entry.data.blocks, list, 32, &count);
+    if (rc != HFS_OK)
+        return rc;
+    uint32_t overflow_blocks = 0;
+    for (size_t i = 0; i < count; ++i)
+        overflow_blocks += list[i].count;
+    if (inline_blocks != 8u || count == 0 ||
+        inline_blocks + overflow_blocks != entry.data.blocks) {
+        fprintf(stderr,
+                "overflow extents inline=%u overflow=%u blocks=%u extents=%zu\n",
+                inline_blocks, overflow_blocks, entry.data.blocks, count);
+        return HFS_ERR_FORMAT;
+    }
+
+    fprintf(stderr,
+            "overflow file cnid=%u size=%u blocks=%u inline=%u overflow=%u\n",
+            cnid, OVERFLOW_SIZE, entry.data.blocks, inline_blocks,
+            overflow_blocks);
+    return HFS_OK;
+}
+
+static int clear_overflow_file(struct image *image)
+{
+    uint8_t name[64];
+    size_t units = ascii_units(OVERFLOW_NAME, name, sizeof(name) / 2u);
+    if (units == 0)
+        return HFS_ERR_ARGUMENT;
+    struct hfs_txn tx;
+    int rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    rc = commit(&tx, hfs_catalog_truncate_file(&image->catalog, &tx, 2, name,
+                                               units,
+                                               hfs_catalog_key_compare, NULL));
+    if (rc != HFS_OK)
+        return rc;
+
+    struct hfs_entry entry;
+    rc = hfs_catalog_lookup_ascii(&image->catalog, 2, OVERFLOW_NAME, &entry);
+    if (rc != HFS_OK)
+        return rc;
+    if (entry.data.size != 0u || entry.data.blocks != 0u)
+        return HFS_ERR_FORMAT;
+
+    static uint8_t extent_scratch[32768];
+    struct hfs_extents extents;
+    rc = hfs_extents_open(&extents, &image->volume, extent_scratch,
+                          sizeof(extent_scratch));
+    if (rc != HFS_OK)
+        return rc;
+    struct hfs_extent list[8];
+    size_t count = 0;
+    rc = hfs_extents_collect(&extents, entry.id, 0, 0, list, 8, &count);
+    if (rc != HFS_OK || count != 0u)
+        return rc != HFS_OK ? rc : HFS_ERR_FORMAT;
+    if (extents.btree.empty == 0u) {
+        /* The overflow records are gone; the header may keep free nodes, but
+         * the tree must be back to its empty state so it can be reopened. */
+        fprintf(stderr, "extents tree is not empty after truncate\n");
+        return HFS_ERR_FORMAT;
+    }
+
+    char ascii[24];
+    for (uint32_t i = 0; i < HOLE_FILES; ++i) {
+        if ((i & 1u) != 0u)
+            continue;
+        snprintf(ascii, sizeof(ascii), "Hole %02u", i);
+        struct hfs_entry hole;
+        rc = hfs_catalog_lookup_ascii(&image->catalog, 2, ascii, &hole);
+        if (rc != HFS_OK)
+            return rc;
+        rc = delete_named_file(image, ascii, hole.id);
+        if (rc != HFS_OK)
+            return rc;
+    }
+    struct hfs_entry overflow;
+    rc = hfs_catalog_lookup_ascii(&image->catalog, 2, OVERFLOW_NAME, &overflow);
+    if (rc != HFS_OK)
+        return rc;
+    rc = delete_named_file(image, OVERFLOW_NAME, overflow.id);
+    if (rc != HFS_OK)
+        return rc;
+
+    printf("overflow file truncated and removed, extents tree empty again\n");
+    return HFS_OK;
+}
+
 static int create_unicode_files(struct image *image)
 {
     static const uint8_t cafe[] = { 0, 'C', 0, 'a', 0, 'f', 0, 0xe9 };
@@ -506,7 +780,11 @@ int main(int argc, char **argv)
         fprintf(stderr, "open: %s\n", hfs_strerror(rc));
         return 1;
     }
-    if (strcmp(argv[2], "create") == 0) {
+    if (strcmp(argv[2], "overflow") == 0) {
+        rc = create_overflow_file(&image);
+    } else if (strcmp(argv[2], "overflow-cleanup") == 0) {
+        rc = clear_overflow_file(&image);
+    } else if (strcmp(argv[2], "create") == 0) {
         rc = create_and_append(&image);
     } else if (strcmp(argv[2], "rename") == 0) {
         rc = rename_files(&image);

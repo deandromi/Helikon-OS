@@ -432,6 +432,19 @@ static int test_insert_empty_tree(void)
     CHECK(get_be32(emptied + 28) == 0u);
     CHECK((emptied[248] & 0x40u) == 0u); /* the root node is free again */
 
+    /*
+     * A freed node must be erased, not just unmarked: fsck_hfs reports "Unused
+     * node is not erased" for a node whose old descriptor and records survive.
+     */
+    uint8_t *freed = node_ptr(root);
+    for (uint32_t i = 0; i < TEST_NODE_SIZE; ++i) {
+        if (freed[i] != 0u) {
+            fprintf(stderr, "freed node %u byte %u is 0x%02x\n", root, i,
+                    freed[i]);
+            CHECK(freed[i] == 0u);
+        }
+    }
+
     struct hfs_btree reopened_again;
     CHECK(hfs_btree_open(&reopened_again, &volume, &volume.catalog, scratch,
                          sizeof(scratch)) == HFS_OK);

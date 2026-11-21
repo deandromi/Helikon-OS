@@ -87,9 +87,9 @@ static int stage_header_at(struct hfs_txn *tx,
 
     uint64_t block_start = offset - offset % sector_size;
     static uint8_t block[4096];
-    if (volume->read(volume->context, volume->base + block_start, block,
-                     sector_size))
-        return HFS_ERR_IO;
+    int rc = hfs_txn_read(tx, volume, block_start, block, sector_size);
+    if (rc != HFS_OK)
+        return rc;
 
     uint8_t *header = block + (offset - block_start);
     put_be32(header + HFS_VH_FREE_BLOCKS, free_blocks);

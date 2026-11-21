@@ -12,6 +12,80 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (eleventh block: a file that really overflows)
+
+## What happened
+
+- The end-to-end overflow proof runs on a real macOS-formatted image:
+  `tests/image/run-macos.sh` creates 24 one-block files, deletes every second
+  one, appends twelve blocks to a new file, and requires eight inline extents in
+  the freed holes plus four single-block overflow extents. The volume's empty
+  extents tree takes its first record (`create_root()` on a real volume, not a
+  fixture), macOS reads all 49,152 bytes back with a per-block pattern,
+  `fsck_hfs -fn` is clean, and a cleanup stage truncates and deletes the file
+  and requires the extents tree to be empty again.
+- Three real writer bugs were found and fixed on the way:
+  1. **Deletes leaked every block the file owned.** `hfs_catalog_delete_file()`
+     removed the catalog and thread records but never freed the fork, so the
+     bitmap kept the blocks allocated (deleting 12 files left `free_blocks`
+     unchanged). A delete now truncates the fork first.
+  2. **A one-block delete failed with `HFS_ERR_BUSY`.** The truncate staged the
+     volume header (free count) and the counts stage collided with it: the
+     bitmap used `hfs_txn_stage_replace()` while `hfs_volume_stage()` used the
+     plain stage, which rejects an already-staged sector. Both now merge through
+     the new `hfs_txn_read()` overlay plus `hfs_txn_stage_replace()`, which also
+     stops the second updater from dropping the first updater's fields.
+  3. **A freed B-tree node was not erased.** `fsck_hfs` reported
+     `Unused node is not erased (node = 2)` after the deletes. `free_node()` now
+     stages a zeroed node before it clears the free-node bit, at every free site.
+- Two more gaps closed so the exercise can exist at all:
+  `hfs_catalog_append_file()` walked only the eight inline extents and rejected
+  a second overflow append with `UNSUPPORTED`; it now collects inline plus
+  overflow extents (`collect_fork_extents()`, capped at 32) and rewrites the
+  overflow records. `hfs_catalog_read_file()` falls back to `hfs_extents_read()`
+  for an overflowed fork, so the bytes can be read back.
+- `firmware/Makefile` now keys its objects on a configuration stamp that
+  includes `UI`, `AUDIO`, `AUDIO_TRACK`, `HDB` and `EXTRA_CFLAGS`. The old stamp
+  only tracked `BOARD`/`VERSION`, so the F2 build after a music-hub build
+  silently linked the music-hub objects and `check-f2-artifact.sh` validated a
+  768,396-byte UI image instead of the 78,228-byte F2 image.
+- New host tests: `append past overflow` (`test_catalog_write.c`, both the
+  extents and a full readback), `header updates compose` (`test_bitmap.c`), and
+  the freed-node-erased assertion in `test_btree_tree.c`.
+
+## Evidence (host only, no device run)
+
+- `tests/hfsplus test` + `sanitize`: 17 binaries, all pass (catalog-write now
+  11 tests, bitmap 7, btree-tree 2).
+- `tests/image test` (overflow, cleanup, Unicode, F2) and `crash-test`: PASS,
+  `fsck_hfs -fn` clean at every stage.
+- `tests/library macos`, `tests/vfs`, `tests/player`, `tests/codec`,
+  `tests/firmware`, `tests/bootloader`, `tests/musicdb`: PASS.
+- Builds: plain 6G 78,228 B; music-hub (UI/AUDIO/HDB) 768,396 B; F2
+  `VERSION=2 BOOTSTATE_STATE=trying` 78,228 B with `tools/check-f2-artifact.sh`
+  PASS on the plain image.
+
+## Open / next
+
+- No device run for any of this. The writer's device evidence is still the
+  2026-11-04 outer-volume run.
+- The macOS image test never deletes a file that still has overflow extents
+  without truncating it first; adding that path (delete → free overflow →
+  extents tree empty) is worth a scenario.
+- `APPEND_EXTENT_MAX` (32) is a hard ceiling for a fork grown by append; a
+  fragmented large file will hit `UNSUPPORTED` before HFS+ does. Extent-list
+  growth or a proper run-length merge is the next writer task.
+- D-05 cache limits, the transaction-block ceiling and the device power-cut
+  matrix remain.
+
+## Rollback
+
+Revert this commit; the writer returns to leaking deleted blocks, refusing a
+second overflow append and leaving freed nodes unerased. No on-disk format
+changed, so images written by the new code stay readable either way.
+
+---
+
 # Handoff — 2026-11-21 (tenth block: emptying the tree again)
 
 ## What happened

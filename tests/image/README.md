@@ -8,6 +8,15 @@ runs the host writer on it, mounts it read-only through macOS to verify the file
 content, deletes the file, and runs `fsck_hfs -fn` after each stage. `fsck_hfs`
 must report that the volume is OK and must not attempt a repair.
 
+Stages, in order: `create`, `rename`, `truncate`, `delete`, `overflow`,
+`overflow-cleanup`, `unicode`. The `overflow` stage frees twelve single blocks
+(24 one-block files, every second one deleted), appends twelve blocks to a new
+file one call at a time, and requires the fork to land in the eight inline
+extents plus four overflow extents, so the volume's empty extents overflow
+B-tree takes its first record. `check-overflow.py` verifies the 49,152 bytes
+with a per-block pattern through the macOS mount; `overflow-cleanup` truncates
+and deletes the file and requires the extents tree to be empty again.
+
 The script accepts no image or device argument. Do not add one, and do not
 point the harness at a library, a mounted volume or a `/dev` node.
 

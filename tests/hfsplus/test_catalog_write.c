@@ -1260,6 +1260,143 @@ static int test_overwrite_file(void)
     return 0;
 }
 
+/*
+ * Appending to a fork that already lives in the extents-overflow tree must
+ * merge with the existing overflow records. The old code walked only the eight
+ * inline extents, so the second overflowed append saw blocks != inline_blocks
+ * and failed with HFS_ERR_UNSUPPORTED: the file could grow once past eight
+ * extents and never again.
+ */
+static int test_append_past_overflow(void)
+{
+    make_image();
+    struct hfs_volume volume;
+    CHECK(hfs_volume_probe(&volume, test_image_read, NULL, 0,
+                           TEST_IMAGE_SIZE) == HFS_OK);
+    struct hfs_btree btree;
+    memset(&btree, 0, sizeof(btree));
+    btree.volume = &volume;
+    btree.fork = &volume.catalog;
+    btree.node_size = TEST_NODE_SIZE;
+    btree.total_nodes = TEST_NODES;
+    btree.free_nodes = TEST_NODES - 2;
+    btree.depth = 1;
+    btree.root_node = 1;
+    btree.first_leaf = 1;
+    btree.last_leaf = 1;
+    /* The read-only helpers need a node buffer; the writer ones do not. */
+    static uint8_t scratch[TEST_NODE_SIZE];
+    btree.scratch = scratch;
+    btree.scratch_size = sizeof(scratch);
+
+    struct hfs_catalog catalog;
+    memset(&catalog, 0, sizeof(catalog));
+    catalog.btree = btree;
+
+    struct hfs_journal journal;
+    struct hfs_txn tx;
+    memset(&journal, 0, sizeof(journal));
+    journal.sector_size = TEST_BLOCK_SIZE;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(seed_root(&btree, &tx) == HFS_OK);
+    apply_txn(&tx);
+
+    static const uint8_t name[TEST_NAME_UNITS * 2] = {
+        0, 'G', 0, 'R', 0, 'O', 0, 'W'
+    };
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    uint32_t cnid = 0;
+    CHECK(hfs_catalog_create_file(&catalog, &tx, 2, name, 4, 0644,
+                                  hfs_catalog_key_compare, NULL, &cnid) ==
+          HFS_OK);
+    apply_txn(&tx);
+
+    /* Ten single-block holes: blocks 50,52,...,68. */
+    uint8_t *bitmap = test_image + 18 * TEST_BLOCK_SIZE;
+    memset(bitmap, 0xff, 16);
+    for (uint32_t block = 50; block <= 68; block += 2)
+        bitmap[block / 8] &= (uint8_t)~(0x80u >> (block % 8));
+    put_be32(test_image + 1024 + 48, 10);
+    volume.free_blocks = 10;
+
+    uint8_t block[TEST_BLOCK_SIZE];
+    memset(block, 0x5c, sizeof(block));
+    for (uint32_t i = 0; i < 9; ++i) {
+        memset(&tx, 0, sizeof(tx));
+        tx.journal = &journal;
+        tx.active = 1;
+        CHECK(hfs_catalog_append_file(&catalog, &tx, 2, name, 4,
+                                      (uint64_t)i * TEST_BLOCK_SIZE, block,
+                                      sizeof(block), hfs_catalog_key_compare,
+                                      NULL) == HFS_OK);
+        apply_txn(&tx);
+    }
+
+    struct hfs_extent overflow[8];
+    size_t overflow_count = 0;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_extents_overflow_get(&volume, &tx, cnid, 8, overflow, 8,
+                                   &overflow_count) == HFS_OK);
+    CHECK(overflow_count == 1);
+    CHECK(overflow[0].start == 66 && overflow[0].count == 1);
+
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_append_file(&catalog, &tx, 2, name, 4,
+                                  9u * TEST_BLOCK_SIZE, block,
+                                  sizeof(block), hfs_catalog_key_compare,
+                                  NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    overflow_count = 0;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_extents_overflow_get(&volume, &tx, cnid, 8, overflow, 8,
+                                   &overflow_count) == HFS_OK);
+    CHECK(overflow_count == 2);
+    CHECK(overflow[0].start == 66 && overflow[1].start == 68);
+
+    uint8_t key[256];
+    uint8_t record[1024];
+    size_t record_length = 0;
+    size_t key_length = build_key(key, 2, name, 4);
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    size_t data_offset = 2u + key_length;
+    uint8_t *fork = record + data_offset + 88u;
+    CHECK(get_be32(fork + 12) == 10);
+    CHECK(memcmp(test_image + 50 * TEST_BLOCK_SIZE, block, TEST_BLOCK_SIZE) == 0);
+    CHECK(memcmp(test_image + 68 * TEST_BLOCK_SIZE, block, TEST_BLOCK_SIZE) == 0);
+
+    /* The reader has to splice the inline and overflow parts back together. */
+    struct hfs_entry entry;
+    CHECK(hfs_catalog_lookup_ascii(&catalog, 2, "GROW", &entry) == HFS_OK);
+    CHECK(entry.kind == 2);
+    CHECK(entry.data.size == 10u * TEST_BLOCK_SIZE);
+    uint8_t readback[10 * TEST_BLOCK_SIZE];
+    size_t done = 0;
+    CHECK(hfs_catalog_read_file(&catalog, &entry, 0, readback,
+                                sizeof(readback), &done) == HFS_OK);
+    CHECK(done == sizeof(readback));
+    for (size_t i = 0; i < sizeof(readback); ++i) {
+        if (readback[i] != block[i % TEST_BLOCK_SIZE]) {
+            fprintf(stderr, "readback byte %zu is 0x%02x\n", i, readback[i]);
+            CHECK(readback[i] == block[i % TEST_BLOCK_SIZE]);
+            break;
+        }
+    }
+    return 0;
+}
+
 struct test_case {
     const char *name;
     int (*run)(void);
@@ -1277,7 +1414,8 @@ int main(void)
         { "metadata file", test_metadata_file },
         { "metadata folder", test_metadata_folder },
         { "finder info preserved", test_finder_info_preserved },
-        { "overwrite in place", test_overwrite_file }
+        { "overwrite in place", test_overwrite_file },
+        { "append past overflow", test_append_past_overflow }
     };
     int failures = 0;
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); ++i) {

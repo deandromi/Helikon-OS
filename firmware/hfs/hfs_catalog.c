@@ -8,6 +8,7 @@
  * records are validated and skipped; extents overflow is a later module.
  */
 #include "hfs_catalog.h"
+#include "hfs_extents.h"
 #include "hfs_unicode.h"
 
 #include <string.h>
@@ -399,6 +400,32 @@ int hfs_catalog_read_file(struct hfs_catalog *catalog,
         return HFS_OK;
     if (length > entry->data.size - offset)
         length = (size_t)(entry->data.size - offset);
+
+    uint32_t inline_blocks = 0;
+    for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i) {
+        if (entry->data.extents[i].count >
+            UINT32_MAX - inline_blocks)
+            return HFS_ERR_FORMAT;
+        inline_blocks += entry->data.extents[i].count;
+    }
+    if (inline_blocks < entry->data.blocks) {
+        /*
+         * The fork continues in the extents-overflow tree, so the inline-only
+         * reader cannot serve it. hfs_extents_read() walks the records and
+         * splices the two parts back together.
+         */
+        static uint8_t scratch[32768];
+        struct hfs_extents extents;
+        int rc = hfs_extents_open(&extents, catalog->btree.volume, scratch,
+                                  sizeof(scratch));
+        if (rc != HFS_OK)
+            return rc;
+        rc = hfs_extents_read(&extents, &entry->data, entry->id, offset,
+                              buffer, length, done);
+        if (rc != HFS_OK)
+            *done = 0;
+        return rc;
+    }
 
     int rc = hfs_fork_read(catalog->btree.volume, &entry->data, offset,
                            buffer, length);
