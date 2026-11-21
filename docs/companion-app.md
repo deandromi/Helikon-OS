@@ -4,7 +4,7 @@
 > and the boundary for rebuilding it against the actual Helikon-OS surface.
 > Status: living; app shell `in progress`, all previous features removed
 > Owner: host/product
-> Last updated: 2026-11-06
+> Last updated: 2026-11-21
 > Source: owner reset instruction 2026-11-06; paper §28.4.2, goals 19/20
 > 2026-11-05; `tools/desktop/`
 
@@ -51,9 +51,11 @@ reset, not a claim that those features never existed.
 
 ### Shell
 
-A single paper/ink window with a brand-only sidebar and an empty-state page. The
-sidebar has no navigation items. The only shell action is reopening the welcome
-screen from the app menu.
+A single paper/ink window: one top band with the wordmark and the pre-release
+version, over a single empty-state page. There is no sidebar, because there is no
+destination to list yet; the band carries the only chrome the shell needs. The
+window opens at 900×508 and resizes down to 720×480. The only shell action is
+reopening the welcome screen from the app menu.
 
 ### Welcome screen
 
@@ -63,13 +65,24 @@ The full-window welcome screen uses the owner-supplied Halftone banner: a
 kept at
 `tools/desktop/Sources/HelikonCompanion/Resources/helikon-os-banner.png`.
 Nothing is redrawn or recoloured. It has one action, **Open companion**.
-`--skip-splash` remains the developer shortcut to the shell.
+
+The welcome is a first-run card, not an interstitial: dismissing it stores
+`com.helikon.companion.hasSeenSplash` and later launches open the shell directly.
+`--skip-splash` remains the developer shortcut for scripted launches, and the app
+menu reopens the welcome on demand.
 
 ### Visual direction
 
 The shell keeps the editorial paper/ink language: warm paper, deep ink, a serif
 display face, system utility text, thin rules and restrained colour. There are
 no all-caps UI labels; acronyms and device-supplied text are the exception.
+
+Text contrast floors are measured against `paper` (`#F3F0E7`): `ink` 13.97:1 and
+`muted` 4.72:1 pass AA, while `rule` (1.28:1) and `ruleStrong` (1.9:1) are for
+hairlines only. The palette has no colour lighter than `muted`, so quiet notes
+shrink or are cut rather than fading out. The window is light-only; the app no
+longer overrides the system-wide appearance, so sheets and menus follow the
+user's setting.
 
 ### DMG build
 
