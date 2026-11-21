@@ -918,12 +918,31 @@ support.
   `tests/bootloader`, `tests/image` (incl. write-diag, outer-diag,
   loader-test), `tests/musicdb`.
 
-### 13.5 Remaining for the MP3 codec
+### 13.5 Whole-family host coverage (2026-11-21)
 
-Streaming source model (bounded callbacks), gapless (LAME delay/padding),
-resume, half-rate decode, the ARMv5E synth accelerator, coverage for
-MPEG-2/2.5 and Layer I/II execution paths on the host corpus, and the
-T-100/T-101 device gates.
+Every fixture used to be MPEG-1 Layer III at 44.1 kHz, so the wrapper's other
+branches were claims, not code under test. Three fixtures now execute them:
+
+| Fixture | Family | Frame samples | Xing/LAME | Measured |
+|---|---|---|---:|---|
+| `mp3_mpeg2_stereo16` | MPEG-2 Layer III, 22.05 kHz, 64 kbps | 576 | yes, delay 576 / padding 576 | 4,608 raw frames, 3,456 decoded |
+| `mp3_mpeg25_stereo16` | MPEG-2.5 Layer III, 11.025 kHz, 32 kbps | 576 | yes, delay 576 / padding 576 | 3,456 raw frames, 2,304 decoded |
+| `mp3_layer2_stereo44` | MPEG-1 Layer II, 44.1 kHz, 128 kbps | 1152 | no | 2,304 raw frames, 2,304 decoded |
+
+`check_mp3_family()` pins the sample rate, the raw frame count, the LAME delay
+and padding, the trimmed output length and a frame-index seek for each, and
+`tests/codec/README.md` records how the set is regenerated. Nothing was broken:
+the 576-sample arithmetic in the header parse, the gapless trim and the seek
+divisor all produce the encoder's own numbers. That is the point of adding them
+— the family claim is now executed rather than asserted. Layer I stays without a
+fixture because no common encoder emits it.
+
+### 13.6 Remaining for the MP3 codec
+
+Streaming source model (bounded callbacks), resume, half-rate decode, the
+ARMv5E synth accelerator, Layer I execution coverage, and the T-100/T-101 device
+gates. Gapless (LAME delay/padding) is implemented and host-covered for
+MPEG-1, MPEG-2 and MPEG-2.5.
 
 ## 14. Streaming (pull) source model — host implementation (2026-11-21)
 
