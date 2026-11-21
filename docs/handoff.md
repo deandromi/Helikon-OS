@@ -12,6 +12,47 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (twenty-fifth block: the state row pays its debt)
+
+## What happened
+
+- Documentation only. The `state.md` "VFS and player" row had grown into a dozen
+  stacked "Host workspace (date, block)" notes, several still calling merged work
+  "unmerged" — a reader could not tell which parts of the player were merged,
+  which were device-proven and which were still missing. It was flagged twice in
+  earlier handoffs and is now rewritten.
+- The new row sorts the facts the way a reader needs them: what two device runs
+  actually proved (WAV and FLAC replay), what is merged but host-only (with the
+  PR number for each slice: #35 registry and MP3, #36 pull sources, #37 FLAC/MP3
+  pull decoders plus the VFS media adapter, #38 ID3v2, #40 gapless trim, #41
+  media open, #42 seek, #43 Vorbis comments, #44/#51 the library-over-VFS read
+  path, #64 the MPEG family, #66 read-ahead), and what does not exist
+  (storage-backed ring wiring, Music-hub call sites, next/previous, underrun
+  measurement, ALAC/AAC, cross-track gapless, any device run of storage-backed
+  playback).
+- One wrong fact fell out of the rewrite: `state.md` called PR #21's Music-flow
+  image "device-blocked and unmerged". PR #21 is merged (`f3b511d`); what is open
+  is its device report, where selecting an artist took almost 20 s.
+
+## Evidence
+
+- Documentation only: `git diff --check`; no build or test claim changed. The
+  PR numbers were read from `git log`, not remembered.
+- `docs/state.md` "VFS and player" row: 4,762 → about 2,150 characters, with no
+  fact dropped that was not either merged elsewhere or still open.
+
+## Open / next
+
+- Back to code: T-058's Music-hub call sites (open a track through the VFS, play,
+  seek, next/previous with a queue), then the I2S/DMA run and a device
+  measurement. T-059's device half still waits on a real signed firmware image
+  (T-051, blocked with T-055).
+- Unchanged and still recorded: the artist tab row has no on-glass hint, splash
+  pass/fail differ by colour alone, cross-track gapless is missing, the Music hub
+  is still a second launcher.
+
+---
+
 # Handoff — 2026-11-21 (twenty-fourth block: the player stops re-seeking for every decoder call)
 
 ## What happened
