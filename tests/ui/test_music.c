@@ -265,24 +265,38 @@ int main(int argc, char **argv)
     if (check(any_not_paper(240u, 228u, 64u, 12u), "artists empty range"))
         return 1;
 
-    draw_artist_page(&target, 0u, 0u, 0u, 0u, 0u);
+    draw_artist_page(&target, 0u, 0u, 0u, 0u, 0u, 0u);
     snprintf(path, sizeof(path), "%s-artist-albums.ppm", prefix);
     (void)write_ppm(path);
-    if (check(pixel(16u, 102u) == MUSIC_INK, "artist albums underline"))
+    if (check(pixel(26u, 102u) == MUSIC_INK, "artist albums underline"))
         return 1;
-    if (check(pixel(84u, 102u) != MUSIC_INK,
+    if (check(pixel(94u, 102u) != MUSIC_INK,
               "artist overview underline is not active"))
         return 1;
     if (check(pixel(16u, 118u) == MUSIC_INK, "artist album cell frame"))
         return 1;
+    if (check(pixel(16u, 92u) == MUSIC_PAPER,
+              "artist tab row has no focus bar at rest"))
+        return 1;
 
-    draw_artist_page(&target, 0u, 0u, 0u, 0u, MUSIC_PREVIEW_EMPTY);
+    draw_artist_page(&target, 0u, 1u, 0u, 0u, 0u, 1u);
+    snprintf(path, sizeof(path), "%s-artist-tab-focus.ppm", prefix);
+    (void)write_ppm(path);
+    if (check(pixel(16u, 92u) == MUSIC_INK, "artist focused tab row bar"))
+        return 1;
+    if (check(pixel(18u, 92u) == MUSIC_PAPER, "artist tab focus bar is 2 px"))
+        return 1;
+    if (check(pixel(94u, 102u) == MUSIC_INK,
+              "artist focused tab keeps its underline"))
+        return 1;
+
+    draw_artist_page(&target, 0u, 0u, 0u, 0u, MUSIC_PREVIEW_EMPTY, 0u);
     snprintf(path, sizeof(path), "%s-artist-albums-empty.ppm", prefix);
     (void)write_ppm(path);
     if (check(any_not_paper(16u, 120u, 288u, 16u), "artist empty albums"))
         return 1;
 
-    draw_artist_page(&target, 0u, 1u, 0u, 0u, 0u);
+    draw_artist_page(&target, 0u, 1u, 0u, 0u, 0u, 0u);
     snprintf(path, sizeof(path), "%s-artist-overview.ppm", prefix);
     (void)write_ppm(path);
     if (check(any_ink(16u, 106u, 288u, 64u), "artist biography"))
@@ -291,7 +305,7 @@ int main(int argc, char **argv)
               "artist overview has no dead play plate"))
         return 1;
 
-    draw_artist_page(&target, 2u, 1u, 0u, 0u, MUSIC_PREVIEW_EMPTY);
+    draw_artist_page(&target, 2u, 1u, 0u, 0u, MUSIC_PREVIEW_EMPTY, 0u);
     snprintf(path, sizeof(path), "%s-artist-overview-empty.ppm", prefix);
     (void)write_ppm(path);
     if (check(any_not_paper(16u, 106u, 288u, 16u), "artist empty biography"))
@@ -300,7 +314,7 @@ int main(int argc, char **argv)
         return 1;
 
     draw_artist_page(&target, 0u, 2u, 0u, 0u,
-                     MUSIC_PREVIEW_ALL_PLAYABLE);
+                     MUSIC_PREVIEW_ALL_PLAYABLE, 0u);
     snprintf(path, sizeof(path), "%s-artist-tracks.ppm", prefix);
     (void)write_ppm(path);
     if (check(pixel(16u, 118u) == MUSIC_INK, "artist track focus bar"))

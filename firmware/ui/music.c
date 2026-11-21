@@ -1804,7 +1804,8 @@ static void draw_artists_list_screen(struct helikon_screen *target,
 
 static void draw_artist_page(struct helikon_screen *target, uint32_t artist_id,
                              uint32_t tab, uint32_t album_selected,
-                             uint32_t track_selected, uint32_t flags)
+                             uint32_t track_selected, uint32_t flags,
+                             uint32_t tab_focused)
 {
     helikon_screen_fill_rect(target, 0u, 0u, target->width, target->height,
                              MUSIC_PAPER);
@@ -1866,7 +1867,10 @@ static void draw_artist_page(struct helikon_screen *target, uint32_t artist_id,
 
     draw_rule(target, 84u, MUSIC_RULE);
     static const char *const tab_labels[3] = { "ALBUMS", "OVERVIEW", "TRACKS" };
-    static const uint32_t tab_x[3] = { 16u, 84u, 168u };
+    /* The labels start at 26 so the focus marker has the same 2 px bar and
+     * 8 px gutter as a focused list row, without a layout shift when the row
+     * takes or loses focus. */
+    static const uint32_t tab_x[3] = { 26u, 94u, 178u };
     if (tab > 2u)
         tab = 0u;
     for (uint32_t index = 0u; index < 3u; ++index) {
@@ -1881,6 +1885,8 @@ static void draw_artist_page(struct helikon_screen *target, uint32_t artist_id,
                                             tab_labels[tab]);
     helikon_screen_fill_rect(target, tab_x[tab], 102u, underline, 2u,
                              MUSIC_INK);
+    if (tab_focused != 0u)
+        helikon_screen_fill_rect(target, MUSIC_X, 86u, 2u, 16u, MUSIC_INK);
     if (tab == 0u) {
         char position[32];
         if (album_count == 0u) {
@@ -3088,6 +3094,20 @@ static int run_now_playing(uint32_t track_id, uint32_t album_id)
 }
 #endif
 
+/* True when the focused tab has a selectable body item above the current one,
+ * so a wheel step up moves inside the body instead of entering the tab row. */
+static int artist_body_has_previous(const struct hdb_artist *artist,
+                                    uint32_t artist_id, uint32_t tab,
+                                    uint32_t album_selected,
+                                    int32_t track_selected)
+{
+    if (tab == 0u)
+        return artist->album_count != 0u && album_selected > 0u;
+    if (tab == 2u)
+        return artist_next_playable(artist_id, track_selected, -1) >= 0;
+    return 0; /* OVERVIEW has no body items; the wheel always reaches the row. */
+}
+
 static void run_album(uint32_t album_id);
 
 static void run_track_page(uint32_t track_id)
@@ -3181,19 +3201,20 @@ static void run_artist(uint32_t artist_id)
 {
     struct hdb_artist artist;
     if (hdb_artist(&db, artist_id, &artist) != HELIKON_OK) {
-        draw_artist_page(screen, artist_id, 0u, 0u, 0u, 0u);
+        draw_artist_page(screen, artist_id, 0u, 0u, 0u, 0u, 0u);
         (void)helikon_screen_present_all(screen);
         wait_for_back();
         return;
     }
 
     uint32_t tab = 0u;
+    uint32_t tab_focused = 0u;
     uint32_t album_selected = 0u;
     int32_t track_selected = artist_first_playable(artist_id);
     if (track_selected < 0)
         track_selected = 0;
     draw_artist_page(screen, artist_id, tab, album_selected,
-                     (uint32_t)track_selected, 0u);
+                     (uint32_t)track_selected, 0u, tab_focused);
     struct nav_state nav;
     nav_reset(&nav);
     uint64_t idle = helikon_clock_now_us(clock);
@@ -3209,23 +3230,55 @@ static void run_artist(uint32_t artist_id)
             if (hold || (pressed & HELIKON_BUTTON_MENU) != 0u)
                 return;
 
+            /* LEFT/RIGHT switch tabs while the row is focused and move the
+             * body selection otherwise. */
             if ((pressed & HELIKON_BUTTON_LEFT) != 0u) {
-                tab = tab == 0u ? 2u : tab - 1u;
+                if (tab_focused != 0u) {
+                    tab = tab == 0u ? 0u : tab - 1u;
+                } else if (tab == 0u && artist.album_count != 0u) {
+                    if (album_selected > 0u)
+                        --album_selected;
+                } else if (tab == 2u) {
+                    int32_t next =
+                        artist_next_playable(artist_id, track_selected, -1);
+                    if (next >= 0)
+                        track_selected = next;
+                }
                 nav.wheel_accumulator = 0;
                 idle = now;
                 draw_artist_page(screen, artist_id, tab, album_selected,
-                                 (uint32_t)track_selected, 0u);
+                                 (uint32_t)track_selected, 0u, tab_focused);
                 continue;
             }
             if ((pressed & HELIKON_BUTTON_RIGHT) != 0u) {
-                tab = tab == 2u ? 0u : tab + 1u;
+                if (tab_focused != 0u) {
+                    tab = tab == 2u ? 2u : tab + 1u;
+                } else if (tab == 0u && artist.album_count != 0u) {
+                    if (album_selected + 1u < artist.album_count)
+                        ++album_selected;
+                } else if (tab == 2u) {
+                    int32_t next =
+                        artist_next_playable(artist_id, track_selected, 1);
+                    if (next >= 0)
+                        track_selected = next;
+                }
                 nav.wheel_accumulator = 0;
                 idle = now;
                 draw_artist_page(screen, artist_id, tab, album_selected,
-                                 (uint32_t)track_selected, 0u);
+                                 (uint32_t)track_selected, 0u, tab_focused);
                 continue;
             }
             if ((pressed & HELIKON_BUTTON_SELECT) != 0u) {
+                if (tab_focused != 0u) {
+                    /* The tab is already live; SELECT only hands the wheel back
+                     * to the body, exactly like a list row. */
+                    tab_focused = 0u;
+                    idle = now;
+                    draw_artist_page(screen, artist_id, tab, album_selected,
+                                     (uint32_t)track_selected, 0u,
+                                     tab_focused);
+                    continue;
+                }
                 if (tab == 0u && artist.album_count != 0u) {
                     uint32_t album_id = 0u;
                     if (artist_album_at(artist_id, album_selected, &album_id) ==
@@ -3234,7 +3287,8 @@ static void run_artist(uint32_t artist_id)
                         nav_reset(&nav);
                         draw_artist_page(screen, artist_id, tab,
                                          album_selected,
-                                         (uint32_t)track_selected, 0u);
+                                         (uint32_t)track_selected, 0u,
+                                         tab_focused);
                         idle = helikon_clock_now_us(clock);
                     }
                 } else if (tab == 2u) {
@@ -3246,7 +3300,8 @@ static void run_artist(uint32_t artist_id)
                         nav_reset(&nav);
                         draw_artist_page(screen, artist_id, tab,
                                          album_selected,
-                                         (uint32_t)track_selected, 0u);
+                                         (uint32_t)track_selected, 0u,
+                                         tab_focused);
                         idle = helikon_clock_now_us(clock);
                     }
                 }
@@ -3257,7 +3312,20 @@ static void run_artist(uint32_t artist_id)
                 pressed & ~(HELIKON_BUTTON_LEFT | HELIKON_BUTTON_RIGHT), wheel,
                 now);
             if (delta != 0) {
-                if (tab == 0u && artist.album_count != 0u) {
+                if (tab_focused != 0u) {
+                    /* Up steps back through the tabs; down hands the wheel
+                     * back to the body, the inverse of the way in. */
+                    if (delta < 0)
+                        tab = tab == 0u ? 0u : tab - 1u;
+                    else
+                        tab_focused = 0u;
+                } else if (delta < 0 && !artist_body_has_previous(
+                               &artist, artist_id, tab, album_selected,
+                               track_selected)) {
+                    /* Nothing above the first body item: the wheel enters the
+                     * tab row instead of stopping dead. */
+                    tab_focused = 1u;
+                } else if (tab == 0u && artist.album_count != 0u) {
                     if (delta < 0 && album_selected > 0u)
                         --album_selected;
                     else if (delta > 0 &&
@@ -3271,7 +3339,7 @@ static void run_artist(uint32_t artist_id)
                 }
                 idle = now;
                 draw_artist_page(screen, artist_id, tab, album_selected,
-                                 (uint32_t)track_selected, 0u);
+                                 (uint32_t)track_selected, 0u, tab_focused);
             }
         }
         if (helikon_clock_expired(clock, idle, MUSIC_IDLE_MS))

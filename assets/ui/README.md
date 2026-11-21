@@ -42,6 +42,7 @@ illustrative.
 | Artist — Overview | `music-flow/helikon-os-artist-overview-320x240.png` | `music-flow/helikon-os-artist-overview-320x240@2x.png` |
 | Artist — Overview empty | `music-flow/helikon-os-artist-overview-empty-320x240.png` | `music-flow/helikon-os-artist-overview-empty-320x240@2x.png` |
 | Artist — Tracks | `music-flow/helikon-os-artist-tracks-320x240.png` | `music-flow/helikon-os-artist-tracks-320x240@2x.png` |
+| Artist — tab row focused | `music-flow/helikon-os-artist-tab-focus-320x240.png` | `music-flow/helikon-os-artist-tab-focus-320x240@2x.png` |
 | Album — normal | `music-flow/helikon-os-album-view-320x240.png` | `music-flow/helikon-os-album-view-320x240@2x.png` |
 | Album — long title / missing art | `music-flow/helikon-os-album-long-320x240.png` | `music-flow/helikon-os-album-long-320x240@2x.png` |
 | Album — empty | `music-flow/helikon-os-album-empty-320x240.png` | `music-flow/helikon-os-album-empty-320x240@2x.png` |
