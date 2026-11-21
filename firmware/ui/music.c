@@ -650,8 +650,10 @@ static void draw_wall(struct helikon_screen *target, enum wall_kind kind,
         helikon_screen_set_foreground(target, MUSIC_INK);
         helikon_screen_text(target, MUSIC_GRID_X, 80u, 2u,
                             kind == WALL_ALBUMS ? "NO ALBUMS" : "NO ARTISTS");
+        helikon_screen_fill_rect(target, MUSIC_X, 226u, MUSIC_COLUMN, 1u,
+                                 MUSIC_FAINT);
         helikon_screen_set_foreground(target, MUSIC_MUTED);
-        helikon_screen_text(target, 14u, 222u, 1u, "MENU: BACK");
+        helikon_screen_text(target, 14u, 236u, 1u, "MENU BACK");
         helikon_screen_set_foreground(target, MUSIC_INK);
         (void)helikon_screen_present_all(target);
         return;
@@ -678,7 +680,7 @@ static void draw_wall(struct helikon_screen *target, enum wall_kind kind,
         char caption[160];
         copy_text(caption, sizeof(caption), current.title);
         if (current.subtitle[0] != '\0') {
-            append_text(caption, sizeof(caption), " - ");
+            append_text(caption, sizeof(caption), " \xc2\xb7 ");
             append_text(caption, sizeof(caption), current.subtitle);
         }
         helikon_screen_set_foreground(target, MUSIC_INK);
@@ -737,9 +739,11 @@ static void draw_hub(struct helikon_screen *target, uint32_t selected)
                                  MUSIC_INK);
     }
 
+    helikon_screen_fill_rect(target, MUSIC_X, 226u, MUSIC_COLUMN, 1u,
+                             MUSIC_FAINT);
     helikon_screen_set_foreground(target, MUSIC_MUTED);
-    helikon_screen_text(target, 14u, 222u, 1u, "MENU: BACK");
-    draw_text_right(target, 306u, 222u, 1u, "SELECT: OPEN", 12u);
+    helikon_screen_text(target, 14u, 236u, 1u, "SELECT OPEN");
+    draw_text_right(target, 306u, 236u, 1u, "MENU BACK", 12u);
     helikon_screen_set_foreground(target, MUSIC_INK);
     (void)helikon_screen_present_all(target);
 }
@@ -751,8 +755,10 @@ static void draw_frame(struct helikon_screen *target, const char *title)
     helikon_screen_set_foreground(target, MUSIC_INK);
     draw_text(target, 14u, 10u, 2u, title, 40u);
     helikon_screen_fill_rect(target, 12u, 30u, 296u, 1u, MUSIC_MUTED);
+    helikon_screen_fill_rect(target, MUSIC_X, 226u, MUSIC_COLUMN, 1u,
+                             MUSIC_FAINT);
     helikon_screen_set_foreground(target, MUSIC_MUTED);
-    helikon_screen_text(target, 14u, 222u, 1u, "MENU: BACK");
+    helikon_screen_text(target, 14u, 236u, 1u, "MENU BACK");
     helikon_screen_set_foreground(target, MUSIC_INK);
 }
 
@@ -912,8 +918,10 @@ static void draw_list(struct helikon_screen *target, const struct list_spec *spe
         helikon_screen_fill_rect(target, 0u, 0u, target->width,
                                  target->height, MUSIC_PAPER);
         draw_wall_header(target, MUSIC_HEADER_TRACKS, count, 291u, 17u);
+        helikon_screen_fill_rect(target, MUSIC_X, 226u, MUSIC_COLUMN, 1u,
+                                 MUSIC_FAINT);
         helikon_screen_set_foreground(target, MUSIC_MUTED);
-        helikon_screen_text(target, 14u, 222u, 1u, "MENU: BACK");
+        helikon_screen_text(target, 14u, 236u, 1u, "MENU BACK");
         helikon_screen_set_foreground(target, MUSIC_INK);
     } else {
         char title[192];
@@ -944,7 +952,7 @@ static void draw_list(struct helikon_screen *target, const struct list_spec *spe
     append_u32(position, sizeof(position), selected + 1u);
     append_text(position, sizeof(position), "/");
     append_u32(position, sizeof(position), count);
-    helikon_screen_text(target, 272u, 222u, 1u, position);
+    helikon_screen_text(target, 272u, 236u, 1u, position);
     helikon_screen_set_foreground(target, MUSIC_INK);
     (void)helikon_screen_present_all(target);
 }
@@ -1007,8 +1015,8 @@ static int run_list(const struct list_spec *spec, uint32_t *selected_io)
     if (selected_io != NULL)
         *selected_io = selected;
     if (count == 0u) {
-        draw_frame(screen, "EMPTY");
-        helikon_screen_text(screen, 14u, 60u, 2u, "NO ITEMS");
+        draw_frame(screen, "TRACKS");
+        helikon_screen_text(screen, 14u, 60u, 2u, "NO TRACKS IN LIBRARY");
         (void)helikon_screen_present_all(screen);
         uint64_t idle = helikon_clock_now_us(clock);
         for (;;) {
@@ -1304,7 +1312,9 @@ static int draw_artist_art(struct helikon_screen *target, uint32_t image_id,
 static void draw_rating(struct helikon_screen *target, uint32_t right,
                         uint32_t baseline, uint16_t rating)
 {
-    uint32_t filled = rating == 0u ? 0u : (uint32_t)((rating + 10u) / 20u);
+    if (rating == 0u)
+        return; /* Unrated, not zero stars. */
+    uint32_t filled = (uint32_t)((rating + 10u) / 20u);
     if (filled > 5u)
         filled = 5u;
     uint32_t start = right - 34u;
@@ -1347,7 +1357,7 @@ static void draw_visualizer(struct helikon_screen *target, uint32_t x,
                             const uint8_t *peaks, int active, uint8_t mode)
 {
     if (!active || peaks == NULL || mode >= 2u) {
-        helikon_screen_fill_rect(target, x, y + height, width, 1u, MUSIC_FAINT);
+        helikon_screen_fill_rect(target, x, y + height, width, 1u, MUSIC_RULE);
         return;
     }
     if (mode == 1u) {
@@ -1378,7 +1388,7 @@ static void draw_visualizer(struct helikon_screen *target, uint32_t x,
                                      MUSIC_INK);
         }
     }
-    helikon_screen_fill_rect(target, x, y + height, width, 1u, MUSIC_FAINT);
+    helikon_screen_fill_rect(target, x, y + height, width, 1u, MUSIC_RULE);
 }
 #endif
 
@@ -1479,13 +1489,6 @@ static void format_position(char *buffer, uint32_t capacity, uint32_t first,
     append_u32(buffer, capacity, last);
     append_text(buffer, capacity, " / ");
     append_u32(buffer, capacity, total);
-}
-
-static void format_album_count(char *buffer, uint32_t capacity, uint32_t count)
-{
-    copy_text(buffer, capacity, "");
-    append_u32(buffer, capacity, count);
-    append_text(buffer, capacity, count == 1u ? " ALBUM" : " ALBUMS");
 }
 
 static void format_artist_counts(char *buffer, uint32_t capacity,
@@ -1878,11 +1881,6 @@ static void draw_artist_page(struct helikon_screen *target, uint32_t artist_id,
                                             tab_labels[tab]);
     helikon_screen_fill_rect(target, tab_x[tab], 102u, underline, 2u,
                              MUSIC_INK);
-    char albums_label[32];
-    format_album_count(albums_label, sizeof(albums_label), album_count);
-    helikon_text_draw_right(target, (int32_t)MUSIC_RIGHT, 98, MUSIC_FONT_11,
-                            MUSIC_MUTED, albums_label, 90u);
-
     if (tab == 0u) {
         char position[32];
         if (album_count == 0u) {
@@ -1986,10 +1984,6 @@ static void draw_artist_page(struct helikon_screen *target, uint32_t artist_id,
             if (latest_title[0] == '\0')
                 copy_text(latest_title, sizeof(latest_title), "UNTITLED ALBUM");
             draw_rule(target, 182u, MUSIC_FAINT);
-            char facts[64];
-            format_artist_counts(facts, sizeof(facts), &artist);
-            helikon_text_draw(target, (int32_t)MUSIC_X, 198, MUSIC_FONT_11,
-                              MUSIC_INK, facts, 288u);
             char line[192];
             copy_text(line, sizeof(line), "FIRST  ");
             append_text(line, sizeof(line), first_title);
@@ -1998,7 +1992,7 @@ static void draw_artist_page(struct helikon_screen *target, uint32_t artist_id,
                 append_u32(line, sizeof(line), first_album.year);
                 append_text(line, sizeof(line), ")");
             }
-            helikon_text_draw(target, (int32_t)MUSIC_X, 212, MUSIC_FONT_11,
+            helikon_text_draw(target, (int32_t)MUSIC_X, 198, MUSIC_FONT_11,
                               MUSIC_MUTED, line, 288u);
             copy_text(line, sizeof(line), "LATEST  ");
             append_text(line, sizeof(line), latest_title);
@@ -2007,7 +2001,7 @@ static void draw_artist_page(struct helikon_screen *target, uint32_t artist_id,
                 append_u32(line, sizeof(line), latest_album.year);
                 append_text(line, sizeof(line), ")");
             }
-            helikon_text_draw(target, (int32_t)MUSIC_X, 226, MUSIC_FONT_11,
+            helikon_text_draw(target, (int32_t)MUSIC_X, 212, MUSIC_FONT_11,
                               MUSIC_MUTED, line, 288u);
         } else if (bio[0] == '\0') {
             helikon_text_draw(target, (int32_t)MUSIC_X, 138, MUSIC_FONT_11,
@@ -2126,14 +2120,13 @@ static void draw_album_page(struct helikon_screen *target, uint32_t album_id,
     if (playable != 0u)
         draw_play_all(target, focus < 0);
 
-    char year[24];
-    if (album.year == 0u)
-        copy_text(year, sizeof(year), "YEAR \xe2\x80\x94");
-    else {
+    if (album.year != 0u) {
+        char year[24];
         copy_text(year, sizeof(year), "");
         append_u32(year, sizeof(year), album.year);
+        helikon_text_draw(target, 100, 48, MUSIC_FONT_11, MUSIC_MUTED, year,
+                          80u);
     }
-    helikon_text_draw(target, 100, 48, MUSIC_FONT_11, MUSIC_MUTED, year, 80u);
     draw_rating(target, MUSIC_RIGHT, 48u, album.rating);
 
     char title[128];
@@ -2172,9 +2165,10 @@ static void draw_album_page(struct helikon_screen *target, uint32_t album_id,
         append_u32(meta, sizeof(meta), (duration + 30000u) / 60000u);
         append_text(meta, sizeof(meta), " MIN");
     }
-    if (meta[0] == '\0')
-        copy_text(meta, sizeof(meta), "\xe2\x80\x94");
-    helikon_text_draw(target, 100, 118, MUSIC_FONT_11, MUSIC_MUTED, meta, 204u);
+    if (meta[0] != '\0') {
+        helikon_text_draw(target, 100, 118, MUSIC_FONT_11, MUSIC_MUTED, meta,
+                          204u);
+    }
 
     draw_rule(target, 138u, MUSIC_RULE);
     helikon_text_draw(target, (int32_t)MUSIC_X, 150, MUSIC_FONT_11M, MUSIC_INK,
@@ -2515,11 +2509,11 @@ static void draw_now_playing_view(struct helikon_screen *target,
         }
         helikon_text_draw(target, (int32_t)MUSIC_X, 92, MUSIC_FONT_12, MUSIC_INK,
                           reason, 288u);
+        const char *action = data->retryable ? "SELECT TO TRY AGAIN"
+                             : have_album   ? "SELECT TO OPEN THE ALBUM"
+                                            : "SELECT TO GO BACK";
         helikon_text_draw(target, (int32_t)MUSIC_X, 114, MUSIC_FONT_12,
-                          MUSIC_MUTED,
-                          data->retryable ? "Press SELECT to retry."
-                                          : "Return to the album.",
-                          288u);
+                          MUSIC_MUTED, action, 288u);
         char identity[320];
         copy_text(identity, sizeof(identity), title);
         append_text(identity, sizeof(identity), " \xe2\x80\x94 ");
@@ -2531,14 +2525,15 @@ static void draw_now_playing_view(struct helikon_screen *target,
         format_source_line(source, sizeof(source), data);
         helikon_text_draw(target, (int32_t)MUSIC_X, 164, MUSIC_FONT_11,
                           MUSIC_MUTED, source, 288u);
-        helikon_text_draw(target, (int32_t)MUSIC_X, 178, MUSIC_FONT_11,
-                          MUSIC_MUTED, "OUT \xe2\x80\x94 \xc2\xb7 PLAYBACK STOPPED",
-                          288u);
         char stopped[96];
         char stopped_time[24];
         format_time(data->stopped_ms, stopped_time, sizeof(stopped_time));
-        copy_text(stopped, sizeof(stopped), "STOPPED AT ");
-        append_text(stopped, sizeof(stopped), stopped_time);
+        if (data->stopped_ms == 0u) {
+            copy_text(stopped, sizeof(stopped), "STOPPED AT THE START");
+        } else {
+            copy_text(stopped, sizeof(stopped), "STOPPED AT ");
+            append_text(stopped, sizeof(stopped), stopped_time);
+        }
         uint32_t number = have_track ? track_number_for(track_id) : 0u;
         if (number != 0u && have_album && album.track_count != 0u) {
             append_text(stopped, sizeof(stopped), " \xc2\xb7 TRACK ");
@@ -2546,17 +2541,10 @@ static void draw_now_playing_view(struct helikon_screen *target,
             append_text(stopped, sizeof(stopped), " OF ");
             append_u32(stopped, sizeof(stopped), album.track_count);
         }
-        helikon_text_draw(target, (int32_t)MUSIC_X, 192, MUSIC_FONT_11,
+        helikon_text_draw(target, (int32_t)MUSIC_X, 178, MUSIC_FONT_11,
                           MUSIC_MUTED, stopped, 288u);
-        const char *footer;
-        if (data->retryable)
-            footer = "SELECT RETRY \xc2\xb7 MENU BACK";
-        else if (have_album)
-            footer = "SELECT ALBUM \xc2\xb7 MENU BACK";
-        else
-            footer = "MENU BACK";
-        helikon_text_draw(target, (int32_t)MUSIC_X, 232, MUSIC_FONT_11,
-                          MUSIC_MUTED, footer, 288u);
+        helikon_text_draw(target, (int32_t)MUSIC_X, 236, MUSIC_FONT_11,
+                          MUSIC_MUTED, "MENU BACK", 288u);
         return;
     }
 
@@ -2648,7 +2636,7 @@ static void draw_now_playing_view(struct helikon_screen *target,
     if (data->status_override != NULL) {
         footer = data->status_override;
     } else if (data->state == NOW_PLAYING_OPENING) {
-        footer = "PLEASE WAIT";
+        footer = "MENU BACK";
     } else if (data->state == NOW_PLAYING_PAUSED) {
         footer = have_album ? "PLAY RESUME \xc2\xb7 SELECT ALBUM \xc2\xb7 MENU BACK"
                             : "PLAY RESUME \xc2\xb7 MENU BACK";
@@ -2659,7 +2647,7 @@ static void draw_now_playing_view(struct helikon_screen *target,
         footer = have_album ? "PLAY PAUSE \xc2\xb7 SELECT ALBUM \xc2\xb7 MENU BACK"
                             : "PLAY PAUSE \xc2\xb7 MENU BACK";
     }
-    helikon_text_draw(target, (int32_t)MUSIC_X, 238, MUSIC_FONT_11,
+    helikon_text_draw(target, (int32_t)MUSIC_X, 236, MUSIC_FONT_11,
                       MUSIC_MUTED, footer, 288u);
 }
 #endif
@@ -2714,11 +2702,43 @@ static int now_playing_retryable(const struct helikon_player *playback)
     return 0;
 }
 
+/*
+ * The player reports the failing stage as a short developer token
+ * ("CODEC/I2C"). The headline is for the listener: say what happened, in
+ * words, and keep the token out of the sentence.
+ */
 static void make_error_reason(const struct helikon_player *playback,
                               char *buffer, uint32_t capacity)
 {
-    copy_text(buffer, capacity, "AUDIO ");
-    append_text(buffer, capacity, helikon_player_error_text(playback));
+    const char *reason;
+    switch (playback->last_stage) {
+    case HELIKON_AUDIO_STAGE_STREAM_UNDERRUN:
+        reason = "THE AUDIO BUFFER RAN DRY";
+        break;
+    case HELIKON_AUDIO_STAGE_CODEC:
+        reason = "THIS FILE COULD NOT BE DECODED";
+        break;
+    case HELIKON_AUDIO_STAGE_RATE:
+    case HELIKON_AUDIO_STAGE_I2S:
+    case HELIKON_AUDIO_STAGE_I2S_FIFO:
+    case HELIKON_AUDIO_STAGE_DMA_CLOCK:
+    case HELIKON_AUDIO_STAGE_DMA_CONFIG:
+        reason = "THE AUDIO CLOCK DID NOT START";
+        break;
+    case HELIKON_AUDIO_STAGE_CACHE:
+    case HELIKON_AUDIO_STAGE_BUFFER:
+        reason = "THE FILE COULD NOT BE READ IN TIME";
+        break;
+    case HELIKON_AUDIO_STAGE_DMA_SETUP:
+    case HELIKON_AUDIO_STAGE_DMA_WAIT:
+    case HELIKON_AUDIO_STAGE_DMA_ACTIVE:
+        reason = "THE AUDIO OUTPUT STOPPED";
+        break;
+    default:
+        reason = "THE PLAYER STOPPED";
+        break;
+    }
+    copy_text(buffer, capacity, reason);
 }
 
 #endif

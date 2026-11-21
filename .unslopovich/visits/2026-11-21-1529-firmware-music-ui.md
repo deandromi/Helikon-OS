@@ -66,10 +66,13 @@ Noticeable
   (album art in the committed artist-albums asset). The artist-list asset and the code
   disagree. -> One rule: monogram everywhere, since it is the only fallback that
   carries information.
-- firmware/ui/music.c:1345 draw_visualizer() leaves a 16 px hole at y=140 in OPENING
-  and FINISHED because it is only fed while playing, so the layout jumps between
-  states that should look like the same screen. -> Draw the inactive baseline in every
-  playback state.
+- firmware/ui/music.c:1345 draw_visualizer() draws the inactive baseline in FAINT
+  (`0xdeb9`, 1.23:1 on paper): it is present in OPENING, PAUSED and FINISHED, but it is
+  invisible, so those states read as a 16 px hole under the title. (Correction,
+  2026-11-21: an earlier draft of this item said the baseline was missing; a pixel
+  probe of all three committed now-playing assets shows it drawn everywhere. The
+  defect is contrast, not layout.) -> Draw the baseline in RULE, and keep the same
+  baseline row in every playback state.
 - firmware/ui/music.c:2651 the OPENING state replaces the whole footer with "PLEASE
   WAIT" and removes every button mapping, exactly when the user wants to know whether
   MENU backs out of a slow file. "PLEASE WAIT" is also the vaguest string in the UI.
