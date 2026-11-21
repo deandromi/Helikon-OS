@@ -77,6 +77,10 @@ code in the product.
 - The tree stays balanced; no operation creates an unreachable record.
 - A failed mutation leaves the old tree intact; partial node writes are not
   visible.
+- The first insert into an empty tree (a freshly formatted volume's extents
+  overflow file) creates the root leaf: one free node from the header map, a
+  one-record leaf, then depth 1 with root, first and last leaf pointing at it.
+  All of it is staged in the transaction like any other mutation.
 - The free-node map and allocation bitmap agree with the nodes actually in use.
 - Inserting a key below a leaf's or index node's first key updates the parent
   index chain; the depth-3 model covers leaf and index below-minimum insertion.

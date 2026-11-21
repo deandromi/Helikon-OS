@@ -138,13 +138,22 @@ static int load_header(struct hfs_btree *btree, struct hfs_txn *tx, struct tree_
     header->total_nodes = be32(header->header + HFS_BTREE_HEADER_TOTAL);
     header->free_nodes = be32(header->header + HFS_BTREE_HEADER_FREE);
 
-    if (header->depth == 0 || header->depth > HFS_BTREE_MAX_DEPTH ||
-        header->total_nodes == 0 || header->total_nodes > btree->total_nodes ||
+    /*
+     * An empty tree (a freshly formatted volume's extents overflow file) has
+     * depth 0, no root and no leaves. It is valid; insert creates the root.
+     */
+    int empty = header->depth == 0 && header->root_node == 0 &&
+                header->leaf_records == 0 && header->first_leaf == 0 &&
+                header->last_leaf == 0;
+    if (header->total_nodes == 0 || header->total_nodes > btree->total_nodes ||
         header->total_nodes > header->map_length * 8u ||
-        header->root_node >= header->total_nodes ||
-        header->first_leaf >= header->total_nodes ||
-        header->last_leaf >= header->total_nodes ||
         header->free_nodes > header->total_nodes)
+        return HFS_ERR_FORMAT;
+    if (!empty &&
+        (header->depth == 0 || header->depth > HFS_BTREE_MAX_DEPTH ||
+         header->root_node >= header->total_nodes ||
+         header->first_leaf >= header->total_nodes ||
+         header->last_leaf >= header->total_nodes))
         return HFS_ERR_FORMAT;
     return HFS_OK;
 }
@@ -596,6 +605,47 @@ static int update_ancestor_keys(struct hfs_btree *btree, struct hfs_txn *tx,
     return HFS_OK;
 }
 
+/*
+ * First insert into an empty tree: take one free node from the header map, make
+ * it a one-record root leaf and point the header at it (depth 1, root, first and
+ * last leaf). Everything is staged into `tx`, so the tree only changes on
+ * commit; a failure leaves the empty tree untouched on disk.
+ */
+static int create_root(struct hfs_btree *btree, struct hfs_txn *tx,
+                       struct tree_header *header, const void *record,
+                       size_t length)
+{
+    uint32_t node = 0;
+    int rc = alloc_node(btree, tx, header, &node);
+    if (rc != HFS_OK)
+        return rc;
+
+    static uint8_t leaf[HFS_MAX_NODE_SIZE];
+    memset(leaf, 0, btree->node_size);
+    leaf[8] = 0xff; /* leaf node */
+    leaf[9] = 1;    /* height */
+    put16(leaf + 10, 0);
+    put16(leaf + btree->node_size - 2u, 14); /* offset table: no records yet */
+
+    rc = hfs_btree_node_insert(leaf, btree->node_size, 0, record, length);
+    if (rc != HFS_OK)
+        return rc;
+    rc = stage_node(btree, tx, node, leaf);
+    if (rc != HFS_OK)
+        return rc;
+
+    header->depth = 1;
+    header->root_node = node;
+    header->first_leaf = node;
+    header->last_leaf = node;
+    header->leaf_records = 1;
+    rc = store_header(btree, tx, header);
+    if (rc != HFS_OK)
+        return rc;
+    btree->empty = 0;
+    return HFS_OK;
+}
+
 int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
                      const void *record, size_t length,
                      hfs_btree_key_compare_fn compare, void *compare_context)
@@ -603,9 +653,6 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
     if (btree == NULL || tx == NULL || record == NULL || compare == NULL ||
         length < HFS_BTREE_KEY_LENGTH)
         return HFS_ERR_ARGUMENT;
-    /* An empty tree needs a root leaf created first; that path is T-033. */
-    if (btree->empty)
-        return HFS_ERR_UNSUPPORTED;
     const uint8_t *new_record = record;
     uint16_t new_key_length = be16(new_record);
     if ((size_t)new_key_length + HFS_BTREE_KEY_LENGTH > length)
@@ -616,6 +663,8 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
     int rc = load_header(btree, tx, &header);
     if (rc != HFS_OK)
         return rc;
+    if (header.depth == 0)
+        return create_root(btree, tx, &header, record, length);
 
     struct insert_path path[HFS_BTREE_MAX_DEPTH];
     uint32_t node_number = header.root_node;

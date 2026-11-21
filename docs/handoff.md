@@ -12,6 +12,49 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (ninth block: the first insert into an empty B-tree)
+
+## What happened
+
+- `hfs_btree_insert()` now handles an empty tree instead of returning
+  `UNSUPPORTED`: `load_header()` accepts the empty shape (depth 0, no root, no
+  leaves), and `create_root()` allocates one free node from the header map,
+  builds a one-record leaf (kind 0xff, height 1, offset table at 14), stages it,
+  then writes depth 1, root, first leaf, last leaf, one leaf record and the map
+  back into the header — all inside the caller's transaction, so a failure
+  leaves the empty tree untouched on disk.
+- This is the path a real volume needs for its extents overflow file: it starts
+  empty and could not take its first overflow record before. `firmware/hfs/
+  hfs_extents_write.c` (`hfs_extents_overflow_set`) inserts through the same
+  function, so appending a file that exceeds its eight inline extents now has
+  the infrastructure it needs on a real volume.
+- `tests/hfsplus/test_btree_tree.c` gains `insert into empty tree`: empty
+  header fixture, first insert creates the root, on-disk header shows depth 1 /
+  root / first / last / one record / the node marked used, the result reopens
+  through the real `hfs_btree_open()` (`empty == 0`, one record iterated), and a
+  second insert takes the normal root-leaf path (two records).
+
+## Evidence
+
+- `tests/hfsplus` test + sanitize PASS (including `insert into empty tree`).
+- Full matrix green: `vfs`, `player`, `codec`, `firmware` (clean+test+sanitize),
+  `bootloader`, `image` test/crash/write-diag/outer-diag/loader, `musicdb`, `ui`,
+  `library` (real-volume catalog read still passes).
+- Builds: plain 6G 78,036 B, music-hub 768,396 B, F2 image plus
+  `check-f2-artifact.sh`: PASS.
+- Host-verified only: **no device run**. Writing an overflow record through the
+  writer on a fragmented real image is still unproven.
+
+## Open / next
+
+- End-to-end proof for the overflow path: fragment a disposable image, append a
+  file that needs more than eight inline extents, and require `fsck_hfs` clean.
+  That exercises `hfs_extents_overflow_set` → `create_root` → `delete`/`insert`
+  on a real volume.
+- Music hub on a mounted volume; T-058 queue/next-previous; ALAC; rest of T-099.
+
+---
+
 # Handoff — 2026-11-21 (eighth block: the catalog reads from a real volume)
 
 ## What happened

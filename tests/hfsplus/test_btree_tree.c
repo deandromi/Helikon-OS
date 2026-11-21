@@ -301,10 +301,117 @@ struct test_case {
     int (*run)(void);
 };
 
+/*
+ * A freshly formatted volume's extents overflow tree is empty (depth 0, no
+ * root, no leaves). The first insert has to create the root leaf, stage it, and
+ * leave a tree that hfs_btree_open() accepts.
+ */
+static void make_empty_image(void)
+{
+    make_image();
+    uint8_t *header = node_ptr(0);
+    put_be16(header + 14, 0);              /* depth */
+    put_be32(header + 16, 0);              /* root */
+    put_be32(header + 20, 0);              /* leaf records */
+    put_be32(header + 24, 0);              /* first leaf */
+    put_be32(header + 28, 0);              /* last leaf */
+    put_be32(header + 40, TEST_NODES - 1); /* free nodes */
+    header[248] = 0x80;                    /* only the header node is used */
+}
+
+static int test_insert_empty_tree(void)
+{
+    make_empty_image();
+    struct hfs_volume volume;
+    CHECK(hfs_volume_probe(&volume, test_image_read, NULL, 0,
+                           TEST_IMAGE_SIZE) == HFS_OK);
+
+    struct hfs_btree btree;
+    memset(&btree, 0, sizeof(btree));
+    btree.volume = &volume;
+    btree.fork = &volume.catalog;
+    btree.node_size = TEST_NODE_SIZE;
+    btree.max_key_length = 68;
+    btree.total_nodes = TEST_NODES;
+    btree.free_nodes = TEST_NODES - 1;
+    btree.empty = 1;
+
+    struct hfs_journal journal;
+    struct hfs_txn tx;
+    memset(&journal, 0, sizeof(journal));
+    journal.sector_size = TEST_BLOCK_SIZE;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+
+    uint8_t record[TEST_RECORD_BYTES];
+    make_record(record, 42);
+    CHECK(hfs_btree_insert(&btree, &tx, record, sizeof(record), compare_keys,
+                           NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    CHECK(btree.empty == 0u);
+    CHECK(btree.depth == 1u);
+    CHECK(btree.leaf_records == 1u);
+    uint32_t root = btree.root_node;
+    CHECK(root != 0u);
+    CHECK(btree.first_leaf == root);
+    CHECK(btree.last_leaf == root);
+    CHECK(btree.free_nodes == TEST_NODES - 2);
+
+    uint8_t *leaf = node_ptr(root);
+    CHECK(leaf[8] == 0xff);
+    CHECK(leaf[9] == 1u);
+    CHECK(get_be16(leaf + 10) == 1u);
+    uint8_t *first = leaf + get_be16(leaf + TEST_NODE_SIZE - 2u);
+    CHECK(get_be32(first + 2) == 42u);
+
+    uint8_t *header = node_ptr(0);
+    CHECK(get_be16(header + 14) == 1u);
+    CHECK(get_be32(header + 16) == root);
+    CHECK(get_be32(header + 20) == 1u);
+    CHECK(get_be32(header + 24) == root);
+    CHECK(get_be32(header + 28) == root);
+    CHECK((header[248] & 0x80u) != 0u);
+    CHECK((header[248] & 0x40u) != 0u); /* the new root node is marked used */
+
+    /* The created tree has to pass the real open path and iterate one record. */
+    struct hfs_btree reopened;
+    uint8_t scratch[TEST_NODE_SIZE];
+    CHECK(hfs_btree_open(&reopened, &volume, &volume.catalog, scratch,
+                         sizeof(scratch)) == HFS_OK);
+    CHECK(reopened.empty == 0u);
+    CHECK(reopened.depth == 1u);
+    CHECK(reopened.root_node == root);
+    CHECK(reopened.leaf_records == 1u);
+
+    struct hfs_btree_leaf_iterator iterator;
+    CHECK(hfs_btree_leaf_init(&reopened, &iterator) == HFS_OK);
+    const uint8_t *found = NULL;
+    size_t found_length = 0u;
+    CHECK(hfs_btree_leaf_next(&reopened, &iterator, &found, &found_length) == 1);
+    CHECK(found_length == TEST_RECORD_BYTES);
+    CHECK(get_be32(found + 2) == 42u);
+    CHECK(hfs_btree_leaf_next(&reopened, &iterator, &found, &found_length) == 0);
+
+    /* The second insert takes the normal root-leaf path. */
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    make_record(record, 43);
+    CHECK(hfs_btree_insert(&reopened, &tx, record, sizeof(record), compare_keys,
+                           NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be16(node_ptr(root) + 10) == 2u);
+    CHECK(get_be32(node_ptr(0) + 20) == 2u);
+    return 0;
+}
+
 int main(void)
 {
     static const struct test_case tests[] = {
-        { "insert many and split", test_insert_many }
+        { "insert many and split", test_insert_many },
+        { "insert into empty tree", test_insert_empty_tree }
     };
     int failures = 0;
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); ++i) {
