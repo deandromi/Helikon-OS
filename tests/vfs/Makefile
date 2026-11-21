@@ -1,12 +1,23 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 CC ?= cc
 CFLAGS ?= -O2 -g
-CFLAGS += -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow
-CPPFLAGS += -I../../firmware/vfs -I../../firmware/hfs -I../hfsplus -idirafter ../../firmware/lib
+CFLAGS += -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow -DHELIKON_HOST_TEST \
+          $(EXTRA_CFLAGS)
+CPPFLAGS += -I../../firmware/vfs -I../../firmware/hfs -I../hfsplus \
+            -I../../firmware/codec -I../../firmware/codec/flac \
+            -I../../firmware/codec/mp3 -I../../firmware/codec/libmad \
+            -I../../firmware/player -idirafter ../../firmware/lib
 VFS = ../../firmware/vfs
 HFS = ../../firmware/hfs
 TH = ../hfsplus
+CODEC = ../../firmware/codec
+LIB = ../../firmware/lib
+PLAYER = ../../firmware/player
 TESTS = test_vfs
+
+# The VFS media adapter composes with the codec registry, whose MP3 descriptor
+# needs the vendored libmad objects.
+include ../libmad.mk
 
 .PHONY: all test sanitize clean
 
@@ -22,22 +33,30 @@ test_vfs: test_vfs.c $(TH)/test_check.h \
           $(HFS)/hfs_extents.c $(HFS)/hfs_extents.h \
           $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode.h \
           $(HFS)/hfs_unicode_data.c \
-          $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h
+          $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h \
+          $(PLAYER)/vfs_media.c $(PLAYER)/vfs_media.h \
+          $(CODEC)/codec.c $(CODEC)/codec.h \
+          $(CODEC)/flac/flac_codec.c $(CODEC)/flac/flac_decoder.c \
+          $(CODEC)/mp3/mp3_codec.c $(CODEC)/mp3/mp3.h $(PLAYER)/wav.c $(PLAYER)/wav.h $(LIBMAD_OBJ)
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_vfs.c \
 	  $(TH)/test_image.c $(TH)/test_fs_image.c \
 	  $(VFS)/vfs.c \
 	  $(HFS)/hfs_volume.c $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog_compare.c \
 	  $(HFS)/hfs_extents.c $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c \
-	  $(HFS)/hfs_btree.c $(LDFLAGS) -o $@
+	  $(HFS)/hfs_btree.c \
+	  $(PLAYER)/vfs_media.c \
+	  $(CODEC)/codec.c $(CODEC)/flac/flac_codec.c \
+	  $(CODEC)/flac/flac_decoder.c $(CODEC)/mp3/mp3_codec.c \
+	  $(PLAYER)/wav.c $(LIB)/mem.c $(LIBMAD_OBJ) $(LDFLAGS) -o $@
 
 test: $(TESTS)
 	./test_vfs
 
-sanitize: $(TESTS)
+sanitize:
 	$(MAKE) clean
-	$(MAKE) CFLAGS="-O1 -g -fsanitize=address,undefined -fno-omit-frame-pointer"
+	$(MAKE) EXTRA_CFLAGS="-O1 -fsanitize=address,undefined -fno-omit-frame-pointer"
 	./test_vfs
 
 clean:
 	rm -f $(TESTS)
-	rm -rf *.dSYM
+	rm -rf *.dSYM build_mad

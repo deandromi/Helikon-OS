@@ -306,6 +306,9 @@ static int codec_begin(struct helikon_codec *codec,
         if (!ops->streaming)
             return HELIKON_ERR_UNSUPPORTED;
         helikon_memset(&codec->info, 0, sizeof(codec->info));
+    } else if (rc == HELIKON_ERR_NOT_FOUND) {
+        /* The explicitly requested descriptor does not recognize the head. */
+        return HELIKON_ERR_UNSUPPORTED;
     } else if (rc != HELIKON_OK) {
         return rc;
     }

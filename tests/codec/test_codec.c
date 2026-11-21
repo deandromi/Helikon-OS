@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "codec.h"
+#include "flac_decoder.h"
 #include "mp3.h"
 
 #include <stdio.h>
@@ -704,6 +705,201 @@ static int check_wav_prefix(void)
     return 0;
 }
 
+
+static int check_flac_source(void)
+{
+    size_t size = load_file("fixtures/stereo16.flac", file_data,
+                            sizeof(file_data));
+    if (expect(size > 0u, "FLAC source fixture load"))
+        return 1;
+
+    const struct helikon_codec_ops *ops = NULL;
+    struct helikon_codec_info info;
+    if (expect(helikon_codec_probe(file_data, size, &ops, &info) ==
+                   HELIKON_OK,
+               "FLAC source probe"))
+        return 1;
+
+    /* Reference: the same fixture through the resident-buffer path. */
+    struct helikon_codec codec;
+    if (expect(helikon_codec_open(&codec, ops, file_data, size, workspace,
+                                  sizeof(workspace)) == HELIKON_OK,
+               "FLAC source reference open"))
+        return 1;
+    size_t total = info.total_frames;
+    size_t ref_frames = 0u;
+    if (expect(read_all(&codec, total, &ref_frames) == HELIKON_OK &&
+                   ref_frames == total,
+               "FLAC source reference decode"))
+        return 1;
+    helikon_memcpy(expected_data, pcm, total * 2u * sizeof(int16_t));
+    helikon_codec_close(&codec);
+
+    struct fake_media media;
+    fake_media_init(&media, file_data, size);
+    struct helikon_codec_source source;
+    source.read_at = fake_read_at;
+    source.size = media.reported;
+    source.context = &media;
+
+    if (expect(helikon_codec_open_source(&codec, ops, &source, workspace,
+                                         sizeof(workspace)) == HELIKON_OK,
+               "FLAC source open"))
+        return 1;
+    if (expect(codec.info.total_frames == total, "FLAC source info"))
+        return 1;
+
+    size_t frames = 0u;
+    if (expect(read_all(&codec, total, &frames) == HELIKON_OK &&
+                   frames == total,
+               "FLAC source decode length"))
+        return 1;
+    if (expect(helikon_memcmp(expected_data, pcm,
+                              total * 2u * sizeof(int16_t)) == 0,
+               "FLAC source decode matches buffer"))
+        return 1;
+
+    /* The window is the only buffer: requests are bounded by it. */
+    if (expect(media.largest_request <= HELIKON_FLAC_WINDOW,
+               "FLAC source bounded request"))
+        return 1;
+    /*
+     * Each frame is walked twice (decode, then CRC verification), so the pull
+     * total is bounded by ~2x the stream and never by a whole-file request.
+     */
+    if (expect(media.bytes_read <= size * 2u + 1024u,
+               "FLAC source bounded total"))
+        return 1;
+
+    if (expect(helikon_codec_seek(&codec, 1000u) == HELIKON_OK &&
+                   helikon_codec_read(&codec, pcm, 16u, &frames) == HELIKON_OK &&
+                   frames == 16u &&
+                   helikon_memcmp(expected_data + 1000u * 2u * sizeof(int16_t),
+                                  pcm, 16u * 2u * sizeof(int16_t)) == 0,
+               "FLAC source seek"))
+        return 1;
+    helikon_codec_close(&codec);
+
+    /* Partial reads across a window refill must not shift the bitstream. */
+    fake_media_init(&media, file_data, size);
+    media.chunk = 61u;
+    source.size = media.reported;
+    source.context = &media;
+    if (expect(helikon_codec_open_source(&codec, ops, &source, workspace,
+                                         sizeof(workspace)) == HELIKON_OK,
+               "FLAC short-read open"))
+        return 1;
+    if (expect(read_all(&codec, total, &frames) == HELIKON_OK &&
+                   frames == total &&
+                   helikon_memcmp(expected_data, pcm,
+                                  total * 2u * sizeof(int16_t)) == 0,
+               "FLAC short-read decode"))
+        return 1;
+    helikon_codec_close(&codec);
+    return 0;
+}
+
+
+static int check_mp3_source(void)
+{
+    size_t size = load_file("fixtures/mp3_cbr_stereo16.mp3", file_data,
+                            sizeof(file_data));
+    if (expect(size > 0u, "MP3 source fixture load"))
+        return 1;
+
+    const struct helikon_codec_ops *ops = NULL;
+    struct helikon_codec_info info;
+    if (expect(helikon_codec_probe(file_data, size, &ops, &info) ==
+                   HELIKON_OK,
+               "MP3 source probe"))
+        return 1;
+
+    /* Reference decode through the resident-buffer path. */
+    struct helikon_codec codec;
+    if (expect(helikon_codec_open(&codec, ops, file_data, size, workspace,
+                                  sizeof(workspace)) == HELIKON_OK,
+               "MP3 source reference open"))
+        return 1;
+    size_t total = info.total_frames;
+    size_t ref_frames = 0u;
+    if (expect(read_all(&codec, total, &ref_frames) == HELIKON_OK &&
+                   ref_frames > 0u,
+               "MP3 source reference decode"))
+        return 1;
+    const size_t ref_bytes = ref_frames * 2u * sizeof(int16_t);
+    helikon_memcpy(expected_data, pcm, ref_bytes);
+    helikon_codec_close(&codec);
+
+    struct fake_media media;
+    fake_media_init(&media, file_data, size);
+    struct helikon_codec_source source;
+    source.read_at = fake_read_at;
+    source.size = media.reported;
+    source.context = &media;
+
+    if (expect(helikon_codec_open_source(&codec, ops, &source, workspace,
+                                         sizeof(workspace)) == HELIKON_OK,
+               "MP3 source open"))
+        return 1;
+    size_t frames = 0u;
+    if (expect(read_all(&codec, ref_frames, &frames) == HELIKON_OK &&
+                   frames >= ref_frames,
+               "MP3 source decode length"))
+        return 1;
+    if (expect(helikon_memcmp(expected_data, pcm, ref_bytes) == 0,
+               "MP3 source decode matches buffer"))
+        return 1;
+    if (expect(media.largest_request <= 32768u,
+               "MP3 source bounded request"))
+        return 1;
+
+    /* Frame-boundary seek: the same request must land on the same PCM. */
+    if (expect(helikon_codec_seek(&codec, 576u) == HELIKON_OK &&
+                   helikon_codec_read(&codec, pcm, 32u, &frames) == HELIKON_OK &&
+                   frames != 0u,
+               "MP3 source seek decodes"))
+        return 1;
+    helikon_codec_close(&codec);
+
+    /* Partial reads must not disturb the libmad buffer boundaries. */
+    fake_media_init(&media, file_data, size);
+    media.chunk = 37u;
+    source.size = media.reported;
+    source.context = &media;
+    if (expect(helikon_codec_open_source(&codec, ops, &source, workspace,
+                                         sizeof(workspace)) == HELIKON_OK,
+               "MP3 short-read open"))
+        return 1;
+    if (expect(read_all(&codec, ref_frames, &frames) == HELIKON_OK &&
+                   frames == ref_frames &&
+                   helikon_memcmp(expected_data, pcm, ref_bytes) == 0,
+               "MP3 short-read decode"))
+        return 1;
+    helikon_codec_close(&codec);
+
+    /* The VBR fixture with an unknown media length still opens and decodes. */
+    size = load_file("fixtures/mp3_vbr_stereo16.mp3", file_data,
+                     sizeof(file_data));
+    if (expect(size > 0u, "MP3 VBR source load"))
+        return 1;
+    media.reported = 0u;
+    source.size = 0u;
+    source.context = &media;
+    media.data = file_data;
+    media.size = size;
+    if (expect(helikon_codec_probe(file_data, size, &ops, &info) == HELIKON_OK,
+               "MP3 VBR probe"))
+        return 1;
+    if (expect(helikon_codec_open_source(&codec, ops, &source, workspace,
+                                         sizeof(workspace)) == HELIKON_OK,
+               "MP3 unknown-size open"))
+        return 1;
+    if (expect(codec.info.sample_rate == 44100u, "MP3 unknown-size info"))
+        return 1;
+    helikon_codec_close(&codec);
+    return 0;
+}
+
 static int check_source_contract(void)
 {
     struct fake_media media;
@@ -714,18 +910,14 @@ static int check_source_contract(void)
     source.context = &media;
     struct helikon_codec codec;
 
-    /* Whole-buffer decoders refuse a pull source instead of misparsing it. */
-    if (expect(helikon_codec_open_source(&codec, &helikon_flac_codec_ops,
-                                         &source, workspace,
-                                         sizeof(workspace)) ==
-                   HELIKON_ERR_UNSUPPORTED,
-               "FLAC refuses a source"))
-        return 1;
+    /* Every decoder now pulls; a source without read_at is refused. */
+    struct helikon_codec_source broken = source;
+    broken.read_at = NULL;
     if (expect(helikon_codec_open_source(&codec, &helikon_mp3_codec_ops,
-                                         &source, workspace,
+                                         &broken, workspace,
                                          sizeof(workspace)) ==
-                   HELIKON_ERR_UNSUPPORTED,
-               "MP3 refuses a source"))
+                   HELIKON_ERR_ARGUMENT,
+               "source without read_at"))
         return 1;
     if (expect(helikon_codec_open_source(NULL, &helikon_wav_codec_ops, &source,
                                          workspace,
@@ -742,8 +934,8 @@ static int check_source_contract(void)
 
     /* The streaming flag must match what each descriptor really does. */
     if (expect(helikon_wav_codec_ops.streaming == 1u &&
-                   helikon_flac_codec_ops.streaming == 0u &&
-                   helikon_mp3_codec_ops.streaming == 0u,
+                   helikon_flac_codec_ops.streaming == 1u &&
+                   helikon_mp3_codec_ops.streaming == 1u,
                "streaming flags"))
         return 1;
     return 0;
@@ -877,6 +1069,10 @@ int main(void)
     if (check_wav_source())
         return 1;
     if (check_wav_prefix())
+        return 1;
+    if (check_flac_source())
+        return 1;
+    if (check_mp3_source())
         return 1;
     if (check_source_contract())
         return 1;

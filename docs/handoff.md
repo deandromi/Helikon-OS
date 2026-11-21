@@ -12,6 +12,58 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (second block: FLAC and MP3 stream, VFS feeds the codec)
+
+## What happened
+
+- **FLAC is a pull decoder.** `firmware/codec/flac/flac_decoder.{c,h}` decodes
+  through `struct flac_reader` (resident buffer or source + 8 KiB window). The
+  bit reader fetches by absolute offset and refills on a miss; metadata goes
+  through the same reader, so a head ending inside a large metadata block is
+  `NEED_MORE` and `open` resolves it. New `helikon_flac_open_source()`;
+  `helikon_flac_open()` unchanged. Descriptor `streaming = 1`, workspace
+  73,832 B.
+- **MP3 refills around libmad's boundaries.** 32 KiB window, refilled from
+  `stream.next_frame`; the reservoir is libmad's own copy, so a refill never
+  invalidates it. ID3v2 is skipped by reading the 10-byte header and sync-safe
+  size, then the window is filled at the first frame; the guard-for-final-frame
+  trick now pads the window once instead of using a separate tail buffer;
+  refills loop until the window is full so short-read media still expose the
+  Xing frame. Workspace 62,856 B.
+- **VFS feeds the codec.** `firmware/player/vfs_media.{c,h}` binds an open
+  `vfs_file_handle` plus its stat size to a `struct helikon_codec_source`;
+  `read_at` is an absolute seek + read, EOF is a clean zero-byte read.
+  `tests/vfs` proves the composition on the HFS+ fixture (arbitrary-order
+  absolute reads, EOF, null context, registry refusal of a non-audio file).
+- `helikon_codec_open_source()` with an explicit descriptor that does not
+  recognize the head now returns `UNSUPPORTED` instead of leaking `NOT_FOUND`.
+- `tests/libmad.mk` no longer defines directory targets: the first target of an
+  included makefile became the includer's default goal and silently made
+  `make -C tests/vfs` a no-op.
+
+## Evidence
+
+- `tests/codec` test + sanitize: PASS (FLAC and MP3 source decodes byte-equal to
+  the resident-buffer decode; 37/61-byte short reads; unknown media length;
+  bounded requests; FLAC source seek).
+- `tests/vfs` test + sanitize: PASS including the new media test.
+- Matrix: `tests/hfsplus`, `tests/firmware`, `tests/bootloader`, `tests/image`
+  (test, write-diag, outer-diag, loader-test), `tests/musicdb`, `tests/player`,
+  `tests/ui`: all pass.
+- Cross-builds: plain 6G 77,856 B; music-hub 767,624 B with 52 MP3/FLAC symbols;
+  `VERSION=2 trying` image + `check-f2-artifact.sh`: PASS.
+- Host-verified only: **no device run**, no support claim.
+
+## Open / next
+
+- T-058: the read-ahead policy, the music-hub call sites for `vfs_media`, and a
+  real I2S/DMA run from a storage-backed file. The seam exists; nothing plays
+  from the library yet.
+- Gapless bookkeeping, resume, MPEG-2/2.5 corpus coverage, ARMv5E synth.
+
+---
+
+
 # Handoff — 2026-11-21 (streaming source model, WAV converted)
 
 ## What happened

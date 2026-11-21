@@ -5,6 +5,9 @@
 # diagnostics are suppressed rather than editing upstream sources. Included by
 # every suite that links codec.c, because the registry references the MP3
 # descriptor even when the test never decodes an MP3.
+#
+# The rules deliberately define no directory targets: an included file's first
+# target would become the including Makefile's default goal.
 
 LIBmaddir := ../../firmware/codec/libmad
 
@@ -19,11 +22,10 @@ SAN_LIBMAD_OBJ := build_mad_sanitize/bit.o build_mad_sanitize/frame.o \
                   build_mad_sanitize/layer3.o build_mad_sanitize/stream.o \
                   build_mad_sanitize/synth.o
 
-build_mad build_mad_sanitize:
-	@mkdir -p $@
-
-build_mad/%.o: $(LIBmaddir)/%.c | build_mad
+build_mad/%.o: $(LIBmaddir)/%.c
+	@mkdir -p $(dir $@)
 	$(CC) $(LIBMAD_CFLAGS) -c $< -o $@
 
-build_mad_sanitize/%.o: $(LIBmaddir)/%.c | build_mad_sanitize
+build_mad_sanitize/%.o: $(LIBmaddir)/%.c
+	@mkdir -p $(dir $@)
 	$(CC) $(LIBMAD_CFLAGS) $(SANFLAGS) -c $< -o $@
