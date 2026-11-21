@@ -20,8 +20,8 @@ artist row 1 focus bar: rect (16, 78, 2, 34) inside 320x240
 artist row 1 art: rect (24, 81, 28, 28) inside 320x240
 artist row 1 name: fits 244px (91.0px)
 artist row 1 name: text (60, 82, 151, 95) inside (60, 79, 244, 16)
-artist row 1 counts: fits 244px (133.0px)
-artist row 1 counts: text (60, 98, 193, 106) inside (60, 93, 244, 14)
+artist row 1 counts: fits 244px (119.0px)
+artist row 1 counts: text (60, 98, 179, 106) inside (60, 93, 244, 14)
 artist row 2 art: rect (24, 117, 28, 28) inside 320x240
 artist row 2 name: fits 244px (105.0px)
 artist row 2 name: text (60, 118, 165, 128) inside (60, 115, 244, 16)

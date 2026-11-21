@@ -42,8 +42,15 @@ Everything on screen is read at arm's length on a 2.5-inch panel.
   grammar is taught on the list pages (owner, 2026-11-21).
 - `SORT: NAME` on list headers: inert, truthful metadata the owner wants to keep even
   though the wheel cannot change it yet (owner, 2026-11-21).
-- Companion window is a fixed two-column shell with a 248 pt rail: it holds the source
-  and destination panes the owner asked for (owner, 2026-11-21).
+- Companion window is light-only: the palette has no dark variant, so the window keeps
+  `preferredColorScheme(.light)` while the app no longer overrides the system
+  appearance for sheets and menus (owner, 2026-11-21).
+- The artist tab row is a focus stop entered by scrolling up past the first body item,
+  with no footer hint row. Accepted for now because the body bands are full; revisit if
+  a device run shows the panes are unfindable (owner, 2026-11-21).
+- Boot splash label colours are deep green `#007A3D` and deep red `#C81E1E` rather than
+  the owner artwork's `#00BF63` / `#FE3131`, so the 9 px label clears 4.5:1. The mask and
+  illustration are untouched (owner, 2026-11-21).
 
 ## Off limits
 - The root `README.md` and `docs/design-paper.md`: owner-authored product intent.
