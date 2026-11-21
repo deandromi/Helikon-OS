@@ -1,7 +1,7 @@
 # Firmware-loading bootloader — manifest and boot state
 
 > Purpose: fixed on-disk formats and the read-only boot/fallback flow.
-> Status: format frozen; host loader implemented and tested; entry ABI accepted (D-28), loader fill T-059 planned; loader test image builds and passes host gates, no device run.
+> Status: format frozen; host loader implemented and tested; entry ABI accepted (D-28) and the page fill implemented (T-059) with host coverage; loader test image builds and passes host gates, no device run.
 > Owner: boot lead
 > Last updated: 2026-11-04
 > Source: D-01, D-02, D-28; design paper §5.3, §16, §25.1–§25.2
@@ -210,16 +210,30 @@ is reserved zero.
 Rules:
 
 - The loader fills the page after manifest/image verification and before the
-  jump. It does not write the filesystem.
+  jump (`bootloader/boot_info_page.c`, host-tested in
+  `tests/bootloader/test_boot_info_page.c`). It does not write the filesystem;
+  the page lives in DRAM at `0x087ff000`.
 - Boot-info is a cache of verified facts, **not a trust anchor**. The firmware
   must re-read and validate the bootstate file through HFS+ before writing it.
 - The firmware accepts a known version/size range and ignores a newer trailing
   extension. Fields are never reordered.
 - A missing or invalid page sends the firmware to `BOOT_INFO_INVALID`
   diagnostic mode; it must not lead to a bootstate write.
-- The loader fill is **T-059** and is not implemented yet. Until it lands, the
-  test payload path calls `entry(void)` and the firmware must handle `r0 = 0`.
-  This section is the accepted contract, not a device result.
+- The page writer refuses (`HELIKON_ERR_FORMAT`) when the manifest bytes it is
+  asked to copy disagree with the facts it is asked to state — board, image
+  version, load address, size or SHA-256 — and refuses
+  (`HELIKON_ERR_ARGUMENT`) a short, unaligned or missing page. On a refusal the
+  loader shows "Boot-info page refused" and jumps with `r0 = 0`, which the
+  firmware already treats as "no page" and answers by re-reading the disk.
+  Fail-closed on the metadata side, no write, no repair.
+- `journal_state` is `0` (unknown) in the loader image: only the firmware
+  mounts and opens the journal. A dirty or invalid journal already stops the
+  boot before the page is filled.
+- `loader_stage_ms` is measured from the start of the loader's own work (after
+  the donor splash), in milliseconds on the tick counter, so it is a duration
+  and not a wall-clock time.
+- This section is the accepted contract with host coverage, not a device
+  result: the current loader test image passes the host gates only (T-059).
 
 ## 5. Boot flow
 

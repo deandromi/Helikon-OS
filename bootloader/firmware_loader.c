@@ -72,6 +72,7 @@ int helikon_loader_run(helikon_file_read_fn read_file, void *context,
 
     memset(result, 0, sizeof(*result));
     result->manifest = manifest;
+    memcpy(result->manifest_bytes, manifest_data, HELIKON_MANIFEST_SIZE);
     result->image = image_buffer;
     result->image_size = manifest.image_size;
 
