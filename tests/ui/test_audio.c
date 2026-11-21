@@ -476,7 +476,7 @@ int main(int argc, char **argv)
     }
 
     base_data(&data, NOW_PLAYING_ERROR, 0u, 0u);
-    data.error_reason = "AUDIO UNDERRUN";
+    data.error_reason = "THE AUDIO BUFFER RAN DRY";
     data.retryable = 1;
     data.stopped_ms = 5000u;
     draw_now_playing_view(&target, 0u, 0u, &data, 0u);
@@ -496,7 +496,7 @@ int main(int argc, char **argv)
     }
 
     base_data(&data, NOW_PLAYING_ERROR, 0u, 0u);
-    data.error_reason = "AUDIO CODEC/I2C";
+    data.error_reason = "THIS FILE COULD NOT BE DECODED";
     data.retryable = 0;
     data.stopped_ms = 0u;
     draw_now_playing_view(&target, 0u, 0u, &data, 0u);
@@ -506,7 +506,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "terminal error rule is missing\n");
         return 1;
     }
-    if (!any_not_paper(16u, 218u, 288u, 16u)) {
+    if (!any_not_paper(16u, 224u, 288u, 14u)) {
         fprintf(stderr, "terminal error footer is missing\n");
         return 1;
     }

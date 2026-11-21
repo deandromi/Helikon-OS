@@ -10,6 +10,7 @@ import argparse
 import hashlib
 import math
 import os
+import sys
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -1198,16 +1199,18 @@ def render_now_playing():
 
 
 def render_legacy():
+    # Every legacy mockup writes exactly one image and returns its path (or the
+    # pair from save_pair), so collect them one by one rather than extending.
     paths = []
-    paths.extend(menu_mockup())
-    paths.extend(proof_mockup())
-    paths.extend(launcher_mockup())
-    paths.extend(index_mockup())
-    paths.extend(album_wall_mockup())
-    paths.extend(podcast_wall_mockup())
-    paths.extend(audiobook_wall_mockup())
-    paths.extend(album_view_mockup())
-    paths.extend(artist_view_mockup())
+    paths.append(menu_mockup())
+    paths.append(proof_mockup())
+    paths.append(launcher_mockup())
+    paths.append(index_mockup())
+    paths.append(album_wall_mockup())
+    paths.append(podcast_wall_mockup())
+    paths.append(audiobook_wall_mockup())
+    paths.append(album_view_mockup())
+    paths.append(artist_view_mockup())
     return paths
 
 
@@ -1228,8 +1231,17 @@ def main():
         paths.extend(render_music_flow())
     if args.only in ("all", "music-flow", "now-playing"):
         paths.extend(render_now_playing())
-    if args.only in ("all", "legacy"):
+    if args.only == "legacy":
         paths.extend(render_legacy())
+    elif args.only == "all":
+        # The legacy home and brand mockups set headers in the owner-supplied ITC
+        # Benguiat faces, which are licensed and not committed. Skip that group
+        # with a note instead of failing the whole run; --only legacy still
+        # reports the missing font.
+        try:
+            paths.extend(render_legacy())
+        except (SystemExit, OSError) as error:
+            print(f"skipped legacy mockups: {error}", file=sys.stderr)
     for path in paths:
         print(path)
     return 0
@@ -1330,7 +1342,9 @@ def artist_portrait(size, name, has_art):
 
 
 def draw_rating(draw, right, baseline, rating):
-    filled = 0 if rating <= 0 else max(1, min(5, round(rating / 20)))
+    if rating <= 0:
+        return  # Unrated, not zero stars.
+    filled = max(1, min(5, round(rating / 20)))
     start = right - 34
     for index in range(5):
         cx = start + 3 + index * 7
@@ -1419,8 +1433,8 @@ def draw_artists_list(long_names=False):
 
     require_rect(16, 226, 288, 1, "artists footer rule")
     draw.line((16, 226, 303, 226), fill=HOME_FAINT)
-    put_text(draw, "WHEEL SCROLL", system, 16, 236, (16, 228, 120, 12),
-             "artists footer left", HOME_MUTED)
+    put_text(draw, "SELECT OPEN · MENU BACK", system, 16, 236,
+             (16, 228, 200, 12), "artists footer left", HOME_MUTED)
     put_right_fitted(draw, "1–4 / 78", system, 304, 236, 80,
                      (224, 228, 80, 12), "artists footer position",
                      HOME_MUTED)
@@ -1464,9 +1478,6 @@ def draw_artist_view(tab, empty_overview=False):
             0.8, (x, 86, 76, 14), f"artist tab {label}",
             HOME_INK if selected else HOME_MUTED,
         )
-    put_right_fitted(draw, "4 ALBUMS" if not empty_overview else "0 ALBUMS",
-                     system, 304, 98, 90, (214, 86, 90, 14),
-                     "artist tab count", HOME_MUTED)
     require_rect(16, 101, 288, 1, "artist tab rule")
     draw.line((16, 101, 303, 101), fill=HOME_FAINT)
     tab_x = labels[selected_index][1]
@@ -1510,13 +1521,11 @@ def draw_artist_view(tab, empty_overview=False):
                          f"artist bio line {index + 1}", HOME_INK)
             require_rect(16, 182, 288, 1, "artist overview rule")
             draw.line((16, 182, 303, 182), fill=HOME_FAINT)
-            put_text(draw, "4 ALBUMS · 42 TRACKS", system, 16, 198,
-                     (16, 184, 288, 16), "artist facts", HOME_INK)
-            put_fitted(draw, "FIRST  Nocturnes (1975)", system, 16, 212,
-                       288, (16, 198, 288, 18), "artist first album",
+            put_fitted(draw, "FIRST  Nocturnes (1975)", system, 16, 198,
+                       288, (16, 184, 288, 18), "artist first album",
                        HOME_MUTED)
-            put_fitted(draw, "LATEST  Paper Rooms (1994)", system, 16, 226,
-                       288, (16, 212, 288, 18), "artist latest album",
+            put_fitted(draw, "LATEST  Paper Rooms (1994)", system, 16, 212,
+                       288, (16, 198, 288, 18), "artist latest album",
                        HOME_MUTED)
     else:
         put_right_fitted(draw, "1–4 / 24", system, 304, 112, 80,
@@ -1612,12 +1621,13 @@ def draw_now_playing(state):
              if is_long else "Nocturnes")
 
     if is_error:
-        reason = "AUDIO UNDERRUN" if state == "error-retry" else "AUDIO CODEC/I2C"
+        reason = ("THE AUDIO BUFFER RAN DRY" if state == "error-retry"
+                  else "THIS FILE COULD NOT BE DECODED")
         if len(reason) > 44:
             raise SystemExit("error reason exceeds 44 characters")
         clip_entry("error reason length", f"{len(reason)} <= 44 characters")
-        guidance = ("Press SELECT to retry." if state == "error-retry"
-                    else "Return to the album.")
+        guidance = ("SELECT TO TRY AGAIN" if state == "error-retry"
+                    else "SELECT TO OPEN THE ALBUM")
         require_rect(16, 40, 288, 2, "error status rule")
         draw.rectangle((16, 40, 303, 41), fill=HOME_ERROR)
         put_fitted(draw, "AUDIO PLAYBACK FAILED", title_font, 16, 68, 288,
@@ -1633,17 +1643,11 @@ def draw_now_playing(state):
         put_fitted(draw, "SOURCE WAV · PCM · 16-BIT · 44.1 kHz", system, 16,
                    164, 288, (16, 152, 288, 14), "error source quality",
                    HOME_MUTED)
-        put_text(draw, "OUT — · PLAYBACK STOPPED", system, 16, 178,
-                 (16, 166, 288, 14), "error output quality", HOME_MUTED)
-        stopped = "0:00" if state == "error-terminal" else "1:24"
+        stopped = ("THE START" if state == "error-terminal" else "1:24")
         put_text(draw, f"STOPPED AT {stopped} · TRACK 3 OF 10", system, 16,
-                 192, (16, 180, 288, 14), "error stop position", HOME_MUTED)
-        if state == "error-retry":
-            footer = "SELECT RETRY · MENU BACK"
-        else:
-            footer = "SELECT ALBUM · MENU BACK"
-        put_fitted(draw, footer, system, 16, 232, 288,
-                   (16, 220, 288, 14), "error footer", HOME_MUTED)
+                 178, (16, 166, 288, 14), "error stop position", HOME_MUTED)
+        put_text(draw, "MENU BACK", system, 16, 236, (16, 224, 288, 14),
+                 "error footer", HOME_MUTED)
         return save_pair(
             image,
             NOW_PLAYING / f"helikon-os-now-playing-{state}-320x240.png",
@@ -1721,11 +1725,11 @@ def draw_now_playing(state):
     elif state_label == "PAUSED":
         footer = "PLAY RESUME · SELECT ALBUM · MENU BACK"
     elif state_label == "OPENING":
-        footer = "PLEASE WAIT"
+        footer = "MENU BACK"
     else:
         footer = "PLAY REPLAY · SELECT ALBUM · MENU BACK"
-    put_fitted(draw, footer, system, 16, 238, 288,
-               (16, 226, 288, 14), "now playing footer", HOME_MUTED)
+    put_fitted(draw, footer, system, 16, 236, 288,
+               (16, 224, 288, 14), "now playing footer", HOME_MUTED)
 
     return save_pair(
         image,
@@ -1752,8 +1756,9 @@ def draw_album_view(mode="normal"):
     if mode != "empty":
         draw_play_album(draw, 16, 114, 72, 18, focused=False)
 
-    put_text(draw, "1975" if mode != "long" else "YEAR —", system, 100, 48,
-             (100, 36, 80, 14), "album year", HOME_MUTED)
+    if mode != "long":
+        put_text(draw, "1975", system, 100, 48, (100, 36, 80, 14),
+                 "album year", HOME_MUTED)
     draw_rating(draw, 304, 48, 80 if mode != "long" else 0)
 
     if mode == "long":
@@ -1771,9 +1776,9 @@ def draw_album_view(mode="normal"):
                  HOME_INK)
     put_fitted(draw, artist, meta_font, 100, 104, 204,
                (100, 90, 204, 16), "album artist", HOME_INK)
-    genre = "CHAMBER · 43 MIN" if mode != "long" else "GENRE — · LENGTH —"
-    put_fitted(draw, genre, system, 100, 118, 204,
-               (100, 104, 204, 14), "album genre", HOME_MUTED)
+    if mode != "long":
+        put_fitted(draw, "CHAMBER · 43 MIN", system, 100, 118, 204,
+                   (100, 104, 204, 14), "album genre", HOME_MUTED)
 
     require_rect(16, 138, 288, 1, "album body rule")
     draw.line((16, 138, 303, 138), fill=HOME_RULE)

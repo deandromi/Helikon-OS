@@ -38,7 +38,7 @@ artist row 4 name: text (60, 190, 184, 200) inside (60, 187, 244, 16)
 artist row 4 counts: fits 244px (119.0px)
 artist row 4 counts: text (60, 206, 179, 214) inside (60, 201, 244, 14)
 artists footer rule: rect (16, 226, 288, 1) inside 320x240
-artists footer left: text (16, 228, 95, 236) inside (16, 228, 120, 12)
+artists footer left: text (16, 228, 156, 236) inside (16, 228, 200, 12)
 artists footer position: fits 80px (44.0px)
 artists footer position: text (260, 228, 304, 238) inside (224, 228, 80, 12)
 MUSIC top: tracked width 37.8px inside (16, 8, 200, 14)
@@ -74,7 +74,7 @@ artist row 4 name: text (60, 190, 184, 200) inside (60, 187, 244, 16)
 artist row 4 counts: fits 244px (119.0px)
 artist row 4 counts: text (60, 206, 179, 214) inside (60, 201, 244, 14)
 artists footer rule: rect (16, 226, 288, 1) inside 320x240
-artists footer left: text (16, 228, 95, 236) inside (16, 228, 120, 12)
+artists footer left: text (16, 228, 156, 236) inside (16, 228, 200, 12)
 artists footer position: fits 80px (44.0px)
 artists footer position: text (260, 228, 304, 238) inside (224, 228, 80, 12)
 ARTISTS top: tracked width 49.2px inside (16, 8, 200, 14)
@@ -92,8 +92,6 @@ artist identity rule: rect (16, 84, 288, 1) inside 320x240
 artist tab ALBUMS: tracked width 48.0px inside (16, 86, 76, 14)
 artist tab OVERVIEW: tracked width 60.6px inside (84, 86, 76, 14)
 artist tab TRACKS: tracked width 44.0px inside (168, 86, 76, 14)
-artist tab count: fits 90px (52.0px)
-artist tab count: text (252, 90, 304, 98) inside (214, 86, 90, 14)
 artist tab rule: rect (16, 101, 288, 1) inside 320x240
 artist tab underline: rect (16, 102, 48, 2) inside 320x240
 artist album position: fits 80px (37.0px)
@@ -126,19 +124,16 @@ artist identity rule: rect (16, 84, 288, 1) inside 320x240
 artist tab ALBUMS: tracked width 46.0px inside (16, 86, 76, 14)
 artist tab OVERVIEW: tracked width 63.6px inside (84, 86, 76, 14)
 artist tab TRACKS: tracked width 44.0px inside (168, 86, 76, 14)
-artist tab count: fits 90px (52.0px)
-artist tab count: text (252, 90, 304, 98) inside (214, 86, 90, 14)
 artist tab rule: rect (16, 101, 288, 1) inside 320x240
 artist tab underline: rect (84, 102, 64, 2) inside 320x240
 artist bio line 1: text (16, 113, 272, 124) inside (16, 108, 288, 64)
 artist bio line 2: text (16, 129, 280, 140) inside (16, 108, 288, 64)
 artist bio line 3: text (16, 145, 88, 156) inside (16, 108, 288, 64)
 artist overview rule: rect (16, 182, 288, 1) inside 320x240
-artist facts: text (16, 190, 135, 198) inside (16, 184, 288, 16)
 artist first album: fits 288px (122.0px)
-artist first album: text (16, 204, 138, 214) inside (16, 198, 288, 18)
+artist first album: text (16, 190, 138, 200) inside (16, 184, 288, 18)
 artist latest album: fits 288px (145.0px)
-artist latest album: text (16, 218, 161, 228) inside (16, 212, 288, 18)
+artist latest album: text (16, 204, 161, 214) inside (16, 198, 288, 18)
 ARTISTS top: tracked width 49.2px inside (16, 8, 200, 14)
 ARTISTS time: tracked width 31.0px ending at 274 inside (214, 8, 60, 14)
 ARTISTS battery: rect (282, 11, 18, 9) inside 320x240
@@ -154,8 +149,6 @@ artist identity rule: rect (16, 84, 288, 1) inside 320x240
 artist tab ALBUMS: tracked width 46.0px inside (16, 86, 76, 14)
 artist tab OVERVIEW: tracked width 60.6px inside (84, 86, 76, 14)
 artist tab TRACKS: tracked width 45.0px inside (168, 86, 76, 14)
-artist tab count: fits 90px (52.0px)
-artist tab count: text (252, 90, 304, 98) inside (214, 86, 90, 14)
 artist tab rule: rect (16, 101, 288, 1) inside 320x240
 artist tab underline: rect (168, 102, 45, 2) inside 320x240
 artist track position: fits 80px (44.0px)
@@ -196,8 +189,6 @@ artist identity rule: rect (16, 84, 288, 1) inside 320x240
 artist tab ALBUMS: tracked width 46.0px inside (16, 86, 76, 14)
 artist tab OVERVIEW: tracked width 63.6px inside (84, 86, 76, 14)
 artist tab TRACKS: tracked width 44.0px inside (168, 86, 76, 14)
-artist tab count: fits 90px (52.0px)
-artist tab count: text (252, 90, 304, 98) inside (214, 86, 90, 14)
 artist tab rule: rect (16, 101, 288, 1) inside 320x240
 artist tab underline: rect (84, 102, 64, 2) inside 320x240
 artist empty bio: text (16, 114, 158, 122) inside (16, 108, 288, 16)
@@ -253,19 +244,11 @@ album cover: rect (16, 36, 72, 72) inside 320x240
 PLAY ALBUM plate: rect (16, 114, 72, 18) inside 320x240
 PLAY ALBUM triangle: 3 points inside 320x240
 PLAY ALL label: text (36, 119, 85, 127) inside (34, 116, 52, 16)
-album year: text (100, 40, 139, 48) inside (100, 36, 80, 14)
-rating diamond 1: 4 points inside 320x240
-rating diamond 2: 4 points inside 320x240
-rating diamond 3: 4 points inside 320x240
-rating diamond 4: 4 points inside 320x240
-rating diamond 5: 4 points inside 320x240
 album title line 2: truncated with U+2026 to 197.0px
 album title line 1: text (100, 55, 296, 71) inside (100, 36, 204, 56)
 album title line 2: text (100, 75, 297, 88) inside (100, 36, 204, 56)
 album artist: fits 204px (196.0px)
 album artist: text (100, 95, 296, 106) inside (100, 90, 204, 16)
-album genre: fits 204px (111.0px)
-album genre: text (100, 110, 211, 118) inside (100, 104, 204, 14)
 album body rule: rect (16, 138, 288, 1) inside 320x240
 album tracks label: text (16, 142, 57, 150) inside (16, 140, 100, 14)
 album track position: fits 80px (44.0px)

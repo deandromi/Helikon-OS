@@ -576,7 +576,7 @@ visualizer bars. Generated art is paper-light line art, not real cover art.
 | Art | 24, y+3, 28, 28 | artist image or 2-letter monogram; 1 px frame |
 | Name | 60, y+2, 244, 16 | 14 px; one line; ellipsis; selected uses Medium |
 | Counts | 60, y+16, 244, 14 | 11 px `N ALBUMS · M TRACKS`; muted unless selected |
-| Footer | 16, 226, 288, 14 | `WHEEL SCROLL` left; `1–4 / 78` right |
+| Footer | 16, 226, 288, 14 | `SELECT OPEN · MENU BACK` left; `1–4 / 78` right |
 
 The Artists list is a browser list, not a home screen: it has no playback
 element, launch tiles, hero art or dashboard modules.
@@ -624,13 +624,19 @@ row area and `0 / 0` in the footer; no fabricated rows.
 | Identity rule | 16, 84, 288, 1 | Rule |
 | Tabs | 16, 86, 288, 14 | `ALBUMS`, `OVERVIEW`, `TRACKS` at x=16, 84, 168 |
 | Tab rule | 16, 101, 288, 1 | Faint; selected 2 px ink underline at y=102 |
-| Album count | 214, 86, 90, 14 | 11 px muted; right-aligned to 304 |
 | Body | 16, 108, 288, 128 | tab content |
 
 Tabs are ordered `ALBUMS`, `OVERVIEW`, `TRACKS`; `ALBUMS` is the default. The
 tab labels are 11 px; selected is Medium + 2 px underline; unselected is
-Regular muted. The album count stays right-aligned. The body never starts with
-biography.
+Regular muted. The tab row carries no count: the counts belong to the identity
+block above it and are never repeated in the tab band. The body never starts
+with biography.
+
+The tab row is a focus stop. The wheel moves into it upward from the first
+body item, LEFT/RIGHT or the wheel change the tab while it is focused, and
+SELECT switches to the focused tab and returns focus to the body. A focused
+tab row draws the same 2 px ink bar as a focused list row, at x=16, y=86,
+16 px tall, in addition to the current-tab underline.
 
 **ALBUMS (default).** Position `1–3 / N` at 304, 112. Three 72×72 cells at
 x=16, 124, 232, y=118. Art is 68×68 inside a 1 px rule; selected has a 2 px ink
@@ -644,9 +650,9 @@ artist-level action and no `PLAY` plate; do not add a dead control. MENU
 returns. Empty: `NO ALBUMS IN LIBRARY` at 128, position `0 / 0`, no cells.
 
 **OVERVIEW.** Biography: 12 px, max four lines, baselines 122/138/154/170. If a
-biography exists, show it, then a 1 px rule at 182, `N ALBUMS · M TRACKS` at
-198, and derived `FIRST <title> (<year>)` / `LATEST <title> (<year>)` at 212 and
-226. These are catalog facts, not a claim about formation, origin or city. If
+biography exists, show it, then a 1 px rule at 182 and the derived
+`FIRST <title> (<year>)` / `LATEST <title> (<year>)` at 198 and 212. The counts
+are not repeated here; they are already in the identity block. These are catalog facts, not a claim about formation, origin or city. If
 there is no biography, show `NO BIOGRAPHY AVAILABLE` at 122. If there are no
 derived facts, show `NO CATALOG FACTS` at 138 and do not draw the rule. There
 are no formed/origin fields in HDB v1; do not display them.
@@ -666,8 +672,8 @@ tracks: `NO TRACKS IN ARTIST` at 122 and position `0 / 0`.
 | Top bar | 16, 8, 288, 18 | `ALBUM`; time, battery; rule at 30 |
 | Cover | 16, 36, 72, 72 | 70 px art or placeholder; 1 px rule |
 | Album action | 16, 114, 72, 18 | `PLAY ALL` 11 Medium; outline unfocused, ink fill focused |
-| Year | 100, 36, 80, 14 | 11 px muted; `YEAR —` when missing |
-| Rating | 270, 42, 34, 12 | five 6 px diamonds; filled by `round(rating/20)`; all outline when unrated |
+| Year | 100, 36, 80, 14 | 11 px muted; omitted when missing |
+| Rating | 270, 42, 34, 12 | five 6 px diamonds; filled by `round(rating/20)`; nothing drawn when unrated |
 | Title | 100, 54, 204, 44 | 17 Semibold, max two lines, width 204, ellipsis |
 | Artist | 100, 90, 204, 16 | 12 px, one line, ellipsis |
 | Genre/length | 100, 104, 204, 14 | 11 px muted; omit missing values honestly |
@@ -692,8 +698,9 @@ Notes and credits are optional editorial sidecar data. HDB v1 has no
 notes/credits fields, so the page shows one-line excerpts only when the local
 sidecar provides them; if it does not, omit the lines and do not fabricate
 copy. A full notes/credits reading surface remains an open question. Year,
-genre and rating come from the HDB album record; a missing year shows `YEAR —`,
-a missing genre is omitted, and an unrated album shows five outline diamonds.
+genre and rating come from the HDB album record; a missing year and a missing
+genre are omitted rather than printed as a dash, and an unrated album draws no
+diamonds at all, because an unrated album is not a zero-star album.
 
 Track rows come from the album's contiguous HDB track slice. Durations are
 formatted from `duration_ms`; an unreadable row shows `TRACK DATA MISSING` and
@@ -777,12 +784,12 @@ rainbow, gradient or fake motion.
 
 | State | Visual signature | Progress/time | State line | Footer |
 |---|---|---|---|---|
-| `OPENING` | cover and known metadata | empty bar; `0:00 / --:--` | `OPENING`, no icon | `PLEASE WAIT` |
+| `OPENING` | cover and known metadata | empty bar; `0:00 / --:--` | `OPENING`, no icon | `MENU BACK` |
 | `PLAYING` | normal cover | fill at position; `elapsed / total` | play triangle + `PLAYING` | `PLAY PAUSE · SELECT ALBUM · MENU BACK` |
 | `PAUSED` | normal cover; no dimming | frozen fill and time | pause bars + `PAUSED` | `PLAY RESUME · SELECT ALBUM · MENU BACK` |
 | `FINISHED` | normal cover | full bar; `total / total` | `FINISHED`, no icon | `PLAY REPLAY · SELECT ALBUM · MENU BACK` |
-| `ERROR` retryable | red 2 px rule; no cover/progress/visualizer | `STOPPED AT <time>` | `AUDIO PLAYBACK FAILED` headline, reason, guidance, identity | `SELECT RETRY · MENU BACK` |
-| `ERROR` terminal | same | `STOPPED AT 0:00` | same headline; specific reason | `SELECT ALBUM · MENU BACK` or `MENU BACK` |
+| `ERROR` retryable | red 2 px rule; no cover/progress/visualizer | `STOPPED AT <time>` | `AUDIO PLAYBACK FAILED` headline, a cause sentence, an action line, identity | `MENU BACK` |
+| `ERROR` terminal | same | `STOPPED AT THE START` | same headline; a cause sentence and an action line | `MENU BACK` |
 | Missing art | placeholder in any normal state | as that state | as that state | as that state |
 | Long metadata | two-line title/ellipsis; one-line artist/album/ellipsis | as that state | as that state | as that state |
 
@@ -790,9 +797,10 @@ State rules:
 
 - `OPENING` is shown until the first audio frame is ready. It is a real state,
   not a modal. The current player open is synchronous and can block input for
-  up to 2 s; the screen shows `PLEASE WAIT` and never claims `CANCEL` until the
-  player services MENU during open. This is an implementation limitation, not
-  a design claim.
+  up to 2 s. The footer keeps `MENU BACK`: the screen never claims `CANCEL`
+  until the player services MENU during open, but the way out is not hidden
+  behind a wait message either. This is an implementation limitation, not a
+  design claim.
 - `PLAYING` updates progress at most once per second or on a state change. The
   progress fill follows the playback clock, not a UI tick.
 - `PAUSED` freezes the fill and time; no dimming; PLAY resumes at the same
@@ -800,9 +808,13 @@ State rules:
 - `FINISHED` appears only when the play context has no next track. PLAY replays
   from 0:00; if the stream must reopen, show `OPENING`.
 - `ERROR` has no cover, progress or visualizer. The red rule is the only red.
-  The reason slot is one line, at most 44 characters at 12 px, with U+2026 if
-  needed. The guidance is one line. A failed retry stays in `ERROR` with an
-  updated reason; it never loops automatically.
+  The cause is a sentence for the listener, not a developer token: the player's
+  stage name ("CODEC/I2C") never reaches the cause line. The cause is one line,
+  at most 44 characters at 12 px, with U+2026 if needed. The action line says
+  what SELECT does (`SELECT TO TRY AGAIN`, `SELECT TO OPEN THE ALBUM`,
+  `SELECT TO GO BACK`); the footer says `MENU BACK` and nothing else, so the
+  same action is never promised twice. A failed retry stays in `ERROR` with an
+  updated cause; it never loops automatically.
 - `SELECT ALBUM` appears only when the track resolves to an album. If it does
   not, omit it. Never draw a dead action.
 - No shuffle, repeat, queue, volume, seek, next/previous or overflow controls
