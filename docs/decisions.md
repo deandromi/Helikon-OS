@@ -3,7 +3,7 @@
 > Purpose: why the design is what it is, and what is still undecided.
 > Status: living document
 > Owner: project owner
-> Last updated: 2026-11-17
+> Last updated: 2026-11-21
 > Source: design paper §18, §25, §28; Helikon-OS README; Rockbox iPod
 > Classic manual `0d5c2b0604-261105`; [`competitive-roadmap.md`](competitive-roadmap.md);
 > [`audio-formats.md`](audio-formats.md); [`disk-mode.md`](disk-mode.md)
@@ -88,6 +88,7 @@ re-litigate them.
 | D-53 | Music catalog ownership (native HelikonDB, no iTunesDB) | accepted | owner | §12, §28.4.1; D-07, D-33; [helikondb.md](helikondb.md) |
 | D-54 | Helikon Disk Mode and the writable LUN | accepted | owner | §16.2, §28.4.2; D-09, D-38; [ADR-0005](adr/0005-helikon-disk-mode.md) |
 | D-55 | CE-ATA devices: LBA48 path or explicit rejection | proposed (open) | owner | §16.2; D-54; [disk-mode.md](disk-mode.md) |
+| D-56 | USB vendor/product ID for Helikon Disk Mode | proposed (open) | owner | §16; D-54; [disk-mode.md](disk-mode.md) |
 
 The paper's §25 lists 17 decisions. D-18, D-19, D-20 and D-26 are added from §18,
 §28.4.4 and the bootloader recovery policy. D-18 and D-20 are accepted; D-19 was
@@ -1446,6 +1447,27 @@ not authorize a product change.
 - **Follow-up:** T-109's recorded run; amend §10.2 when the owner decides;
   [device-matrix.md](device-matrix.md) must not claim CE-ATA support in the
   meantime.
+
+## D-56 — USB vendor and product ID for Helikon Disk Mode
+
+- **Status:** proposed; open question for the owner. **Owner:** owner. **Date:**
+  2026-11-21. **Paper:** §16; D-54; [disk-mode.md](disk-mode.md) §7.
+- **Context:** the descriptors have to state a VID/PID, and a wrong one is either
+  a squat on somebody else's identity or a device macOS will not enumerate as a
+  disk. The source currently carries `0x1209/0x0001`, the pid.codes pair used
+  for open-source hardware, with the comment that it is a placeholder. Apple's
+  vendor ID is not available to this project and must not be borrowed.
+- **Options:** (a) request a pid.codes allocation (a full 0x1209 product ID, free
+  but public and revocable); (b) buy a USB-IF vendor ID (a few thousand USD);
+  (c) keep 0x1209 with a product ID never published for a real product, which
+  risks colliding with another pid.codes holder.
+- **Decision:** unresolved. The placeholder stays in the source, labelled as one,
+  because descriptors need some pair and no identity has been granted yet.
+- **Consequences while open:** no release may ship the placeholder as if it were
+  registered, and `disk-mode.md` §7 records the substitution point. Enumerating
+  in Disk Mode works the same for any pair, so the HAL work is not blocked.
+- **Follow-up:** the owner picks an option; one header constant changes and
+  `tests/usb` pins the new value.
 
 ## Adding a decision
 
