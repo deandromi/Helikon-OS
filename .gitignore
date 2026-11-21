@@ -61,6 +61,7 @@ tests/codec/build_mad_sanitize/
 tests/codec/*.dSYM/
 tests/player/build_mad/
 tests/ui/build_mad/
+tests/vfs/build_mad/
 tests/player/*.dSYM/
 
 tests/hfsplus/test_catalog_header

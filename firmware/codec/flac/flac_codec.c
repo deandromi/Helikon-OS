@@ -7,6 +7,7 @@
 
 #include "codec.h"
 #include "error.h"
+#include "mem.h"
 #include "static_assert.h"
 
 HELIKON_STATIC_ASSERT(sizeof(struct helikon_flac_decoder) <=
@@ -16,8 +17,17 @@ HELIKON_STATIC_ASSERT(sizeof(struct helikon_flac_decoder) <=
 static int flac_probe(const uint8_t *data, size_t size, uint64_t total_size,
                       struct helikon_codec_info *info)
 {
-    (void)total_size;
-    return helikon_flac_probe(data, size, info);
+    int rc = helikon_flac_probe(data, size, info);
+    /*
+     * A head that ends inside the metadata cannot decide: open parses the
+     * stream and reports the real error (including an unsupported profile).
+     */
+    if (rc != HELIKON_OK && rc != HELIKON_ERR_NOT_FOUND && rc != HELIKON_ERR_ARGUMENT &&
+        total_size != size)
+        return HELIKON_ERR_NEED_MORE;
+    if (rc == HELIKON_ERR_ARGUMENT && total_size != size)
+        return HELIKON_ERR_NEED_MORE;
+    return rc;
 }
 
 static int flac_open(struct helikon_codec *codec, void *workspace,
@@ -27,19 +37,31 @@ static int flac_open(struct helikon_codec *codec, void *workspace,
         workspace_size < sizeof(struct helikon_flac_decoder))
         return HELIKON_ERR_ARGUMENT;
 
-    /*
-     * The FLAC decoder still parses a resident image; refuse a pull source
-     * instead of reading the probe prefix as if it were the whole file.
-     */
+    struct helikon_flac_decoder *decoder = workspace;
     const uint8_t *data = NULL;
     size_t size = 0u;
-    if (!helikon_codec_memory_span(codec, &data, &size))
-        return HELIKON_ERR_UNSUPPORTED;
-
-    struct helikon_flac_decoder *decoder = workspace;
-    int rc = helikon_flac_open(decoder, data, size);
+    int rc;
+    if (helikon_codec_memory_span(codec, &data, &size)) {
+        rc = helikon_flac_open(decoder, data, size);
+    } else {
+        rc = helikon_flac_open_source(decoder, codec->source);
+    }
     if (rc != HELIKON_OK)
         return rc;
+
+    /* Open is authoritative: a NEED_MORE probe filled no info. */
+    helikon_memset(&codec->info, 0, sizeof(codec->info));
+    codec->info.sample_rate = decoder->sample_rate;
+    codec->info.total_frames = decoder->total_frames;
+    codec->info.duration_ms =
+        (uint32_t)(((uint64_t)decoder->total_frames * 1000u) /
+                   decoder->sample_rate);
+    codec->info.source_channels = decoder->channels;
+    codec->info.source_bits = decoder->bits;
+    codec->info.output_channels = 2u;
+    codec->info.output_bits = 16u;
+    codec->info.workspace_bytes = sizeof(struct helikon_flac_decoder);
+    codec->info.flags = HELIKON_CODEC_FLAG_SEEK;
     codec->state = decoder;
     return HELIKON_OK;
 }
@@ -74,7 +96,7 @@ const struct helikon_codec_ops helikon_flac_codec_ops = {
     .name = "flac",
     .extensions = flac_extensions,
     .capabilities = HELIKON_CODEC_CAP_SEEK | HELIKON_CODEC_CAP_GAPLESS,
-    .streaming = 0u,
+    .streaming = 1u,
     .stack_bytes = 4096u,
     .min_clock_hz = 54000000u,
     .recommended_clock_hz = 216000000u,

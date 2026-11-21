@@ -4,10 +4,12 @@
  * (root -> .firmware -> current.img with the "HELO" payload) and the shared
  * test-image helpers from tests/hfsplus.
  */
+#include "codec.h"
 #include "test_check.h"
 #include "test_fs_image.h"
 #include "test_image.h"
 #include "vfs.h"
+#include "vfs_media.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -260,6 +262,73 @@ static int test_not_hfs_refused(void)
     return 0;
 }
 
+
+/*
+ * T-058 read seam: an open VFS file becomes a codec source. The adapter must
+ * return exactly the file's bytes at any absolute offset, report end of file
+ * as a clean zero-byte read, and compose with the registry (a file that is
+ * not audio is refused, not misread).
+ */
+static int test_vfs_media(void)
+{
+    struct vfs vfs;
+    struct vfs_entry entry;
+    struct vfs_file_handle handle;
+    static uint8_t catalog_scratch[TEST_FS_NODE_SIZE];
+    static uint8_t extents_scratch[TEST_FS_NODE_SIZE];
+
+    test_fs_image_make();
+    CHECK(vfs_mount(&vfs, test_image_read, NULL, 0, TEST_IMAGE_SIZE,
+                    catalog_scratch, sizeof(catalog_scratch), extents_scratch,
+                    sizeof(extents_scratch)) == HELIKON_OK);
+    CHECK(vfs_stat(&vfs, "/.firmware/current.img", &entry) == HELIKON_OK);
+    CHECK(entry.size == 4u);
+    CHECK(vfs_file_open(&vfs, "/.firmware/current.img", &handle) ==
+          HELIKON_OK);
+
+    struct helikon_vfs_media media;
+    struct helikon_codec_source source;
+    CHECK(helikon_vfs_media_init(&media, &vfs, handle, entry.size, &source) ==
+          HELIKON_OK);
+    CHECK(source.size == 4u && source.read_at != NULL && source.context == &media);
+
+    uint8_t buffer[8];
+    size_t got = 0u;
+
+    /* Absolute reads do not depend on each other's order. */
+    CHECK(source.read_at(source.context, 2u, buffer, 2u, &got) == HELIKON_OK &&
+          got == 2u && memcmp(buffer, "LO", 2u) == 0);
+    CHECK(source.read_at(source.context, 0u, buffer, 2u, &got) == HELIKON_OK &&
+          got == 2u && memcmp(buffer, "HE", 2u) == 0);
+    CHECK(source.read_at(source.context, 3u, buffer, 8u, &got) == HELIKON_OK &&
+          got == 1u && buffer[0] == 'O');
+    CHECK(source.read_at(source.context, 4u, buffer, 8u, &got) == HELIKON_OK &&
+          got == 0u);
+    CHECK(source.read_at(source.context, 4096u, buffer, 8u, &got) ==
+          HELIKON_OK && got == 0u);
+    CHECK(source.read_at(NULL, 0u, buffer, 8u, &got) == HELIKON_ERR_ARGUMENT);
+
+    /* Compose with the registry: "HELO" is not audio, and saying so must not
+     * read past the file or crash. */
+    memset(buffer, 0, sizeof(buffer));
+    CHECK(source.read_at(source.context, 0u, buffer, entry.size, &got) ==
+          HELIKON_OK && got == 4u);
+
+    const struct helikon_codec_ops *ops = NULL;
+    struct helikon_codec_info info;
+    CHECK(helikon_codec_probe(buffer, got, &ops, &info) ==
+          HELIKON_ERR_UNSUPPORTED);
+
+    static uint8_t workspace[HELIKON_CODEC_WORKSPACE_MAX];
+    struct helikon_codec codec;
+    CHECK(helikon_codec_open_source(&codec, &helikon_wav_codec_ops, &source,
+                                   workspace, sizeof(workspace)) ==
+          HELIKON_ERR_UNSUPPORTED);
+
+    CHECK(vfs_file_close(&vfs, handle) == HELIKON_OK);
+    return 0;
+}
+
 int main(void)
 {
     int failures = 0;
@@ -271,6 +340,7 @@ int main(void)
     failures += test_dir_semantics();
     failures += test_read_only_boundary();
     failures += test_not_hfs_refused();
+    failures += test_vfs_media();
     if (failures != 0) {
         fprintf(stderr, "test_vfs: %d failure(s)\n", failures);
         return 1;

@@ -1010,3 +1010,92 @@ is letting the decoder refill instead of indexing the buffer), then MP3
 must preserve the unconsumed tail — the bounce buffer added in §13.2 is the
 starting point). Resume, gapless and the T-100/T-101 device gates are unchanged
 and belong after the streaming conversions, not before.
+
+## 15. Cold path closed: FLAC and MP3 stream, VFS feeds the codec (2026-11-21)
+
+Status: `implemented` as host code, host-tested; `unproven` on a device. No
+storage-backed playback exists yet: the read seam is proven, the audio-ring
+wiring is not.
+
+### 15.1 FLAC pulls through a window
+
+`firmware/codec/flac/flac_decoder.{c,h}` now decodes through
+`struct flac_reader`: a resident buffer or a pull source with an 8 KiB refill
+window (`HELIKON_FLAC_WINDOW`). The bit reader asks for one byte at an absolute
+offset and the reader refills on a miss; FLAC access is monotonic within a
+frame, so one forward window is enough. Metadata is parsed through the same
+reader, which is why a head that ends inside a large padding/metadata block is
+reported as `HELIKON_ERR_NEED_MORE` and resolved by `open`. `helikon_flac_open()`
+keeps its signature; `helikon_flac_open_source()` is new and requires a source
+that reports its length (a FLAC stream has no RIFF-style self-bounding field).
+The descriptor is `streaming = 1`, workspace 73,832 B.
+
+Measured cost: a frame is walked twice — once to decode, once to verify the
+CRC-16 — so a pull total of roughly 2× the stream is expected, never a
+whole-file request. The source tests assert exactly that: the largest single
+request is at most the window, and the total is bounded at 2× plus one window.
+
+### 15.2 MP3 refills around libmad's frame boundaries
+
+`firmware/codec/mp3/mp3_codec.c` now keeps a 32 KiB window
+(`HELIKON_MP3_WINDOW`) and refills it from `stream.next_frame` onward. That is
+the correct cut for this libmad port: the bit reservoir is a *copy* held in
+`stream.main_data` (wired to the wrapper's `main_data` array), so a refill never
+invalidates it, and everything libmad still needs starts at `next_frame`.
+
+- At open, the ID3v2 tag is skipped by reading its 10-byte header and the
+  sync-safe size, not by scanning a buffer; `mp3_window_seek()` then fills the
+  window at the first frame and `mp3_parse()` locates the header and the
+  Xing/Info frame inside it.
+- At end of file the first refill that reads nothing pads the window with
+  `MAD_BUFFER_GUARD` zero bytes once (`tail_active`), replacing the old
+  standalone tail buffer.
+- Refills loop until the window is full, so a media that returns short reads
+  (extent boundaries, small transfers) still exposes the whole Xing frame to
+  the parser — this was the one real bug found: with 37-byte reads the Xing
+  tag was invisible and the silent first frame was emitted.
+- A full window that libmad cannot consume is refused with
+  `HELIKON_ERR_FORMAT` instead of looping.
+
+Workspace: 62,856 B (`sizeof(struct mp3_state)`, compile-time asserted). Seek
+uses the Xing TOC or the CBR frame arithmetic, then re-aligns to a real header
+inside the window; the frame-boundary semantics are unchanged.
+
+### 15.3 VFS becomes a codec source
+
+`firmware/player/vfs_media.{c,h}` is the seam the project was missing:
+`helikon_vfs_media_init()` binds an open `vfs_file_handle` and its stat size to
+a `struct helikon_codec_source`, with `read_at` implemented as an absolute
+`vfs_file_seek` + `vfs_file_read`. End of file is a clean zero-byte read; a
+short read that ends at the file size is normal. There is no writable path and
+no second error taxonomy.
+
+`tests/vfs` now proves the composition end to end on the HFS+ catalog fixture:
+mount, stat, open, wrap, absolute reads in arbitrary order (2 → 0 → 3 → EOF →
+past EOF), a null-context refusal, and a registry probe of the four-byte
+"HELO" payload returning `HELIKON_ERR_UNSUPPORTED` rather than reading past the
+file or crashing. `helikon_codec_open_source()` with an explicitly requested
+descriptor that does not recognize the head now returns `UNSUPPORTED` (it used
+to leak the internal `NOT_FOUND` sentinel).
+
+### 15.4 Evidence (host only, no device run)
+
+- `make -C tests/codec test` / `sanitize`: PASS, with new FLAC and MP3 source
+  tests — decode from a pull source byte-identical to the resident-buffer
+  decode, short-read media (37 B and 61 B), media without a reported length,
+  bounded requests, FLAC source seek compared against the buffer decode.
+- `make -C tests/vfs test` / `sanitize`: PASS including the new media test.
+- Full matrix: `tests/hfsplus`, `tests/firmware`, `tests/bootloader`,
+  `tests/image` (test, write-diag, outer-diag, loader-test), `tests/musicdb`,
+  `tests/player`, `tests/ui`.
+- Cross-builds: plain 6G 77,856 B; music-hub config with the MP3 fixture
+  767,624 B (52 MP3/FLAC symbols linked); `VERSION=2 BOOTSTATE_STATE=trying`
+  image plus `check-f2-artifact.sh`: PASS.
+
+### 15.5 Remaining for T-058
+
+The read seam is the host half. Still missing: the read-ahead policy (how many
+ring buffers feed a refill, and whether the ring requests frame-aligned spans),
+the `vfs_media` call sites in the music hub, an actual I2S/DMA run, and the
+device evidence. Resume, gapless bookkeeping and T-100/T-101 stay where they
+were.

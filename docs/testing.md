@@ -252,9 +252,14 @@ make -C tests/player test
 Every host suite that links `firmware/codec/codec.c` also links the vendored
 libmad objects, because the codec registry references the MP3 descriptor even
 when the suite never decodes an MP3. The object rules live in one fragment,
-`tests/libmad.mk`, included by `tests/codec`, `tests/player` and `tests/ui`.
-Adding a suite that builds the codec layer means including it; a missing link
-shows up as an undefined `helikon_mp3_codec_ops`.
+`tests/libmad.mk`, included by `tests/codec`, `tests/player`, `tests/ui` and
+`tests/vfs` (the last one because it proves the VFS media adapter against the
+real codec registry). Adding a suite that builds the codec layer means
+including it; a missing link shows up as an undefined `helikon_mp3_codec_ops`.
+
+The fragment deliberately defines no directory targets: the first target of an
+included makefile becomes the includer's default goal, which silently turned
+`make -C tests/vfs` into a no-op until it was removed.
 
 The HelikonDB reader is tested against a generated fixture, with an optional
 real corpus:

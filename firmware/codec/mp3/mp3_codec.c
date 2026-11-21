@@ -24,35 +24,14 @@
 /* Bound on consecutive recoverable errors before a file is declared bad. */
 #define MP3_MAX_RECOVERABLE 64u
 
-struct mp3_state {
-    /* Rockbox's libmad dropped malloc: big buffers are wired by the
-     * wrapper (mad_frame_init expects sbsample/sbsample_prev/overlap and
-     * mad_stream_buffer expects stream.main_data to point at user arrays).
-     * sbsample and sbsample_prev must point at the SAME buffer: the layer
-     * decoders write frame->sbsample while the Rockbox-modified synth reads
-     * frame->sbsample_prev (see codec/libmad/README.md). */
-    struct mad_stream stream;
-    struct mad_frame frame;
-    struct mad_synth synth;
-    mad_fixed_t sbsample[2][36][32];
-    mad_fixed_t overlap[2][32][18];
-    unsigned char main_data[MAD_BUFFER_MDLEN];
-    /* Bounce buffer for the stream tail: the last frame cannot decode
-     * without MAD_BUFFER_GUARD spare bytes past its end, so on the first
-     * end-of-buffer the remainder is re-buffered here with guard bytes. */
-    unsigned char tail[1045u + MAD_BUFFER_GUARD];
-    uint8_t tail_active;
-    unsigned int synth_part;      /* next synth.pcm block to emit */
-    uint32_t frame_index;         /* PCM frame position of next output */
-    uint32_t consecutive_errors;
-    uint32_t skip_frames_left;    /* frames decoded but not emitted */
-};
+/*
+ * Pull-source window. libmad needs whole frames plus guard bytes and keeps
+ * its bit reservoir in `main_data` (a copy), so a refill only has to preserve
+ * the bytes from `stream.next_frame` onward.
+ */
+#define HELIKON_MP3_WINDOW 32768u
 
-/* The workspace travels in the player's fixed buffer; fail the build rather
- * than overflow it. Measured at 30,976 bytes on both hosts (arm-eabi-gcc 9,
- * -mcpu=arm926ej-s) and clang (arm64 host tests). */
-_Static_assert(sizeof(struct mp3_state) <= HELIKON_CODEC_WORKSPACE_MAX,
-               "MP3 workspace exceeds HELIKON_CODEC_WORKSPACE_MAX");
+
 
 /* ---------- header parsing (probe side) ---------- */
 
@@ -248,6 +227,124 @@ static int mp3_xing(const uint8_t *data, size_t size,
     return HELIKON_OK;
 }
 
+
+struct mp3_state {
+    /* Rockbox's libmad dropped malloc: big buffers are wired by the
+     * wrapper (mad_frame_init expects sbsample/sbsample_prev/overlap and
+     * mad_stream_buffer expects stream.main_data to point at user arrays).
+     * sbsample and sbsample_prev must point at the SAME buffer: the layer
+     * decoders write frame->sbsample while the Rockbox-modified synth reads
+     * frame->sbsample_prev (see codec/libmad/README.md). */
+    struct mad_stream stream;
+    struct mad_frame frame;
+    struct mad_synth synth;
+    mad_fixed_t sbsample[2][36][32];
+    mad_fixed_t overlap[2][32][18];
+    unsigned char main_data[MAD_BUFFER_MDLEN];
+    /* Pull source and its window. The final frame cannot decode without
+     * MAD_BUFFER_GUARD spare bytes past its end, so the first end-of-file
+     * refill pads the window once and sets `tail_active`. */
+    const struct helikon_codec_source *source;
+    unsigned char window[HELIKON_MP3_WINDOW];
+    uint64_t window_base;   /* absolute stream offset of window[0] */
+    size_t window_len;
+    uint64_t audio_start;   /* absolute offset of the first frame */
+    struct mp3_header head;
+    struct mp3_xing xing;
+    uint8_t window_eof;
+    uint8_t tail_active;
+    unsigned int synth_part;      /* next synth.pcm block to emit */
+    uint32_t frame_index;         /* PCM frame position of next output */
+    uint32_t consecutive_errors;
+    uint32_t skip_frames_left;    /* frames decoded but not emitted */
+};
+
+/*
+ * Refills the window from the source, keeping the bytes from
+ * `stream.next_frame` onward: libmad reports the first byte it has not
+ * consumed and every frame it still needs. At end of file the first refill
+ * that reads nothing pads the tail with MAD_BUFFER_GUARD zero bytes so the
+ * final frame decodes, then `tail_active` stops further refills.
+ */
+static int mp3_window_refill(struct mp3_state *state)
+{
+    size_t keep = 0u;
+    if (state->window_len != 0u && state->stream.next_frame != NULL) {
+        const unsigned char *base = state->window;
+        const unsigned char *next = state->stream.next_frame;
+        if (next >= base && next <= base + state->window_len)
+            keep = state->window_len - (size_t)(next - base);
+    }
+    size_t shift = state->window_len - keep;
+
+    if (shift != 0u) {
+        if (keep != 0u)
+            helikon_memmove(state->window, state->window + shift, keep);
+        state->window_base += shift;
+        state->window_len = keep;
+    }
+
+    /*
+     * Fill what the window can take. A media may return short reads (extent
+     * boundaries, small transfers), and a nearly empty window would hide the
+     * Xing/Info frame from the parser.
+     */
+    size_t got = 0u;
+    for (;;) {
+        size_t space = sizeof(state->window) - (keep + got);
+        if (space == 0u)
+            break;
+        size_t chunk = 0u;
+        int rc = state->source->read_at(state->source->context,
+                                        (uint64_t)(state->window_base + keep + got),
+                                        state->window + keep + got, space,
+                                        &chunk);
+        if (rc != HELIKON_OK)
+            return rc;
+        got += chunk;
+        if (chunk == 0u)
+            break;
+    }
+    state->window_len = keep + got;
+
+    if (got == 0u) {
+        state->window_eof = 1u;
+        if (keep != 0u && state->tail_active == 0u &&
+            sizeof(state->window) - keep >= MAD_BUFFER_GUARD) {
+            helikon_memset(state->window + keep, 0, MAD_BUFFER_GUARD);
+            state->window_len = keep + MAD_BUFFER_GUARD;
+            state->tail_active = 1u;
+        }
+    } else if (shift == 0u && keep + got == sizeof(state->window) &&
+               state->window_eof == 0u) {
+        /* A full window that libmad cannot consume means no progress. */
+        return HELIKON_ERR_FORMAT;
+    }
+
+    if (state->window_len != 0u)
+        mad_stream_buffer(&state->stream, state->window,
+                          (unsigned long)state->window_len);
+    state->stream.error = MAD_ERROR_NONE;
+    return HELIKON_OK;
+}
+
+/* Drops the window and refills it from `offset`. */
+static int mp3_window_seek(struct mp3_state *state, uint64_t offset)
+{
+    state->window_base = offset;
+    state->window_len = 0u;
+    state->window_eof = 0u;
+    state->tail_active = 0u;
+    state->stream.next_frame = NULL;
+    return mp3_window_refill(state);
+}
+
+/* The workspace travels in the player's fixed buffer; fail the build rather
+ * than overflow it. Measured at 30,976 bytes on both hosts (arm-eabi-gcc 9,
+ * -mcpu=arm926ej-s) and clang (arm64 host tests). */
+_Static_assert(sizeof(struct mp3_state) <= HELIKON_CODEC_WORKSPACE_MAX,
+               "MP3 workspace exceeds HELIKON_CODEC_WORKSPACE_MAX");
+
 /* ---------- descriptor ---------- */
 
 static int mp3_parse(const uint8_t *data, size_t size,
@@ -295,14 +392,17 @@ static int mp3_chain_ok(const uint8_t *data, size_t size,
 static int mp3_probe(const uint8_t *data, size_t size, uint64_t total_size,
                      struct helikon_codec_info *info)
 {
-    (void)total_size;
     if (info == NULL)
         return HELIKON_ERR_ARGUMENT;
     struct mp3_header head;
     struct mp3_xing xing;
     int rc = mp3_parse(data, size, &head, &xing);
-    if (rc != HELIKON_OK)
+    if (rc != HELIKON_OK) {
+        /* A head ending inside a large ID3v2 tag: open skips it exactly. */
+        if (total_size != size)
+            return HELIKON_ERR_NEED_MORE;
         return rc;
+    }
     struct mp3_header witness = head;
     for (;;) {
         if (mp3_chain_ok(data, size, &witness))
@@ -348,6 +448,71 @@ static int16_t mp3_sample16(mad_fixed_t fixed)
     return (int16_t)(fixed >> (MAD_F_FRACBITS - 15u));
 }
 
+/* Fills codec info from the located stream; open is authoritative. */
+static void mp3_fill_info(struct helikon_codec *codec,
+                          const struct mp3_state *state)
+{
+    helikon_memset(&codec->info, 0, sizeof(codec->info));
+    codec->info.sample_rate = state->head.sample_rate;
+    codec->info.source_channels = state->head.channels;
+    codec->info.source_bits = 16u;
+    codec->info.output_channels = 2u;
+    codec->info.output_bits = 16u;
+    codec->info.workspace_bytes = sizeof(struct mp3_state);
+    codec->info.flags = HELIKON_CODEC_FLAG_SEEK;
+
+    const uint64_t stream_bytes =
+        state->source->size > state->audio_start
+            ? state->source->size - state->audio_start
+            : 0u;
+    if (state->xing.valid && state->xing.frames != 0u) {
+        codec->info.total_frames = state->xing.frames * state->head.frame_samples;
+    } else if (state->head.frame_bytes != 0u) {
+        codec->info.total_frames =
+            (uint32_t)(stream_bytes / state->head.frame_bytes *
+                       state->head.frame_samples);
+    }
+    codec->info.duration_ms = state->head.sample_rate != 0u
+        ? (uint32_t)((uint64_t)codec->info.total_frames * 1000u /
+                     state->head.sample_rate)
+        : 0u;
+}
+
+/* Skips an ID3v2 tag, then locates the first frame in the window. */
+static int mp3_locate(struct mp3_state *state)
+{
+    uint8_t id3[10];
+    size_t got = 0u;
+    int rc = state->source->read_at(state->source->context, 0u, id3,
+                                    sizeof(id3), &got);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    uint64_t start = 0u;
+    if (got >= sizeof(id3) && id3[0] == 'I' && id3[1] == 'D' &&
+        id3[2] == '3') {
+        const uint64_t tag = ((uint64_t)(id3[6] & 0x7Fu) << 21) |
+                             ((uint64_t)(id3[7] & 0x7Fu) << 14) |
+                             ((uint64_t)(id3[8] & 0x7Fu) << 7) |
+                             (uint64_t)(id3[9] & 0x7Fu);
+        start = 10u + tag;
+        if ((id3[5] & 0x10u) != 0u)
+            start += 10u;
+        if (state->source->size != 0u && start >= state->source->size)
+            return HELIKON_ERR_FORMAT;
+    }
+
+    rc = mp3_window_seek(state, start);
+    if (rc != HELIKON_OK)
+        return rc;
+    rc = mp3_parse(state->window, state->window_len, &state->head,
+                   &state->xing);
+    if (rc != HELIKON_OK)
+        return rc;
+    state->audio_start = state->window_base + state->head.offset;
+    return HELIKON_OK;
+}
+
 static int mp3_open(struct helikon_codec *codec, void *workspace,
                     size_t workspace_size)
 {
@@ -355,25 +520,12 @@ static int mp3_open(struct helikon_codec *codec, void *workspace,
         workspace_size < sizeof(struct mp3_state))
         return HELIKON_ERR_ARGUMENT;
 
-    /*
-     * libmad keeps offsets into the buffer it was handed, so this decoder
-     * still needs a resident image; a pull source is refused rather than
-     * decoded from the probe prefix.
-     */
-    const uint8_t *media = NULL;
-    size_t media_size = 0u;
-    if (!helikon_codec_memory_span(codec, &media, &media_size))
-        return HELIKON_ERR_UNSUPPORTED;
-
-    struct mp3_header head;
-    int rc = mp3_parse(media, media_size, &head, NULL);
-    if (rc != HELIKON_OK)
-        return rc;
-    if (workspace_size < codec->info.workspace_bytes)
-        return HELIKON_ERR_BUFFER;
-
     struct mp3_state *state = workspace;
     helikon_memset(state, 0, sizeof(*state));
+    state->source = codec->source;
+    if (state->source == NULL || state->source->read_at == NULL)
+        return HELIKON_ERR_ARGUMENT;
+
     /* Wire the buffers first: Rockbox's mad_frame_init calls
      * mad_frame_mute, which clears through these pointers. */
     state->frame.sbsample = &state->sbsample;
@@ -384,14 +536,22 @@ static int mp3_open(struct helikon_codec *codec, void *workspace,
     mad_frame_init(&state->frame);
     mad_synth_init(&state->synth);
 
+    int rc = mp3_locate(state);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    /* Start libmad at the first frame, not at the window head. */
+    const size_t within = (size_t)(state->audio_start - state->window_base);
+    mad_stream_buffer(&state->stream, state->window + within,
+                      (unsigned long)(state->window_len - within));
+    state->stream.error = MAD_ERROR_NONE;
+
     /* Skip the Xing/Info frame's PCM when present to avoid a silent block. */
-    struct mp3_xing xing;
-    if (mp3_xing(media, media_size, &head, &xing) == HELIKON_OK)
+    if (state->xing.valid)
         state->skip_frames_left = 1u;
 
-    mad_stream_buffer(&state->stream, media + head.offset,
-                      (unsigned long)(media_size - head.offset));
     state->frame_index = 0u;
+    mp3_fill_info(codec, state);
     codec->state = state;
     return HELIKON_OK;
 }
@@ -446,24 +606,15 @@ static int mp3_read(struct helikon_codec *codec, int16_t *pcm,
             int rc = mad_frame_decode(&state->frame, &state->stream);
             if (rc != 0) {
                 if (state->stream.error == MAD_ERROR_BUFLEN) {
-                    if (!state->tail_active &&
-                        state->stream.next_frame != NULL &&
-                        state->stream.next_frame < state->stream.bufend) {
-                        size_t left = (size_t)(state->stream.bufend -
-                                               state->stream.next_frame);
-                        if (left > sizeof(state->tail) - MAD_BUFFER_GUARD)
-                            left = sizeof(state->tail) - MAD_BUFFER_GUARD;
-                        helikon_memcpy(state->tail,
-                                       state->stream.next_frame, left);
-                        helikon_memset(state->tail + left, 0,
-                                       MAD_BUFFER_GUARD);
-                        mad_stream_buffer(&state->stream, state->tail,
-                                          (unsigned long)(left +
-                                                          MAD_BUFFER_GUARD));
-                        state->tail_active = 1u;
-                        continue;
-                    }
-                    return HELIKON_OK; /* end of stream */
+                    /* The padded tail was already handed to libmad. */
+                    if (state->tail_active != 0u)
+                        return HELIKON_OK; /* end of stream */
+                    rc = mp3_window_refill(state);
+                    if (rc != HELIKON_OK)
+                        return rc;
+                    if (state->window_len == 0u)
+                        return HELIKON_OK; /* media ended before a frame */
+                    continue;
                 }
                 if (!MAD_RECOVERABLE(state->stream.error))
                     return HELIKON_ERR_FORMAT;
@@ -488,37 +639,34 @@ static int mp3_seek(struct helikon_codec *codec, uint32_t frame)
         return HELIKON_ERR_ARGUMENT;
 
     struct mp3_state *state = codec->state;
-    const uint8_t *media = NULL;
-    size_t media_size = 0u;
-    if (!helikon_codec_memory_span(codec, &media, &media_size))
-        return HELIKON_ERR_UNSUPPORTED;
-    struct mp3_header head;
-    struct mp3_xing xing;
-    int rc = mp3_parse(media, media_size, &head, &xing);
-    if (rc != HELIKON_OK)
-        return rc;
+    const uint64_t span = state->source->size;
 
     uint64_t offset;
-    if (xing.valid && codec->info.total_frames != 0u) {
+    if (state->xing.valid && codec->info.total_frames != 0u && span != 0u) {
         const unsigned int bucket = frame * 100u / codec->info.total_frames;
-        const uint64_t span = (uint64_t)media_size;
-        offset = (uint64_t)xing.toc[bucket] * span / 256u;
+        offset = state->audio_start + (uint64_t)state->xing.toc[bucket] *
+                                          span / 256u;
     } else {
-        offset = (uint64_t)head.offset +
-                 (uint64_t)frame / head.frame_samples * head.frame_bytes;
+        offset = state->audio_start +
+                 (uint64_t)(frame / state->head.frame_samples) *
+                     state->head.frame_bytes;
     }
-    if (offset >= (uint64_t)media_size)
-        offset = (uint64_t)media_size - 1u;
+    if (span != 0u && offset >= span)
+        offset = span - 1u;
 
     /* Align the stream to a real frame header at or after the offset. */
+    int rc = mp3_window_seek(state, offset);
+    if (rc != HELIKON_OK)
+        return rc;
     struct mp3_header target;
-    rc = mp3_next_sync(media, media_size, (size_t)offset, &target,
-                       (size_t)head.frame_bytes + 4u, &head);
+    rc = mp3_next_sync(state->window, state->window_len, 0u, &target,
+                       (size_t)state->head.frame_bytes + 4u, &state->head);
     if (rc != HELIKON_OK)
         return rc;
 
-    mad_stream_buffer(&state->stream, media + target.offset,
-                      (unsigned long)(media_size - target.offset));
+    mad_stream_buffer(&state->stream, state->window + target.offset,
+                      (unsigned long)(state->window_len - target.offset));
+    state->stream.error = MAD_ERROR_NONE;
     mad_frame_mute(&state->frame);
     mad_synth_mute(&state->synth);
     /* mad_synth_mute does not clear pcm; leave no stale block to emit. */
@@ -544,7 +692,7 @@ const struct helikon_codec_ops helikon_mp3_codec_ops = {
     .name = "mp3",
     .extensions = mp3_extensions,
     .capabilities = HELIKON_CODEC_CAP_SEEK,
-    .streaming = 0u,
+    .streaming = 1u,
     .stack_bytes = 8192u,
     .min_clock_hz = 54000000u,
     .recommended_clock_hz = 216000000u,

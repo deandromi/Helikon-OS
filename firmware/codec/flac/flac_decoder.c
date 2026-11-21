@@ -26,7 +26,7 @@ enum flac_channel_mode {
 };
 
 struct flac_bits {
-    const uint8_t *data;
+    struct flac_reader *reader;
     size_t size;
     size_t bit;
     int error;
@@ -42,11 +42,68 @@ struct flac_streaminfo {
     size_t first_frame;
 };
 
-static void flac_bits_init(struct flac_bits *bits, const uint8_t *data,
-                           size_t size, size_t byte_offset)
+/*
+ * One byte at an absolute stream offset. The memory backend indexes the
+ * buffer; the source backend refills `window` on a miss. FLAC access is
+ * monotonic within a frame, so a single forward window is enough.
+ */
+static int flac_reader_byte(struct flac_reader *reader, size_t offset,
+                            uint8_t *value)
 {
-    bits->data = data;
-    bits->size = size;
+    if (reader == NULL || value == NULL)
+        return HELIKON_ERR_ARGUMENT;
+
+    if (reader->data != NULL) {
+        if (offset >= reader->size)
+            return HELIKON_ERR_FORMAT;
+        *value = reader->data[offset];
+        return HELIKON_OK;
+    }
+
+    if (reader->source == NULL || reader->source->read_at == NULL ||
+        reader->window == NULL)
+        return HELIKON_ERR_ARGUMENT;
+
+    if (offset >= reader->window_base &&
+        offset - reader->window_base < reader->window_len) {
+        *value = reader->window[offset - reader->window_base];
+        return HELIKON_OK;
+    }
+
+    if (offset >= reader->size)
+        return HELIKON_ERR_FORMAT;
+    size_t want = HELIKON_FLAC_WINDOW;
+    if (reader->size - offset < want)
+        want = reader->size - offset;
+    size_t got = 0u;
+    int rc = reader->source->read_at(reader->source->context, offset,
+                                     reader->window, want, &got);
+    if (rc != HELIKON_OK)
+        return rc;
+    if (got == 0u)
+        return HELIKON_ERR_FORMAT;
+    reader->window_base = offset;
+    reader->window_len = got;
+    *value = reader->window[0];
+    return HELIKON_OK;
+}
+
+static int flac_reader_bytes(struct flac_reader *reader, size_t offset,
+                             uint8_t *out, size_t length)
+{
+    for (size_t index = 0u; index < length; ++index) {
+        int rc = flac_reader_byte(reader, offset + index, &out[index]);
+        if (rc != HELIKON_OK)
+            return rc;
+    }
+    return HELIKON_OK;
+}
+
+static void flac_bits_init(struct flac_bits *bits, struct flac_reader *reader,
+                           size_t byte_offset)
+{
+    bits->reader = reader;
+    bits->size = reader->size;
     bits->bit = byte_offset * 8u;
     bits->error = 0;
 }
@@ -65,7 +122,11 @@ static uint32_t flac_bits_read(struct flac_bits *bits, unsigned count)
     uint32_t value = 0;
     for (unsigned index = 0u; index < count; ++index) {
         size_t position = bits->bit + index;
-        uint8_t byte = bits->data[position >> 3];
+        uint8_t byte = 0u;
+        if (flac_reader_byte(bits->reader, position >> 3, &byte) != HELIKON_OK) {
+            bits->error = 1;
+            return 0;
+        }
         unsigned shift = 7u - (unsigned)(position & 7u);
         value = (value << 1) | (((uint32_t)byte >> shift) & 1u);
     }
@@ -156,34 +217,46 @@ static int flac_skip_utf8(struct flac_bits *bits)
     return HELIKON_OK;
 }
 
-static int flac_parse_metadata(const uint8_t *data, size_t size,
+static int flac_parse_metadata(struct flac_reader *reader,
                                struct flac_streaminfo *info)
 {
-    if (data == NULL || info == NULL || size < 8u)
+    if (reader == NULL || info == NULL || reader->size < 8u)
         return HELIKON_ERR_ARGUMENT;
-    if (data[0] != 'f' || data[1] != 'L' || data[2] != 'a' ||
-        data[3] != 'C')
+
+    uint8_t magic[4];
+    int rc = flac_reader_bytes(reader, 0u, magic, sizeof(magic));
+    if (rc != HELIKON_OK)
+        return rc;
+    if (magic[0] != 'f' || magic[1] != 'L' || magic[2] != 'a' ||
+        magic[3] != 'C')
         return HELIKON_ERR_NOT_FOUND;
 
     helikon_memset(info, 0, sizeof(*info));
     int have_streaminfo = 0;
     size_t offset = 4u;
     for (;;) {
-        if (offset > size || size - offset < 4u)
+        if (offset > reader->size || reader->size - offset < 4u)
             return HELIKON_ERR_FORMAT;
 
-        uint8_t header = data[offset];
+        uint8_t chunk[4];
+        rc = flac_reader_bytes(reader, offset, chunk, sizeof(chunk));
+        if (rc != HELIKON_OK)
+            return rc;
+        uint8_t header = chunk[0];
         int last = (header & 0x80u) != 0u;
         uint8_t type = (uint8_t)(header & 0x7fu);
-        uint32_t length = flac_be24(data + offset + 1u);
+        uint32_t length = flac_be24(chunk + 1u);
         offset += 4u;
-        if ((size_t)length > size - offset)
+        if ((size_t)length > reader->size - offset)
             return HELIKON_ERR_FORMAT;
 
         if (type == 0u) {
             if (have_streaminfo || length != 34u)
                 return HELIKON_ERR_FORMAT;
-            const uint8_t *stream = data + offset;
+            uint8_t stream[34];
+            rc = flac_reader_bytes(reader, offset, stream, sizeof(stream));
+            if (rc != HELIKON_OK)
+                return rc;
             info->min_block = flac_be16(stream);
             info->max_block = flac_be16(stream + 2u);
             info->sample_rate = ((uint32_t)stream[10] << 12) |
@@ -236,8 +309,16 @@ int helikon_flac_probe(const uint8_t *data, size_t size,
         data[3] != 'C')
         return HELIKON_ERR_NOT_FOUND;
 
+    struct flac_reader reader;
+    reader.data = data;
+    reader.size = size;
+    reader.source = NULL;
+    reader.window = NULL;
+    reader.window_base = 0u;
+    reader.window_len = 0u;
+
     struct flac_streaminfo stream;
-    int rc = flac_parse_metadata(data, size, &stream);
+    int rc = flac_parse_metadata(&reader, &stream);
     if (rc != HELIKON_OK)
         return rc;
 
@@ -256,30 +337,61 @@ int helikon_flac_probe(const uint8_t *data, size_t size,
     return HELIKON_OK;
 }
 
+static int flac_open_reader(struct helikon_flac_decoder *decoder,
+                            struct flac_streaminfo *stream)
+{
+    decoder->first_frame = stream->first_frame;
+    decoder->next_frame = stream->first_frame;
+    decoder->sample_rate = stream->sample_rate;
+    decoder->total_frames = stream->total_frames;
+    decoder->min_block = stream->min_block;
+    decoder->max_block = stream->max_block;
+    decoder->channels = stream->channels;
+    decoder->bits = stream->bits;
+    decoder->have_frame = 0;
+    return HELIKON_OK;
+}
+
 int helikon_flac_open(struct helikon_flac_decoder *decoder,
                       const uint8_t *data, size_t size)
 {
     if (decoder == NULL || data == NULL)
         return HELIKON_ERR_ARGUMENT;
 
+    helikon_memset(decoder, 0, sizeof(*decoder));
+    decoder->reader.data = data;
+    decoder->reader.size = size;
+    decoder->reader.source = NULL;
+
     struct flac_streaminfo stream;
-    int rc = flac_parse_metadata(data, size, &stream);
+    int rc = flac_parse_metadata(&decoder->reader, &stream);
     if (rc != HELIKON_OK)
         return rc;
+    return flac_open_reader(decoder, &stream);
+}
+
+int helikon_flac_open_source(struct helikon_flac_decoder *decoder,
+                             const struct helikon_codec_source *source)
+{
+    if (decoder == NULL || source == NULL || source->read_at == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    /* A FLAC stream carries no length of its own; the media must report one. */
+    if (source->size == 0u)
+        return HELIKON_ERR_UNSUPPORTED;
 
     helikon_memset(decoder, 0, sizeof(*decoder));
-    decoder->data = data;
-    decoder->size = size;
-    decoder->first_frame = stream.first_frame;
-    decoder->next_frame = stream.first_frame;
-    decoder->sample_rate = stream.sample_rate;
-    decoder->total_frames = stream.total_frames;
-    decoder->min_block = stream.min_block;
-    decoder->max_block = stream.max_block;
-    decoder->channels = stream.channels;
-    decoder->bits = stream.bits;
-    decoder->have_frame = 0;
-    return HELIKON_OK;
+    decoder->reader.data = NULL;
+    decoder->reader.size = (size_t)source->size;
+    decoder->reader.source = source;
+    decoder->reader.window = decoder->window;
+    decoder->reader.window_base = 0u;
+    decoder->reader.window_len = 0u;
+
+    struct flac_streaminfo stream;
+    int rc = flac_parse_metadata(&decoder->reader, &stream);
+    if (rc != HELIKON_OK)
+        return rc;
+    return flac_open_reader(decoder, &stream);
 }
 
 static int flac_decode_residual(struct helikon_flac_decoder *decoder,
@@ -503,11 +615,11 @@ static int flac_decode_frame(struct helikon_flac_decoder *decoder)
     };
 
     size_t frame_start = decoder->next_frame;
-    if (frame_start >= decoder->size)
+    if (frame_start >= decoder->reader.size)
         return HELIKON_ERR_FORMAT;
 
     struct flac_bits bits;
-    flac_bits_init(&bits, decoder->data, decoder->size, frame_start);
+    flac_bits_init(&bits, &decoder->reader, frame_start);
     uint32_t sync = flac_bits_read(&bits, 16u);
     if (bits.error != 0 || (sync & 0xfffeu) != 0xfff8u)
         return HELIKON_ERR_FORMAT;
@@ -569,11 +681,15 @@ static int flac_decode_frame(struct helikon_flac_decoder *decoder)
     if ((bits.bit & 7u) != 0u)
         return HELIKON_ERR_FORMAT;
     size_t crc_offset = bits.bit >> 3;
-    if (crc_offset >= decoder->size)
+    if (crc_offset >= decoder->reader.size)
         return HELIKON_ERR_FORMAT;
     uint8_t crc = 0u;
-    for (size_t index = frame_start; index <= crc_offset; ++index)
-        crc = flac_crc8_byte(crc, decoder->data[index]);
+    for (size_t index = frame_start; index <= crc_offset; ++index) {
+        uint8_t value = 0u;
+        if (flac_reader_byte(&decoder->reader, index, &value) != HELIKON_OK)
+            return HELIKON_ERR_FORMAT;
+        crc = flac_crc8_byte(crc, value);
+    }
     (void)flac_bits_read(&bits, 8u);
     if (bits.error != 0 || crc != 0u)
         return HELIKON_ERR_FORMAT;
@@ -610,16 +726,20 @@ static int flac_decode_frame(struct helikon_flac_decoder *decoder)
 
     size_t footer_offset = bits.bit >> 3;
     uint16_t footer = (uint16_t)flac_bits_read(&bits, 16u);
-    if (bits.error != 0 || footer_offset >= decoder->size)
+    if (bits.error != 0 || footer_offset >= decoder->reader.size)
         return HELIKON_ERR_FORMAT;
     uint16_t frame_crc = 0u;
-    for (size_t index = frame_start; index < footer_offset; ++index)
-        frame_crc = flac_crc16_byte(frame_crc, decoder->data[index]);
+    for (size_t index = frame_start; index < footer_offset; ++index) {
+        uint8_t value = 0u;
+        if (flac_reader_byte(&decoder->reader, index, &value) != HELIKON_OK)
+            return HELIKON_ERR_FORMAT;
+        frame_crc = flac_crc16_byte(frame_crc, value);
+    }
     if (frame_crc != footer)
         return HELIKON_ERR_FORMAT;
 
     size_t frame_end = (bits.bit + 7u) >> 3;
-    if (frame_end <= frame_start || frame_end > decoder->size)
+    if (frame_end <= frame_start || frame_end > decoder->reader.size)
         return HELIKON_ERR_FORMAT;
 
     if (mode == FLAC_CH_LEFT_SIDE) {

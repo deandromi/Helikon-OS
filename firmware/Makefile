@@ -67,7 +67,7 @@ UI_SRC := $(if $(filter 1,$(UI)),ui/launcher.c ui/launcher_run.c \
           ui/launcher_assets.c ui/ui_text.c ui/font_atlas.c ui/music.c,)
 PLAYER_SRC :=
 ifneq ($(AUDIO),)
-PLAYER_SRC := player/player.c player/wav.c \
+PLAYER_SRC := player/player.c player/wav.c player/vfs_media.c \
               codec/codec.c codec/flac/flac_codec.c \
               codec/flac/flac_decoder.c \
               codec/mp3/mp3_codec.c \
