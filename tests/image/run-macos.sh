@@ -176,7 +176,7 @@ hdiutil attach -nobrowse -mountpoint "$MOUNT" "$IMAGE" \
 MOUNTED=1
 [ -f "$MOUNT/Overflow File" ] || fail "macOS did not see the overflow file"
 SIZE=$(stat -f%z "$MOUNT/Overflow File")
-[ "$SIZE" -eq 163840 ] || fail "overflow file size is $SIZE, expected 163840"
+[ "$SIZE" -eq 327680 ] || fail "overflow file size is $SIZE, expected 327680"
 python3 "$HERE/check-overflow.py" "$MOUNT/Overflow File"
 [ -f "$MOUNT/Overflow Direct" ] || fail "macOS did not see the direct overflow file"
 DIRECT=$(stat -f%z "$MOUNT/Overflow Direct")

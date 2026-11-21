@@ -5,7 +5,7 @@
 import sys
 
 BLOCK = 4096
-BLOCKS = 40
+BLOCKS = 80
 
 path = sys.argv[1]
 with open(path, "rb") as handle:

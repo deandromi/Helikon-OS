@@ -958,7 +958,13 @@ int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
         uint32_t remaining = blocks - inline_blocks;
         unsigned int guard = 0;
         while (remaining > 0) {
-            if (guard++ >= 8u)
+            /*
+             * One B-tree record per iteration; the bound is the HFS+ extents
+             * ceiling, not an arbitrary eight records. A file appended past
+             * eight records used to be undeletable because the truncate walk
+             * stopped here.
+             */
+            if (guard++ >= HFS_OVERFLOW_EXTENT_MAX)
                 return HFS_ERR_UNSUPPORTED;
             struct hfs_extent overflow[8];
             size_t overflow_count = 0;

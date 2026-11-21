@@ -9,12 +9,12 @@ content, deletes the file, and runs `fsck_hfs -fn` after each stage. `fsck_hfs`
 must report that the volume is OK and must not attempt a repair.
 
 Stages, in order: `create`, `rename`, `truncate`, `delete`, `overflow`,
-`overflow-cleanup`, `unicode`. The `overflow` stage frees 56 single blocks (112
-one-block files, every second one deleted), appends forty blocks to a new file
+`overflow-cleanup`, `unicode`. The `overflow` stage frees 96 single blocks (192
+one-block files, every second one deleted), appends eighty blocks to a new file
 one call at a time, and requires the fork to land in eight inline extents plus
-thirty-two overflow extents over four overflow records, so the volume's empty
+seventy-two overflow extents over nine overflow records, so the volume's empty
 extents overflow B-tree takes its first record. `check-overflow.py` verifies the 49,152 bytes
-with a per-block pattern through the macOS mount (163,840 bytes). The stage also
+with a per-block pattern through the macOS mount (327,680 bytes). The stage also
 leaves a smaller overflowed file (`Overflow Direct`, nine blocks) behind, and
 `overflow-cleanup` deletes that one directly — no truncate first — before it
 truncates and deletes the first file and requires the extents tree to be empty

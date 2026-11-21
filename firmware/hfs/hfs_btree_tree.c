@@ -308,8 +308,24 @@ static int grow_locked(struct hfs_btree *btree, struct hfs_txn *tx,
     int rc = hfs_bitmap_open(&bitmap, btree->volume);
     if (rc != HFS_OK)
         return rc;
+
+    /*
+     * Grow the fork where it ends, not at the lowest free block. A volume-header
+     * fork holds eight extents at most and cannot use the extents-overflow tree,
+     * so every non-adjacent allocation spends one of those slots; a volume with
+     * holes in front of the tree would exhaust them and the tree could not grow
+     * (HFS_ERR_UNSUPPORTED). The hint only bites when that exact block is free —
+     * the scanner returns the first free block at or after it.
+     */
+    uint32_t hint = 0;
+    for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i) {
+        const struct hfs_extent *extent = &btree->fork->extents[i];
+        if (extent->count != 0 &&
+            extent->start + extent->count > hint)
+            hint = extent->start + extent->count;
+    }
     uint32_t block = 0;
-    rc = hfs_bitmap_alloc(&bitmap, tx, 0, 1, &block);
+    rc = hfs_bitmap_alloc(&bitmap, tx, hint, 1, &block);
     if (rc != HFS_OK)
         return rc;
 
