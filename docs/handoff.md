@@ -12,6 +12,49 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (thirteenth block: appends at the tail, no extent ceiling)
+
+## What happened
+
+- `hfs_catalog_append_file()` no longer materialises the whole extent list. It
+  reads the eight inline extents from the fork, walks the overflow records to
+  the last one (`find_last_overflow_record()`), and grows only that tail
+  (`append_tail_extent()`): extend the last extent when contiguous, add an
+  inline extent while there is room, fill the tail record up to eight extents,
+  otherwise flush it and open the next record at `start + blocks`. Each append
+  now stages one or two overflow records instead of every record from index 8.
+- Consequence: the writer-local `APPEND_EXTENT_MAX` (32) ceiling is gone. A fork
+  grows to the HFS+ extents limit, and an append to a large fragmented file no
+  longer fails closed with `UNSUPPORTED`.
+- The image test grew to match: 112 one-block files (56 freed single blocks),
+  forty single-block appends, so the fork ends with eight inline extents and
+  thirty-two overflow extents over four full records. macOS reads all 163,840
+  bytes with a per-block pattern and `fsck_hfs -fn` stays clean; the direct
+  delete (`Overflow Direct`) and both cleanups still pass.
+- `check-overflow.py` and the mount checks take the new 163,840-byte size.
+
+## Evidence (host only, no device run)
+
+- `tests/hfsplus test` + `sanitize`: PASS (catalog-write 11 tests, including
+  `append past overflow`).
+- `tests/image test` + `crash-test`: PASS; `fsck_hfs -fn` clean at every stage.
+- `tests/library macos`, `vfs`, `player`, `codec`, `firmware`, `bootloader`,
+  `musicdb`: PASS.
+- Builds unchanged: plain 6G 78,228 B; music hub 768,396 B; F2 78,228 B with the
+  artifact check PASS.
+
+## Open / next
+
+- The truncate path walks overflow records in chunks of eight with a guard of
+  eight records; that guard is a separate (documented) limit from the append
+  path and should be revisited with the same tail walk.
+- Truncate-then-grow on the same image (reuse of a cleared record) is not
+  covered yet.
+- D-05 cache limits, the transaction-block ceiling and the device power-cut
+  matrix remain.
+
+---
+
 # Handoff — 2026-11-21 (twelfth block: deleting what overflows)
 
 ## What happened

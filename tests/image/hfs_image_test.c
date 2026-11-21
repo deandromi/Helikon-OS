@@ -27,8 +27,8 @@
 #define TEST_NAME_RENAMED "Helikon Test Renamed"
 #define TEST_SIZE 4096u
 #define TEST_PATTERN 0x5au
-#define HOLE_FILES 48u
-#define OVERFLOW_BLOCKS 12u
+#define HOLE_FILES 112u
+#define OVERFLOW_BLOCKS 40u
 #define OVERFLOW_NAME "Overflow File"
 #define OVERFLOW_SIZE (OVERFLOW_BLOCKS * TEST_SIZE)
 /*

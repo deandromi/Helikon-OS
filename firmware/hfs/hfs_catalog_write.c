@@ -3,6 +3,7 @@
 
 #include "hfs_bitmap.h"
 #include "hfs_btree_tree.h"
+#include "hfs_extents.h"
 #include "hfs_extents_write.h"
 #include "hfs_fork_io.h"
 #include "hfs_unicode.h"
@@ -20,8 +21,6 @@
 #define CATALOG_FILE_MODE 0100000u
 #define CATALOG_FOLDER_MODE 0040000u
 #define CATALOG_MAX_RECORD 1024u
-/* Extents an append can track: eight inline plus three overflow records. */
-#define APPEND_EXTENT_MAX 32u
 
 static uint16_t be16(const uint8_t *p)
 {
@@ -570,65 +569,138 @@ static int find_file_record(struct hfs_catalog *catalog, struct hfs_txn *tx,
 }
 
 /*
- * Every extent of a fork in logical order: the eight inline extents first, then
- * the extents-overflow records. An append that looked only at the inline
- * extents would drop the overflow records it has to merge with, and a fork that
- * already overflowed would be rejected as "unsupported" on its second append.
- * Stops at `capacity` extents with HFS_ERR_UNSUPPORTED: the caller's write set
- * is bounded, so an unbounded walk is not an option here.
+ * The last overflow record of a fork, i.e. the record an append extends.
+ * Walking the records costs one B-tree read each and keeps only the tail, so a
+ * fork with any number of extents can be appended to without an in-memory copy
+ * of the whole list (the previous list-based approach capped a fork at 32
+ * extents). `start_block` is the record's logical-block key.
  */
-static int collect_fork_extents(struct hfs_volume *volume, struct hfs_txn *tx,
-                                const struct hfs_fork *fork, uint32_t file_id,
-                                uint32_t *starts, uint32_t *counts,
-                                uint32_t capacity, uint32_t *count)
+static int find_last_overflow_record(struct hfs_volume *volume,
+                                     struct hfs_txn *tx, uint32_t file_id,
+                                     uint32_t inline_blocks,
+                                     uint32_t fork_blocks,
+                                     uint32_t *start_block,
+                                     struct hfs_extent *extents,
+                                     size_t *count)
 {
-    *count = 0;
-    uint32_t inline_blocks = 0;
-    for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i) {
-        uint32_t start = fork->extents[i].start;
-        uint32_t length = fork->extents[i].count;
-        if (length == 0) {
-            if (start != 0)
-                return HFS_ERR_FORMAT;
-            continue;
-        }
-        if (start == 0)
-            return HFS_ERR_FORMAT;
-        if (*count >= capacity)
-            return HFS_ERR_UNSUPPORTED;
-        starts[*count] = start;
-        counts[*count] = length;
-        ++*count;
-        if (length > UINT32_MAX - inline_blocks)
-            return HFS_ERR_FORMAT;
-        inline_blocks += length;
-    }
-    if (fork->blocks < inline_blocks)
+    if (fork_blocks < inline_blocks)
         return HFS_ERR_FORMAT;
-
-    uint32_t remaining = fork->blocks - inline_blocks;
+    uint32_t remaining = fork_blocks - inline_blocks;
     uint32_t logical = inline_blocks;
-    while (remaining > 0) {
-        struct hfs_extent overflow[HFS_EXTENT_COUNT];
+    if (remaining == 0)
+        return HFS_ERR_NOT_FOUND;
+
+    for (unsigned int guard = 0; guard < HFS_OVERFLOW_EXTENT_MAX;
+         ++guard) {
+        struct hfs_extent record[HFS_EXTENT_COUNT];
         size_t got = 0;
-        int rc = hfs_extents_overflow_get(volume, tx, file_id, logical,
-                                          overflow, HFS_EXTENT_COUNT, &got);
+        int rc = hfs_extents_overflow_get(volume, tx, file_id, logical, record,
+                                          HFS_EXTENT_COUNT, &got);
         if (rc != HFS_OK)
             return rc;
         if (got == 0)
             return HFS_ERR_FORMAT;
+        uint32_t record_blocks = 0;
         for (size_t i = 0; i < got; ++i) {
-            if (overflow[i].count > remaining)
+            if (record[i].count > remaining - record_blocks)
                 return HFS_ERR_FORMAT;
-            if (*count >= capacity)
-                return HFS_ERR_UNSUPPORTED;
-            starts[*count] = overflow[i].start;
-            counts[*count] = overflow[i].count;
-            ++*count;
-            remaining -= overflow[i].count;
-            logical += overflow[i].count;
+            record_blocks += record[i].count;
         }
+        if (record_blocks == 0)
+            return HFS_ERR_FORMAT;
+        if (record_blocks == remaining) {
+            for (size_t i = 0; i < got; ++i)
+                extents[i] = record[i];
+            *start_block = logical;
+            *count = got;
+            return HFS_OK;
+        }
+        logical += record_blocks;
+        remaining -= record_blocks;
     }
+    return HFS_ERR_UNSUPPORTED;
+}
+
+/*
+ * The mutable tail of a fork during one append: the eight inline extents plus
+ * the one overflow record the new extents land in. Only that record is staged,
+ * so an append to a large fragmented file stays inside the transaction budget.
+ */
+struct fork_tail {
+    struct hfs_extent inline_extents[HFS_EXTENT_COUNT];
+    uint32_t inline_count;
+    uint32_t inline_blocks;
+    int have_record;
+    uint32_t record_start;
+    uint32_t record_blocks;
+    struct hfs_extent record[HFS_EXTENT_COUNT];
+    uint32_t record_count;
+    int record_dirty;
+};
+
+static int flush_tail_record(struct hfs_volume *volume, struct hfs_txn *tx,
+                             uint32_t file_id, struct fork_tail *tail)
+{
+    if (!tail->record_dirty)
+        return HFS_OK;
+    int rc = hfs_extents_overflow_set(volume, tx, file_id,
+                                      tail->record_start, tail->record,
+                                      tail->record_count);
+    if (rc != HFS_OK)
+        return rc;
+    tail->record_dirty = 0;
+    return HFS_OK;
+}
+
+/*
+ * Add one allocated block to the tail: extend the last extent when it is
+ * contiguous, otherwise add an extent to the inline fork or to the tail record,
+ * opening a new record (and flushing the full one) when the record is full.
+ */
+static int append_tail_extent(struct hfs_volume *volume, struct hfs_txn *tx,
+                              uint32_t file_id, struct fork_tail *tail,
+                              uint32_t start_block)
+{
+    struct hfs_extent *last = NULL;
+    if (tail->have_record && tail->record_count != 0)
+        last = &tail->record[tail->record_count - 1u];
+    else if (tail->inline_count != 0)
+        last = &tail->inline_extents[tail->inline_count - 1u];
+    if (last != NULL && last->start + last->count == start_block) {
+        ++last->count;
+        if (tail->have_record)
+            tail->record_dirty = 1;
+        return HFS_OK;
+    }
+
+    if (!tail->have_record && tail->inline_count < HFS_EXTENT_COUNT) {
+        tail->inline_extents[tail->inline_count].start = start_block;
+        tail->inline_extents[tail->inline_count].count = 1;
+        tail->inline_count++;
+        tail->inline_blocks++;
+        return HFS_OK;
+    }
+
+    if (!tail->have_record) {
+        /* The inline fork is full: this is the fork's ninth extent. */
+        tail->have_record = 1;
+        tail->record_start = tail->inline_blocks;
+        tail->record_blocks = 0;
+        tail->record_count = 0;
+    } else if (tail->record_count == HFS_EXTENT_COUNT) {
+        int rc = flush_tail_record(volume, tx, file_id, tail);
+        if (rc != HFS_OK)
+            return rc;
+        tail->record_start += tail->record_blocks;
+        tail->record_blocks = 0;
+        tail->record_count = 0;
+    }
+
+    tail->record[tail->record_count].start = start_block;
+    tail->record[tail->record_count].count = 1;
+    tail->record_count++;
+    tail->record_blocks++;
+    tail->record_dirty = 1;
     return HFS_OK;
 }
 
@@ -672,15 +744,30 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     if (offset != old_size)
         return HFS_ERR_ARGUMENT;
 
-    uint32_t extent_starts[APPEND_EXTENT_MAX];
-    uint32_t extent_counts[APPEND_EXTENT_MAX];
-    uint32_t extent_count = 0;
     uint32_t file_id = be32(record + data_offset + 8);
-    rc = collect_fork_extents(catalog->btree.volume, tx, &current, file_id,
-                              extent_starts, extent_counts, APPEND_EXTENT_MAX,
-                              &extent_count);
-    if (rc != HFS_OK)
-        return rc;
+
+    struct fork_tail tail;
+    memset(&tail, 0, sizeof(tail));
+    for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i) {
+        tail.inline_extents[i] = current.extents[i];
+        if (current.extents[i].count != 0) {
+            tail.inline_count = i + 1u;
+            tail.inline_blocks += current.extents[i].count;
+        }
+    }
+    if (current.blocks > tail.inline_blocks) {
+        size_t record_count = 0;
+        rc = find_last_overflow_record(catalog->btree.volume, tx, file_id,
+                                       tail.inline_blocks, current.blocks,
+                                       &tail.record_start, tail.record,
+                                       &record_count);
+        if (rc != HFS_OK)
+            return rc;
+        tail.have_record = 1;
+        tail.record_count = (uint32_t)record_count;
+        for (size_t i = 0; i < record_count; ++i)
+            tail.record_blocks += tail.record[i].count;
+    }
 
     struct hfs_volume *volume = catalog->btree.volume;
     uint32_t block_size = volume->block_size;
@@ -734,51 +821,23 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     }
 
     for (uint32_t i = 0; i < blocks; ++i) {
-        if (extent_count != 0 &&
-            extent_starts[extent_count - 1u] +
-                extent_counts[extent_count - 1u] == firsts[i]) {
-            ++extent_counts[extent_count - 1u];
-        } else {
-            if (extent_count >= APPEND_EXTENT_MAX)
-                return HFS_ERR_UNSUPPORTED;
-            extent_starts[extent_count] = firsts[i];
-            extent_counts[extent_count] = 1;
-            ++extent_count;
-        }
+        rc = append_tail_extent(volume, tx, file_id, &tail, firsts[i]);
+        if (rc != HFS_OK)
+            return rc;
     }
+    rc = flush_tail_record(volume, tx, file_id, &tail);
+    if (rc != HFS_OK)
+        return rc;
+
     if (old_size > UINT64_MAX - length ||
         old_blocks > UINT32_MAX - blocks)
         return HFS_ERR_NO_SPACE;
     put64(fork, old_size + length);
     put32(fork + 12, old_blocks + blocks);
     memset(fork + 16, 0, 64);
-    uint32_t inline_count = extent_count > 8u ? 8u : extent_count;
-    for (uint32_t i = 0; i < inline_count; ++i) {
-        put32(fork + 16 + i * 8, extent_starts[i]);
-        put32(fork + 20 + i * 8, extent_counts[i]);
-    }
-    if (extent_count > 8u) {
-        uint32_t start_block = 0;
-        for (uint32_t i = 0; i < 8u; ++i)
-            start_block += extent_counts[i];
-        uint32_t index = 8;
-        while (index < extent_count) {
-            uint32_t chunk = extent_count - index;
-            if (chunk > 8u)
-                chunk = 8u;
-            struct hfs_extent overflow[8];
-            for (uint32_t i = 0; i < chunk; ++i) {
-                overflow[i].start = extent_starts[index + i];
-                overflow[i].count = extent_counts[index + i];
-            }
-            rc = hfs_extents_overflow_set(volume, tx, file_id, start_block,
-                                          overflow, chunk);
-            if (rc != HFS_OK)
-                return rc;
-            for (uint32_t i = 0; i < chunk; ++i)
-                start_block += extent_counts[index + i];
-            index += chunk;
-        }
+    for (uint32_t i = 0; i < tail.inline_count; ++i) {
+        put32(fork + 16 + i * 8, tail.inline_extents[i].start);
+        put32(fork + 20 + i * 8, tail.inline_extents[i].count);
     }
 
     return hfs_btree_update(&catalog->btree, tx, record, record_length,
