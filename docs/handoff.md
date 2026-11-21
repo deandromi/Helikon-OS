@@ -12,6 +12,41 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (fourth block: MP3 gapless trim)
+
+## What happened
+
+- The Xing parser reads the LAME/FFmpeg extension (quality field, then the
+  36-byte tag; delay/padding at bytes 21-23, 12 bits each). `LAME`, `Lavc` and
+  `Lavf` strings are accepted.
+- `struct helikon_codec_info` gained `encoder_delay` and `padding` (output
+  frames) and `HELIKON_CODEC_FLAG_GAPLESS`; the MP3 probe **and** open fill
+  them, so a caller can plan the trim before opening.
+- The MP3 read loop drops the encoder delay from the first decoded block and
+  reports end of stream at `frames × frame_samples - delay - padding`; a seek
+  clears the trim and rebases the emitted counter. Files without a LAME tag
+  play untrimmed and do not claim the flag.
+- `tests/ui` needed `codec/tag/id3v2.c` in its audio link too (the MP3 wrapper
+  references the tag-size helper since #38).
+
+## Evidence
+
+- `tests/codec` test + sanitize: PASS. New gapless cases on both MP3 fixtures:
+  `encoder_delay == 576`, `padding > 0`, GAPLESS flag, decoded length exactly
+  `total - delay - padding`, and the same length after `seek(0)`.
+- Matrix: `tests/vfs`, `tests/hfsplus`, `tests/firmware`, `tests/bootloader`,
+  `tests/musicdb`, `tests/player`, `tests/ui`, `tests/image` all pass.
+- Cross-builds: plain 6G 77,856 B; music-hub 768,156 B.
+- Host-verified only: **no device run**, no player wiring.
+
+## Open / next
+
+- Cross-track gaplessness (queue keeps the ring fed across a file boundary),
+  resume, MPEG-2/2.5 delay values, T-100 device run.
+- T-058 read-ahead + ring; ALAC; rest of T-099 metadata.
+
+---
+
 # Handoff — 2026-11-21 (third block: ID3v2 tag reader)
 
 ## What happened

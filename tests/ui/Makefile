@@ -83,6 +83,8 @@ $(AUDIO_TEST): test_audio.c ../../firmware/ui/music.c \
                ../../firmware/codec/flac/flac_decoder.c \
                ../../firmware/codec/mp3/mp3_codec.c \
                ../../firmware/codec/mp3/mp3.h \
+               ../../firmware/codec/tag/id3v2.c \
+               ../../firmware/codec/tag/id3v2.h \
                ../../firmware/ui/launcher_assets.c \
                ../../firmware/ui/launcher_assets.h \
                ../../firmware/db/hdb.c ../../firmware/db/hdb.h \
@@ -96,6 +98,7 @@ $(AUDIO_TEST): test_audio.c ../../firmware/ui/music.c \
 	      ../../firmware/codec/flac/flac_codec.c \
 	      ../../firmware/codec/flac/flac_decoder.c \
 	      ../../firmware/codec/mp3/mp3_codec.c \
+	      ../../firmware/codec/tag/id3v2.c \
 	      ../../firmware/ui/launcher_assets.c \
 	      ../../firmware/db/hdb.c ../../firmware/diag/screen.c \
 	      ../../firmware/lib/crc32.c ../../firmware/lib/mem.c \

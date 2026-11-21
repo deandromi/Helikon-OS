@@ -29,7 +29,9 @@
 #define HELIKON_CODEC_CAP_RESUME  0x00000004u
 
 /* Per-file information flags. */
-#define HELIKON_CODEC_FLAG_SEEK 0x00000001u
+#define HELIKON_CODEC_FLAG_SEEK    0x00000001u
+/* The file carries encoder delay/padding the player can trim (T-100). */
+#define HELIKON_CODEC_FLAG_GAPLESS 0x00000002u
 
 struct helikon_codec_info {
     uint32_t sample_rate;
@@ -40,6 +42,9 @@ struct helikon_codec_info {
     uint16_t output_channels;
     uint16_t output_bits;
     uint32_t workspace_bytes;
+    /* Gapless trim, in output frames: drop this many at the start and end. */
+    uint32_t encoder_delay;
+    uint32_t padding;
     uint32_t flags;
 };
 

@@ -78,6 +78,23 @@ static int16_t expected_sample(const uint8_t *pcm_data, size_t frame,
     return (int16_t)((int32_t)value >> 8);
 }
 
+/* Decodes up to `limit` frames into the shared chunk buffer and counts them. */
+static int count_frames(struct helikon_codec *codec, size_t limit, size_t *frames)
+{
+    size_t total = 0u;
+    while (total < limit) {
+        size_t got = 0u;
+        int rc = helikon_codec_read(codec, pcm, CHUNK_FRAMES, &got);
+        if (rc != HELIKON_OK)
+            return rc;
+        if (got == 0u)
+            break;
+        total += got;
+    }
+    *frames = total;
+    return HELIKON_OK;
+}
+
 static int check_flac(const char *name, uint16_t channels, uint16_t bits,
                       uint32_t rate, uint32_t total_frames)
 {
@@ -947,6 +964,62 @@ static size_t wrap_tag(uint8_t *data, size_t frame_bytes, uint8_t version,
     return 10u + frame_bytes;
 }
 
+
+static int check_mp3_gapless(void)
+{
+    static const char *const names[] = { "fixtures/mp3_cbr_stereo16.mp3",
+                                         "fixtures/mp3_vbr_stereo16.mp3" };
+    for (size_t file = 0u; file < 2u; ++file) {
+        size_t size = load_file(names[file], file_data, sizeof(file_data));
+        if (expect(size > 0u, "gapless fixture load"))
+            return 1;
+
+        const struct helikon_codec_ops *ops = NULL;
+        struct helikon_codec_info info;
+        if (expect(helikon_codec_probe(file_data, size, &ops, &info) ==
+                       HELIKON_OK,
+                   "gapless probe"))
+            return 1;
+        /* LAME writes 576 samples of encoder delay for 44.1 kHz; the exact
+         * value pins the LAME-tag offset arithmetic, not just "non-zero". */
+        if (expect((info.flags & HELIKON_CODEC_FLAG_GAPLESS) != 0u &&
+                       info.encoder_delay == 576u && info.padding > 0u,
+                   "gapless declared"))
+            return 1;
+        if (expect(info.total_frames > info.encoder_delay + info.padding,
+                   "gapless trim fits"))
+            return 1;
+
+        struct helikon_codec codec;
+        if (expect(helikon_codec_open(&codec, ops, file_data, size, workspace,
+                                      sizeof(workspace)) == HELIKON_OK,
+                   "gapless open"))
+            return 1;
+        size_t frames = 0u;
+        if (expect(count_frames(&codec, info.total_frames + CHUNK_FRAMES,
+                                &frames) == HELIKON_OK,
+                   "gapless decode"))
+            return 1;
+        if (expect(frames == info.total_frames - info.encoder_delay -
+                                info.padding,
+                   "gapless trimmed length"))
+            return 1;
+
+        /* Seeking past the delay must still reach the same end. */
+        if (expect(helikon_codec_seek(&codec, 0u) == HELIKON_OK,
+                   "gapless seek zero"))
+            return 1;
+        if (expect(count_frames(&codec, info.total_frames + CHUNK_FRAMES,
+                                &frames) == HELIKON_OK &&
+                       frames == info.total_frames - info.encoder_delay -
+                                      info.padding,
+                   "gapless seek restart"))
+            return 1;
+        helikon_codec_close(&codec);
+    }
+    return 0;
+}
+
 static int check_id3v2(void)
 {
     struct helikon_id3v2_tags tags;
@@ -1218,6 +1291,8 @@ int main(void)
     if (check_mp3_source())
         return 1;
     if (check_id3v2())
+        return 1;
+    if (check_mp3_gapless())
         return 1;
     if (check_source_contract())
         return 1;

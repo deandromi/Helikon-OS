@@ -1142,3 +1142,48 @@ comments, MP4 and ASF tags are not implemented yet. `TAG_MISSING` and
 tag size arithmetic, a missing tag, an unsynchronized tag and a frame overrun.
 The MP3, FLAC, VFS, player and UI suites stay green; the 6G music-hub image
 builds at 767,684 B with the tag reader linked (the MP3 wrapper calls it).
+
+## 17. Gapless trim for MP3 — first slice of T-100 (2026-11-21)
+
+Status: `implemented` as host code with host tests; no player wiring and no
+device run. This trims one file correctly; it does not yet join two tracks
+without a gap.
+
+### 17.1 What it does
+
+The LAME/FFmpeg extension inside the Xing/Info frame carries the encoder delay
+and padding: after the optional frames/bytes/TOC fields there is a 4-byte
+quality indicator, then a 36-byte tag whose bytes 21-23 hold 12 bits of delay
+and 12 bits of padding. `mp3_xing()` now reads that (accepting `LAME`, `Lavc`
+and `Lavf` encoder strings) into `struct mp3_xing`, and the decoder uses it:
+
+- `struct helikon_codec_info` gained `encoder_delay` and `padding` (in output
+  frames) plus the per-file `HELIKON_CODEC_FLAG_GAPLESS`. Both the probe and
+  open fill them, so a caller can plan the trim before opening.
+- Open sets the playable length to `xing.frames × frame_samples - delay -
+  padding` and remembers how many samples to drop at the start. The read loop
+  discards those samples from the first decoded block and reports end of
+  stream once the trimmed length is reached, so a caller that simply reads
+  until zero gets gapless sample counts.
+- A seek resets the trim (the delay belongs to the start of the stream) and
+  maps the requested output frame onto the emitted count, so seeking after a
+  trim still ends at the same total.
+- Files without a LAME tag (plain Xing, CBR without VBR header) keep playing
+  untrimmed and do not claim the flag.
+
+### 17.2 Evidence (host only, no device run)
+
+`tests/codec` (test + sanitize) now checks both committed MP3 fixtures:
+`encoder_delay == 576` (the value LAME writes at 44.1 kHz, which pins the tag
+offset arithmetic rather than just "non-zero"), `padding > 0`, the GAPLESS
+flag present, and the decoded length exactly
+`total_frames - delay - padding`; after `seek(0)` the same length is reached
+again. The full matrix and the 6G builds stay green (music-hub 768,156 B).
+
+### 17.3 Remaining for T-100
+
+- FLAC needs no trim (lossless frames carry exact sample counts); the WAV path
+  is already exact.
+- Cross-track gaplessness is player work: it needs a queue that keeps the ring
+  fed across a file boundary, plus the matching track-length accounting.
+- Resume, MPEG-2/2.5 delay values and the T-100 device run are still open.
