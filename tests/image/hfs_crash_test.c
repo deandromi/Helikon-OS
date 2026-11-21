@@ -28,6 +28,10 @@
 #define OVERWRITE_PATTERN 0xc3u
 /* A sized truncate: half the data fork, not a block multiple. */
 #define TRUNCATE_TO_SIZE 2000u
+/* A write past the end: a zero gap and then the data, in one transaction. */
+#define GROW_OFFSET 2000u
+#define GROW_LENGTH 500u
+#define GROW_PATTERN 0x3cu
 
 enum scenario {
     SCENARIO_CREATE,
@@ -36,7 +40,8 @@ enum scenario {
     SCENARIO_DELETE,
     SCENARIO_RENAME,
     SCENARIO_OVERWRITE,
-    SCENARIO_TRUNCATE_TO
+    SCENARIO_TRUNCATE_TO,
+    SCENARIO_GROW
 };
 
 struct io {
@@ -165,6 +170,8 @@ static int parse_scenario(const char *name, enum scenario *scenario)
         *scenario = SCENARIO_OVERWRITE;
     } else if (strcmp(name, "truncate-size") == 0) {
         *scenario = SCENARIO_TRUNCATE_TO;
+    } else if (strcmp(name, "grow") == 0) {
+        *scenario = SCENARIO_GROW;
     } else {
         return HFS_ERR_ARGUMENT;
     }
@@ -268,6 +275,12 @@ static int inject(struct image *image, enum scenario scenario,
     } else if (scenario == SCENARIO_TRUNCATE) {
         rc = hfs_catalog_truncate_file(&image->catalog, &tx, 2, name, units,
                                        hfs_catalog_key_compare, NULL);
+    } else if (scenario == SCENARIO_GROW) {
+        uint8_t data[GROW_LENGTH];
+        memset(data, GROW_PATTERN, sizeof(data));
+        rc = hfs_catalog_write_file(&image->catalog, &tx, 2, name, units,
+                                    GROW_OFFSET, data, sizeof(data),
+                                    hfs_catalog_key_compare, NULL);
     } else if (scenario == SCENARIO_TRUNCATE_TO) {
         rc = hfs_catalog_truncate_to(&image->catalog, &tx, 2, name, units,
                                      TRUNCATE_TO_SIZE,
@@ -395,6 +408,31 @@ static int recover(struct image *image, enum scenario scenario)
 
     if (entry.kind != 2)
         return HFS_ERR_FORMAT;
+    if (scenario == SCENARIO_GROW) {
+        if (entry.data.size == 0) {
+            printf("recovered present=1 size=0\n");
+            return HFS_OK;
+        }
+        if (entry.data.size != GROW_OFFSET + GROW_LENGTH)
+            return HFS_ERR_FORMAT;
+        uint8_t data[GROW_OFFSET + GROW_LENGTH];
+        size_t done = 0;
+        rc = hfs_catalog_read_file(&image->catalog, &entry, 0, data,
+                                   sizeof(data), &done);
+        if (rc != HFS_OK || done != sizeof(data))
+            return rc != HFS_OK ? rc : HFS_ERR_FORMAT;
+        for (size_t i = 0; i < GROW_OFFSET; ++i) {
+            if (data[i] != 0)
+                return HFS_ERR_FORMAT;
+        }
+        for (size_t i = GROW_OFFSET; i < sizeof(data); ++i) {
+            if (data[i] != GROW_PATTERN)
+                return HFS_ERR_FORMAT;
+        }
+        printf("recovered present=1 size=%llu\n",
+               (unsigned long long)entry.data.size);
+        return HFS_OK;
+    }
     if (scenario == SCENARIO_TRUNCATE_TO) {
         if (entry.data.size == DATA_SIZE) {
             rc = read_data(image, &entry);

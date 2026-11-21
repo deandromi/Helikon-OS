@@ -20,6 +20,15 @@ static int stage_volume_block(struct hfs_txn *tx, const struct hfs_volume *volum
     uint64_t base = volume->base + (uint64_t)volume_block * block_size;
     if (volume->read(volume->context, base, bounce, block_size))
         return HFS_ERR_IO;
+    /*
+     * Compose with what this transaction already staged for the block: a second
+     * partial write to the same block must not replace the first one with the
+     * committed content.
+     */
+    int overlaid = hfs_txn_overlay(tx, (uint64_t)volume_block * block_size,
+                                   bounce, block_size);
+    if (overlaid < 0)
+        return overlaid;
     memcpy(bounce + offset, data, length);
     uint64_t sector = (uint64_t)volume_block *
                       (block_size / tx->journal->sector_size);

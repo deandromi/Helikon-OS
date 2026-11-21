@@ -147,7 +147,7 @@ Helikon-OS/
     image/
       Makefile              disposable-image writer test build
       hfs_image_test.c      create/rename/truncate/delete/overflow/overwrite/
-                            truncate-to-size/Unicode on a HFS+ image
+                            truncate-to-size/grow/Unicode on a HFS+ image
       hfs_crash_test.c      journal write-failure injection and recovery
       check-overflow.py     per-block pattern check of the overflow file, plain or
                             overwritten (macOS mount)

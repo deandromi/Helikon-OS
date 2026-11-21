@@ -17,8 +17,14 @@ struct hfs_bitmap {
 
 int hfs_bitmap_open(struct hfs_bitmap *bitmap, struct hfs_volume *volume);
 
-int hfs_bitmap_find(struct hfs_bitmap *bitmap, uint32_t start_hint,
-                    uint32_t count, uint32_t *first_block);
+/*
+ * Find a free run of `count` blocks. `tx` may be NULL to search the committed
+ * bitmap; pass the open transaction so a search after a staged allocation does
+ * not hand out the same block twice.
+ */
+int hfs_bitmap_find(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
+                    uint32_t start_hint, uint32_t count,
+                    uint32_t *first_block);
 int hfs_bitmap_alloc(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
                      uint32_t start_hint, uint32_t count,
                      uint32_t *first_block);
