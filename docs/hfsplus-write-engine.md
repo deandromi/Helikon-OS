@@ -81,6 +81,10 @@ code in the product.
   overflow file) creates the root leaf: one free node from the header map, a
   one-record leaf, then depth 1 with root, first and last leaf pointing at it.
   All of it is staged in the transaction like any other mutation.
+- Deleting the last record of the root leaf returns the tree to the empty state
+  (depth 0, no root, no leaves, node returned to the free map), so the same tree
+  can be refilled and a reopened handle sees a valid empty tree rather than a
+  root leaf with no records.
 - The free-node map and allocation bitmap agree with the nodes actually in use.
 - Inserting a key below a leaf's or index node's first key updates the parent
   index chain; the depth-3 model covers leaf and index below-minimum insertion.

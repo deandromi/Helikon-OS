@@ -12,6 +12,39 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (tenth block: emptying the tree again)
+
+## What happened
+
+- `hfs_btree_delete()` on the last record of the root leaf now returns the tree
+  to the canonical empty state instead of leaving a root leaf with zero records:
+  the node goes back to the free map, depth/root/first/last/leaf_records are
+  zeroed in the header, and `btree->empty` is set. A reopened handle therefore
+  sees the same shape a freshly formatted volume has, and the next insert calls
+  `create_root()` again.
+- `tests/hfsplus/test_btree_tree.c` extends `insert into empty tree`: after two
+  records, delete both, check the on-disk header is empty and the node is free,
+  reopen (`empty == 1`), then insert again and check depth 1 with one record.
+
+## Evidence
+
+- `tests/hfsplus` test + sanitize PASS.
+- `tests/image` test and crash-test PASS (delete paths), `tests/library` still
+  reads the catalog from the real image.
+- No device run.
+
+## Open / next
+
+- Still unproven end to end: fragment a disposable image, append a file that
+  needs more than eight inline extents (so `hfs_extents_overflow_set()` runs
+  `create_root()` on the real extents tree), then require `fsck_hfs` clean.
+- A volume whose extents tree was emptied by macOS (possible depth-1 root leaf
+  with zero records) is not modelled: our open would reject that shape. Open
+  question until a real image shows it.
+- Music hub on a mounted volume; T-058 queue/next-previous; ALAC; rest of T-099.
+
+---
+
 # Handoff — 2026-11-21 (ninth block: the first insert into an empty B-tree)
 
 ## What happened
