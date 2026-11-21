@@ -203,6 +203,8 @@ cp "$ROOT/bootloader/sha256.c" "$ROOT/bootloader/sha256.h" \
    "$ROOT/bootloader/keys.c" "$ROOT/bootloader/keys.h" \
    "$ROOT/bootloader/splash_color.c" "$ROOT/bootloader/splash_color.h" \
    "$ROOT/bootloader/splash_label.h" \
+   "$ROOT/bootloader/boot_info_page.c" "$ROOT/bootloader/boot_info_page.h" \
+   "$ROOT/firmware/boot/boot_info.h" \
    "$ROOT/bootloader/hardware/helikon_loader_hw.c" \
    "$ROOT/bootloader/hardware/helikon_build_keys.h" "$HELIKON_DIR/"
 cp "$ROOT"/firmware/hfs/hfs_*.c "$ROOT"/firmware/hfs/hfs_*.h "$HELIKON_DIR/"

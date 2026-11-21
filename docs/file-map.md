@@ -41,6 +41,7 @@ Helikon-OS/
     sha256.c/.h             SHA-256 for manifest/image verification
     manifest.c/.h           signed manifest parser and split verifier
     bootstate.c/.h          two-slot boot-state parser/selector
+    boot_info_page.c/.h     D-28 boot-info page writer (ADR-0004 layout)
     ed25519.c/.h            verification-only TweetNaCl derivative
     keys.c/.h               public-key table and signature-hook adapter
     certificate.c/.h        root-signed release-key certificate, rotation and
@@ -167,6 +168,7 @@ Helikon-OS/
       test_loader_hfs.c     HFS+ file-read adapter tests
       test_ed25519.c        RFC 8032, 192-byte and key-table tests
       test_certificate.c    certificate/rotation/revocation verification tests
+      test_boot_info_page.c D-28 page writer round-trip through the firmware parser
   tests/musicdb/
     Makefile                HelikonDB fixture and reader test
     test_hdb.c              fixture + optional real-library checks

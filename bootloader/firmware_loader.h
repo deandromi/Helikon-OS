@@ -19,6 +19,9 @@ typedef int (*helikon_file_read_fn)(void *context, const char *path,
 
 struct helikon_loader_result {
     struct helikon_manifest manifest;
+    /* The 256 raw bytes that were verified, for the boot-info page copy. The
+     * boot-info parser cross-checks them against the fields above. */
+    uint8_t manifest_bytes[HELIKON_MANIFEST_SIZE];
     struct helikon_bootstate bootstate;
     int bootstate_valid;
     uint8_t *image;

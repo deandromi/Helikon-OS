@@ -31,6 +31,7 @@
 #include "system.h"
 
 #include "firmware_loader.h"
+#include "boot_info_page.h"
 #include "hfs_loader.h"
 #include "keys.h"
 #include "loader_error.h"
@@ -44,6 +45,14 @@
  */
 #define HELIKON_HANDOFF_MARKER_ADDR 0x087ff800u
 #define HELIKON_HANDOFF_MARKER 0x484c4f31u /* "HLO1" */
+
+/* D-28 / ADR-0004: the boot-info page sits at the top of the signed window and
+ * is passed to the firmware in r0. `firmware/board/6g/memory_map.h` agrees. */
+#define HELIKON_BOOT_INFO_PAGE_ADDR 0x087ff000u
+#define HELIKON_BOOT_INFO_PAGE_BYTES 4096u
+
+/* Bumped when the facts this image passes change meaning, not per build. */
+#define HELIKON_LOADER_VERSION 3u
 
 /* Donor partition-table scanner. It only reads. */
 #include "hfsplus_partition.h"
@@ -236,6 +245,9 @@ void helikon_loader_main(void)
     struct hfs_partition *best = NULL;
     uint64_t disk_size;
     int count;
+    /* Loader stage time for the boot-info page; the donor main painted the
+     * splash before this point, so it is loader work, not device boot. */
+    const uint32_t boot_ticks = current_tick;
 
     /*
      * Keep ATA alive across the handoff. The donor default is 7 s; the
@@ -364,8 +376,8 @@ void helikon_loader_main(void)
      */
 
     /*
-     * Stamp the handoff in the reserved boot-info page and pass a zero
-     * boot-info pointer: the page is not filled yet (T-059).
+     * Stamp the handoff marker in the reserved page. The page itself is filled
+     * just before the jump, once every fact below is final.
      */
     *(volatile uint32_t *)HELIKON_HANDOFF_MARKER_ADDR =
         HELIKON_HANDOFF_MARKER;
@@ -390,10 +402,50 @@ void helikon_loader_main(void)
         HELIKON_HANDOFF_MARKER;
 
     /*
+     * Fill the D-28 boot-info page so the firmware does not re-read what this
+     * image already verified: board, image version, load address, size,
+     * SHA-256, bootstate slot, the manifest copy and the loader stage time.
+     * The writer refuses a page that disagrees with the signed manifest, and a
+     * refused page is passed as zero, which the firmware treats as "no page"
+     * and falls back to re-reading the disk.
+     */
+    uintptr_t boot_info = 0u;
+    {
+        uint8_t *page = (uint8_t *)(uintptr_t)HELIKON_BOOT_INFO_PAGE_ADDR;
+        struct helikon_loader_handoff handoff;
+        memset(&handoff, 0, sizeof(handoff));
+        handoff.loader_version = HELIKON_LOADER_VERSION;
+        handoff.board = HELIKON_BOARD_IPOD6G;
+        handoff.image_version = result.manifest.image_version;
+        handoff.load_address = result.manifest.load_address;
+        handoff.image_size = (uint32_t)result.manifest.image_size;
+        handoff.image_sha256 = result.manifest.image_sha256;
+        handoff.bootstate_sequence =
+            result.bootstate_valid != 0 ? result.bootstate.slot.sequence : 0u;
+        handoff.bootstate_state =
+            result.bootstate_valid != 0 ? result.bootstate.slot.state : 0u;
+        handoff.journal_state = 0u; /* unknown: the mount fails the boot */
+        handoff.flags = HELIKON_BOOT_INFO_FLAG_MANIFEST_VERIFIED;
+        if ((result.manifest.flags & HELIKON_MANIFEST_FLAG_DEVELOPMENT) != 0u)
+            handoff.flags |= HELIKON_BOOT_INFO_FLAG_DEVELOPMENT;
+        if (result.bootstate_valid != 0)
+            handoff.flags |= HELIKON_BOOT_INFO_FLAG_BOOTSTATE_PRESENT;
+        handoff.loader_stage_ms =
+            (uint32_t)((current_tick - boot_ticks) * 1000u / HZ);
+        handoff.manifest = result.manifest_bytes;
+
+        if (helikon_boot_info_page_build(page, HELIKON_BOOT_INFO_PAGE_BYTES,
+                                         &handoff) == HELIKON_OK)
+            boot_info = (uintptr_t)page;
+        else
+            show_message("Boot-info page refused",
+                         "Handing over no page; the firmware will re-read.");
+    }
+
+    /*
      * The image is already at its linked address in DRAM. Flush/invalidate
      * the caches before executing it. The test payload returns "HELO"; a real
-     * firmware entry point would not return. Pass a zero boot-info pointer
-     * explicitly: without T-059 the loader has no page to hand over.
+     * firmware entry point would not return.
      */
     progress("jump");
     uint32_t (*entry)(uintptr_t, uint32_t) =
@@ -401,7 +453,7 @@ void helikon_loader_main(void)
             result.manifest.load_address;
     disable_irq();
     commit_discard_idcache();
-    uint32_t marker = entry(0u, 0u);
+    uint32_t marker = entry(boot_info, 0u);
     enable_irq();
 
     if (marker == LOADER_TEST_RETURN) {

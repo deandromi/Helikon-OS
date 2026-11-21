@@ -45,6 +45,12 @@ CERTIFICATE_HEADERS = ../../bootloader/certificate.h \
 SPLASH_SOURCES = test_splash_color.c ../../bootloader/splash_label.h
 SPLASH_HEADERS = ../../bootloader/splash_label.h ../hfsplus/test_check.h
 
+BOOT_INFO_PAGE_SOURCES = test_boot_info_page.c ../../bootloader/boot_info_page.c \
+                         ../../bootloader/boot_info_page.h \
+                         ../../firmware/boot/boot_info.c ../../firmware/boot/boot_info.h
+BOOT_INFO_PAGE_HEADERS = ../../bootloader/boot_info_page.h \
+                         ../../firmware/boot/boot_info.h ../hfsplus/test_check.h
+
 HFS_LOADER_SOURCES = test_loader_hfs.c ../hfsplus/test_image.c \
                      ../hfsplus/test_fs_image.c ../../bootloader/hfs_loader.c \
                      ../../bootloader/loader_error.c $(HFS)/hfs_catalog.c \
@@ -84,8 +90,16 @@ test_certificate: $(CERTIFICATE_SOURCES) $(CERTIFICATE_HEADERS)
 test_splash_color: $(SPLASH_SOURCES) $(SPLASH_HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_splash_color.c $(LDFLAGS) -lm -o $@
 
+# The loader writer and the firmware parser meet only here. boot_info.c needs
+# the freestanding memory and CRC helpers, so they are linked in as well.
+test_boot_info_page: $(BOOT_INFO_PAGE_SOURCES) $(BOOT_INFO_PAGE_HEADERS)
+	$(CC) -DHELIKON_HOST_TEST -I../../firmware/boot $(CPPFLAGS) $(CFLAGS) \
+	  test_boot_info_page.c ../../bootloader/boot_info_page.c \
+	  ../../firmware/boot/boot_info.c ../../firmware/lib/crc32.c \
+	  ../../firmware/lib/mem.c $(LDFLAGS) -o $@
+
 test: test_diag test_inner_image test_loader test_loader_hfs test_ed25519 \
-      test_certificate test_splash_color
+      test_certificate test_splash_color test_boot_info_page
 	./test_diag
 	./test_inner_image
 	./test_loader
@@ -93,6 +107,7 @@ test: test_diag test_inner_image test_loader test_loader_hfs test_ed25519 \
 	./test_ed25519
 	./test_certificate
 	./test_splash_color
+	./test_boot_info_page
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
@@ -111,4 +126,4 @@ sanitize:
 
 clean:
 	rm -rf test_diag test_inner_image test_loader test_loader_hfs test_ed25519 \
-	       test_certificate test_splash_color *.dSYM
+	       test_certificate test_splash_color test_boot_info_page *.dSYM

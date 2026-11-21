@@ -12,6 +12,79 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (twenty-third block: the loader fills the boot-info page)
+
+## What happened
+
+- T-059, the last piece of the accepted D-28 entry ABI: the loader test image now
+  writes the 4 KiB boot-info page at `0x087ff000` and passes it in `r0`. Until
+  this block the page was a documented contract that nothing filled, so the
+  loader jumped with `r0 = 0` and any firmware had to re-read the disk for facts
+  the loader had already verified.
+- New `bootloader/boot_info_page.c/.h`: `helikon_boot_info_page_build()` takes a
+  `struct helikon_loader_handoff` (plain facts, no pointers into the loader's
+  stack) and fills magic/version/size, loader version, board, image version,
+  load address, size, SHA-256, bootstate sequence and state, journal state,
+  flags, loader stage time, CRC-32 over bytes 0–71, and the 256-byte verified
+  manifest copy. The writer **refuses** (`HELIKON_ERR_FORMAT`) when the manifest
+  bytes disagree with the stated board, image version, load address, size or
+  SHA-256, and refuses (`HELIKON_ERR_ARGUMENT`) a short, unaligned or missing
+  page. The CRC is a documented duplicate of `firmware/lib/crc32.c` (same
+  polynomial, reflected, init/final 0xffffffff) because the loader does not link
+  the firmware library.
+- `firmware_loader.c` now keeps the verified manifest bytes in
+  `struct helikon_loader_result`, because the page needs a byte-for-byte copy and
+  the loader has no second read of the file.
+- `helikon_loader_hw.c` fills the page after manifest/image verification and before
+  the jump, passes its address in `r0`, and on a writer refusal shows
+  "Boot-info page refused" and jumps with `r0 = 0` — the value the firmware
+  parser already answers with `HELIKON_ERR_NOT_FOUND`, which sends it back to the
+  read-only diagnostic path. `journal_state` is `0` (unknown): only the firmware
+  mounts, and a dirty journal already stops the boot before this point.
+  `loader_stage_ms` is loader work only, measured from the start of
+  `helikon_loader_main()`, because the donor main paints the splash first.
+- `tests/bootloader/test_boot_info_page.c`: 24 checks that round-trip the filled
+  page through the **real** `firmware/boot/boot_info.c` parser rather than a
+  copy of its rules — every field survives, reserved bytes stay zero, the four
+  writer refusals hold, the parser rejects a corrupted header and a corrupted
+  manifest copy, and a zero pointer reports `NOT_FOUND`.
+
+## Evidence (host only, no device run)
+
+- `make -C tests/bootloader test` PASS and `sanitize` PASS (`PASS boot info
+  page`, 24 checks); `make -C tests/image test` and `loader-test` PASS;
+  `./tools/check-loader-artifact.sh` PASS.
+- Loader test image `7c4edc96…`, 107,560 bytes (was `8c161d0e…`, 106,760), DFU
+  `18c595b5…` (115,696 bytes); `_moveend 0x2203ac20`, **21,472 bytes** of
+  `MOVE_AREA` headroom (was 22,264).
+- Build wiring: `tools/build-loader-bootloader.sh` copies `boot_info_page.c/.h`
+  and `firmware/boot/boot_info.h` into the donor `helikon/` directory, and
+  `donor-loader.patch` adds `helikon/boot_info_page.c` to the donor `SOURCES`.
+  Two build-only bugs surfaced and were fixed on the way: the SOURCES hunk
+  header counted one line too few (so `hfs_unicode.c` was silently dropped from
+  a re-applied patch and the link failed), and `struct helikon_bootstate` nests
+  its fields under `.slot`.
+- Docs: `LOADER.md` §4 (page fill, refusals, `journal_state`, stage-time
+  meaning), `LOADER_TEST.md` status, `device-matrix.md` (new row, `not run`),
+  `tasks.md` T-059 (now `in progress`, host evidence, device run blocked on
+  T-051), `state.md` (loader rows), `file-map.md`.
+
+## Open / next
+
+- The device half of T-059 needs a real signed firmware image (T-051, blocked
+  with T-055): the loader test payload ignores `r0`, so no host or device run can
+  yet show firmware reading the loader's version and stage time. Until then the
+  page is host-verified only.
+- `docs/state.md` "VFS and player" row still needs its rewrite pass (stacked
+  "Host workspace" notes, some saying "unmerged" for merged work).
+- Music hub is still a second launcher; the artist tab row still has no on-glass
+  hint; splash pass/fail still differ by colour alone; cross-track gapless is
+  still missing. All recorded, none scheduled.
+- Next code line on the roadmap: the read-ahead policy and music-hub call sites
+  for T-058, or the T-053 key-store wiring into the hardware loader.
+
+---
+
 # Handoff — 2026-11-21 (twenty-second block: the MP3 family is executed, not claimed)
 
 ## What happened

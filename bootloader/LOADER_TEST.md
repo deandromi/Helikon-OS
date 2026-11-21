@@ -2,9 +2,10 @@
 
 > Purpose: install and run the read-only firmware-loader test image on an iPod
 > Classic 6G, record the result, and recover.
-> Status: current build `8c161d0e…` (106,760 bytes) is host-verified, not
-> device-tested. It carries the 2026-11-21 HFS+ label colours (deep green
-> `#007A3D` and deep red `#C81E1E`, both ≥4.5:1 on the label band, guarded by
+> Status: current build `7c4edc96…` (107,560 bytes) is host-verified, not
+> device-tested. It fills the D-28 boot-info page (T-059) and passes it in
+> `r0`, on top of the 2026-11-21 HFS+ label colours (deep green `#007A3D` and
+> deep red `#C81E1E`, both ≥4.5:1 on the label band, guarded by
 > `tests/bootloader/test_splash_color.c`) instead of the owner green/red at
 > 2.10:1 and 3.14:1. The last device-tested image is final-splash `6bc6927c…`
 > (one 6G/iFlash SD, 6.5 s startup, `fsck_hfs -fn` clean). The success path no

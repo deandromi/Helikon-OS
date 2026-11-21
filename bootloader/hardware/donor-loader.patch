@@ -2,13 +2,14 @@ diff --git a/bootloader/SOURCES b/bootloader/SOURCES
 index 8510479..16ce133 100644
 --- a/bootloader/SOURCES
 +++ b/bootloader/SOURCES
-@@ -79,3 +79,20 @@ x1000/utils.c
+@@ -79,3 +79,21 @@ x1000/utils.c
  #elif defined(ECHO_R1)
  echoplayer.c
  #endif
 +
 +helikon/helikon_loader_hw.c
 +helikon/splash_color.c
++helikon/boot_info_page.c
 +helikon/sha256.c
 +helikon/manifest.c
 +helikon/bootstate.c
