@@ -3,12 +3,58 @@
 > Purpose: the latest session handoff and the reusable template.
 > Status: living document
 > Owner: session author; next agent reads this first
-> Last updated: 2026-11-17
+> Last updated: 2026-11-21
 > Source: `docs/state.md`, `docs/tasks.md`, repository history; D-54;
 > [`disk-mode.md`](disk-mode.md)
 
 Keep the newest handoff at the top. Move older entries to `docs/log/` when this
 file grows. Do not rely on chat history for current state.
+
+---
+
+# Handoff — 2026-11-21 (fifth block: the player opens a pull source, T-058)
+
+## What happened
+
+- `helikon_codec_probe_source()` (`firmware/codec/codec.c`) resolves a
+  descriptor from a `read_at` source: one shared 4 KiB head, registry walk,
+  `NOT_FOUND` skipped, `NEED_MORE` accepted only from a `streaming` descriptor
+  (info zeroed, open resolves it), `UNSUPPORTED` when nothing claims the head.
+  Static head buffer, so not reentrant; the firmware is single-threaded.
+- `helikon_player_open_media()` (`firmware/player/player.c`) is the media
+  counterpart of `helikon_player_open()`: probe, open into the embedded codec
+  workspace, then take the player's `wav` view from `codec.info` and mark the
+  player compressed. HAL bring-up moved into a shared `player_start_audio()`
+  used by both opens, so a HAL failure closes the codec on either path.
+- WAV stereo reads now loop on short answers until the request is met or the
+  source returns nothing, using absolute offsets: a chunked adapter can no
+  longer truncate a chunk or lose frame alignment. Mono already looped. A
+  trailing partial frame is re-requested, so no carry buffer is needed.
+- `tests/player` gained a `sanitize` target with the same flags as the codec
+  suite.
+
+## Evidence
+
+- `tests/player` test + sanitize: PASS. New `check_media_player()` drives a
+  5000-frame stereo WAV through a 37-byte-chunk media (open, `duration_ms ==
+  113`, 5000-frame stream start, 100 frames matching the fixture pattern), then
+  the FLAC fixture through the same media (44.1 kHz stereo, 46 ms, 2048-frame
+  start), then `"HELO"` → `UNSUPPORTED` and a NULL player → `ARGUMENT`.
+- Matrix: `tests/codec` (test + sanitize), `tests/vfs`, `tests/hfsplus`,
+  `tests/firmware` (clean, test, sanitize), `tests/bootloader`, `tests/image`
+  (test, crash, write-diag, outer-diag, loader), `tests/musicdb`, `tests/ui`,
+  `tests/player` all pass.
+- Cross-builds: plain 6G 77,856 B; music-hub config with the MP3 fixture
+  768,280 B; `VERSION=2 BOOTSTATE_STATE=trying` image plus
+  `check-f2-artifact.sh`: PASS.
+- Host-verified only: **no device run**, no Music-hub caller.
+
+## Open / next
+
+- Read-ahead ring and refill policy, then the Music-hub call sites that turn a
+  selected track into a VFS handle plus `vfs_media` (pause/resume/seek through
+  that path at hub level).
+- ALAC; rest of T-099 metadata; cross-track gapless; T-100/T-101 device work.
 
 ---
 

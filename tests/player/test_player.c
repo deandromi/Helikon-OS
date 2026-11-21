@@ -183,6 +183,133 @@ static size_t load_file(const char *path, uint8_t *buffer, size_t capacity)
     return size;
 }
 
+/* A pull media over a resident buffer, with optional short reads. */
+struct fake_media {
+    const uint8_t *data;
+    size_t size;
+    size_t chunk;
+    size_t largest_request;
+    unsigned int reads;
+};
+
+static int fake_read_at(void *context, uint64_t offset, void *buffer,
+                        size_t length, size_t *read)
+{
+    struct fake_media *media = context;
+    if (media == NULL || read == NULL || (buffer == NULL && length != 0u))
+        return HELIKON_ERR_ARGUMENT;
+    *read = 0u;
+    media->reads += 1u;
+    if (length > media->largest_request)
+        media->largest_request = length;
+    if (offset > media->size)
+        return HELIKON_ERR_FORMAT;
+    size_t available = media->size - (size_t)offset;
+    size_t count = available < length ? available : length;
+    if (media->chunk != 0u && count > media->chunk)
+        count = media->chunk;
+    if (count != 0u)
+        memcpy(buffer, media->data + (size_t)offset, count);
+    *read = count;
+    return HELIKON_OK;
+}
+
+static int check_media_player(void)
+{
+    static uint8_t data[65536];
+    struct helikon_player player;
+    struct helikon_pmu pmu;
+    struct helikon_clock clock;
+    struct fake_media media;
+    struct helikon_codec_source source;
+
+    /* WAV through a source that returns 37 bytes at a time. */
+    size_t size = make_wav(data, 2u, 5000u);
+    media.data = data;
+    media.size = size;
+    media.chunk = 37u;
+    media.largest_request = 0u;
+    media.reads = 0u;
+    source.read_at = fake_read_at;
+    source.size = size;
+    source.context = &media;
+
+    if (expect(helikon_player_open_media(&player, &source, &pmu, &clock,
+                                         1000u) == HELIKON_OK,
+               "media WAV open"))
+        return 1;
+    if (expect(player.compressed && player.wav.sample_rate == 44100u &&
+                   player.wav.channels == 2u &&
+                   player.wav.duration_ms == 113u,
+               "media WAV info"))
+        return 1;
+
+    start_calls = 0u;
+    started_source = NULL;
+    started_source_context = NULL;
+    started_source_frames = 0u;
+    if (expect(helikon_player_play_chunk(&player, 2047u) == 0 &&
+                   start_calls == 1u && start_frames == 5000u &&
+                   started_source != NULL,
+               "media WAV stream start"))
+        return 1;
+
+    int16_t chunk[200];
+    size_t got = 0u;
+    if (expect(started_source(started_source_context, chunk, 100u, &got) ==
+                   HELIKON_OK &&
+                   got == 100u,
+               "media WAV source read"))
+        return 1;
+    for (size_t frame = 0u; frame < 100u; ++frame) {
+        const int16_t value = (int16_t)frame;
+        if (expect(chunk[frame * 2u] == value &&
+                       chunk[frame * 2u + 1u] == (int16_t)(value + 1),
+                   "media WAV sample"))
+            return 1;
+    }
+    helikon_player_stop(&player);
+
+    /* A FLAC fixture through the same path, with no resident whole-file decode
+     * in the player: the codec window does the reading. */
+    size = load_file("../codec/fixtures/stereo16.flac", data, sizeof(data));
+    if (expect(size > 0u, "media FLAC fixture load"))
+        return 1;
+    media.data = data;
+    media.size = size;
+    media.chunk = 0u;
+    source.size = size;
+    if (expect(helikon_player_open_media(&player, &source, &pmu, &clock,
+                                         1000u) == HELIKON_OK,
+               "media FLAC open"))
+        return 1;
+    if (expect(player.compressed && player.wav.sample_rate == 44100u &&
+                   player.wav.duration_ms == 46u,
+               "media FLAC info"))
+        return 1;
+    start_calls = 0u;
+    if (expect(helikon_player_play_chunk(&player, 2047u) == 0 &&
+                   start_calls == 1u && started_source_frames == 2048u,
+               "media FLAC stream start"))
+        return 1;
+    helikon_player_stop(&player);
+
+    /* Not audio: refused before the HAL is touched. */
+    memcpy(data, "HELO", 4u);
+    media.data = data;
+    media.size = 4u;
+    source.size = 4u;
+    if (expect(helikon_player_open_media(&player, &source, &pmu, &clock,
+                                         1000u) == HELIKON_ERR_UNSUPPORTED,
+               "media refuses non-audio"))
+        return 1;
+    if (expect(helikon_player_open_media(NULL, &source, &pmu, &clock, 1000u) ==
+                   HELIKON_ERR_ARGUMENT,
+               "media null player"))
+        return 1;
+    return 0;
+}
+
 static int check_flac_player(void)
 {
     static uint8_t flac_data[65536];
@@ -482,6 +609,8 @@ int main(void)
         return 1;
 
     if (check_flac_player())
+        return 1;
+    if (check_media_player())
         return 1;
 
     printf("PASS player\n");

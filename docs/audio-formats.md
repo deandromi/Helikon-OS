@@ -1187,3 +1187,63 @@ again. The full matrix and the 6G builds stay green (music-hub 768,156 B).
 - Cross-track gaplessness is player work: it needs a queue that keeps the ring
   fed across a file boundary, plus the matching track-length accounting.
 - Resume, MPEG-2/2.5 delay values and the T-100 device run are still open.
+
+## 18. Player opens a pull source — T-058 host half (2026-11-21)
+
+Status: `in progress` as host code with host tests. No Music-hub caller, no
+I2S/DMA run and no device run. The player can consume a `read_at` source
+(`vfs_media`, a test media) but nothing in the UI opens one yet.
+
+### 18.1 What landed
+
+- **`helikon_codec_probe_source()`** (`firmware/codec/codec.c`) resolves a
+  descriptor from a source instead of a resident buffer. It reads one shared
+  4 KiB head (`HELIKON_CODEC_PROBE_BYTES`), walks the registry, skips
+  `HELIKON_ERR_NOT_FOUND`, and accepts `HELIKON_ERR_NEED_MORE` only from a
+  `streaming` descriptor — that case zeroes the info because open resolves the
+  real values. When no descriptor claims the head the result is
+  `HELIKON_ERR_UNSUPPORTED`. The head buffer is static, so the call is not
+  reentrant; the firmware is single-threaded and the player is its only caller.
+- **`helikon_player_open_media()`** (`firmware/player/player.c`) is the media
+  counterpart of `helikon_player_open()`: probe the source, open the codec into
+  the player's embedded workspace, then fill the player's `wav` view from
+  `codec.info` (authoritative after a streaming open, where the probe may have
+  had only the head) and mark the player compressed. HAL bring-up moved into
+  `player_start_audio()`, shared with the buffer open so the two paths cannot
+  drift; a HAL failure closes the codec.
+- **Short reads in the WAV path.** `wav_read()` loops on the stereo path until
+  the request is met or the source returns nothing, using absolute offsets, so
+  a chunked adapter (or a VFS that answers with less than it was asked) can no
+  longer truncate a chunk or lose frame alignment. The mono path already
+  looped. A trailing partial frame is simply requested again, which keeps
+  alignment without a carry buffer.
+
+### 18.2 Evidence (host only, no device run)
+
+- `tests/player`: new `check_media_player()` drives a WAV (5000 stereo frames)
+  through a media that answers 37 bytes at a time — open succeeds,
+  `duration_ms == 113`, the started source reports 5000 frames and 100 decoded
+  frames match the fixture pattern (so short reads neither truncate nor
+  misalign). The FLAC fixture through the same media reports 44.1 kHz stereo,
+  46 ms and a 2048-frame stream; `"HELO"` is refused with
+  `HELIKON_ERR_UNSUPPORTED` before the HAL is touched and a NULL player with
+  `HELIKON_ERR_ARGUMENT`.
+- `tests/player` gained a `sanitize` target (same flags as the codec suite):
+  PASS under ASan/UBSan.
+- Full matrix green: `tests/codec` (test + sanitize), `tests/vfs` (test +
+  sanitize), `tests/player` (test + sanitize), `tests/hfsplus` (test +
+  sanitize), `tests/firmware` (clean, test, sanitize), `tests/bootloader`
+  (test + sanitize), `tests/image` (test, crash-test, write-diag-test,
+  outer-diag-test, loader-test), `tests/musicdb`, `tests/ui`.
+- Cross-builds: plain 6G 77,856 B; music-hub config with the MP3 fixture
+  768,280 B; `VERSION=2 BOOTSTATE_STATE=trying` image plus
+  `./tools/check-f2-artifact.sh build/firmware/6g/out`: PASS.
+
+### 18.3 Remaining for T-058
+
+The read seam and the open path are host-complete. Still missing: the
+read-ahead ring (how many buffers, who owns the refill, how an underrun is
+reported), the Music-hub call sites that turn a selected track into a VFS
+handle and a `vfs_media`, pause/resume/seek through that path at hub level, the
+I2S/DMA run and the device evidence. Gapless across a track boundary, resume
+and the T-100/T-101 slices stay where they were.
