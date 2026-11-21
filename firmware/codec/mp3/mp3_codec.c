@@ -163,6 +163,10 @@ struct mp3_xing {
     uint8_t valid;
     uint32_t frames;
     uint8_t toc[100];
+    /* LAME/FFmpeg extension: encoder delay and padding for gapless trim. */
+    uint8_t lame;
+    uint16_t delay;
+    uint16_t padding;
 };
 
 static void mp3_toc_from_be32(const uint8_t *p, uint8_t *toc)
@@ -224,6 +228,28 @@ static int mp3_xing(const uint8_t *data, size_t size,
         }
         q += 100u;
     }
+    /* The 4-byte quality indicator always follows the optional fields. */
+    q += 4u;
+    /*
+     * The LAME tag carries the encoder delay and padding at byte 21:
+     * 12 bits of delay then 12 bits of padding. LAME writes "LAME"; FFmpeg's
+     * libavcodec writes "Lavc" with the same layout.
+     */
+    if (q + 24u <= size) {
+        const uint8_t *lame = data + q;
+        const int have_lame = (lame[0] == 'L' && lame[1] == 'A' &&
+                               lame[2] == 'M' && lame[3] == 'E') ||
+                              (lame[0] == 'L' && lame[1] == 'a' &&
+                               lame[2] == 'v' &&
+                               (lame[3] == 'c' || lame[3] == 'f'));
+        if (have_lame) {
+            xing->lame = 1u;
+            xing->delay = (uint16_t)(((uint16_t)lame[21] << 4) |
+                                     ((uint16_t)lame[22] >> 4));
+            xing->padding = (uint16_t)((((uint16_t)lame[22] & 0x0fu) << 8) |
+                                       (uint16_t)lame[23]);
+        }
+    }
     xing->valid = 1u;
     return HELIKON_OK;
 }
@@ -258,6 +284,12 @@ struct mp3_state {
     uint32_t frame_index;         /* PCM frame position of next output */
     uint32_t consecutive_errors;
     uint32_t skip_frames_left;    /* frames decoded but not emitted */
+    /* Gapless trim (T-100): drop `trim_skip` samples at the start and stop
+     * once `emitted` reaches `emit_limit`. */
+    uint32_t trim_skip;
+    uint32_t emit_limit;
+    uint32_t emitted;
+    uint8_t gapless;
 };
 
 /*
@@ -421,6 +453,14 @@ static int mp3_probe(const uint8_t *data, size_t size, uint64_t total_size,
     info->output_channels = 2u;
     info->output_bits = 16u;
     info->flags = HELIKON_CODEC_FLAG_SEEK;
+    if (xing.lame != 0u && xing.frames != 0u) {
+        const uint64_t total = (uint64_t)xing.frames * head.frame_samples;
+        if (total > (uint64_t)xing.delay + xing.padding) {
+            info->flags |= HELIKON_CODEC_FLAG_GAPLESS;
+            info->encoder_delay = xing.delay;
+            info->padding = xing.padding;
+        }
+    }
     if (xing.valid && xing.frames != 0u) {
         info->total_frames = xing.frames * head.frame_samples;
     } else if (head.frame_bytes != 0u) {
@@ -461,6 +501,11 @@ static void mp3_fill_info(struct helikon_codec *codec,
     codec->info.output_bits = 16u;
     codec->info.workspace_bytes = sizeof(struct mp3_state);
     codec->info.flags = HELIKON_CODEC_FLAG_SEEK;
+    if (state->gapless != 0u) {
+        codec->info.flags |= HELIKON_CODEC_FLAG_GAPLESS;
+        codec->info.encoder_delay = state->xing.delay;
+        codec->info.padding = state->xing.padding;
+    }
 
     const uint64_t stream_bytes =
         state->source->size > state->audio_start
@@ -543,6 +588,20 @@ static int mp3_open(struct helikon_codec *codec, void *workspace,
     if (state->xing.valid)
         state->skip_frames_left = 1u;
 
+    /* Gapless bookkeeping: the LAME tag counts every frame's samples, so
+     * the playable length is total - delay - padding. */
+    if (state->xing.lame != 0u && state->xing.frames != 0u) {
+        const uint64_t total = (uint64_t)state->xing.frames *
+                               state->head.frame_samples;
+        const uint64_t trim = (uint64_t)state->xing.delay +
+                              state->xing.padding;
+        if (total > trim) {
+            state->gapless = 1u;
+            state->trim_skip = state->xing.delay;
+            state->emit_limit = (uint32_t)(total - trim);
+        }
+    }
+
     state->frame_index = 0u;
     mp3_fill_info(codec, state);
     codec->state = state;
@@ -585,15 +644,36 @@ static int mp3_read(struct helikon_codec *codec, int16_t *pcm,
     struct mp3_state *state = codec->state;
     *frames = 0u;
     for (;;) {
+        if (state->gapless != 0u && state->emitted >= state->emit_limit)
+            return HELIKON_OK; /* trimmed end of stream */
         if (max_frames != 0u && state->synth_part < state->synth.pcm.length) {
-            if (state->skip_frames_left == 0u) {
-                *frames = mp3_emit(state, pcm, max_frames);
-                return HELIKON_OK;
+            if (state->skip_frames_left != 0u) {
+                state->skip_frames_left = 0u;
+                state->synth_part = (unsigned int)state->synth.pcm.length;
+                continue;
             }
-            state->skip_frames_left = 0u;
-            state->synth_part = (unsigned int)state->synth.pcm.length;
-            /* Falling through counts the skipped frame's samples. */
-            state->frame_index += state->synth.pcm.length;
+            if (state->trim_skip != 0u) {
+                const uint32_t available =
+                    state->synth.pcm.length - state->synth_part;
+                const uint32_t drop = available < state->trim_skip
+                                          ? available
+                                          : state->trim_skip;
+                state->synth_part += drop;
+                state->trim_skip -= drop;
+                if (state->synth_part < state->synth.pcm.length) {
+                    /* Still frames left in this block: emit them. */
+                } else {
+                    continue;
+                }
+            }
+            size_t want = max_frames;
+            if (state->gapless != 0u &&
+                state->emit_limit - state->emitted < want) {
+                want = (size_t)(state->emit_limit - state->emitted);
+            }
+            *frames = mp3_emit(state, pcm, want);
+            state->emitted += (uint32_t)*frames;
+            return HELIKON_OK;
         }
         if (state->synth_part >= state->synth.pcm.length) {
             int rc = mad_frame_decode(&state->frame, &state->stream);
@@ -668,6 +748,8 @@ static int mp3_seek(struct helikon_codec *codec, uint32_t frame)
     state->consecutive_errors = 0u;
     state->skip_frames_left = 0u;
     state->tail_active = 0u;
+    state->trim_skip = 0u; /* a seek starts past the encoder delay */
+    state->emitted = frame;
     state->frame_index = frame;
     return HELIKON_OK;
 }
