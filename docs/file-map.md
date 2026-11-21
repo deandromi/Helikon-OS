@@ -43,6 +43,8 @@ Helikon-OS/
     bootstate.c/.h          two-slot boot-state parser/selector
     ed25519.c/.h            verification-only TweetNaCl derivative
     keys.c/.h               public-key table and signature-hook adapter
+    certificate.c/.h        root-signed release-key certificate, rotation and
+                            revocation verification
     firmware_loader.c/.h    read-only manifest/image/bootstate loader
     hfs_loader.c/.h         HFS+ file-read adapter for the loader
     loader_error.c/.h       loader error taxonomy
@@ -164,6 +166,7 @@ Helikon-OS/
       test_loader.c         manifest, SHA-256, bootstate and loader tests
       test_loader_hfs.c     HFS+ file-read adapter tests
       test_ed25519.c        RFC 8032, 192-byte and key-table tests
+      test_certificate.c    certificate/rotation/revocation verification tests
   tests/musicdb/
     Makefile                HelikonDB fixture and reader test
     test_hdb.c              fixture + optional real-library checks
@@ -362,6 +365,7 @@ is created; do not let it drift.
 | `tools/build-loader-bootloader.sh` | Render the DFU-only loader test image and signed test files | boot lead | D-01, D-02, T-049, `bootloader/LOADER_TEST.md` | test key reuse, manifest signature, image/marker/`MOVE_AREA`, HFS+ artifact check, `mks5lboot` dry-run | Test key stays under `build/`; only the public half is linked; device runs recorded in `docs/device-matrix.md`; production handoff disabled |
 | `tools/check-loader-artifact.sh` | Verify the exact loader test artifact through the host HFS+ core | boot lead | T-049 | disposable HFS+ image, `fsck_hfs`, `loader: OK`, `bootstate: GOOD` | Host-only; never touches a device |
 | `tools/check-f2-artifact.sh` | Verify the exact F2 image/manifest/TRYING bootstate through the write path and host loader core | firmware/HFS+ lead | T-055, D-02, `docs/f2-bootstate-test.md` | `DEFAULT` before, promotion to `GOOD`, clean `fsck_hfs`, loader `GOOD`, unchanged manifest/image | Host-only; never touches a device |
+| `tools/make-key-certificate.py` | Mint a root-signed release-key certificate or a revocation bundle offline | boot/release | D-20, T-053, `bootloader/LOADER.md` §2.1 | 120-byte certificate or 140-byte bundle, raw/hex/C output, deterministic for a given key and fields | Host tool only; the root private key stays offline and is never committed |
 | `tools/make-firmware-image.py` | Build the F1/F2 manifest, bootstate and signed development image | firmware/release lead | D-01, D-02, ADR-0004, T-054, T-055 | Ed25519 signature, bootstate checksum, `VERSION`, `BOOTSTATE_STATE`, loader host-core verification | Development key only; never commit the private key; not a release image |
 | `tools/firmware-size.py` | Print the F1 map/size/headroom and check undefined symbols | firmware lead | ADR-0003, T-054 | `__image_end`, `__bss_end`, raw-size equality, banned hosted symbols | Host check only; not a device measurement |
 | `tools/make-bootloader-splash.py` | Generate the pre-final owner splash PNG variants and 4bpp C data | boot/UI | T-045 | version, label mask, palette, packed base, preview | Requires the owner-provided ITC Benguiat file; font is not committed; historical design only |

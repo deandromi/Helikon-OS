@@ -36,6 +36,12 @@ ED25519_SOURCES = test_ed25519.c ../../bootloader/ed25519.c \
 ED25519_HEADERS = ../../bootloader/ed25519.h ../../bootloader/keys.h \
                   ../hfsplus/test_check.h
 
+CERTIFICATE_SOURCES = test_certificate.c ../../bootloader/certificate.c \
+                      ../../bootloader/ed25519.c ../../bootloader/keys.c
+CERTIFICATE_HEADERS = ../../bootloader/certificate.h \
+                      ../../bootloader/ed25519.h ../../bootloader/keys.h \
+                      ../hfsplus/test_check.h
+
 HFS_LOADER_SOURCES = test_loader_hfs.c ../hfsplus/test_image.c \
                      ../hfsplus/test_fs_image.c ../../bootloader/hfs_loader.c \
                      ../../bootloader/loader_error.c $(HFS)/hfs_catalog.c \
@@ -51,7 +57,8 @@ HFS_LOADER_HEADERS = ../../bootloader/hfs_loader.h \
 
 .PHONY: all test sanitize clean
 
-all: test_diag test_inner_image test_loader test_loader_hfs test_ed25519
+all: test_diag test_inner_image test_loader test_loader_hfs test_ed25519 \
+     test_certificate
 
 test_diag: $(SOURCES) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SOURCES) $(LDFLAGS) -o $@
@@ -68,12 +75,17 @@ test_loader_hfs: $(HFS_LOADER_SOURCES) $(HFS_LOADER_HEADERS)
 test_ed25519: $(ED25519_SOURCES) $(ED25519_HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(ED25519_SOURCES) $(LDFLAGS) -o $@
 
-test: test_diag test_inner_image test_loader test_loader_hfs test_ed25519
+test_certificate: $(CERTIFICATE_SOURCES) $(CERTIFICATE_HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(CERTIFICATE_SOURCES) $(LDFLAGS) -o $@
+
+test: test_diag test_inner_image test_loader test_loader_hfs test_ed25519 \
+      test_certificate
 	./test_diag
 	./test_inner_image
 	./test_loader
 	./test_loader_hfs
 	./test_ed25519
+	./test_certificate
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)
@@ -91,4 +103,5 @@ sanitize:
 	$(MAKE) CFLAGS='$(SAN_CFLAGS)' LDFLAGS='$(SAN_LDFLAGS)' test
 
 clean:
-	rm -rf test_diag test_inner_image test_loader test_loader_hfs test_ed25519 *.dSYM
+	rm -rf test_diag test_inner_image test_loader test_loader_hfs test_ed25519 \
+	       test_certificate *.dSYM

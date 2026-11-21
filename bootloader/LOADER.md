@@ -54,11 +54,81 @@ Rules:
   is never release-eligible.
 - `key ID` is resolved through the public-key table; unknown IDs fail closed.
   The current test image uses a build-local test-key table. The accepted D-20
-  policy is an offline Ed25519 root plus a certified release key; the
-  certificate/revocation verifier is T-053 and is not in the test image.
+  policy is an offline Ed25519 root plus a certified release key. The verifier
+  for that chain is implemented and host-tested
+  (`bootloader/certificate.c`); the loader test image still resolves the
+  build-local key directly, because switching its trust path needs the owner's
+  root key and a fresh device run. See §2.1.
 - A bad magic, version, board, image version, load address, size, hash,
   signature, key ID or flag is a hard failure. Do not fall through to an
   unsigned image.
+
+## 2.1 Root, release key, rotation and revocation (T-053)
+
+The manifest names one `key_id`. In a release build that id is not a key in a
+table but the subject of a certificate signed by the offline root (D-20). This
+section is the wire format and the policy; `bootloader/certificate.c` implements
+verification only — there is no signing path, no key generation and no clock in
+the loader.
+
+**Certificate, 120 bytes, big-endian.**
+
+| Offset | Size | Field |
+|---|---|---|
+| 0 | 4 | version, 1 |
+| 4 | 4 | key ID the certificate certifies |
+| 8 | 4 | issuer ID, which must be a root the build carries |
+| 12 | 4 | first image version it may sign, inclusive |
+| 16 | 4 | last image version it may sign, inclusive |
+| 20 | 4 | flags: bit 0 = may sign development images; other bits must be zero |
+| 24 | 32 | certified Ed25519 public key |
+| 56 | 64 | Ed25519 signature by the issuer over bytes 0–55 |
+
+**Revocation bundle, 140 bytes, big-endian.**
+
+| Offset | Size | Field |
+|---|---|---|
+| 0 | 4 | version, 1 |
+| 4 | 4 | serial, for a host-side audit trail |
+| 8 | 4 | count, 0–16 |
+| 12 | 64 | revoked key IDs; unused slots must be zero |
+| 76 | 64 | Ed25519 signature by a root over bytes 0–75 |
+
+**Rotation is by image version, not by date.** A bootloader has no trusted
+clock, so an expiry date could only be checked against a value an attacker
+supplies. A certificate instead binds a release key to an inclusive range of
+*signed* manifest image versions: the new key takes over from a version the
+release process chooses, and the old one is refused from there. Two certificates
+may carry the same key ID only when their ranges do not overlap; at boot the
+store picks the certificate whose range covers the manifest's version. Revocation
+is separate: a key ID in a valid bundle is refused even when its certificate is
+current, which is the path a leaked release key needs.
+
+**Fail-closed rules** (`helikon_key_store_verify`):
+
+- No roots, no certificate for the id, or a certificate whose range does not
+  cover the image version: reject.
+- A certificate whose issuer is not a carried root, whose signature does not
+  verify, whose version is not 1, whose range is empty, or whose flag bits are
+  undefined: reject.
+- A revocation bundle that is present but does not authenticate: reject
+  everything, not just the listed ids.
+- A revoked id: reject.
+- Otherwise verify the manifest signature with the certified key. The store
+  reports a single failure, never which check failed.
+
+**Minting.** `tools/make-key-certificate.py` takes a PKCS8 Ed25519 key and writes
+the bytes above (raw, hex or a C initialiser). The host keeps the root private
+key offline; the repository carries no private key. The test vectors in
+`tests/bootloader/test_certificate.c` are minted from throwaway seeds with the
+same tool, which is why the tool and the tests agree byte for byte.
+
+**What is not wired yet.** `bootloader/hardware/helikon_loader_hw.c` still passes
+`helikon_key_table_verify` with the build-local table. Switching it to a
+`struct helikon_key_store` needs the owner's root public key, the certificate
+list that names the first release key, and a fresh loader device run; T-053 stays
+`in progress` until then. No behaviour of the existing test image changes before
+that swap.
 
 ## 3. Boot state
 
@@ -210,6 +280,10 @@ Tests cover:
 - the HFS+ file-read adapter (`tests/bootloader/test_loader_hfs.c`);
 - a disposable macOS HFS+ volume with a real generated key, a GOOD bootstate,
   a wrong key and an unknown key ID (`tests/image/run-loader-macos.sh`);
+- a certificate and revocation bundle minted with
+  `tools/make-key-certificate.py`: parse, root signature, version range,
+  rotation with two ranges on one key ID, revoked key, unauthenticated bundle,
+  foreign issuer and tampered fields (`tests/bootloader/test_certificate.c`);
 - the exact generated loader-test files through the HFS+ core
   (`tools/check-loader-artifact.sh`).
 

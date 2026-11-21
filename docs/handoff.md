@@ -12,6 +12,55 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (eighteenth block: a certificate chain for the release key)
+
+## What happened
+
+- `bootloader/certificate.c/.h` implements the D-20 chain: a 120-byte
+  root-signed release-key certificate (key ID, issuer ID, inclusive
+  image-version range, flags, certified key, signature) and a 140-byte
+  root-signed revocation bundle, plus `helikon_key_store_verify` as the
+  `helikon_signature_verify_fn` the manifest check already takes.
+- Rotation is by **signed image version**, not by date. The loader has no
+  trusted clock, so an expiry date could only be compared against a value an
+  attacker supplies; a version range is signed, deterministic and testable. Two
+  certificates may name one key ID only when their windows do not overlap, and
+  the store picks the one covering the booting image.
+- Fail-closed rules: unknown issuer, bad signature, unknown format version,
+  empty range, undefined flag bits, a certificate that does not cover the
+  version, a revoked ID, and a revocation bundle that is present but does not
+  authenticate — the last one rejects every key, not just the listed ones.
+- `tools/make-key-certificate.py` mints both structures offline from a PKCS8
+  key (raw, hex or a C initialiser). Ed25519 is deterministic, so the committed
+  test vectors can be reproduced from the throwaway seeds in the test comment.
+- `tests/bootloader/test_certificate.c`: 11 tests — parse and root signature,
+  version range, tampered signature/key/range bytes, bad version and flag bits,
+  foreign issuer, empty root table, revocation parse/verify/tamper/non-canonical
+  slot, store resolution, store version range, store rotation across two
+  windows, revoked key, unauthenticated bundle, and bad arguments.
+
+## Evidence (host only, no device run)
+
+- `tests/bootloader` test + sanitize: PASS (42 bootloader tests, 11 of them new);
+  the rest of the matrix is unchanged and green.
+- No firmware image changed: the hardware loader still resolves the build-local
+  key table, so the existing loader-test image and its owner-reported runs are
+  untouched.
+
+## Open / next
+
+- Wiring the store into `bootloader/hardware/helikon_loader_hw.c` needs the
+  owner's root public key and the certificate naming the first release key, plus
+  a recorded loader device run. Until then T-053 is `in progress`, not
+  implemented.
+- The manifest already carries `flags` bit 0 for development images; the
+  certificate has the same bit. The policy that a production certificate may not
+  sign a development manifest is enforced by the caller today and should move
+  into the store when the release build wires it.
+- No device run for any of this.
+
+---
+
 # Handoff — 2026-11-21 (seventeenth block: a file shrinks to any size)
 
 ## What happened

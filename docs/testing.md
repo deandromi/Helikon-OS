@@ -163,6 +163,12 @@ table. `tests/bootloader/test_loader.c` checks SHA-256 vectors, manifest
 magic/board/address/size/hash/signature, a real Ed25519-signed manifest, missing/
 corrupt/truncated boot state and newest-failed fallback.
 `tests/bootloader/test_loader_hfs.c` checks the HFS+ file-read adapter.
+`tests/bootloader/test_certificate.c` checks a root-signed release-key
+certificate and a revocation bundle minted with
+`tools/make-key-certificate.py`: parsing, root signature, image-version range,
+rotation with two ranges on one key ID, a revoked key, an unauthenticated bundle
+that fails closed for every key, a foreign issuer, and tampered payload, key,
+range or signature bytes.
 `tests/hfsplus/test_catalog_index.c` builds two- and three-level catalogs and
 checks nested lookup, shared-leaf descent and cross-subtree leaf scanning. It
 also runs 1,000 deterministic mutations of the catalog header/index/leaf bytes
