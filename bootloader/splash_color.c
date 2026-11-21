@@ -8,13 +8,16 @@
  * Palette: 16 warm greys, 320x240, 4bpp
  *
  * The two owner PNGs differ only in the HFS+ DETAILS label. The label is an
- * alpha mask, composited green, red or neutral at runtime.
+ * alpha mask, composited green, red or neutral at runtime. The palette and the
+ * masks above are generated; the label colours are hand-maintained in
+ * splash_label.h so their contrast can be tested on the host.
  */
 #include "config.h"
 
 #include "splash_color.h"
 
 #include "lcd.h"
+#include "splash_label.h"
 
 #define SPLASH_STRIDE (HELIKON_SPLASH_WIDTH / 2u)
 
@@ -2464,9 +2467,9 @@ static fb_data blend_background(unsigned r, unsigned g, unsigned b,
                                 unsigned alpha)
 {
     /* The label area in the base image is the exact off-white. */
-    unsigned br = 239;
-    unsigned bg = 237;
-    unsigned bb = 229;
+    unsigned br = HELIKON_SPLASH_LABEL_BG_R;
+    unsigned bg = HELIKON_SPLASH_LABEL_BG_G;
+    unsigned bb = HELIKON_SPLASH_LABEL_BG_B;
     unsigned inv = 15u - alpha;
     r = (br * inv + r * alpha + 7u) / 15u;
     g = (bg * inv + g * alpha + 7u) / 15u;
@@ -2485,17 +2488,17 @@ static void splash_draw(int status)
         }
     }
 
-    unsigned r = 107;
-    unsigned g = 102;
-    unsigned b = 92;
+    unsigned r = HELIKON_SPLASH_LABEL_UNKNOWN_R;
+    unsigned g = HELIKON_SPLASH_LABEL_UNKNOWN_G;
+    unsigned b = HELIKON_SPLASH_LABEL_UNKNOWN_B;
     if (status == HELIKON_SPLASH_HFS_OK) {
-        r = 0;
-        g = 191;
-        b = 99;
+        r = HELIKON_SPLASH_LABEL_OK_R;
+        g = HELIKON_SPLASH_LABEL_OK_G;
+        b = HELIKON_SPLASH_LABEL_OK_B;
     } else if (status == HELIKON_SPLASH_HFS_FAIL) {
-        r = 254;
-        g = 49;
-        b = 49;
+        r = HELIKON_SPLASH_LABEL_FAIL_R;
+        g = HELIKON_SPLASH_LABEL_FAIL_G;
+        b = HELIKON_SPLASH_LABEL_FAIL_B;
     }
 
     for (unsigned y = 0; y < HELIKON_SPLASH_HFS_HEIGHT; ++y) {

@@ -4,7 +4,7 @@
 > Status: final Alpha green/red artwork built into the loader image and
 > device-checked; 6.5 s startup and clean `fsck_hfs -fn`.
 > Owner: project owner / boot lead
-> Last updated: 2026-11-04
+> Last updated: 2026-11-21
 > Source: owner final `Bootloader design Version Alpha Green/Red.png`; T-045
 
 ## Files
@@ -26,15 +26,32 @@ the HFS+ label is composited at runtime.
 The 6G LCD is RGB565 and the bootloader `MOVE_AREA` is size-limited, so
 `bootloader/splash_color.c` stores the base as a 16-colour 4bpp image
 (38,400 bytes) plus a 4bpp alpha mask for `HFS+ DETAILS` (324 bytes). The label
-is drawn at runtime in:
+is drawn at runtime in the colours defined in `bootloader/splash_label.h`:
 
-- green `#00BF63` (`0, 191, 99`);
-- red `#FE3131` (`254, 49, 49`);
-- neutral grey `#6B665C` (`107, 102, 92`).
+| State | Colour | Contrast on the label band |
+|---|---|---|
+| HFS+ readable | deep green `#007A3D` (`0, 122, 61`) | 4.65:1 raw, 4.79:1 on panel |
+| HFS+ unreadable | deep red `#C81E1E` (`200, 30, 30`) | 4.89:1 raw, 4.78:1 on panel |
+| probing | neutral grey `#6B665C` (`107, 102, 92`) | 4.87:1 raw, 5.00:1 on panel |
 
 The off-white base is `#EFEDE5` (`239, 237, 229`). The PNGs preserve the full
 source colours; the device uses 16 warm greys because of the LCD/framebuffer
 limit.
+
+The owner green `#00BF63` measured 2.10:1 and the owner red `#FE3131` 3.14:1 on
+that band, which is not readable for a 9 px label. The 2026-11-21 change keeps
+the hues and darkens them to the first step that clears 4.5:1;
+`tests/bootloader/test_splash_color.c` fails the bootloader suite if any label
+colour drops below the floor, and it measures the RGB565 values the panel
+actually shows. The label mask is unchanged, so no owner artwork was redrawn;
+`helikon-os-splash-alpha-quantized.png` still shows the earlier label colours
+because it can only be regenerated from the owner PNGs.
+
+**Open issue.** The two states differ only in colour, at nearly identical
+luminance, so a reader with red/green colour blindness cannot tell a readable
+volume from an unreadable one. Fixing that needs different words or a shape in
+the label mask, which are baked into the owner artwork: it is an owner
+decision, not a code change.
 
 ## Font
 

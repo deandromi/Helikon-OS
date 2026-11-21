@@ -2,8 +2,11 @@
 
 > Purpose: install and run the read-only firmware-loader test image on an iPod
 > Classic 6G, record the result, and recover.
-> Status: current fast loader build `7f13e7e5…` (106,184 bytes) is host-verified,
-> not device-tested. The last device-tested image is final-splash `6bc6927c…`
+> Status: current build `8c161d0e…` (106,760 bytes) is host-verified, not
+> device-tested. It carries the 2026-11-21 HFS+ label colours (deep green
+> `#007A3D` and deep red `#C81E1E`, both ≥4.5:1 on the label band, guarded by
+> `tests/bootloader/test_splash_color.c`) instead of the owner green/red at
+> 2.10:1 and 3.14:1. The last device-tested image is final-splash `6bc6927c…`
 > (one 6G/iFlash SD, 6.5 s startup, `fsck_hfs -fn` clean). The success path no
 > longer shows the firmware confirmation or "Executing signed test payload"
 > screens and has no fixed delay: it jumps as soon as verification completes.
@@ -11,7 +14,7 @@
 > variant); the controller is left active before the jump. The boot
 > button-hold wait is shortened from 400 ms to 50 ms.
 > Owner: boot lead
-> Last updated: 2026-11-05
+> Last updated: 2026-11-21
 > Source: D-01, D-02, T-049; [`LOADER.md`](LOADER.md), [`DFU.md`](DFU.md)
 
 This is a **development test image**, not a production bootloader and not a
