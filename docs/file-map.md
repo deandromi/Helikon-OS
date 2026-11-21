@@ -174,9 +174,13 @@ Helikon-OS/
     Makefile                HelikonDB fixture and reader test
     test_hdb.c              fixture + optional real-library checks
   tests/library/
-    Makefile                HFS+ -> VFS -> HDB storage-path test
-    test_library.c          mounts an image, opens /.helikon/music.hdb
-    run-library-macos.sh    disposable hdiutil image + fsck_hfs runner
+    Makefile                HFS+ -> VFS -> HDB and audio storage-path test
+                            (plus `macos-sanitize`)
+    test_library.c          mounts an image, reads /.helikon/music.hdb, then
+                            decodes /Music/first.mp3 through the read-ahead
+                            window and compares it with a resident decode
+    run-library-macos.sh    disposable hdiutil image + fsck_hfs runner; copies
+                            the audio fixture into the volume
   tests/ui/
     Makefile                launcher, Music, artist and audio host previews
     test_launcher.c         launcher render and checks

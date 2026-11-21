@@ -12,6 +12,54 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (twenty-sixth block: audio is decoded from a real volume, not a fake)
+
+## What happened
+
+- T-058's "no storage-backed playback" line is now narrower: the whole chain
+  HFS+ → VFS → `vfs_media` → read-ahead window → codec → player ring is executed
+  on a real journaled HFS+ volume, on the host, with the PCM required to match.
+- `tests/library` already mounted a real `hdiutil` image to read the catalog. It
+  now also decodes audio from it: `run-library-macos.sh` copies
+  `tests/codec/fixtures/mp3_cbr_stereo16.mp3` to `/Music/first.mp3` before the
+  volume is unmounted and `fsck_hfs` checked, and `test_library.c` opens that
+  path through the VFS, wraps it in the read-ahead window and plays it through
+  `helikon_player_open_media` with a silent host HAL (no DMA, I2S or PMU).
+- The assertion is differential: the same bytes are also read back into a
+  resident buffer and decoded there, and the two PCM streams must be identical
+  frame for frame. A VFS splice, extent or window error cannot pass it, and a
+  decoder that read past the end would diverge immediately.
+- New `macos-sanitize` target (and `SAN=1` support in the Makefile) runs the same
+  image test under ASan and UBSan. The script now always rebuilds the binary
+  first, because the target does not track `CFLAGS` and a sanitizer run must
+  never silently reuse the plain build.
+
+## Evidence (host only, no device run)
+
+- `make -C tests/library macos` → `PASS library: HFS+ -> VFS -> HDB (6 tracks,
+  3 albums, CRC OK) and audio decodes from the volume`; `fsck_hfs -fn` reports
+  the volume OK with no repair.
+- `make -C tests/library macos-sanitize` PASS, with the ASan runtime linked
+  (`otool -L` shows `libclang_rt.asan_osx_dy…`).
+- The rest of the matrix is unchanged and was re-run: `tests/{firmware,hfsplus,
+  vfs,codec,musicdb,player,ui}`, `tests/image`, `tests/bootloader`.
+- Docs: `audio-formats.md` §22, `testing.md` (the library section and the
+  `libmad.mk` includer list), `file-map.md`, `tasks.md` T-058, `state.md`.
+
+## Open / next
+
+- The Music hub still plays its embedded blob. The next T-058 step is the call
+  site: resolve the selected track to `hdb_track.path`, open it through the VFS
+  and call `helikon_player_open_media`, keeping the embedded blob as the fallback
+  when there is no volume. That needs a VFS parameter on `helikon_music_run` and
+  its two callers (`launcher_run.c`, `firmware_main.c`), plus the UI tests
+  updated for the NULL case.
+- After that: next/previous with a queue, an underrun/read-latency measurement,
+  then a device run. T-059's device half still waits on a real signed firmware
+  image (T-051, blocked with T-055).
+
+---
+
 # Handoff — 2026-11-21 (twenty-fifth block: the state row pays its debt)
 
 ## What happened
