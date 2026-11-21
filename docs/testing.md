@@ -243,10 +243,12 @@ both wall headers and frames, the tracks header, the artist tab
 underline/covers/track row, the monogram fallback, the playback progress bar
 and the player chunk/position logic.
 
-The WAV container and player state are host-tested separately:
+The WAV container and player state are host-tested separately, including the
+pull-source open (`helikon_player_open_media`) and the short-read WAV path:
 
 ```sh
 make -C tests/player test
+make -C tests/player sanitize
 ```
 
 Every host suite that links `firmware/codec/codec.c` also links the vendored

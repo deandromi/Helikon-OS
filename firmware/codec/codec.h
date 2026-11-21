@@ -142,6 +142,16 @@ int helikon_codec_open_source(struct helikon_codec *codec,
                               const struct helikon_codec_source *source,
                               void *workspace, size_t workspace_size);
 /*
+ * Probes through a source and returns the descriptor whose open can serve it.
+ * A descriptor that answers NEED_MORE is accepted (its open resolves the
+ * head); `info` is then left empty and open fills `codec->info`. Reads the
+ * head into one shared buffer, so this is not reentrant: the firmware is
+ * single-threaded by contract.
+ */
+int helikon_codec_probe_source(const struct helikon_codec_source *source,
+                               const struct helikon_codec_ops **ops,
+                               struct helikon_codec_info *info);
+/*
  * Returns 1 and the whole stream when the open codec's data is one
  * contiguous buffer, 0 for a streaming source. Used by whole-buffer decoders
  * that have not been converted yet.

@@ -100,12 +100,27 @@ static int wav_read(struct helikon_codec *codec, int16_t *pcm,
      * little-endian, so the payload becomes int16 samples by copy.
      */
     if (state->wav.channels == 2u) {
-        size_t got = 0u;
-        int rc = codec->source->read_at(codec->source->context, offset, pcm,
-                                        count * frame_bytes, &got);
-        if (rc != HELIKON_OK)
-            return rc;
-        count = got / frame_bytes;
+        /*
+         * A media adapter may answer with less than asked (a short read, a
+         * chunked test source, a sector-aligned window). Keep pulling until
+         * the request is met or the source reports nothing left; offsets are
+         * absolute, so a trailing partial frame is simply read again.
+         */
+        size_t done = 0u;
+        while (done < count) {
+            size_t got = 0u;
+            int rc = codec->source->read_at(codec->source->context,
+                                            offset + done * frame_bytes,
+                                            pcm + done * 2u,
+                                            (count - done) * frame_bytes, &got);
+            if (rc != HELIKON_OK)
+                return rc;
+            size_t batch = got / frame_bytes;
+            if (batch == 0u)
+                break;
+            done += batch;
+        }
+        count = done;
     } else {
         int16_t mono[256];
         size_t done = 0u;
@@ -262,6 +277,47 @@ int helikon_codec_probe(const uint8_t *data, size_t size,
             continue;
         if (rc == HELIKON_OK) {
             *ops = codec_registry[index];
+            return HELIKON_OK;
+        }
+        return rc;
+    }
+    return HELIKON_ERR_UNSUPPORTED;
+}
+
+int helikon_codec_probe_source(const struct helikon_codec_source *source,
+                               const struct helikon_codec_ops **ops,
+                               struct helikon_codec_info *info)
+{
+    if (source == NULL || source->read_at == NULL || ops == NULL ||
+        info == NULL)
+        return HELIKON_ERR_ARGUMENT;
+
+    static uint8_t head[HELIKON_CODEC_PROBE_BYTES];
+    uint64_t limit = source->size != 0u && source->size < sizeof(head)
+                         ? source->size
+                         : sizeof(head);
+    size_t got = 0u;
+    int rc = source->read_at(source->context, 0u, head, (size_t)limit, &got);
+    if (rc != HELIKON_OK)
+        return rc;
+    if (got == 0u)
+        return HELIKON_ERR_UNSUPPORTED;
+
+    for (size_t index = 0u;
+         index < sizeof(codec_registry) / sizeof(codec_registry[0]); ++index) {
+        const struct helikon_codec_ops *candidate = codec_registry[index];
+        rc = candidate->probe(head, got, source->size, info);
+        if (rc == HELIKON_ERR_NOT_FOUND)
+            continue;
+        if (rc == HELIKON_ERR_NEED_MORE) {
+            if (!candidate->streaming)
+                continue;
+            helikon_memset(info, 0, sizeof(*info));
+            *ops = candidate;
+            return HELIKON_OK;
+        }
+        if (rc == HELIKON_OK) {
+            *ops = candidate;
             return HELIKON_OK;
         }
         return rc;

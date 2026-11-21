@@ -18,6 +18,35 @@ static int player_pcm_source(void *context, int16_t *pcm, size_t max_frames,
     return rc;
 }
 
+/*
+ * Brings up the audio HAL for whatever the codec/wav fields now describe.
+ * Shared by the buffer and media opens so the two paths cannot drift.
+ */
+static int player_start_audio(struct helikon_player *player,
+                              struct helikon_pmu *pmu,
+                              struct helikon_clock *clock, uint32_t timeout_ms)
+{
+    int rc = helikon_audio_init(&player->audio, pmu, clock, timeout_ms);
+    if (rc != HELIKON_OK) {
+        player->last_error = rc;
+        player->last_stage = player->audio.stage;
+        if (player->compressed)
+            helikon_codec_close(&player->codec);
+        return rc;
+    }
+    rc = helikon_audio_set_rate(&player->audio, player->wav.sample_rate);
+    if (rc != HELIKON_OK) {
+        player->last_error = rc;
+        player->last_stage = player->audio.stage;
+        helikon_audio_stream_stop(&player->audio);
+        if (player->compressed)
+            helikon_codec_close(&player->codec);
+        return rc;
+    }
+    player->opened = 1;
+    return HELIKON_OK;
+}
+
 int helikon_player_open(struct helikon_player *player, const uint8_t *data,
                         size_t size, struct helikon_pmu *pmu,
                         struct helikon_clock *clock, uint32_t timeout_ms)
@@ -62,25 +91,55 @@ int helikon_player_open(struct helikon_player *player, const uint8_t *data,
         player->wav.bytes = 0u;
     }
 
-    rc = helikon_audio_init(&player->audio, pmu, clock, timeout_ms);
+    return player_start_audio(player, pmu, clock, timeout_ms);
+}
+
+int helikon_player_open_media(struct helikon_player *player,
+                              const struct helikon_codec_source *source,
+                              struct helikon_pmu *pmu,
+                              struct helikon_clock *clock, uint32_t timeout_ms)
+{
+    if (player == NULL || source == NULL || source->read_at == NULL)
+        return HELIKON_ERR_ARGUMENT;
+
+    player->opened = 0;
+    player->started = 0;
+    player->compressed = 0;
+    player->offset = 0u;
+    player->last_error = HELIKON_OK;
+    player->last_stage = HELIKON_AUDIO_STAGE_NONE;
+    player->audio.stage = HELIKON_AUDIO_STAGE_NONE;
+
+    const struct helikon_codec_ops *ops = NULL;
+    struct helikon_codec_info info;
+    int rc = helikon_codec_probe_source(source, &ops, &info);
     if (rc != HELIKON_OK) {
         player->last_error = rc;
-        player->last_stage = player->audio.stage;
-        if (player->compressed)
-            helikon_codec_close(&player->codec);
+        if (rc == HELIKON_ERR_UNSUPPORTED)
+            player->last_stage = HELIKON_AUDIO_STAGE_NONE;
         return rc;
     }
-    rc = helikon_audio_set_rate(&player->audio, player->wav.sample_rate);
+
+    rc = helikon_codec_open_source(&player->codec, ops, source,
+                                   player->codec_workspace,
+                                   sizeof(player->codec_workspace));
     if (rc != HELIKON_OK) {
         player->last_error = rc;
-        player->last_stage = player->audio.stage;
-        helikon_audio_stream_stop(&player->audio);
-        if (player->compressed)
-            helikon_codec_close(&player->codec);
+        player->last_stage = HELIKON_AUDIO_STAGE_CODEC_DATA;
         return rc;
     }
-    player->opened = 1;
-    return HELIKON_OK;
+
+    /* Open is authoritative: a NEED_MORE probe filled no info. */
+    const struct helikon_codec_info *opened = &player->codec.info;
+    player->compressed = 1;
+    player->wav.pcm = NULL;
+    player->wav.pcm_offset = 0u;
+    player->wav.bytes = 0u;
+    player->wav.sample_rate = opened->sample_rate;
+    player->wav.duration_ms = opened->duration_ms;
+    player->wav.channels = 2u;
+    player->wav.bits = 16u;
+    return player_start_audio(player, pmu, clock, timeout_ms);
 }
 
 int helikon_player_play_chunk(struct helikon_player *player,

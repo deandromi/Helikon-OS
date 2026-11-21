@@ -33,6 +33,16 @@ struct helikon_player {
 int helikon_player_open(struct helikon_player *player, const uint8_t *data,
                         size_t size, struct helikon_pmu *pmu,
                         struct helikon_clock *clock, uint32_t timeout_ms);
+/*
+ * Opens audio from a pull source (the VFS media adapter, a test media, or any
+ * other `read_at`). The source must outlive the player: the open codec keeps
+ * the pointer. Unlike the buffer form this needs no resident file, and a
+ * descriptor whose probe needs more than a head is resolved by open.
+ */
+int helikon_player_open_media(struct helikon_player *player,
+                              const struct helikon_codec_source *source,
+                              struct helikon_pmu *pmu,
+                              struct helikon_clock *clock, uint32_t timeout_ms);
 int helikon_player_play_chunk(struct helikon_player *player,
                               uint32_t max_frames);
 int helikon_player_pause(struct helikon_player *player);

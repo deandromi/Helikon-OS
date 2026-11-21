@@ -2,20 +2,28 @@
 # Host tests for the player container parser and bounded player.
 
 CC ?= cc
-CFLAGS := -O2 -g -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow \
-          -Wundef -Wpointer-arith -I../../firmware/player -I../../firmware/lib \
-          -I../../firmware/hal/6g -I../../firmware/codec -I../../firmware/codec/flac \
-          -I../../firmware/codec/mp3 -I../../firmware/codec/libmad
+BASE_CFLAGS := -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow \
+               -Wundef -Wpointer-arith -I../../firmware/player \
+               -I../../firmware/lib -I../../firmware/hal/6g \
+               -I../../firmware/codec -I../../firmware/codec/flac \
+               -I../../firmware/codec/mp3 -I../../firmware/codec/libmad
+CFLAGS ?= -O2 -g
+CFLAGS += $(BASE_CFLAGS) $(EXTRA_CFLAGS)
 
 # codec.c's registry references the MP3 descriptor, so every suite that links
 # the codec layer needs the libmad objects even when it decodes no MP3.
 include ../libmad.mk
 
-.PHONY: test clean
+.PHONY: test sanitize clean
 
 test: test_wav test_player
 	./test_wav
 	./test_player
+
+# The media path links the codec registry (libmad included), so it runs under
+# the same sanitizers as the codec suite.
+sanitize: clean
+	$(MAKE) EXTRA_CFLAGS="-O1 -fsanitize=address,undefined -fno-omit-frame-pointer" test
 
 test_wav: test_wav.c ../../firmware/player/wav.c ../../firmware/player/wav.h \
           ../../firmware/lib/mem.c
