@@ -133,13 +133,17 @@ That is catalog corruption even if the file "looks fine" on the device.
 
 Implementation notes (2026-11-21, host-verified):
 
-- **An append must start from every existing extent.** `hfs_catalog_append_file()`
-  reads the fork with `hfs_fork_parse()` and then walks the inline extents *and*
-  the overflow records through `collect_fork_extents()`, so a fork that already
-  overflowed keeps growing. The first implementation read only the eight inline
-  extents and rejected the second overflow append with `UNSUPPORTED` because
-  `fork.blocks != inline_blocks`. The list is capped at `APPEND_EXTENT_MAX`
-  (32) extents; a longer fork fails closed instead of truncating silently.
+- **An append edits only the fork and its last overflow record.**
+  `hfs_catalog_append_file()` reads the eight inline extents from the fork and
+  walks the overflow records to the last one (`find_last_overflow_record()`),
+  then adds the new blocks to that tail (`append_tail_extent()`): extend the last
+  extent when it is contiguous, add an inline extent while there is room, add to
+  the tail record while it holds fewer than eight extents, and otherwise flush
+  the full record and open the next one at `start + blocks`. A fork therefore
+  grows to the HFS+ extents limit, not to a writer-local cap. The first
+  implementation read only the inline extents and rejected the second overflow
+  append with `UNSUPPORTED`; the second collected the whole extent list, which
+  capped a fork at 32 extents and staged every record on every append.
 - **A delete frees the fork before it removes the record.**
   `hfs_catalog_delete_file()` truncates the file first: the inline extents and
   the overflow records return their blocks to the bitmap, then the catalog and

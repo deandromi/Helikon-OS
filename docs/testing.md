@@ -108,11 +108,12 @@ existing image or device path. The test:
 - creates a scripted Unicode corpus (NFC/NFD, CJK, emoji, Hangul, combining
   marks, U+2126, U+F900, `:`/`/`, 255-unit and rejected 256-unit names) and
   verifies the macOS NFC tree and `fsck_hfs` clean;
-- creates 24 one-block files, deletes every second one and appends twelve
-  blocks to a new file, so the fork needs eight inline extents plus four
-  single-block overflow extents and the volume's empty extents tree takes its
-  first record; macOS reads the 49,152 bytes back with a per-block pattern, and
-  `fsck_hfs -fn` stays clean;
+- creates 112 one-block files, deletes every second one and appends forty
+  blocks to a new file one call at a time, so the fork needs eight inline
+  extents plus thirty-two single-block overflow extents spread over four
+  overflow records, and the volume's empty extents tree takes its first record;
+  macOS reads the 163,840 bytes back with a per-block pattern, and `fsck_hfs
+  -fn` stays clean;
 - deletes a second overflowed file directly, with no truncate in front of it, so
   the delete path itself frees its inline and overflow blocks;
 - truncates and deletes the first overflow file, requires the extents tree to be
