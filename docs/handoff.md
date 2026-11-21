@@ -12,6 +12,42 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (third block: ID3v2 tag reader)
+
+## What happened
+
+- `firmware/codec/tag/id3v2.{c,h}`: bounded ID3v2.2/v2.3/v2.4 **text** tag
+  reader. `helikon_id3v2_tag_size()` owns the header arithmetic (10-byte
+  header, sync-safe size, optional footer); `helikon_id3v2_parse()` fills a
+  fixed UTF-8 struct (title, artist, album, album artist, genre, year, track,
+  disc, version) with no allocation. Encodings: Latin-1, UTF-16 with/without
+  BOM (surrogate pairs combined, unpaired skipped), UTF-8 (bounded, truncated
+  sequences dropped). Errors: `NOT_FOUND` (no tag), `FORMAT` (frame overruns
+  the tag), `UNSUPPORTED` (unsync/compression/encryption/grouping).
+- The MP3 wrapper now uses `helikon_id3v2_tag_size()` to skip the tag instead
+  of carrying its own copy of the sync-safe arithmetic.
+- `firmware/Makefile` builds `codec/tag/id3v2.c` in the AUDIO player set;
+  `tests/codec`, `tests/vfs` and `tests/player` link it.
+
+## Evidence
+
+- `tests/codec` test + sanitize: PASS, with new cases — v2.3 Latin-1 with a
+  `3/12` pair, v2.4 sync-safe frames with UTF-8 and UTF-16LE+BOM, tag size,
+  missing tag, unsynchronized tag, frame overrun.
+- `tests/vfs`, `tests/player`, `tests/hfsplus`, `tests/firmware`,
+  `tests/bootloader`, `tests/musicdb`: pass.
+- Cross-build: music-hub 767,684 B with the tag reader linked.
+- Host-verified only: **no device run**. No Music-hub caller yet.
+
+## Open / next
+
+- T-099 remainder: APE, Vorbis comments, MP4/ASF, artwork, ReplayGain,
+  chapters, multi-value fields; then wire tags into the library/index and the
+  Music hub.
+- T-058 read-ahead + ring wiring; gapless; ALAC/AAC.
+
+---
+
 # Handoff — 2026-11-21 (second block: FLAC and MP3 stream, VFS feeds the codec)
 
 ## What happened

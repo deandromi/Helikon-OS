@@ -222,6 +222,12 @@ Every task is `planned`; none is a claim that a feature exists.
 > ID3v2 skip by offset (workspace 62,856 B) — and `firmware/player/vfs_media.c`
 > turns an open VFS file into a codec source, proven in `tests/vfs`. Host only;
 > no device run, no audio-ring wiring (`audio-formats.md` §15).
+> T-099 2026-11-21 (first slice): `firmware/codec/tag/id3v2.c` parses ID3v2.2/
+> v2.3/v2.4 text frames into a bounded UTF-8 struct (title, artist, album,
+> album artist, genre, year, track, disc), distinguishes missing/invalid/
+> unsupported tags, and the MP3 wrapper uses its tag-size helper to skip the
+> tag. APE, Vorbis, MP4, artwork, ReplayGain and chapters remain
+> (`audio-formats.md` §16).
 | T-098 | Measure the 6G audio output ceiling. | P1 | T-068, D-50, an audio measurement rig | 16/44.1, 16/48, 24/44.1, 24/48 and 32-bit-float sources are measured through line-out and headphone; the report states what the I2S/DAC path actually preserves, the noise/THD delta, and whether 24-bit output is clean; 24/96 is measured only as a downsample case. | `planned` | audio/test | [audio-formats.md](audio-formats.md) §2, [device-matrix.md](device-matrix.md) |
 | T-099 | Implement metadata, artwork, ReplayGain and cuesheet coverage. | P1 | T-067, T-097, D-51 | ID3v1/v2.2/2.3/2.4, APE, Vorbis, MP4, ASF and codec-specific tags parse with multi-value fields, Unicode normalization, ReplayGain 1.0/2.0, cuesheets and chapters; JPEG/PNG/BMP art is bounded; malformed tags/art fall back safely; no 1,800-byte cap. | `planned` | firmware/library | [audio-formats.md](audio-formats.md) §5.5, [goals.md](goals.md) |
 | T-100 | Implement the per-codec gapless, seek and resume matrix. | P1 | T-097, T-068 | Every Tier 1 and Tier 2 family reports gapless/seek/resume capability; gapless uses encoder delay/padding where available; chiptune subtrack seek is labelled; Shorten returns `SEEK_UNSUPPORTED`; resume survives a power cut; malformed seeks return a specific error. | `planned` | firmware/audio | [audio-formats.md](audio-formats.md) §5.6 |

@@ -4,7 +4,7 @@
 
 CC ?= cc
 CFLAGS := -O2 -g -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow \
-          -Wundef -Wpointer-arith -DHELIKON_HOST_TEST -I../../firmware/codec \
+          -Wundef -Wpointer-arith -DHELIKON_HOST_TEST -I../../firmware/codec -I../../firmware/codec/tag \
           -I../../firmware/codec/flac -I../../firmware/codec/mp3 \
           -I../../firmware/codec/libmad -I../../firmware/lib \
           -I../../firmware/player
@@ -26,11 +26,13 @@ test_src = test_codec.c ../../firmware/codec/codec.c \
            ../../firmware/codec/flac/flac_codec.c \
            ../../firmware/codec/flac/flac_decoder.c \
            ../../firmware/codec/mp3/mp3_codec.c \
+           ../../firmware/codec/tag/id3v2.c \
            ../../firmware/player/wav.c ../../firmware/lib/mem.c
 
 test_deps = $(test_src) ../../firmware/codec/codec.h \
             ../../firmware/codec/flac/flac_decoder.h \
             ../../firmware/codec/mp3/mp3.h \
+            ../../firmware/codec/tag/id3v2.h \
             ../../firmware/codec/libmad/libmad_port.h \
             ../../firmware/player/wav.h ../../firmware/lib/error.h
 

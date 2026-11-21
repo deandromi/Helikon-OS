@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "codec.h"
 #include "flac_decoder.h"
+#include "id3v2.h"
 #include "mp3.h"
 
 #include <stdio.h>
@@ -900,6 +901,148 @@ static int check_mp3_source(void)
     return 0;
 }
 
+
+/* ---------- ID3v2 tags ---------- */
+
+static size_t put_syncsafe(uint8_t *out, size_t value)
+{
+    out[0] = (uint8_t)((value >> 21) & 0x7fu);
+    out[1] = (uint8_t)((value >> 14) & 0x7fu);
+    out[2] = (uint8_t)((value >> 7) & 0x7fu);
+    out[3] = (uint8_t)(value & 0x7fu);
+    return 4u;
+}
+
+/* Appends a v2.3/v2.4 text frame; returns the new length. */
+static size_t put_text_frame(uint8_t *data, size_t offset, const char *id,
+                             uint8_t encoding, const uint8_t *body,
+                             size_t body_length, int v4)
+{
+    helikon_memcpy(data + offset, id, 4u);
+    if (v4) {
+        put_syncsafe(data + offset + 4u, body_length + 1u);
+    } else {
+        const size_t length = body_length + 1u;
+        data[offset + 4] = (uint8_t)(length >> 24);
+        data[offset + 5] = (uint8_t)(length >> 16);
+        data[offset + 6] = (uint8_t)(length >> 8);
+        data[offset + 7] = (uint8_t)length;
+    }
+    data[offset + 8] = 0u;
+    data[offset + 9] = 0u;
+    data[offset + 10] = encoding;
+    helikon_memcpy(data + offset + 11u, body, body_length);
+    return offset + 11u + body_length;
+}
+
+/* Wraps a frame area in an ID3v2 header (version 3 or 4). */
+static size_t wrap_tag(uint8_t *data, size_t frame_bytes, uint8_t version,
+                       uint8_t flags)
+{
+    helikon_memcpy(data, "ID3", 3u);
+    data[3] = version;
+    data[4] = 0u;
+    data[5] = flags;
+    put_syncsafe(data + 6u, frame_bytes);
+    return 10u + frame_bytes;
+}
+
+static int check_id3v2(void)
+{
+    struct helikon_id3v2_tags tags;
+
+    /* v2.3, Latin-1 text and a "3/12" track pair. */
+    size_t offset = 10u;
+    const uint8_t latin1_cafe[] = { 'C', 'a', 'f', 0xe9 };
+    offset = put_text_frame(file_data, offset, "TIT2", 0u, latin1_cafe,
+                            sizeof(latin1_cafe), 0);
+    const uint8_t artist[] = { 'A', 'r', 't', 'i', 's', 't' };
+    offset = put_text_frame(file_data, offset, "TPE1", 0u, artist,
+                            sizeof(artist), 0);
+    const uint8_t album[] = { 'A', 'l', 'b', 'u', 'm' };
+    offset = put_text_frame(file_data, offset, "TALB", 0u, album,
+                            sizeof(album), 0);
+    const uint8_t track[] = { '3', '/', '1', '2' };
+    offset = put_text_frame(file_data, offset, "TRCK", 0u, track,
+                            sizeof(track), 0);
+    const uint8_t year[] = { '2', '0', '0', '4' };
+    offset = put_text_frame(file_data, offset, "TYER", 0u, year,
+                            sizeof(year), 0);
+    size_t size = wrap_tag(file_data, offset - 10u, 3u, 0u);
+
+    if (expect(helikon_id3v2_tag_size(file_data, size) == size,
+               "ID3v2 tag size"))
+        return 1;
+    if (expect(helikon_id3v2_parse(file_data, size, &tags) == HELIKON_OK,
+               "ID3v2 v2.3 parse"))
+        return 1;
+    if (expect(tags.version == 3u && tags.track == 3u && tags.disc == 0u &&
+                   tags.title[0] == 'C' && tags.title[1] == 'a' &&
+                   tags.title[2] == 'f' &&
+                   (uint8_t)tags.title[3] == 0xc3u &&
+                   (uint8_t)tags.title[4] == 0xa9u &&
+                   tags.title[5] == '\0',
+               "ID3v2 Latin-1 title"))
+        return 1;
+    if (expect(helikon_memcmp(tags.artist, "Artist", 6u) == 0 &&
+                   helikon_memcmp(tags.album, "Album", 5u) == 0 &&
+                   helikon_memcmp(tags.year, "2004", 4u) == 0,
+               "ID3v2 v2.3 fields"))
+        return 1;
+
+    /* v2.4, UTF-8 and UTF-16LE-with-BOM, sync-safe frame sizes. */
+    offset = 10u;
+    const uint8_t utf8_title[] = { 'T', 0xc3, 0xaf, 't', 'l', 'e' };
+    offset = put_text_frame(file_data, offset, "TIT2", 3u, utf8_title,
+                            sizeof(utf8_title), 1);
+    const uint8_t utf16_artist[] = { 0xff, 0xfe, 'U', 0x00, 0xdc, 0x00,
+                                     'n', 0x00, 'i', 0x00 };
+    offset = put_text_frame(file_data, offset, "TPE1", 1u, utf16_artist,
+                            sizeof(utf16_artist), 1);
+    size = wrap_tag(file_data, offset - 10u, 4u, 0u);
+
+    if (expect(helikon_id3v2_parse(file_data, size, &tags) == HELIKON_OK,
+               "ID3v2 v2.4 parse"))
+        return 1;
+    if (expect(tags.version == 4u &&
+                   helikon_memcmp(tags.title, "T\xc3\xaftle", 6u) == 0,
+               "ID3v2 UTF-8 title"))
+        return 1;
+    /* LE BOM, U+0055 U+00DC U+006E U+0069 -> "U" + C3 9C + "ni". */
+    if (expect(helikon_memcmp(tags.artist, "U\xc3\x9cni", 5u) == 0,
+               "ID3v2 UTF-16 title"))
+        return 1;
+
+    /* No tag, a truncated tag and an unsupported flag are distinguished. */
+    if (expect(helikon_id3v2_parse((const uint8_t *)"RIFF", 4u, &tags) ==
+                   HELIKON_ERR_NOT_FOUND,
+               "ID3v2 missing"))
+        return 1;
+    if (expect(helikon_id3v2_tag_size(NULL, 0u) == 0u, "ID3v2 null"))
+        return 1;
+
+    const uint8_t unsync[] = { 'I', 'D', '3', 3, 0, 0x80, 0, 0, 0, 0 };
+    if (expect(helikon_id3v2_parse(unsync, sizeof(unsync), &tags) ==
+                   HELIKON_ERR_UNSUPPORTED,
+               "ID3v2 unsynchronization"))
+        return 1;
+
+    /* A frame whose declared length runs past the tag is FORMAT, not a read. */
+    offset = 10u;
+    const uint8_t one[] = { 'x' };
+    offset = put_text_frame(file_data, offset, "TIT2", 0u, one, sizeof(one), 0);
+    size = wrap_tag(file_data, offset - 10u, 3u, 0u);
+    file_data[14] = 0x00u;
+    file_data[15] = 0x00u;
+    file_data[16] = 0x7fu;
+    file_data[17] = 0xffu;
+    if (expect(helikon_id3v2_parse(file_data, size, &tags) ==
+                   HELIKON_ERR_FORMAT,
+               "ID3v2 frame overrun"))
+        return 1;
+    return 0;
+}
+
 static int check_source_contract(void)
 {
     struct fake_media media;
@@ -1073,6 +1216,8 @@ int main(void)
     if (check_flac_source())
         return 1;
     if (check_mp3_source())
+        return 1;
+    if (check_id3v2())
         return 1;
     if (check_source_contract())
         return 1;

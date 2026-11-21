@@ -38,6 +38,7 @@ test_player: test_player.c ../../firmware/player/player.c \
 	      ../../firmware/codec/flac/flac_codec.c \
 	      ../../firmware/codec/flac/flac_decoder.c \
 	      ../../firmware/codec/mp3/mp3_codec.c \
+	      ../../firmware/codec/tag/id3v2.c \
 	      ../../firmware/lib/mem.c $(LIBMAD_OBJ)
 
 clean:

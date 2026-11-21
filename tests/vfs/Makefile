@@ -37,7 +37,8 @@ test_vfs: test_vfs.c $(TH)/test_check.h \
           $(PLAYER)/vfs_media.c $(PLAYER)/vfs_media.h \
           $(CODEC)/codec.c $(CODEC)/codec.h \
           $(CODEC)/flac/flac_codec.c $(CODEC)/flac/flac_decoder.c \
-          $(CODEC)/mp3/mp3_codec.c $(CODEC)/mp3/mp3.h $(PLAYER)/wav.c $(PLAYER)/wav.h $(LIBMAD_OBJ)
+          $(CODEC)/mp3/mp3_codec.c $(CODEC)/mp3/mp3.h $(CODEC)/tag/id3v2.c \
+          $(CODEC)/tag/id3v2.h $(PLAYER)/wav.c $(PLAYER)/wav.h $(LIBMAD_OBJ)
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_vfs.c \
 	  $(TH)/test_image.c $(TH)/test_fs_image.c \
 	  $(VFS)/vfs.c \
@@ -47,6 +48,7 @@ test_vfs: test_vfs.c $(TH)/test_check.h \
 	  $(PLAYER)/vfs_media.c \
 	  $(CODEC)/codec.c $(CODEC)/flac/flac_codec.c \
 	  $(CODEC)/flac/flac_decoder.c $(CODEC)/mp3/mp3_codec.c \
+	  $(CODEC)/tag/id3v2.c \
 	  $(PLAYER)/wav.c $(LIB)/mem.c $(LIBMAD_OBJ) $(LDFLAGS) -o $@
 
 test: $(TESTS)
