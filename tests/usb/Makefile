@@ -23,6 +23,11 @@ SOURCES := test_usb.c \
 
 HAL := ../../firmware/hal/6g
 HAL_SOURCES := test_usb_hal.c $(HAL)/usb.c
+MODE_BIN := test_disk_mode
+MODE_SAN_BIN := test_disk_mode_sanitize
+MODE_SOURCES := test_disk_mode.c $(USB)/disk_mode.c $(USB)/usb_control.c \
+               $(USB)/usb_descriptors.c $(USB)/usb_msc.c \
+               $(BLOCK)/block.c $(BLOCK)/bounce.c $(LIB)/mem.c $(LIB)/string.c
 
 .PHONY: all test sanitize clean
 
@@ -32,9 +37,10 @@ $(BIN): $(SOURCES) $(USB)/usb_descriptors.h $(USB)/usb_control.h \
         $(USB)/usb_msc.h $(BLOCK)/block.h
 	$(CC) $(CFLAGS) -o $@ $(SOURCES)
 
-test: $(BIN) $(HAL_BIN)
+test: $(BIN) $(HAL_BIN) $(MODE_BIN)
 	./$(BIN)
 	./$(HAL_BIN)
+	./$(MODE_BIN)
 
 # A separate binary, so a sanitizer build never leaves a poisoned `test_usb`
 # behind for the next `make test`.
@@ -50,13 +56,25 @@ $(HAL_SAN_BIN): $(HAL_SOURCES) $(HAL)/usb.h $(HAL)/usb_hw.h
 	$(CC) $(CFLAGS) -O1 -fsanitize=address,undefined -fno-omit-frame-pointer \
 	    -o $@ $(HAL_SOURCES)
 
+$(MODE_BIN): $(MODE_SOURCES) $(USB)/disk_mode.h $(USB)/usb_msc.h \
+        $(USB)/usb_control.h $(BLOCK)/block.h
+	$(CC) $(CFLAGS) -o $@ $(MODE_SOURCES)
+
+$(MODE_SAN_BIN): $(MODE_SOURCES) $(USB)/disk_mode.h $(USB)/usb_msc.h \
+        $(USB)/usb_control.h $(BLOCK)/block.h
+	$(CC) $(CFLAGS) -O1 -fsanitize=address,undefined -fno-omit-frame-pointer \
+	    -o $@ $(MODE_SOURCES)
+
 sanitize:
 	$(MAKE) clean
 	$(MAKE) $(SAN_BIN)
 	./$(SAN_BIN)
 	$(MAKE) $(HAL_SAN_BIN)
 	./$(HAL_SAN_BIN)
+	$(MAKE) $(MODE_SAN_BIN)
+	./$(MODE_SAN_BIN)
 
 clean:
-	rm -f $(BIN) $(SAN_BIN) $(HAL_BIN) $(HAL_SAN_BIN)
-	rm -rf $(BIN).dSYM $(SAN_BIN).dSYM $(HAL_BIN).dSYM $(HAL_SAN_BIN).dSYM
+	rm -f $(BIN) $(SAN_BIN) $(HAL_BIN) $(HAL_SAN_BIN) $(MODE_BIN) $(MODE_SAN_BIN)
+	rm -rf $(BIN).dSYM $(SAN_BIN).dSYM $(HAL_BIN).dSYM $(HAL_SAN_BIN).dSYM \
+	    $(MODE_BIN).dSYM $(MODE_SAN_BIN).dSYM
