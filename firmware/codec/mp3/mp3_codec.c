@@ -20,6 +20,7 @@
 
 #include "error.h"
 #include "mem.h"
+#include "tag/id3v2.h"
 
 /* Bound on consecutive recoverable errors before a file is declared bad. */
 #define MP3_MAX_RECOVERABLE 64u
@@ -488,19 +489,11 @@ static int mp3_locate(struct mp3_state *state)
     if (rc != HELIKON_OK)
         return rc;
 
-    uint64_t start = 0u;
-    if (got >= sizeof(id3) && id3[0] == 'I' && id3[1] == 'D' &&
-        id3[2] == '3') {
-        const uint64_t tag = ((uint64_t)(id3[6] & 0x7Fu) << 21) |
-                             ((uint64_t)(id3[7] & 0x7Fu) << 14) |
-                             ((uint64_t)(id3[8] & 0x7Fu) << 7) |
-                             (uint64_t)(id3[9] & 0x7Fu);
-        start = 10u + tag;
-        if ((id3[5] & 0x10u) != 0u)
-            start += 10u;
-        if (state->source->size != 0u && start >= state->source->size)
-            return HELIKON_ERR_FORMAT;
-    }
+    /* The tag reader owns the header arithmetic (including the footer). */
+    uint64_t start = helikon_id3v2_tag_size(id3, got);
+    if (start != 0u && state->source->size != 0u &&
+        start >= state->source->size)
+        return HELIKON_ERR_FORMAT;
 
     rc = mp3_window_seek(state, start);
     if (rc != HELIKON_OK)

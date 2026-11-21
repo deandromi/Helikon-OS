@@ -1099,3 +1099,46 @@ ring buffers feed a refill, and whether the ring requests frame-aligned spans),
 the `vfs_media` call sites in the music hub, an actual I2S/DMA run, and the
 device evidence. Resume, gapless bookkeeping and T-100/T-101 stay where they
 were.
+
+## 16. ID3v2 tag reader — first metadata slice (2026-11-21)
+
+Status: `implemented` as host code with host tests; no caller in the Music hub
+yet and no device run. This is one slice of T-099, not the whole tag matrix.
+
+### 16.1 What it does
+
+`firmware/codec/tag/id3v2.{c,h}` parses ID3v2.2, v2.3 and v2.4 text frames from
+a caller-supplied buffer:
+
+- `helikon_id3v2_tag_size()` returns the header arithmetic (10-byte header +
+  sync-safe size + optional footer) so a caller can skip the tag without
+  duplicating it. The MP3 wrapper now uses it instead of its own copy.
+- `helikon_id3v2_parse()` fills a fixed struct: title, artist, album, album
+  artist, genre, year, track and disc, plus the tag version. Frames are
+  matched by ID (`TIT2`/`TT2`, `TPE1`/`TP1`, `TALB`/`TAL`, `TPE2`/`TP2`,
+  `TCON`/`TCO`, `TYER`/`TDRC`/`TYE`, `TRCK`/`TRK`, `TPOS`/`TPA`).
+- Text encodings: Latin-1, UTF-16 with or without BOM (surrogate pairs
+  combined, unpaired surrogates skipped) and UTF-8 (validated byte-wise,
+  truncated sequences dropped). Everything becomes UTF-8, bounded at
+  `HELIKON_ID3_TEXT_MAX` (96 bytes) with no allocation.
+- Errors are distinguished: no tag is `HELIKON_ERR_NOT_FOUND`, a frame whose
+  declared size runs past the tag is `HELIKON_ERR_FORMAT`, and
+  unsynchronization, compression, encryption or grouping is
+  `HELIKON_ERR_UNSUPPORTED` rather than returning half a tag.
+
+### 16.2 Limits (honest scope)
+
+The parser reads from a buffer the caller already holds; it does not fetch a
+tag through a source. A tag larger than that buffer must be presented in full
+by the caller. Multiple values are truncated to the first (multi-value comes
+with the library/index work), and artwork, ReplayGain, chapters, APE, Vorbis
+comments, MP4 and ASF tags are not implemented yet. `TAG_MISSING` and
+`TAG_INVALID` map onto `NOT_FOUND` and `FORMAT`; there are no separate codes.
+
+### 16.3 Evidence (host only, no device run)
+
+`make -C tests/codec test` / `sanitize` covers: v2.3 Latin-1 fields with a
+`3/12` track pair, v2.4 sync-safe frame sizes with UTF-8 and UTF-16LE+BOM text,
+tag size arithmetic, a missing tag, an unsynchronized tag and a frame overrun.
+The MP3, FLAC, VFS, player and UI suites stay green; the 6G music-hub image
+builds at 767,684 B with the tag reader linked (the MP3 wrapper calls it).
