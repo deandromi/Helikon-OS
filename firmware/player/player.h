@@ -14,6 +14,7 @@
 
 #include "audio.h"
 #include "codec.h"
+#include "read_ahead.h"
 #include "wav.h"
 
 struct helikon_player {
@@ -21,6 +22,16 @@ struct helikon_player {
     struct helikon_audio audio;
     struct helikon_codec codec;
     uint8_t codec_workspace[HELIKON_CODEC_WORKSPACE_MAX]
+        __attribute__((aligned(8)));
+    /*
+     * A storage-backed stream pulls through a 16 KiB window: one read per
+     * window instead of one per decoder call. The player owns both the policy
+     * object and its buffer, so `helikon_player_open_media` needs neither from
+     * the caller.
+     */
+    struct helikon_read_ahead read_ahead;
+    struct helikon_codec_source media_source;
+    uint8_t read_ahead_buffer[HELIKON_READ_AHEAD_BYTES]
         __attribute__((aligned(8)));
     size_t offset;
     uint32_t start_frame; /* first frame of the current stream segment */

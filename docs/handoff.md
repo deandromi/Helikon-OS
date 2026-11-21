@@ -12,6 +12,63 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (twenty-fourth block: the player stops re-seeking for every decoder call)
+
+## What happened
+
+- T-058's next missing piece after the pull-source model and seek: the
+  read-ahead policy. The decoders ask for small pieces at absolute offsets (a
+  FLAC frame header, a 4 KiB frame window, an MP3 reservoir refill) and every one
+  of those cost a VFS seek plus a read. On a 1.8" disk the seek is the cost, so
+  the decoder could starve the ring without ever decoding slowly.
+- New `firmware/player/read_ahead.c/.h`: `helikon_read_ahead_init()` wraps any
+  `struct helikon_codec_source` in a caller-provided window. A request inside the
+  window is a hit; one that crosses the window end is a straddle (served partly
+  from memory, finished with one refill); a request at least as large as the
+  window bypasses the copy entirely and reads straight through. Media is
+  immutable while a track is open, so the window is never invalidated — a
+  backward seek inside it costs no storage access, which is what makes a
+  reservoir re-read cheap. A short read is not end of stream; only a zero read
+  latches the end, and a downstream error is returned unchanged instead of
+  becoming a truncated file.
+- `helikon_player_open_media()` owns both the policy object and a 16 KiB buffer
+  and wraps the caller's source before the probe, so the Music hub keeps passing
+  a plain source. `struct helikon_player` grew by 16 KiB of `.bss`; the raw image
+  does not grow.
+- `tests/player/test_read_ahead.c` measures what the device pays for: reads, not
+  time. 64 one-KiB pulls over 64 KiB cost 16 window reads; a backward read costs
+  none; a window-sized request bypasses once and leaves the window intact; EOF
+  latches; the read-ahead is a pass-through when given no buffer; a media error
+  mid-refill surfaces as an error with no partial window behind it.
+
+## Evidence (host only, no device run)
+
+- `make -C tests/player test` and `sanitize` PASS (`PASS read ahead`).
+  `test_player` gained one seam assertion: a WAV opened through a media that
+  returns 37 bytes at a time now reaches the media as one 16 KiB request.
+- Full matrix: `tests/{firmware,hfsplus,vfs,codec,musicdb,player,ui}`,
+  `tests/image` and `tests/bootloader` pass; sanitizers pass for `player`,
+  `hfsplus`, `vfs`, `codec`, `firmware` and `bootloader`.
+- Cross-builds: plain 6G unchanged; the music-hub image still links at 768,176 B
+  (the window is `.bss`).
+- Docs: `audio-formats.md` §21, `tasks.md` T-058, `state.md` player row,
+  `file-map.md`, `tests/ui/Makefile` and `tests/player/Makefile` include the new
+  module.
+
+## Open / next
+
+- T-058 now needs its Music-hub call sites: open a track through the VFS, play,
+  seek, and next/previous with a queue. Then the I2S/DMA run, an
+  underrun/read-latency measurement and one device run.
+- The `state.md` "VFS and player" row is still a stack of "Host workspace"
+  notes; it needs the rewrite pass recorded in the previous block, with PR
+  numbers instead of "unmerged" sentences.
+- Everything else recorded in the previous two blocks is unchanged: T-051/T-055
+  block the device half of T-059, the artist tab row still has no on-glass hint,
+  splash pass/fail still differ by colour alone, cross-track gapless is missing.
+
+---
+
 # Handoff — 2026-11-21 (twenty-third block: the loader fills the boot-info page)
 
 ## What happened

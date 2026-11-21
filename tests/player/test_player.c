@@ -246,6 +246,17 @@ static int check_media_player(void)
                "media WAV info"))
         return 1;
 
+    /*
+     * The media path must pull through the read-ahead window, not hand the
+     * decoder's small requests straight to storage: the probe's 4 KiB ask has
+     * to arrive as one 16 KiB request, even from a media that returns 37 bytes
+     * at a time.
+     */
+    if (expect(player.read_ahead.stats.refills != 0u &&
+                   media.largest_request == HELIKON_READ_AHEAD_BYTES,
+               "media playback reads through the read-ahead window"))
+        return 1;
+
     start_calls = 0u;
     started_source = NULL;
     started_source_context = NULL;

@@ -78,6 +78,8 @@ $(MUSIC_TEST): test_music.c ../../firmware/ui/music.c ../../firmware/ui/music.h 
 $(AUDIO_TEST): test_audio.c ../../firmware/ui/music.c \
                ../../firmware/ui/music.h ../../firmware/player/player.c \
                ../../firmware/player/player.h ../../firmware/player/wav.c \
+               ../../firmware/player/read_ahead.c \
+               ../../firmware/player/read_ahead.h \
                ../../firmware/player/wav.h ../../firmware/hal/6g/audio.h \
                ../../firmware/codec/codec.c \
                ../../firmware/codec/flac/flac_codec.c \
@@ -94,6 +96,7 @@ $(AUDIO_TEST): test_audio.c ../../firmware/ui/music.c \
                $(BLOB_OBJ) $(LIBMAD_OBJ)
 	$(CC) $(CFLAGS) -o $@ test_audio.c \
 	      ../../firmware/player/player.c ../../firmware/player/wav.c \
+	      ../../firmware/player/read_ahead.c \
 	      ../../firmware/ui/ui_text.c ../../firmware/ui/font_atlas.c \
 	      ../../firmware/codec/codec.c \
 	      ../../firmware/codec/flac/flac_codec.c \
