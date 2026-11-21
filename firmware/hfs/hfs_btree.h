@@ -24,8 +24,8 @@ struct hfs_btree {
      * A freshly formatted volume has an empty extents overflow B-tree (and the
      * attributes tree can be empty too): depth 0, no root, no leaves, all
      * records unused. Such a tree is valid and readable, it simply has no
-     * records; readers report NOT_FOUND and writers refuse with UNSUPPORTED
-     * until a create-root path exists.
+     * records; readers report NOT_FOUND and the first insert creates the root
+     * leaf through the transaction.
      */
     uint8_t empty;
 };
