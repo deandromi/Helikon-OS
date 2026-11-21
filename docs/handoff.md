@@ -12,6 +12,56 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (fourteenth block: an eighty-extent file, and a fork that grows where it ends)
+
+## What happened
+
+- The truncate/delete walk no longer stops after eight overflow records. It was
+  bounded by a guard of eight, so a file appended past 64 extents could be
+  created and read but never truncated or deleted; the bound is now
+  `HFS_OVERFLOW_EXTENT_MAX`, the HFS+ extents ceiling.
+- B-tree growth allocates at the fork's end. `grow_locked()` passes the block
+  right after the fork's last extent to `hfs_bitmap_alloc()`. A volume-header
+  fork (catalog/extents/attributes) holds eight extents and cannot use the
+  extents-overflow tree, so allocating at the lowest free block spent a slot on
+  every growth; on the 192-file image the catalog fork ran out and the tree
+  could no longer grow (`UNSUPPORTED`). Adjacent growth keeps the fork one
+  extent and is what macOS does.
+- The image test grew again: 192 one-block files (96 freed single blocks),
+  eighty single-block appends, so the fork ends with eight inline extents and
+  seventy-two overflow extents over nine records, 327,680 bytes, then truncate
+  and delete it. This is the case that both the old guard and the old allocator
+  would have refused.
+- A test-side bug surfaced too: the verification called `hfs_extents_collect()`
+  with a 32-extent array while the file had 72 overflow extents, so the *test*
+  reported `UNSUPPORTED` and hid the real state. The array is now
+  `HFS_OVERFLOW_EXTENT_MAX`.
+
+## Evidence (host only, no device run)
+
+- `tests/hfsplus test` + `sanitize`: PASS.
+- `tests/image test` + `crash-test`: PASS; `fsck_hfs -fn` clean at every stage,
+  macOS reads the 327,680 bytes with a per-block pattern, both overflow files
+  gone after cleanup.
+- `tests/library macos`, `vfs`, `player`, `codec`, `firmware`, `bootloader`,
+  `musicdb`: PASS.
+- Builds unchanged: plain 6G 78,228 B; music hub 768,396 B; F2 78,228 B with the
+  artifact check PASS.
+
+## Open / next
+
+- The `hfs_extents_collect()` capacity is a caller contract; every caller has to
+  pass `HFS_OVERFLOW_EXTENT_MAX` when a fork may be large.
+- A volume-header fork still has a hard eight-extent limit. Keeping B-tree
+  growth adjacent is a mitigation, not a guarantee; a defragmented/grown
+  catalog on a very holey volume can still fail closed. Worth a diagnostic
+  message that names the fork.
+- Truncate-then-grow on the same image is still uncovered.
+- D-05 cache limits, the transaction-block ceiling and the device power-cut
+  matrix remain.
+
+---
+
 # Handoff — 2026-11-21 (thirteenth block: appends at the tail, no extent ceiling)
 
 ## What happened

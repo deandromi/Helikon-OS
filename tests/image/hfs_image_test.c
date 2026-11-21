@@ -27,8 +27,8 @@
 #define TEST_NAME_RENAMED "Helikon Test Renamed"
 #define TEST_SIZE 4096u
 #define TEST_PATTERN 0x5au
-#define HOLE_FILES 112u
-#define OVERFLOW_BLOCKS 40u
+#define HOLE_FILES 192u
+#define OVERFLOW_BLOCKS 80u
 #define OVERFLOW_NAME "Overflow File"
 #define OVERFLOW_SIZE (OVERFLOW_BLOCKS * TEST_SIZE)
 /*
@@ -627,10 +627,11 @@ static int create_overflow_file(struct image *image)
                           sizeof(extent_scratch));
     if (rc != HFS_OK)
         return rc;
-    struct hfs_extent list[32];
+    struct hfs_extent list[HFS_OVERFLOW_EXTENT_MAX];
     size_t count = 0;
     rc = hfs_extents_collect(&extents, entry.id, inline_blocks,
-                             entry.data.blocks, list, 32, &count);
+                             entry.data.blocks, list,
+                             HFS_OVERFLOW_EXTENT_MAX, &count);
     if (rc != HFS_OK)
         return rc;
     uint32_t overflow_blocks = 0;

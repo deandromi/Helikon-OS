@@ -117,6 +117,10 @@ fix:
   record but never freed the fork's blocks, so the bitmap kept them allocated.
   `fsck_hfs` does not report the leak; the free-block count and the image test's
   arithmetic do. A delete frees the fork first.
+- **`UNSUPPORTED` while a B-tree grows on a holey volume** — the volume-header
+  fork (catalog/extents/attributes) holds eight extents and cannot use the
+  extents-overflow tree, so a growth that allocates far from the fork spends a
+  slot; eight non-adjacent growths exhaust it. Grow at the fork's end.
 - **`HFS_ERR_BUSY` in a delete transaction** — the volume header (free count) was
   already staged by the bitmap and the catalog counts stage collided with it.
   Metadata updaters of the same block merge through `hfs_txn_read()` and

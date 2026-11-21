@@ -118,6 +118,15 @@ That is catalog corruption even if the file "looks fine" on the device.
 - Test allocation edge cases: full volume, last free block, fragmented free runs,
   block size 512/4096, bitmap tail bits.
 
+**Grow a B-tree fork where it ends.** A volume-header fork (catalog, extents,
+attributes) holds eight extents and cannot use the extents-overflow tree, so
+every non-contiguous growth spends one of those few slots. `grow_locked()`
+passes the block right after the fork's last extent as the allocation hint, so
+the node lands adjacent whenever that block is free and the fork stays one
+extent. Allocating at the lowest free block instead exhausted the eight slots on
+a holey volume and the tree could no longer grow (`UNSUPPORTED`) — the 192-file
+image test hit exactly that.
+
 ## 5. Extents and overflow
 
 - Inline extents cover the first eight runs; overflow records cover the rest.
@@ -153,6 +162,11 @@ Implementation notes (2026-11-21, host-verified):
 - **Reads splice the two halves.** `hfs_catalog_read_file()` falls back to
   `hfs_extents_read()` when `fork.blocks > inline_blocks`, so an overflowed file
   can be played or copied without a resident buffer of the whole file.
+- **Truncate walks records until the fork is empty.** The walk used to stop
+  after eight records (64 extents), which made a file appended past that point
+  undeletable; the bound is now `HFS_OVERFLOW_EXTENT_MAX` (the HFS+ extents
+  ceiling). Deleting each record from the same leaf re-stages one node, so the
+  transaction budget does not grow with the record count.
 
 ### 5.1 One transaction, one block, two updaters
 
