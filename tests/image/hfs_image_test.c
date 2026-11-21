@@ -50,6 +50,13 @@
 #define OVERWRITE_DEEP_OFFSET (20u * TEST_SIZE + 7u)
 #define OVERWRITE_DEEP_LENGTH 100u
 #define OVERWRITE_MARKER 0xa5u
+/*
+ * The sized truncate stage shrinks the nine-block direct overflow file to four
+ * full blocks plus a hundred bytes, which leaves a partial last block and one
+ * overflow extent to discard.
+ */
+#define DIRECT_TRUNC_BLOCKS 4u
+#define DIRECT_TRUNC_SIZE (DIRECT_TRUNC_BLOCKS * TEST_SIZE + 100u)
 
 struct image {
     int fd;
@@ -786,6 +793,110 @@ static int overwrite_overflow_file(struct image *image)
     return HFS_OK;
 }
 
+/*
+ * Shrink a file that owns an overflow extent to a size that is not a block
+ * multiple. Five blocks survive, four return to the bitmap, the overflow record
+ * goes away and the last kept block is zeroed past the new end.
+ */
+static int truncate_direct_file(struct image *image)
+{
+    uint8_t name[64];
+    size_t units = ascii_units(DIRECT_NAME, name, sizeof(name) / 2u);
+    if (units == 0)
+        return HFS_ERR_ARGUMENT;
+
+    struct hfs_entry entry;
+    int rc = hfs_catalog_lookup_ascii(&image->catalog, 2, DIRECT_NAME, &entry);
+    if (rc != HFS_OK)
+        return rc;
+    if (entry.data.size != DIRECT_SIZE || entry.data.blocks != DIRECT_BLOCKS)
+        return HFS_ERR_FORMAT;
+
+    struct stats before;
+    if (read_stats(image, &before) != HFS_OK)
+        return HFS_ERR_IO;
+
+    struct hfs_txn tx;
+    rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    rc = commit(&tx, hfs_catalog_truncate_to(&image->catalog, &tx, 2, name,
+                                             units, DIRECT_TRUNC_SIZE,
+                                             hfs_catalog_key_compare, NULL));
+    if (rc != HFS_OK) {
+        fprintf(stderr, "sized truncate failed: %d\n", rc);
+        return rc;
+    }
+
+    struct stats after;
+    if (read_stats(image, &after) != HFS_OK)
+        return HFS_ERR_IO;
+    uint32_t expect_blocks = (DIRECT_TRUNC_SIZE + TEST_SIZE - 1u) / TEST_SIZE;
+    if (after.free_blocks != before.free_blocks + DIRECT_BLOCKS - expect_blocks) {
+        fprintf(stderr, "sized truncate freed %u blocks, expected %u\n",
+                after.free_blocks - before.free_blocks,
+                DIRECT_BLOCKS - expect_blocks);
+        return HFS_ERR_FORMAT;
+    }
+
+    struct hfs_entry after_entry;
+    rc = hfs_catalog_lookup_ascii(&image->catalog, 2, DIRECT_NAME,
+                                  &after_entry);
+    if (rc != HFS_OK)
+        return rc;
+    if (after_entry.data.size != DIRECT_TRUNC_SIZE ||
+        after_entry.data.blocks != expect_blocks) {
+        fprintf(stderr, "truncated size=%llu blocks=%u\n",
+                (unsigned long long)after_entry.data.size,
+                after_entry.data.blocks);
+        return HFS_ERR_FORMAT;
+    }
+    uint32_t inline_blocks = 0;
+    for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i)
+        inline_blocks += after_entry.data.extents[i].count;
+    if (inline_blocks != expect_blocks) {
+        fprintf(stderr, "truncated inline blocks=%u, expected %u\n",
+                inline_blocks, expect_blocks);
+        return HFS_ERR_FORMAT;
+    }
+
+    static uint8_t extent_scratch[32768];
+    struct hfs_extents extents;
+    rc = hfs_extents_open(&extents, &image->volume, extent_scratch,
+                          sizeof(extent_scratch));
+    if (rc != HFS_OK)
+        return rc;
+    struct hfs_extent list[8];
+    size_t count = 0;
+    rc = hfs_extents_collect(&extents, after_entry.id, inline_blocks,
+                             after_entry.data.blocks, list, 8, &count);
+    if (rc != HFS_OK || count != 0u) {
+        fprintf(stderr, "truncated fork still owns %zu overflow extents\n",
+                count);
+        return rc != HFS_OK ? rc : HFS_ERR_FORMAT;
+    }
+
+    static uint8_t readback[DIRECT_SIZE];
+    size_t done = 0;
+    memset(readback, 0xee, sizeof(readback));
+    rc = hfs_catalog_read_file(&image->catalog, &after_entry, 0, readback,
+                               sizeof(readback), &done);
+    if (rc != HFS_OK || done != DIRECT_TRUNC_SIZE)
+        return rc != HFS_OK ? rc : HFS_ERR_FORMAT;
+    for (uint32_t i = 0; i < DIRECT_TRUNC_SIZE; ++i) {
+        uint8_t expected = (uint8_t)(0x60u + i / TEST_SIZE);
+        if (readback[i] != expected) {
+            fprintf(stderr, "truncated byte %u is %02x, expected %02x\n", i,
+                    readback[i], expected);
+            return HFS_ERR_FORMAT;
+        }
+    }
+
+    printf("truncated %s to %u bytes over %u blocks\n", DIRECT_NAME,
+           DIRECT_TRUNC_SIZE, expect_blocks);
+    return HFS_OK;
+}
+
 static int clear_overflow_file(struct image *image)
 {
     uint8_t name[64];
@@ -806,16 +917,18 @@ static int clear_overflow_file(struct image *image)
                                        &direct);
     if (drc != HFS_OK)
         return drc;
+    /* The sized-truncate stage may already have returned some of its blocks. */
+    uint32_t direct_blocks = direct.data.blocks;
     drc = delete_named_file(image, DIRECT_NAME, direct.id);
     if (drc != HFS_OK)
         return drc;
     struct stats after_direct;
     if (read_stats(image, &after_direct) != HFS_OK)
         return HFS_ERR_IO;
-    if (after_direct.free_blocks != before_direct.free_blocks + DIRECT_BLOCKS) {
+    if (after_direct.free_blocks != before_direct.free_blocks + direct_blocks) {
         fprintf(stderr, "direct delete freed %u blocks, expected %u\n",
                 after_direct.free_blocks - before_direct.free_blocks,
-                (unsigned int)DIRECT_BLOCKS);
+                direct_blocks);
         return HFS_ERR_FORMAT;
     }
     if (hfs_catalog_lookup_ascii(&image->catalog, 2, DIRECT_NAME, &direct) !=
@@ -963,7 +1076,7 @@ int main(int argc, char **argv)
     if (argc != 3) {
         fprintf(stderr,
                 "usage: %s IMAGE create|rename|truncate|delete|overflow|"
-                "overwrite|overflow-cleanup|unicode\n",
+                "overwrite|truncate-size|overflow-cleanup|unicode\n",
                 argv[0]);
         return 2;
     }
@@ -975,6 +1088,8 @@ int main(int argc, char **argv)
     }
     if (strcmp(argv[2], "overflow") == 0) {
         rc = create_overflow_file(&image);
+    } else if (strcmp(argv[2], "truncate-size") == 0) {
+        rc = truncate_direct_file(&image);
     } else if (strcmp(argv[2], "overwrite") == 0) {
         rc = overwrite_overflow_file(&image);
     } else if (strcmp(argv[2], "overflow-cleanup") == 0) {

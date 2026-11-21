@@ -1179,6 +1179,212 @@ static int test_finder_info_preserved(void)
 }
 
 /*
+ * A truncate to a size that is not a block multiple: one block returns to the
+ * bitmap, the last kept block keeps its allocation and its tail is zeroed, and
+ * the file reads back as exactly `new_size` bytes.
+ */
+static int test_truncate_to_size(void)
+{
+    struct test_env env;
+    CHECK(setup_env(&env) == 0);
+
+    static const uint8_t name[8] = { 0, 'S', 0, 'I', 0, 'Z', 0, 'E' };
+    static uint8_t payload[1200];
+    for (size_t i = 0; i < sizeof(payload); ++i)
+        payload[i] = (uint8_t)(i & 0xffu);
+
+    struct hfs_txn tx;
+    uint32_t cnid = 0;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_file(&env.catalog, &tx, 2, name, 4, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &cnid) == HFS_OK);
+    apply_txn(&tx);
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_append_file(&env.catalog, &tx, 2, name, 4, 0, payload,
+                                  sizeof(payload), hfs_catalog_key_compare,
+                                  NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    uint8_t key[256];
+    uint8_t record[1024];
+    size_t key_length = build_key(key, 2, name, 4);
+    size_t record_length = 0;
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    size_t data_offset = 2u + key_length;
+    uint8_t *fork = record + data_offset + 88u;
+    uint32_t first_block = get_be32(fork + 16);
+    uint32_t second_block = get_be32(fork + 24);
+
+    uint32_t free_before = get_be32(test_image + 1024 + 48);
+    env.catalog.now = 0x0f0e0d0cu;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_truncate_to(&env.catalog, &tx, 2, name, 4, 600,
+                                  hfs_catalog_key_compare, NULL) == HFS_OK);
+    CHECK(tx.count >= 2);
+    apply_txn(&tx);
+
+    CHECK(get_be32(test_image + 1024 + 48) == free_before + 1);
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    data_offset = 2u + key_length;
+    fork = record + data_offset + 88u;
+    CHECK(get_be32(fork + 4) == 600);
+    CHECK(get_be32(fork + 12) == 2);
+    CHECK(get_be32(fork + 16) == first_block);
+    CHECK(get_be32(fork + 20) == 1);
+    CHECK(get_be32(fork + 24) == second_block);
+    CHECK(get_be32(fork + 28) == 1);
+    CHECK(get_be32(record + data_offset + 16) == 0x0f0e0d0cu);
+
+    /* The kept block holds the first 600 bytes; the rest of it is zeroed. */
+    CHECK(memcmp(test_image + first_block * TEST_BLOCK_SIZE, payload, 512) ==
+          0);
+    CHECK(memcmp(test_image + second_block * TEST_BLOCK_SIZE, payload + 512,
+                 88) == 0);
+    for (uint32_t i = 88; i < TEST_BLOCK_SIZE; ++i)
+        CHECK(test_image[second_block * TEST_BLOCK_SIZE + i] == 0);
+
+    struct hfs_entry entry;
+    CHECK(hfs_catalog_lookup_ascii(&env.catalog, 2, "SIZE", &entry) == HFS_OK);
+    CHECK(entry.data.size == 600);
+    CHECK(entry.data.blocks == 2);
+
+    uint8_t readback[1200];
+    size_t done = 0;
+    memset(readback, 0xee, sizeof(readback));
+    CHECK(hfs_catalog_read_file(&env.catalog, &entry, 0, readback, sizeof(readback),
+                               &done) == HFS_OK);
+    CHECK(done == 600);
+    CHECK(memcmp(readback, payload, 600) == 0);
+
+    /* A file never grows through a truncate. */
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_truncate_to(&env.catalog, &tx, 2, name, 4, 601,
+                                  hfs_catalog_key_compare, NULL) ==
+          HFS_ERR_ARGUMENT);
+    CHECK(tx.count == 0);
+    hfs_txn_abort(&tx);
+
+    /* The same size is a no-op, not a rewrite. */
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_truncate_to(&env.catalog, &tx, 2, name, 4, 600,
+                                  hfs_catalog_key_compare, NULL) == HFS_OK);
+    CHECK(tx.count == 0);
+    hfs_txn_abort(&tx);
+    return 0;
+}
+
+/*
+ * A truncate that lands inside a fork's overflow region: the retained prefix
+ * keeps the first inline extents and one overflow block, the second record goes
+ * away, and the first is rewritten with the blocks that survived.
+ */
+static int test_truncate_across_overflow(void)
+{
+    struct test_env env;
+    CHECK(setup_env(&env) == 0);
+
+    uint8_t *bitmap = test_image + 18 * TEST_BLOCK_SIZE;
+    memset(bitmap, 0xff, 16);
+    for (uint32_t block = 50; block <= 88; block += 2)
+        bitmap[block / 8] &= (uint8_t)~(0x80u >> (block % 8));
+    put_be32(test_image + 1024 + 48, 20);
+    env.volume.free_blocks = 20;
+
+    static const uint8_t name[8] = { 0, 'T', 0, 'R', 0, 'N', 0, 'C' };
+    static uint8_t payload[20u * 512u];
+    for (size_t i = 0; i < sizeof(payload); ++i)
+        payload[i] = (uint8_t)(0x30u + ((i / 512u) & 0x3fu));
+
+    struct hfs_txn tx;
+    uint32_t cnid = 0;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_file(&env.catalog, &tx, 2, name, 4, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &cnid) == HFS_OK);
+    apply_txn(&tx);
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_append_file(&env.catalog, &tx, 2, name, 4, 0, payload,
+                                  sizeof(payload), hfs_catalog_key_compare,
+                                  NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 48) == 0);
+
+    /* Ten blocks: the eight inline extents plus the first two overflow blocks. */
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_truncate_to(&env.catalog, &tx, 2, name, 4,
+                                  9u * 512u + 100u, hfs_catalog_key_compare,
+                                  NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    uint8_t key[256];
+    uint8_t record[1024];
+    size_t key_length = build_key(key, 2, name, 4);
+    size_t record_length = 0;
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    size_t data_offset = 2u + key_length;
+    uint8_t *fork = record + data_offset + 88u;
+    CHECK(get_be32(fork + 4) == 9u * 512u + 100u);
+    CHECK(get_be32(fork + 12) == 10);
+    for (unsigned int i = 0; i < 8; ++i) {
+        CHECK(get_be32(fork + 16 + i * 8) == 50u + i * 2u);
+        CHECK(get_be32(fork + 20 + i * 8) == 1);
+    }
+
+    struct hfs_extent kept[8];
+    size_t kept_count = 0;
+    CHECK(hfs_extents_overflow_get(&env.volume, &tx, cnid, 8, kept, 8,
+                                   &kept_count) == HFS_OK);
+    CHECK(kept_count == 2);
+    CHECK(kept[0].start == 66 && kept[0].count == 1);
+    CHECK(kept[1].start == 68 && kept[1].count == 1);
+    CHECK(hfs_extents_overflow_get(&env.volume, &tx, cnid, 16, kept, 8,
+                                   &kept_count) == HFS_ERR_NOT_FOUND);
+    CHECK(get_be32(test_image + 1024 + 48) == 10);
+
+    /*
+     * The tail of the last kept block is zeroed at the physical block, which the
+     * file read cannot show; the caller would otherwise re-expose it on a grow.
+     */
+    uint32_t kept_bytes = (9u * 512u + 100u) - 9u * 512u;
+    CHECK(kept_bytes == 100u);
+    CHECK(memcmp(test_image + 68 * TEST_BLOCK_SIZE, payload + 9 * 512,
+                 kept_bytes) == 0);
+    for (uint32_t i = kept_bytes; i < TEST_BLOCK_SIZE; ++i)
+        CHECK(test_image[68 * TEST_BLOCK_SIZE + i] == 0);
+
+    struct hfs_entry entry;
+    CHECK(hfs_catalog_lookup_ascii(&env.catalog, 2, "TRNC", &entry) == HFS_OK);
+    CHECK(entry.data.size == 9u * 512u + 100u);
+    static uint8_t readback[20u * 512u];
+    size_t done = 0;
+    memset(readback, 0xee, sizeof(readback));
+    CHECK(hfs_catalog_read_file(&env.catalog, &entry, 0, readback,
+                               sizeof(readback), &done) == HFS_OK);
+    CHECK(done == 9u * 512u + 100u);
+    CHECK(memcmp(readback, payload, done) == 0);
+
+    /* And back to zero, with the overflow tree empty again. */
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_truncate_to(&env.catalog, &tx, 2, name, 4, 0,
+                                  hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(get_be32(test_image + 1024 + 48) == 20);
+    CHECK(hfs_extents_overflow_get(&env.volume, &tx, cnid, 8, kept, 8,
+                                   &kept_count) == HFS_ERR_NOT_FOUND);
+    return 0;
+}
+
+/*
  * An in-place overwrite of a file that continues in the extents tree. The old
  * writer staged only the eight inline extents, so every byte past block eight
  * of a fragmented file was unwritable: "overwrite the tag at the end of this
@@ -1537,7 +1743,9 @@ int main(void)
         { "finder info preserved", test_finder_info_preserved },
         { "overwrite in place", test_overwrite_file },
         { "overwrite across overflow", test_overwrite_across_overflow },
-        { "append past overflow", test_append_past_overflow }
+        { "append past overflow", test_append_past_overflow },
+        { "truncate to size", test_truncate_to_size },
+        { "truncate across overflow", test_truncate_across_overflow }
     };
     int failures = 0;
     for (size_t i = 0; i < sizeof(tests) / sizeof(tests[0]); ++i) {

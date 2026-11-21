@@ -172,6 +172,13 @@ Implementation notes (2026-11-21, host-verified):
   `UNSUPPORTED` rather than staging a partial range. `hfs_fork_stage()` keeps
   its inline-only contract for callers that hold a `struct hfs_fork`, such as
   the B-tree fork paths.
+- **A truncate reaches any size, not only zero.** `hfs_catalog_truncate_to()`
+  takes the fork's logical map, keeps the blocks the new size needs, frees the
+  rest (splitting the extent that straddles the new end), rewrites the inline
+  extents and the overflow tree from the retained prefix, and zeroes the bytes
+  past the new end inside the last kept block so a later grow cannot re-expose
+  them. `hfs_catalog_truncate_file()` is the size-zero wrapper. A size above the
+  current size is `ARGUMENT`: growth is an append, not a truncate.
 - **A known ceiling: the B-tree fork overlay is still inline.**
   `hfs_fork_overlay()` reads the volume through a transaction for the catalog,
   extents and attributes forks and still walks only their eight inline

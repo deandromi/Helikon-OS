@@ -141,12 +141,14 @@ Helikon-OS/
       test_btree_grow.c     B-tree fork growth test
       test_catalog_compare.c catalog key/FastUnicodeCompare ordering tests
       test_catalog_index.c   two/three-level catalog lookup + mutation fuzz
-      test_catalog_write.c  empty-file catalog create/delete test
+      test_catalog_write.c  catalog create/delete/append/overwrite/truncate tests
     image/
       Makefile              disposable-image writer test build
-      hfs_image_test.c      create/rename/truncate/delete/overflow/Unicode on a HFS+ image
+      hfs_image_test.c      create/rename/truncate/delete/overflow/overwrite/
+                            truncate-to-size/Unicode on a HFS+ image
       hfs_crash_test.c      journal write-failure injection and recovery
-      check-overflow.py     per-block pattern check of the overflow file (macOS mount)
+      check-overflow.py     per-block pattern check of the overflow file, plain or
+                            overwritten (macOS mount)
       run-macos.sh          hdiutil + fsck_hfs + macOS mount driver
       run-crash-macos.sh    per-cut crash/replay/fsck driver
       write_diag_host.c     host outer/inner write-diagnostic runner

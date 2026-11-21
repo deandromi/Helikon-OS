@@ -12,6 +12,54 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (seventeenth block: a file shrinks to any size)
+
+## What happened
+
+- `hfs_catalog_truncate_to()` replaces the size-zero-only truncate as the real
+  implementation; `hfs_catalog_truncate_file()` is now its wrapper. It keeps the
+  blocks the new size needs, frees the rest — splitting the extent that
+  straddles the new end — rewrites the retained inline extents and the overflow
+  records from the retained prefix, and zeroes the bytes past the new end inside
+  the last kept block, so a later grow cannot re-expose old content. A size
+  above the current size is `ARGUMENT`: this call never grows a fork.
+- The overflow rewrite clears every existing record and writes the retained tail
+  back in groups of eight, which keeps it independent of how an append happened
+  to group the records it found. The record's logical size, block count and
+  dates are staged in the same transaction.
+- Tests: `truncate to size` (1200 → 600 bytes: one block freed, the kept block
+  zeroed past 88, exact readback, grow and same-size behaviour) and
+  `truncate across overflow` (20 single-block extents → 9 blocks + 100 bytes:
+  eight inline extents kept, the first record rewritten with two entries, the
+  second cleared, the tail zeroed at block 68, then size zero returns everything
+  to the bitmap). The image test gained a `truncate-size` mode on the nine-block
+  direct overflow file, `run-macos.sh` a matching stage with its own byte-count
+  and pattern check, and `run-crash-macos.sh` a truncate-to-size matrix: 21 write
+  cuts, 4 flush cuts and 21 partial-sector cuts, every one fsck-clean.
+
+## Evidence (host only, no device run)
+
+- `tests/hfsplus` test + sanitize PASS (14 catalog-write tests, 115 HFS+ total);
+  `tests/image` test (…/overwrite/**truncate-to-size**/Unicode, `fsck_hfs` clean
+  at every stage) and `crash-test` PASS (372 cuts); `tests/vfs`,
+  `tests/library macos`, `tests/player`, `tests/codec`, `tests/firmware`,
+  `tests/bootloader`, `tests/musicdb`, `tests/ui` PASS; the VFS, firmware and
+  bootloader sanitizer builds PASS.
+- Builds: plain 6G **79,960 B**; music hub 768,396 B; F2
+  `VERSION=2 BOOTSTATE_STATE=trying` 79,960 B with `tools/check-f2-artifact.sh`
+  PASS.
+
+## Open / next
+
+- Growth is append only: there is no write at an arbitrary offset that extends
+  the file with a zero-filled gap. That and a `vfs_file_truncate`/`vfs_file_write`
+  surface are the remaining pieces of T-065.
+- `hfs_fork_overlay()` is still inline-only (see the sixteenth block); it is the
+  same map form away.
+- No device run for any of this.
+
+---
+
 # Handoff — 2026-11-21 (sixteenth block: a fragmented file is writable in place)
 
 ## What happened

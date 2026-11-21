@@ -94,6 +94,10 @@ prepare_scenario() {
             "$HERE/hfs_crash_test" "$PREP" setup create >/dev/null
             "$HERE/hfs_crash_test" "$PREP" setup append >/dev/null
             ;;
+        truncate-size)
+            "$HERE/hfs_crash_test" "$PREP" setup create >/dev/null
+            "$HERE/hfs_crash_test" "$PREP" setup append >/dev/null
+            ;;
         *)
             fail "unknown scenario $SCENARIO"
             ;;
@@ -128,6 +132,10 @@ run_scenario() {
             echo "$RECOVER" |
                 grep -qE 'old=1 new=0|old=0 new=1' ||
                 fail "rename recovery is not exactly one name at cut $CUT"
+        elif [ "$SCENARIO" = truncate-size ]; then
+            echo "$RECOVER" |
+                grep -qE '^recovered present=1 size=(2000|4096)$' ||
+                fail "unexpected sized-truncate recovery at cut $CUT"
         elif [ "$SCENARIO" = overwrite ]; then
             echo "$RECOVER" |
                 grep -qE '^recovered old=[01] new=[01]$' ||
@@ -160,17 +168,20 @@ run_scenario truncate
 run_scenario delete
 run_scenario rename
 run_scenario overwrite
+run_scenario truncate-size
 run_scenario create flush
 run_scenario append flush
 run_scenario truncate flush
 run_scenario delete flush
 run_scenario rename flush
 run_scenario overwrite flush
+run_scenario truncate-size flush
 run_scenario create partial
 run_scenario append partial
 run_scenario truncate partial
 run_scenario delete partial
 run_scenario rename partial
 run_scenario overwrite partial
+run_scenario truncate-size partial
 
-echo "PASS: create/append/truncate/delete/rename/overwrite write, flush and partial matrices are fsck-clean"
+echo "PASS: create/append/truncate/truncate-to-size/delete/rename/overwrite write, flush and partial matrices are fsck-clean"
