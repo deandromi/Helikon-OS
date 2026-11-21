@@ -33,7 +33,8 @@ preview: test_launcher $(MUSIC_TEST) $(AUDIO_TEST) $(FIXTURE)
  *[Image.open('$(OUT)/music-%s.ppm' % n).save('$(OUT)/music-%s.png' % n) \
    for n in ('hub','albums','tracks','artists','artists-long','artists-empty', \
              'artist-albums','artist-albums-empty','artist-overview', \
-             'artist-overview-empty','artist-tracks','album','album-long', \
+             'artist-overview-empty','artist-tracks','artist-tab-focus', \
+             'album','album-long', \
              'album-playall','album-empty','album-corrupt','album-no-art', \
              'artists-fallback')], \
  *[Image.open('$(OUT)/audio-%s.ppm' % n).save('$(OUT)/audio-%s.png' % n) \

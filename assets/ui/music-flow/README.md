@@ -38,6 +38,7 @@ All are 320×240 RGB; `@2x` is a nearest-neighbour viewing preview.
 | Artist — Overview | `helikon-os-artist-overview-320x240.png` | `helikon-os-artist-overview-320x240@2x.png` |
 | Artist — Overview empty | `helikon-os-artist-overview-empty-320x240.png` | `helikon-os-artist-overview-empty-320x240@2x.png` |
 | Artist — Tracks | `helikon-os-artist-tracks-320x240.png` | `helikon-os-artist-tracks-320x240@2x.png` |
+| Artist — tab row focused | `helikon-os-artist-tab-focus-320x240.png` | `helikon-os-artist-tab-focus-320x240@2x.png` |
 | Album — normal | `helikon-os-album-view-320x240.png` | `helikon-os-album-view-320x240@2x.png` |
 | Album — long/missing art | `helikon-os-album-long-320x240.png` | `helikon-os-album-long-320x240@2x.png` |
 | Album — empty | `helikon-os-album-empty-320x240.png` | `helikon-os-album-empty-320x240@2x.png` |

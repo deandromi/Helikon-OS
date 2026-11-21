@@ -622,7 +622,7 @@ row area and `0 / 0` in the footer; no fabricated rows.
 | Genre | 16, 48, 228, 18 | 12 px muted; one line, ellipsis |
 | Counts | 16, 64, 228, 16 | 11 px muted `N ALBUMS · M TRACKS` |
 | Identity rule | 16, 84, 288, 1 | Rule |
-| Tabs | 16, 86, 288, 14 | `ALBUMS`, `OVERVIEW`, `TRACKS` at x=16, 84, 168 |
+| Tabs | 16, 86, 288, 16 | focus bar at x=16; `ALBUMS`, `OVERVIEW`, `TRACKS` at x=26, 94, 178 |
 | Tab rule | 16, 101, 288, 1 | Faint; selected 2 px ink underline at y=102 |
 | Body | 16, 108, 288, 128 | tab content |
 
@@ -632,11 +632,22 @@ Regular muted. The tab row carries no count: the counts belong to the identity
 block above it and are never repeated in the tab band. The body never starts
 with biography.
 
-The tab row is a focus stop. The wheel moves into it upward from the first
-body item, LEFT/RIGHT or the wheel change the tab while it is focused, and
-SELECT switches to the focused tab and returns focus to the body. A focused
+The tab row is a focus stop. A wheel step up enters it when there is nothing
+above the first body item; while it is focused, a wheel step up steps back
+through the tabs (`ALBUMS` is the edge and does not wrap) and a wheel step
+down hands the wheel back to the body, the inverse of the way in. LEFT/RIGHT
+change the tab while the row is focused and move the body selection
+otherwise, clamped at both ends. SELECT returns focus to the body on the
+current tab, and the tab is always live, so the row never holds a pending
+choice. MENU still leaves the page, because the footer says so. A focused
 tab row draws the same 2 px ink bar as a focused list row, at x=16, y=86,
-16 px tall, in addition to the current-tab underline.
+16 px tall, in addition to the current-tab underline. The labels start at
+x=26 so the bar keeps the 8 px gutter it has in a list row and nothing shifts
+when the row takes or loses focus. `OVERVIEW` has no body selection, so its
+wheel always reaches the row; the other tabs reach it only from their first
+item.
+
+![Artist view — tab row focused](../assets/ui/music-flow/helikon-os-artist-tab-focus-320x240@2x.png)
 
 **ALBUMS (default).** Position `1–3 / N` at 304, 112. Three 72×72 cells at
 x=16, 124, 232, y=118. Art is 68×68 inside a 1 px rule; selected has a 2 px ink

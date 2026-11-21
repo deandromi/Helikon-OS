@@ -365,6 +365,7 @@ MUSIC_FLOW_SCREENS = (
     "artist-overview",
     "artist-overview-empty",
     "artist-tracks",
+    "artist-tab-focus",
     "album-view",
     "album-long",
     "album-empty",
@@ -1181,6 +1182,7 @@ def render_music_flow():
     for tab in ("albums", "overview", "tracks"):
         paths.extend(draw_artist_view(tab))
     paths.extend(draw_artist_view("overview", empty_overview=True))
+    paths.extend(draw_artist_view("albums", tab_focused=True))
     for mode in ("normal", "long", "empty", "corrupt"):
         paths.extend(draw_album_view(mode=mode))
     write_clip_report(MUSIC_FLOW, "Music flow", paths)
@@ -1444,7 +1446,7 @@ def draw_artists_list(long_names=False):
                      MUSIC_FLOW / f"helikon-os-{name}-320x240@2x.png")
 
 
-def draw_artist_view(tab, empty_overview=False):
+def draw_artist_view(tab, empty_overview=False, tab_focused=False):
     image = Image.new("RGB", (WIDTH, HEIGHT), HOME_PAPER)
     draw = ImageDraw.Draw(image)
     music_top_bar(draw, "ARTISTS")
@@ -1469,7 +1471,7 @@ def draw_artist_view(tab, empty_overview=False):
     require_rect(16, 84, 288, 1, "artist identity rule")
     draw.line((16, 84, 303, 84), fill=HOME_RULE)
 
-    labels = (("ALBUMS", 16), ("OVERVIEW", 84), ("TRACKS", 168))
+    labels = (("ALBUMS", 26), ("OVERVIEW", 94), ("TRACKS", 178))
     selected_index = {"albums": 0, "overview": 1, "tracks": 2}[tab]
     for index, (label, x) in enumerate(labels):
         selected = index == selected_index
@@ -1485,6 +1487,9 @@ def draw_artist_view(tab, empty_overview=False):
                               ui_font(11, 500), 0.8)
     require_rect(tab_x, 102, round(tab_width), 2, "artist tab underline")
     draw.rectangle((tab_x, 102, tab_x + round(tab_width), 103), fill=HOME_INK)
+    if tab_focused:
+        require_rect(16, 86, 2, 16, "artist tab focus bar")
+        draw.rectangle((16, 86, 17, 101), fill=HOME_INK)
 
     if tab == "albums":
         put_right_fitted(draw, "1–3 / 4" if not empty_overview else "0 / 0",
@@ -1553,12 +1558,15 @@ def draw_artist_view(tab, empty_overview=False):
                      (258, y, 46, 16), f"artist track {index + 1} duration",
                      HOME_MUTED, anchor="rs")
 
-    name = {
-        "albums": "artist-albums",
-        "overview": "artist-overview-empty" if empty_overview
-        else "artist-overview",
-        "tracks": "artist-tracks",
-    }[tab]
+    if tab_focused:
+        name = "artist-tab-focus"
+    else:
+        name = {
+            "albums": "artist-albums",
+            "overview": "artist-overview-empty" if empty_overview
+            else "artist-overview",
+            "tracks": "artist-tracks",
+        }[tab]
     return save_pair(image, MUSIC_FLOW / f"helikon-os-{name}-320x240.png",
                      MUSIC_FLOW / f"helikon-os-{name}-320x240@2x.png")
 
