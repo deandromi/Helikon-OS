@@ -70,5 +70,6 @@ tests/vfs/build_mad/
 tests/library/build_mad/
 tests/player/*.dSYM/
 tests/player/test_read_ahead
+tests/player/test_queue
 
 tests/hfsplus/test_catalog_header
