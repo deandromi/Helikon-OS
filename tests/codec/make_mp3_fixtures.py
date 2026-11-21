@@ -97,12 +97,68 @@ def with_id3v2():
            wav, "mp3_id3_stereo16", None)
 
 
+def mpeg2_stereo16():
+    """MPEG-2 Layer III: 22.05 kHz, 576 samples per frame."""
+    rate = 22050
+    samples = [
+        (round(9000.0 * math.sin(2.0 * math.pi * 440.0 * i / rate)),
+         round(7000.0 * math.sin(2.0 * math.pi * 660.0 * i / rate + 0.5)))
+        for i in range(6 * 576)
+    ]
+    wav = write_wav("mp3_mpeg2_stereo16", 2, rate, 16, samples)
+    encode(["--cbr", "-b", "64", "--resample", "22.05"], wav,
+           "mp3_mpeg2_stereo16", None)
+
+
+def mpeg25_stereo16():
+    """MPEG-2.5 Layer III: 11.025 kHz, 576 samples per frame."""
+    rate = 11025
+    samples = [
+        (round(7000.0 * math.sin(2.0 * math.pi * 330.0 * i / rate)),
+         round(5000.0 * math.sin(2.0 * math.pi * 495.0 * i / rate + 0.4)))
+        for i in range(4 * 576)
+    ]
+    wav = write_wav("mp3_mpeg25_stereo16", 2, rate, 16, samples)
+    encode(["--cbr", "-b", "32", "--resample", "11.025"], wav,
+           "mp3_mpeg25_stereo16", None)
+
+
+def layer2_stereo44():
+    """MPEG-1 Layer II: 44.1 kHz, 1152 samples per frame, no Xing frame.
+
+    LAME encodes Layer III only, so this one goes through ffmpeg's MP2 encoder.
+    The fixture exists to execute the Layer I/II path the wrapper advertises,
+    not to claim a second encoder.
+    """
+    import shutil
+
+    rate = 44100
+    samples = [
+        (round(11000.0 * math.sin(2.0 * math.pi * 440.0 * i / rate)),
+         round(8000.0 * math.sin(2.0 * math.pi * 554.0 * i / rate + 0.2)))
+        for i in range(2 * 1152)
+    ]
+    wav = write_wav("mp3_layer2_stereo44", 2, rate, 16, samples)
+    mp3_path = os.path.join(OUT, "mp3_layer2_stereo44.mp3")
+    if shutil.which("ffmpeg") is None:
+        raise SystemExit("layer 2 fixture needs ffmpeg on PATH")
+    # The mp2 encoder refuses the generic mp3 muxer here, so name the format.
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", wav,
+                    "-c:a", "mp2", "-b:a", "128k", "-f", "mp2", mp3_path],
+                   check=True)
+    print("mp3_layer2_stereo44", "mp3", os.path.getsize(mp3_path))
+    os.unlink(wav)
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     cbr_stereo16()
     vbr_stereo16()
     cbr_mono16()
     with_id3v2()
+    mpeg2_stereo16()
+    mpeg25_stereo16()
+    layer2_stereo44()
 
 
 if __name__ == "__main__":

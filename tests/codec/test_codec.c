@@ -1021,6 +1021,128 @@ static int check_mp3_gapless(void)
     return 0;
 }
 
+static size_t count_frames_all(struct helikon_codec *codec, size_t limit,
+                               int16_t *peak_out)
+{
+    size_t total = 0u;
+    int16_t peak = 0;
+    for (;;) {
+        size_t frames = 0u;
+        if (helikon_codec_read(codec, pcm, CHUNK_FRAMES, &frames) !=
+            HELIKON_OK)
+            break;
+        if (frames == 0u)
+            break;
+        for (size_t i = 0u; i < frames; ++i) {
+            int16_t value = pcm[i * 2u] < 0 ? (int16_t)-pcm[i * 2u]
+                                            : pcm[i * 2u];
+            if (value > peak)
+                peak = value;
+        }
+        total += frames;
+        if (total > limit)
+            break;
+    }
+    if (peak_out != NULL)
+        *peak_out = peak;
+    return total;
+}
+
+/* The registry claims the whole MPEG audio family, but every fixture was
+ * MPEG-1 Layer III at 44.1 kHz until now. MPEG-2 and 2.5 carry 576 samples per
+ * frame instead of 1152, so any arithmetic that assumes the MPEG-1 count is
+ * wrong by a factor of two: total duration, the Xing frame count, the gapless
+ * trim and seek by frame index all depend on it. These fixtures execute the
+ * other branches and pin the numbers against the encoder. */
+static int check_mp3_family(void)
+{
+    struct family_case {
+        const char *path;
+        uint32_t rate;
+        uint32_t total_frames;
+        uint32_t delay;
+        uint32_t padding;
+        uint32_t decoded;
+        uint8_t gapless;
+        const char *label;
+    };
+    static const struct family_case cases[] = {
+        /* LAME at 22.05 kHz: 8 frames of 576, 576+576 trimmed, 6 frames out. */
+        { "fixtures/mp3_mpeg2_stereo16.mp3", 22050u, 4608u, 576u, 576u, 3456u,
+          1u, "MPEG-2" },
+        /* LAME at 11.025 kHz: 6 frames of 576, the same trim, 4 frames out. */
+        { "fixtures/mp3_mpeg25_stereo16.mp3", 11025u, 3456u, 576u, 576u, 2304u,
+          1u, "MPEG-2.5" },
+        /* ffmpeg MP2 at 44.1 kHz: no Xing frame, so no trim and no claim. */
+        { "fixtures/mp3_layer2_stereo44.mp3", 44100u, 2304u, 0u, 0u, 2304u, 0u,
+          "Layer II" },
+    };
+    for (size_t index = 0u; index < sizeof(cases) / sizeof(cases[0]);
+         ++index) {
+        const struct family_case *item = &cases[index];
+        size_t size = load_file(item->path, file_data, sizeof(file_data));
+        if (expect(size > 0u, "MP3 family load"))
+            return 1;
+
+        const struct helikon_codec_ops *ops = NULL;
+        struct helikon_codec_info info;
+        if (expect(helikon_codec_probe(file_data, size, &ops, &info) ==
+                       HELIKON_OK &&
+                       ops == &helikon_mp3_codec_ops,
+                   "MP3 family probe"))
+            return 1;
+        if (expect(info.sample_rate == item->rate &&
+                       info.source_channels == 2u &&
+                       info.total_frames == item->total_frames &&
+                       info.encoder_delay == item->delay &&
+                       info.padding == item->padding,
+                   "MP3 family info"))
+            return 1;
+        if (expect(((info.flags & HELIKON_CODEC_FLAG_GAPLESS) != 0u) ==
+                       (item->gapless != 0u),
+                   "MP3 family gapless flag"))
+            return 1;
+
+        struct helikon_codec codec;
+        if (expect(helikon_codec_open(&codec, ops, file_data, size,
+                                      workspace, sizeof(workspace)) ==
+                       HELIKON_OK,
+                   "MP3 family open"))
+            return 1;
+        int16_t peak = 0;
+        size_t decoded = count_frames_all(&codec, info.total_frames + 4096u,
+                                          &peak);
+        if (expect(decoded == item->decoded, "MP3 family decoded length"))
+            return 1;
+        if (expect(peak > 2000, "MP3 family decodes audio"))
+            return 1;
+
+        /* Frame-index seek has to divide by the family's frame size: seeking
+         * half way with 1152 assumed lands at a quarter of the file. */
+        if (expect(helikon_codec_seek(&codec, item->decoded / 2u) ==
+                       HELIKON_OK,
+                   "MP3 family seek"))
+            return 1;
+        size_t after = 0u;
+        while (after == 0u) {
+            size_t frames = 0u;
+            if (expect(helikon_codec_read(&codec, pcm, CHUNK_FRAMES, &frames) ==
+                           HELIKON_OK,
+                       "MP3 family seek read"))
+                return 1;
+            if (frames == 0u)
+                break;
+            after = frames;
+        }
+        if (expect(after > 0u, "MP3 family seek resumes"))
+            return 1;
+        helikon_codec_close(&codec);
+        printf("MP3 family %s: %u frames at %u Hz, %u out\n", item->label,
+               item->total_frames, item->rate, item->decoded);
+    }
+    return 0;
+}
+
 static size_t text_len(const char *text)
 {
     size_t length = 0u;
@@ -1526,6 +1648,8 @@ int main(void)
     if (check_mp3_cbr_stereo())
         return 1;
     if (check_mp3_mono_vbr_id3())
+        return 1;
+    if (check_mp3_family())
         return 1;
     if (check_registry())
         return 1;
