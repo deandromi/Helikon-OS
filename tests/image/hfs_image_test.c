@@ -27,10 +27,18 @@
 #define TEST_NAME_RENAMED "Helikon Test Renamed"
 #define TEST_SIZE 4096u
 #define TEST_PATTERN 0x5au
-#define HOLE_FILES 24u
+#define HOLE_FILES 48u
 #define OVERFLOW_BLOCKS 12u
 #define OVERFLOW_NAME "Overflow File"
 #define OVERFLOW_SIZE (OVERFLOW_BLOCKS * TEST_SIZE)
+/*
+ * A second, smaller overflowed file that is deleted directly: its fork has one
+ * overflow extent, so the delete path has to free inline and overflow blocks
+ * and clear the extents tree without a separate truncate call.
+ */
+#define DIRECT_BLOCKS 9u
+#define DIRECT_NAME "Overflow Direct"
+#define DIRECT_SIZE (DIRECT_BLOCKS * TEST_SIZE)
 
 struct image {
     int fd;
@@ -482,6 +490,48 @@ static int delete_named_file(struct image *image, const char *ascii,
 }
 
 /*
+ * Create a file and append one block per transaction, so each append takes the
+ * lowest free single block and the fork collects one extent per block.
+ */
+static int append_fragmented_file(struct image *image, const char *ascii,
+                                  uint32_t blocks, uint8_t pattern_base)
+{
+    uint8_t name[64];
+    size_t units = ascii_units(ascii, name, sizeof(name) / 2u);
+    if (units == 0)
+        return HFS_ERR_ARGUMENT;
+
+    uint32_t cnid = 0;
+    struct hfs_txn tx;
+    int rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    rc = commit(&tx, hfs_catalog_create_file(&image->catalog, &tx, 2, name,
+                                             units, 0644,
+                                             hfs_catalog_key_compare, NULL,
+                                             &cnid));
+    if (rc != HFS_OK)
+        return rc;
+
+    static uint8_t block[TEST_SIZE];
+    for (uint32_t i = 0; i < blocks; ++i) {
+        memset(block, (int)(pattern_base + i), sizeof(block));
+        rc = hfs_txn_begin(&tx, &image->journal);
+        if (rc != HFS_OK)
+            return rc;
+        rc = commit(&tx, hfs_catalog_append_file(
+                            &image->catalog, &tx, 2, name, units,
+                            (uint64_t)i * TEST_SIZE, block, sizeof(block),
+                            hfs_catalog_key_compare, NULL));
+        if (rc != HFS_OK) {
+            fprintf(stderr, "%s append block %u failed: %d\n", ascii, i, rc);
+            return rc;
+        }
+    }
+    return HFS_OK;
+}
+
+/*
  * Force a data fork past its eight inline extents: create one-block files,
  * delete every other one, then append twelve blocks to a new file. The
  * allocator fills the holes, so the fork needs four overflow extents — the
@@ -531,41 +581,15 @@ static int create_overflow_file(struct image *image)
     for (uint32_t block = 0; block < OVERFLOW_BLOCKS; ++block) {
         memset(payload + block * TEST_SIZE, (int)(0x40u + block), TEST_SIZE);
     }
-    uint8_t name[64];
-    size_t units = ascii_units(OVERFLOW_NAME, name, sizeof(name) / 2u);
-    if (units == 0)
-        return HFS_ERR_ARGUMENT;
-    uint32_t cnid = 0;
-    struct hfs_txn tx;
-    int rc = hfs_txn_begin(&tx, &image->journal);
-    if (rc != HFS_OK)
-        return rc;
-    rc = commit(&tx, hfs_catalog_create_file(&image->catalog, &tx, 2, name,
-                                             units, 0644,
-                                             hfs_catalog_key_compare, NULL,
-                                             &cnid));
-    if (rc != HFS_OK)
-        return rc;
     /*
      * One block per call: the allocator takes the lowest free run each time, so
      * twelve single-block appends land in the twelve holes and the fork needs
      * twelve extents instead of one contiguous run.
      */
-    for (uint32_t block = 0; block < OVERFLOW_BLOCKS; ++block) {
-        rc = hfs_txn_begin(&tx, &image->journal);
-        if (rc != HFS_OK)
-            return rc;
-        rc = commit(&tx, hfs_catalog_append_file(
-                            &image->catalog, &tx, 2, name, units,
-                            (uint64_t)block * TEST_SIZE,
-                            payload + block * TEST_SIZE, TEST_SIZE,
-                            hfs_catalog_key_compare, NULL));
-        if (rc != HFS_OK) {
-            fprintf(stderr, "overflow append block %u failed: %d\n", block,
-                    rc);
-            return rc;
-        }
-    }
+    int rc = append_fragmented_file(image, OVERFLOW_NAME, OVERFLOW_BLOCKS,
+                                    0x40u);
+    if (rc != HFS_OK)
+        return rc;
 
     struct hfs_entry entry;
     rc = hfs_catalog_lookup_ascii(&image->catalog, 2, OVERFLOW_NAME, &entry);
@@ -622,8 +646,38 @@ static int create_overflow_file(struct image *image)
 
     fprintf(stderr,
             "overflow file cnid=%u size=%u blocks=%u inline=%u overflow=%u\n",
-            cnid, OVERFLOW_SIZE, entry.data.blocks, inline_blocks,
+            entry.id, OVERFLOW_SIZE, entry.data.blocks, inline_blocks,
             overflow_blocks);
+
+    /*
+     * A second overflowed file stays on the volume so the cleanup stage can
+     * delete a fork that still owns overflow extents, without truncating it
+     * first.
+     */
+    rc = append_fragmented_file(image, DIRECT_NAME, DIRECT_BLOCKS, 0x60u);
+    if (rc != HFS_OK)
+        return rc;
+    struct hfs_entry direct;
+    rc = hfs_catalog_lookup_ascii(&image->catalog, 2, DIRECT_NAME, &direct);
+    if (rc != HFS_OK)
+        return rc;
+    uint32_t direct_inline = 0;
+    for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i)
+        direct_inline += direct.data.extents[i].count;
+    struct hfs_extent direct_list[8];
+    size_t direct_count = 0;
+    rc = hfs_extents_collect(&extents, direct.id, direct_inline,
+                             direct.data.blocks, direct_list, 8,
+                             &direct_count);
+    if (rc != HFS_OK)
+        return rc;
+    if (direct.data.blocks != DIRECT_BLOCKS || direct_inline != 8u ||
+        direct_count != 1u || direct_list[0].count != 1u) {
+        fprintf(stderr,
+                "direct file blocks=%u inline=%u extents=%zu\n",
+                direct.data.blocks, direct_inline, direct_count);
+        return HFS_ERR_FORMAT;
+    }
     return HFS_OK;
 }
 
@@ -633,6 +687,38 @@ static int clear_overflow_file(struct image *image)
     size_t units = ascii_units(OVERFLOW_NAME, name, sizeof(name) / 2u);
     if (units == 0)
         return HFS_ERR_ARGUMENT;
+
+    /*
+     * Delete a fork that still owns an overflow extent, with no truncate in
+     * front of it: the delete path itself has to free the inline and overflow
+     * blocks and clear the extents record.
+     */
+    struct stats before_direct;
+    if (read_stats(image, &before_direct) != HFS_OK)
+        return HFS_ERR_IO;
+    struct hfs_entry direct;
+    int drc = hfs_catalog_lookup_ascii(&image->catalog, 2, DIRECT_NAME,
+                                       &direct);
+    if (drc != HFS_OK)
+        return drc;
+    drc = delete_named_file(image, DIRECT_NAME, direct.id);
+    if (drc != HFS_OK)
+        return drc;
+    struct stats after_direct;
+    if (read_stats(image, &after_direct) != HFS_OK)
+        return HFS_ERR_IO;
+    if (after_direct.free_blocks != before_direct.free_blocks + DIRECT_BLOCKS) {
+        fprintf(stderr, "direct delete freed %u blocks, expected %u\n",
+                after_direct.free_blocks - before_direct.free_blocks,
+                (unsigned int)DIRECT_BLOCKS);
+        return HFS_ERR_FORMAT;
+    }
+    if (hfs_catalog_lookup_ascii(&image->catalog, 2, DIRECT_NAME, &direct) !=
+        HFS_ERR_NOT_FOUND) {
+        fprintf(stderr, "direct file survived its delete\n");
+        return HFS_ERR_FORMAT;
+    }
+
     struct hfs_txn tx;
     int rc = hfs_txn_begin(&tx, &image->journal);
     if (rc != HFS_OK)

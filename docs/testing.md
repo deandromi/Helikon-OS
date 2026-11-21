@@ -113,7 +113,9 @@ existing image or device path. The test:
   single-block overflow extents and the volume's empty extents tree takes its
   first record; macOS reads the 49,152 bytes back with a per-block pattern, and
   `fsck_hfs -fn` stays clean;
-- truncates and deletes the overflow file, requires the extents tree to be
+- deletes a second overflowed file directly, with no truncate in front of it, so
+  the delete path itself frees its inline and overflow blocks;
+- truncates and deletes the first overflow file, requires the extents tree to be
   empty and the blocks to be free again, remounts and checks the paths are gone.
 
 `fsck_hfs` zero repairs and macOS content parity are the pass criteria. This is

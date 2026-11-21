@@ -14,8 +14,11 @@ Stages, in order: `create`, `rename`, `truncate`, `delete`, `overflow`,
 file one call at a time, and requires the fork to land in the eight inline
 extents plus four overflow extents, so the volume's empty extents overflow
 B-tree takes its first record. `check-overflow.py` verifies the 49,152 bytes
-with a per-block pattern through the macOS mount; `overflow-cleanup` truncates
-and deletes the file and requires the extents tree to be empty again.
+with a per-block pattern through the macOS mount. The stage also leaves a
+smaller overflowed file (`Overflow Direct`, nine blocks) behind, and
+`overflow-cleanup` deletes that one directly — no truncate first — before it
+truncates and deletes the first file and requires the extents tree to be empty
+again.
 
 The script accepts no image or device argument. Do not add one, and do not
 point the harness at a library, a mounted volume or a `/dev` node.
