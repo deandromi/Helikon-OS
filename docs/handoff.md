@@ -12,6 +12,71 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (twentieth block: every interface reviewed)
+
+## What happened
+
+- Owner asked for a full design review of **every** interface, not a change to
+  any of them. Three reviews were produced with the Unslopovich method (read the
+  running thing or the committed render, walk the top tasks as three users, then
+  the detector, then the report) and saved as visits:
+  `.unslopovich/visits/2026-11-21-{1529-firmware-music-ui,1531-companion,1533-boot-splash}.md`.
+- **Firmware UI, 13/24.** The design language holds; the defects are truth and
+  navigation. `draw_top_bar()` never draws a real time: the clock slot is
+  `--:--` or the word `FONT FALLBACK` on every music screen
+  (`firmware/ui/music.c:1095`). Five of six launcher cells open a build note
+  (`launcher_run.c:19`). An empty Tracks list is headed `EMPTY` / `NO ITEMS`
+  (`music.c:1010`). `AUDIO CODEC/12C` reaches the user as a cause line
+  (`music.c:2717`). Counts repeat up to three times on the artist page,
+  `SORT: NAME` is inert, footers use three grammars on four baselines, an
+  unrated album draws five empty stars, and the artist/album pages print no
+  button hints at all. The two navigation items (LEFT/RIGHT as tab switching,
+  and the Music hub as a second launcher) are recorded as **Ask first**.
+- **Companion, 10/24.** The shell is honest and unreadable in places: the splash
+  gates every launch with no opt-out (`AppModel.swift:7`), `HColor.faint`
+  measures 2.22:1 for real sentences, the main pane carries three build notes,
+  a 248 pt sidebar has no destinations, and the window cannot go below
+  1120×720. Screenshots were refused (Screen Recording permission), so the
+  companion review is from source; `swift build` passes and the app launches.
+- **Boot splash, 14/24.** Pass and fail are the same two words with different
+  hues: `HFS+ DETAILS` in green `#00BF63` (2.08:1 on the paper) or red
+  `#FE3131` (3.14:1). The label is already composited at runtime, so a truthful
+  status word is cheap; it changes owner artwork and the recorded image hash,
+  so it is **Ask first**.
+- No firmware, companion or bootloader behaviour was changed in this block. The
+  three reports are the deliverable; the treatment batch is proposed and not
+  started, because the largest wins move navigation or owner artwork.
+
+## Evidence (host only, no device run)
+
+- `node detect.js` (Unslopovich detector): 3 `fixed-text-size` hits in
+  `Design/Theme.swift:34,38,42`, confirmed in context. It cannot parse C, so the
+  firmware UI was reviewed by hand from `firmware/ui/*.c` and the committed
+  renders in `assets/ui/` and `assets/bootloader/`.
+- Contrast measured, not eyeballed: firmware `MUSIC_MUTED` on `MUSIC_PAPER`
+  5.00:1 (passes AA); companion `faint` 2.22:1, `muted` 4.72:1; splash green
+  2.08:1, red 3.14:1.
+- `swift build` in `tools/desktop`: PASS (30.9 s). The app launches; the window
+  reports 1120×748. `screencapture` refused the window rect, so no screenshots.
+- The recorded clipping check for the Music flow still passes (16 screens,
+  2026-11-08); geometry findings are not clipping.
+
+## Open / next
+
+- Treatment needs an owner yes/no on: LEFT/RIGHT as tab switching, the Music
+  hub as a second launcher, the `FONT FALLBACK` slot, the companion's forced
+  light appearance, and any change to the boot splash (new artwork + a new
+  recorded image hash).
+- Safe-as-defects, no navigation change: the `EMPTY`/`NO ITEMS` empty state, the
+  wall caption separator, the lens of unknown-value dashes, the OPENING footer
+  losing its button hints, the visualizer hole, the raw error code, and the
+  footer grammar/baseline.
+- No `.unslopovich/chart.md` yet. Creating one would record the accepted
+  exceptions (paper palette, 11 px caps, fixed panel, owner artwork) so the next
+  review does not re-litigate them.
+
+---
+
 # Handoff — 2026-11-21 (nineteenth block: a write that grows a file)
 
 ## What happened
