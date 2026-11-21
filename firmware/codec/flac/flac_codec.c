@@ -13,9 +13,10 @@ HELIKON_STATIC_ASSERT(sizeof(struct helikon_flac_decoder) <=
                           HELIKON_CODEC_WORKSPACE_MAX,
                       flac_workspace_fits);
 
-static int flac_probe(const uint8_t *data, size_t size,
+static int flac_probe(const uint8_t *data, size_t size, uint64_t total_size,
                       struct helikon_codec_info *info)
 {
+    (void)total_size;
     return helikon_flac_probe(data, size, info);
 }
 
@@ -26,8 +27,17 @@ static int flac_open(struct helikon_codec *codec, void *workspace,
         workspace_size < sizeof(struct helikon_flac_decoder))
         return HELIKON_ERR_ARGUMENT;
 
+    /*
+     * The FLAC decoder still parses a resident image; refuse a pull source
+     * instead of reading the probe prefix as if it were the whole file.
+     */
+    const uint8_t *data = NULL;
+    size_t size = 0u;
+    if (!helikon_codec_memory_span(codec, &data, &size))
+        return HELIKON_ERR_UNSUPPORTED;
+
     struct helikon_flac_decoder *decoder = workspace;
-    int rc = helikon_flac_open(decoder, codec->data, codec->size);
+    int rc = helikon_flac_open(decoder, data, size);
     if (rc != HELIKON_OK)
         return rc;
     codec->state = decoder;
@@ -64,6 +74,7 @@ const struct helikon_codec_ops helikon_flac_codec_ops = {
     .name = "flac",
     .extensions = flac_extensions,
     .capabilities = HELIKON_CODEC_CAP_SEEK | HELIKON_CODEC_CAP_GAPLESS,
+    .streaming = 0u,
     .stack_bytes = 4096u,
     .min_clock_hz = 54000000u,
     .recommended_clock_hz = 216000000u,

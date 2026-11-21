@@ -6,7 +6,12 @@ CFLAGS := -O2 -g -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow \
           -Wundef -Wpointer-arith \
           -I../../firmware/ui -I../../firmware/diag -I../../firmware/lib \
           -I../../firmware/db -I../../firmware/hal/6g -I../../firmware/player \
-          -I../../firmware/codec -I../../firmware/codec/flac
+          -I../../firmware/codec -I../../firmware/codec/flac \
+          -I../../firmware/codec/mp3 -I../../firmware/codec/libmad
+
+# The audio render links the codec layer, whose registry references the MP3
+# descriptor, so the libmad objects come along even for WAV-only renders.
+include ../libmad.mk
 OUT := ../../build/ui
 FIXTURE := ../../build/musicdb/fixture.hdb
 BLOB_SRC := $(OUT)/fixture_blob.S
@@ -76,22 +81,25 @@ $(AUDIO_TEST): test_audio.c ../../firmware/ui/music.c \
                ../../firmware/codec/codec.c \
                ../../firmware/codec/flac/flac_codec.c \
                ../../firmware/codec/flac/flac_decoder.c \
+               ../../firmware/codec/mp3/mp3_codec.c \
+               ../../firmware/codec/mp3/mp3.h \
                ../../firmware/ui/launcher_assets.c \
                ../../firmware/ui/launcher_assets.h \
                ../../firmware/db/hdb.c ../../firmware/db/hdb.h \
                ../../firmware/diag/screen.c ../../firmware/lib/crc32.c \
                ../../firmware/lib/mem.c ../../firmware/lib/string.c \
-               $(BLOB_OBJ)
+               $(BLOB_OBJ) $(LIBMAD_OBJ)
 	$(CC) $(CFLAGS) -o $@ test_audio.c \
 	      ../../firmware/player/player.c ../../firmware/player/wav.c \
 	      ../../firmware/ui/ui_text.c ../../firmware/ui/font_atlas.c \
 	      ../../firmware/codec/codec.c \
 	      ../../firmware/codec/flac/flac_codec.c \
 	      ../../firmware/codec/flac/flac_decoder.c \
+	      ../../firmware/codec/mp3/mp3_codec.c \
 	      ../../firmware/ui/launcher_assets.c \
 	      ../../firmware/db/hdb.c ../../firmware/diag/screen.c \
 	      ../../firmware/lib/crc32.c ../../firmware/lib/mem.c \
-	      ../../firmware/lib/string.c $(BLOB_OBJ)
+	      ../../firmware/lib/string.c $(BLOB_OBJ) $(LIBMAD_OBJ)
 
 clean:
-	rm -f test_launcher
+	rm -rf test_launcher build_mad

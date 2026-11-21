@@ -181,6 +181,7 @@ static const char *failure_reason(int error)
     case HELIKON_ERR_READ_ONLY: return "The storage write gate is closed.";
     case HELIKON_ERR_ARGUMENT: return "An internal argument check failed.";
     case HELIKON_ERR_BUFFER: return "A scratch buffer was too small.";
+    case HELIKON_ERR_NEED_MORE: return "The stream head was too short to parse.";
     default: return "An unexpected firmware error occurred.";
     }
 }

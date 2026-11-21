@@ -249,6 +249,13 @@ The WAV container and player state are host-tested separately:
 make -C tests/player test
 ```
 
+Every host suite that links `firmware/codec/codec.c` also links the vendored
+libmad objects, because the codec registry references the MP3 descriptor even
+when the suite never decodes an MP3. The object rules live in one fragment,
+`tests/libmad.mk`, included by `tests/codec`, `tests/player` and `tests/ui`.
+Adding a suite that builds the codec layer means including it; a missing link
+shows up as an undefined `helikon_mp3_codec_ops`.
+
 The HelikonDB reader is tested against a generated fixture, with an optional
 real corpus:
 

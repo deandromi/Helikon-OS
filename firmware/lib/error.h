@@ -31,7 +31,13 @@ enum helikon_error {
     /* Firmware addition (D-28): the loader handoff failed validation. */
     HELIKON_ERR_BOOT_INFO_INVALID = -17,
     /* Firmware addition (F2): bootstate is missing, invalid or mismatched. */
-    HELIKON_ERR_BOOTSTATE = -18
+    HELIKON_ERR_BOOTSTATE = -18,
+    /*
+     * Firmware addition (codec source): a header probe was given only the
+     * head of the stream and needs more of it to decide. Not an I/O failure;
+     * a streaming decoder resolves it during open.
+     */
+    HELIKON_ERR_NEED_MORE = -19
 };
 
 /* HFS+ core compatibility names. */

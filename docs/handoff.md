@@ -12,6 +12,69 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (streaming source model, WAV converted)
+
+## What happened
+
+- **The codec layer takes a pull source.** `struct helikon_codec_source`
+  (`firmware/codec/codec.h`) is an absolute `read_at(context, offset, buffer,
+  length, *read)` plus a total `size` (0 = unknown). `helikon_codec_open_source()`
+  opens over one; `helikon_codec_memory_span()` reports whether the codec still
+  holds the whole stream contiguously. `helikon_codec_open()` is unchanged for
+  every existing caller — it wraps the caller's buffer in a memory source whose
+  context is the codec itself (never a stack frame).
+- **Descriptor `streaming` flag + head-only probes.** `ops->probe` now takes
+  `(data, size, total_size)`: `data/size` is a head of at most
+  `HELIKON_CODEC_PROBE_BYTES` (4096) and `total_size` is the true length or 0.
+  A probe that cannot decide returns the new `HELIKON_ERR_NEED_MORE`
+  (`firmware/lib/error.h`, `-19`, with a `failure_reason` string); the registry
+  accepts that only from a `streaming` descriptor, lets `open` resolve the head,
+  and treats `codec->info` as authoritative afterwards. `helikon_codec_probe()`
+  always sees the whole buffer and never returns `NEED_MORE`.
+- **WAV converted.** `firmware/player/wav.{c,h}` is now one RIFF chunk walker
+  over two backends; `helikon_wav_parse()` keeps its signature,
+  `helikon_wav_parse_prefix()` parses a head shorter than the stream and
+  `helikon_wav_parse_source()` walks a source. PCM is read on demand at
+  `pcm_offset + frame × frame_bytes`; mono duplicates through a 256-frame stack
+  buffer; short reads yield whole frames only. WAV decodes without ever holding
+  the payload.
+- **FLAC and MP3 refuse a pull source** (`HELIKON_ERR_UNSUPPORTED`) instead of
+  reading a header prefix as if it were the file; both carry `streaming = 0`.
+- **Two broken suites repaired.** `tests/player` and `tests/ui` had failed to
+  link since the MP3 merge (both build `codec.c`, whose registry references
+  `helikon_mp3_codec_ops`; neither linked libmad). The object rules now live in
+  `tests/libmad.mk`, included by `tests/codec`, `tests/player` and `tests/ui`.
+  Neither suite appeared in the T-097 verification list — that is why it slipped.
+- **Also fixed**: `codec.h` had its extension/registry prototypes outside the
+  include guard (an `#endif` sat mid-file) since T-097.
+
+## Evidence
+
+- `make -C tests/codec test` + `sanitize`: PASS, including new source tests —
+  bounded requests (one chunk requests exactly `chunk × 4` bytes), 37-byte short
+  reads, unknown media size, a `JUNK` chunk that pushes `data` past the probe
+  prefix (`NEED_MORE` → resolved in `open`), and the refusals/flag checks.
+- Regression matrix: `tests/hfsplus` (+ sanitize), `tests/vfs` (+ sanitize),
+  `tests/firmware` (test + sanitize after `clean`), `tests/bootloader`
+  (+ sanitize), `tests/image` (test, write-diag, outer-diag, loader-test),
+  `tests/musicdb`, `tests/player`, `tests/ui`: all pass.
+- Cross-builds: plain 6G (77,856 B), music-hub config with the MP3 fixture
+  (765,392 B raw, MP3 and `helikon_wav_parse_source` symbols linked),
+  `VERSION=2` `BOOTSTATE_STATE=trying` image + `check-f2-artifact.sh`: PASS.
+  `helikon_codec_open_source` is GC'd out of the image until T-058 calls it.
+- Host-verified only: **no device run**, no support claim.
+
+## Open / next
+
+- FLAC streaming next, then MP3 (libmad keeps `main_data` boundaries into the
+  buffer, so a refill must preserve the unconsumed tail; the tail bounce buffer
+  from the MP3 work is the starting point).
+- T-058 wiring (VFS → `read_at` → codec → ring) is the next milestone after
+  that; the VFS half exists.
+- T-056 device half, T-100/T-101 device gates, ALAC/AAC unchanged.
+
+---
+
 # Handoff — 2026-11-17/18 (T-097 descriptor extensions + MP3/libmad port)
 
 ## What happened
