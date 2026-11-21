@@ -38,7 +38,7 @@
 #define HELIKON_USB_EP_BULK_MPS_FULL 64u
 
 #define HELIKON_USB_EVENT_CAPACITY 16u
-#define HELIKON_USB_SETUP_BYTES 8u
+#define HELIKON_USB_SETUP_BYTES HELIKON_USB_SETUP_LENGTH
 /* Bound on one status-register drain and on the packets moved per call. */
 #define HELIKON_USB_RX_DRAIN_LIMIT 32u
 #define HELIKON_USB_TX_PACKETS_PER_CALL 4u

@@ -288,8 +288,13 @@ make -C tests/usb test
 make -C tests/usb sanitize
 ```
 
-Neither suite touches a device, and the HAL suite proves the sequence, not the
-silicon: only a 6G run can do that.
+A third suite, `test_disk_mode`, runs the mode machine with a fake transport:
+the opt-in gate, descriptors and SET_ADDRESS, a whole-disk 4 TB window,
+INQUIRY, a read and a write above 128 GiB landing on the fake medium, the
+read-only DATA PROTECT refusal, eject releasing the medium and a bus reset.
+
+None of the three touches a device, and the HAL suite proves the sequence, not
+the silicon: only a 6G run can do that.
 
 A storage-backed decode has its own differential test: `tests/library` mounts a
 real journaled HFS+ image (created by the script), decodes `/Music/first.mp3`

@@ -150,6 +150,7 @@ void helikon_usb_msc_reset(struct helikon_usb_msc *msc)
     msc->phase_error = 0;
     msc->staged_lba = 0u;
     msc->staged_valid = 0;
+    msc->eject_requested = 0;
     sense_reset(msc);
 }
 
@@ -500,6 +501,17 @@ int helikon_usb_msc_command(struct helikon_usb_msc *msc,
             int rc = helikon_block_flush(msc->device, msc->timeout_ms);
             sense_from_error(msc, rc, 1);
         }
+        if (opcode == SCSI_START_STOP_UNIT) {
+            /* LoEj (bit 1) with Start (bit 0) clear is an eject request. The
+             * medium is flushed before Disk Mode lets go of the window. */
+            int eject = (msc->cdb[4] & 0x02u) != 0u &&
+                        (msc->cdb[4] & 0x01u) == 0u;
+            if (eject) {
+                msc->eject_requested = 1;
+                int rc = helikon_block_flush(msc->device, msc->timeout_ms);
+                sense_from_error(msc, rc, 1);
+            }
+        }
         break;
     }
     case SCSI_REQUEST_SENSE:
@@ -668,6 +680,14 @@ int helikon_usb_msc_out(struct helikon_usb_msc *msc, const void *buffer,
     msc->transferred += want;
     *consumed = want;
     return HELIKON_OK;
+}
+
+int helikon_usb_msc_take_eject(struct helikon_usb_msc *msc)
+{
+    if (msc == NULL || !msc->eject_requested)
+        return 0;
+    msc->eject_requested = 0;
+    return 1;
 }
 
 void helikon_usb_msc_status(struct helikon_usb_msc *msc,

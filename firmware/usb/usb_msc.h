@@ -73,6 +73,12 @@ struct helikon_usb_msc {
     uint64_t staged_lba;
     int staged_valid;
     uint8_t staged[4096];
+    /*
+     * Set by START STOP UNIT with LoEj=1, Start=0 — the host is releasing the
+     * medium. Disk Mode flushes, stops exposing the LUN and lets the firmware
+     * see the volume again. `helikon_usb_msc_take_eject()` consumes it.
+     */
+    int eject_requested;
 };
 
 /* What the transport must do next. */
@@ -110,6 +116,9 @@ int helikon_usb_msc_out(struct helikon_usb_msc *msc, const void *buffer,
                         uint32_t length, uint32_t *consumed);
 
 /* Builds the CSW for the current command. */
+/* Returns 1 once if the host asked to eject, then clears the flag. */
+int helikon_usb_msc_take_eject(struct helikon_usb_msc *msc);
+
 void helikon_usb_msc_status(struct helikon_usb_msc *msc,
                             uint8_t csw[HELIKON_USB_CSW_SIZE]);
 

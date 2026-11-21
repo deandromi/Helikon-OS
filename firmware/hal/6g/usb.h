@@ -22,30 +22,11 @@
 
 #include <stdint.h>
 
+#include "usb_events.h"
 #include "usb_hw.h"
 
 /* Event queue depth. One SETUP plus a few completions is the working set. */
 #define HELIKON_USB_QUEUE_DEPTH 16u
-
-enum helikon_usb_event {
-    HELIKON_USB_EVENT_NONE = 0,
-    /* A SETUP packet arrived; the 8 bytes are in the `setup` output. */
-    HELIKON_USB_EVENT_SETUP,
-    /* EP0 IN data stage finished (or the zero-length status went out). */
-    HELIKON_USB_EVENT_EP0_IN_DONE,
-    /* EP0 OUT data stage finished. */
-    HELIKON_USB_EVENT_EP0_OUT_DONE,
-    /* Bulk IN (EP1) transfer finished. */
-    HELIKON_USB_EVENT_EP1_IN_DONE,
-    /* Bulk OUT (EP2) transfer finished. */
-    HELIKON_USB_EVENT_EP2_OUT_DONE,
-    /* Bus reset: address 0, endpoints disabled. */
-    HELIKON_USB_EVENT_BUS_RESET,
-    /* Cable removed (or VBUS gone): the host no longer owns the LUN. */
-    HELIKON_USB_EVENT_DISCONNECT,
-    /* An internal bound was hit (FIFO stuck, oversize OUT, queue full). */
-    HELIKON_USB_EVENT_ERROR
-};
 
 /* Runs the PHY, clock and core sequence and connects. Returns HELIKON_OK,
  * HELIKON_ERR_ARGUMENT for an incomplete seam, HELIKON_ERR_IO if the core never

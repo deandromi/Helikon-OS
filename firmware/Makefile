@@ -34,7 +34,7 @@ ARCH := -mcpu=arm926ej-s -marm -mno-thumb-interwork -mfloat-abi=soft
 CFLAGS := -std=c99 -O2 -g -ffreestanding -fno-builtin -nostdinc \
           -isystem $(GCC_INCLUDE) -DHELIKON_IMAGE_VERSION=$(VERSION) \
           -Ilib -Iboot -Iboard/$(BOARD) -Ihal/$(BOARD) -Iblock -Idiag -Ihfs \
-          -Ivfs -Iui -Idb -Iplayer -Icodec \
+          -Ivfs -Iui -Idb -Iplayer -Icodec -Iusb \
           -Wall -Wextra -Werror -Wconversion -Wshadow -Wundef \
           -Wpointer-arith -ffunction-sections -fdata-sections -fno-common \
           -fno-stack-protector -fno-unwind-tables \
@@ -81,10 +81,14 @@ PLAYER_SRC := player/player.c player/wav.c player/vfs_media.c \
 endif
 LIBRARY_SRC := db/hdb.c
 VFS_SRC := vfs/vfs.c
+# The USB device stack. Compiled always so it cannot rot; it only reaches the
+# image through a Disk Mode caller, which does not exist yet (T-110).
+USB_SRC := usb/usb_descriptors.c usb/usb_control.c usb/usb_msc.c \
+           usb/disk_mode.c
 
 ALL_SRC := $(BOOT_SRC) $(LIB_SRC) $(BOARD_SRC) $(HAL_SRC) $(BLOCK_SRC) \
            $(DIAG_SRC) $(HFS_ADAPTER_SRC) $(HFS_SRC) $(UI_SRC) \
-           $(PLAYER_SRC) $(LIBRARY_SRC) $(VFS_SRC)
+           $(PLAYER_SRC) $(LIBRARY_SRC) $(VFS_SRC) $(USB_SRC)
 OBJS := $(patsubst %.c,$(BUILD)/%.o,$(patsubst %.S,$(BUILD)/%.o,$(ALL_SRC)))
 
 ifneq ($(HDB),)

@@ -12,6 +12,59 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (thirty-first block: Disk Mode decides when a host may write)
+
+## What happened
+
+- `firmware/usb/disk_mode.c/.h`: the mode machine between the transport and
+  the protocol modules.
+  - **The gate.** No `opt_in`, no mode: `helikon_disk_mode_start()` returns
+    `HELIKON_ERR_UNSUPPORTED`. D-54 says Disk Mode is explicit, so the refusal
+    lives in the module a caller cannot forget, not in the caller.
+  - **The window.** Restore mode exposes the whole disk, writable; the data
+    volume is forced read-only on the mode's private copy of the block device,
+    so the MSC layer answers DATA PROTECT without trusting a caller.
+  - **The phase machine.** CBW → data stage → CSW, one command at a time, one
+    512-byte slice in flight so the TX FIFO cannot overrun. The next CBW is
+    armed when a CSW completes.
+  - **Release.** START STOP UNIT with LoEj flushes the medium and moves the mode
+    to `RELEASED`; a disconnect flushes and does the same. That is the signal the
+    firmware uses to know the volume is its own again.
+- `firmware/usb/usb_events.h`: the event vocabulary moved out of the HAL header,
+  so the mode module builds on the host without a controller.
+- `usb_msc.c`: START STOP UNIT now records an eject request (`take_eject()`), and
+  the flag is cleared by a BOT reset.
+- `tests/usb/test_disk_mode.c`: a fake transport, the real MSC/control modules
+  and a sparse 4 TB disk. It pins: the gate, the whole-disk window, the 18-byte
+  device descriptor, SET_ADDRESS 9, SET_CONFIGURATION arming a 31-byte CBW,
+  INQUIRY (36 bytes then CSW), READ(10) at LBA `0x10000000` returning that
+  sector, WRITE(10) at the same LBA reaching the medium, START STOP UNIT
+  ejecting and flushing, a read-only window refusing a write with DATA PROTECT,
+  bus reset returning to `WAITING` and disconnect to `RELEASED`.
+
+## Evidence (host only, no device run)
+
+- `make -C tests/usb test` PASS: `PASS usb`, `PASS usb_hal`, `PASS disk_mode`.
+- `make -C tests/usb sanitize` PASS for all three binaries.
+- `make -C firmware BOARD=6g` PASS: the stack compiles for ARM inside the
+  firmware build and the image is unchanged at 80,004 bytes, because nothing
+  calls it yet (`--gc-sections`).
+- Nothing enumerated, nothing mounted, no device run.
+
+## Open / next
+
+- The caller: an explicit owner action that starts Disk Mode, stops the firmware
+  from mounting the volume, runs the USB event loop, and returns to the firmware
+  after `RELEASED` with a journal check. That is the last code between this and
+  a laptop writing an APM.
+- The Disk Mode screen: state, capacity and "safe to unplug" from
+  `helikon_disk_mode_state_name()`.
+- Then the host-side format runbook: backup gate, DFU install, `diskutil`
+  `partitionDisk`/`newfs_hfs` with a >128 GB HFS+ partition, `fsck_hfs -fn`, and
+  a `device-matrix.md` row that stays `not run` until the owner does it.
+
+---
+
 # Handoff — 2026-11-21 (thirtieth block: the controller driver, proved against a mock core)
 
 ## What happened

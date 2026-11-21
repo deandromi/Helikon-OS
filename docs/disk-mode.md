@@ -213,7 +213,8 @@ firmware/usb/usb_control.c        chapter 9 requests, endpoint halt, MSC class
                                   requests (GET_MAX_LUN, BULK_ONLY_RESET)      host-tested
 firmware/usb/usb_msc.c            bulk-only transport (CBW/CSW), the SCSI
                                   command set and the LUN window               host-tested
-firmware/usb/disk_mode.c/.h       mode state, UI, ATA backend, eject/exit       missing
+firmware/usb/disk_mode.c/.h       mode state, opt-in gate, LUN window, BOT
+                                  phase machine, eject/release               host-tested
 ```
 
 The host half — descriptors, control requests and the whole bulk-only mass
@@ -231,9 +232,16 @@ FIFO split, the interrupt mask, the EP0 arming and the bus-reset path are
 pinned. It cross-builds into the 6G image. **It has never run on hardware**, and
 a mock cannot prove the silicon.
 
-What T-110 still owes: a recorded 6G enumeration, the 100 connect/disconnect
-cycles, the macOS view of "Helikon Disk Mode", and the mode module
-(`disk_mode.c`) that decides when the LUN exists at all.
+The mode module (`firmware/usb/disk_mode.c`) is in place as well. It owns the
+gate (no opt-in, no mode), the window (the whole disk for a restore/format, or a
+bare data volume that is forced read-only), the CBW → data → CSW phase machine
+over a small transport ops table, and the release path (eject or disconnect
+flushes, drops the window and reports that the firmware may see the volume
+again). `tests/usb/test_disk_mode` drives it end to end on the host.
+
+What T-110 still owes: a caller in the boot path that enters the mode behind an
+explicit owner action, the Disk Mode screen, a recorded 6G enumeration, the 100
+connect/disconnect cycles and the macOS view of "Helikon Disk Mode".
 
 The hardware layer is a Helikon implementation with the donor
 `usb-designware.c` and `usb-s5l8702.c` as the register-level reference. No
