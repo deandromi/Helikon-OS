@@ -22,5 +22,11 @@ Coverage:
 | `verbatim16` | 16-bit, 44.1 kHz, stereo | verbatim subframes |
 | `stereo16_48` | 16-bit, 48 kHz, stereo | fixed predictor |
 | `left_side16` | 16-bit, 44.1 kHz, stereo | left-side stereo |
+| `tagged16` | `stereo16` audio + 8 Vorbis comments | tag reader fixture (`tag/vorbis.c`) |
+
+`tagged16.flac` is a copy of `stereo16.flac` with `metaflac --set-tag` applied
+(title, artist, album, album artist, genre, date, track `3/12`, disc `2/2`), so
+the Vorbis-comment reader is exercised against a real encoder file as well as
+the synthetic blocks built inside `test_codec.c`.
 
 The fixture set is generated content only. It contains no owner library audio.

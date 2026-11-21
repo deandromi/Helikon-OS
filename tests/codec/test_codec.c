@@ -2,6 +2,7 @@
 #include "codec.h"
 #include "flac_decoder.h"
 #include "id3v2.h"
+#include "vorbis.h"
 #include "mp3.h"
 
 #include <stdio.h>
@@ -1020,6 +1021,230 @@ static int check_mp3_gapless(void)
     return 0;
 }
 
+static size_t text_len(const char *text)
+{
+    size_t length = 0u;
+    while (text[length] != '\0')
+        ++length;
+    return length;
+}
+
+static int text_is(const char *text, const char *wanted)
+{
+    size_t index = 0u;
+    for (;;) {
+        if (text[index] != wanted[index])
+            return 0;
+        if (text[index] == '\0')
+            return 1;
+        ++index;
+    }
+}
+
+/* Builds `fLaC` + a STREAMINFO block + a VORBIS_COMMENT block from `body`. */
+static size_t make_flac_comment(uint8_t *data, const uint8_t *body,
+                                size_t body_size, int last)
+{
+    size_t offset = 0u;
+    helikon_memcpy(data + offset, "fLaC", 4u);
+    offset += 4u;
+    data[offset] = 0x00u; /* STREAMINFO, not last */
+    data[offset + 1u] = 0u;
+    data[offset + 2u] = 0u;
+    data[offset + 3u] = 34u;
+    offset += 4u;
+    helikon_memset(data + offset, 0, 34u);
+    offset += 34u;
+    if (body == NULL)
+        return offset;
+    data[offset] = (uint8_t)(last ? 0x84u : 0x04u);
+    data[offset + 1u] = (uint8_t)((body_size >> 16) & 0xffu);
+    data[offset + 2u] = (uint8_t)((body_size >> 8) & 0xffu);
+    data[offset + 3u] = (uint8_t)(body_size & 0xffu);
+    offset += 4u;
+    helikon_memcpy(data + offset, body, body_size);
+    return offset + body_size;
+}
+
+/* Vendor "test", two complete comments and the given raw comment list. */
+static size_t make_comment_body(uint8_t *body, const char *const *comments,
+                                size_t count, const uint8_t *raw,
+                                size_t raw_size)
+{
+    uint32_t vendor = 4u;
+    size_t offset = 0u;
+    helikon_memcpy(body + offset, &vendor, 4u);
+    offset += 4u;
+    helikon_memcpy(body + offset, "test", 4u);
+    offset += 4u;
+    uint32_t total = (uint32_t)(count + (raw != NULL ? 1u : 0u));
+    helikon_memcpy(body + offset, &total, 4u);
+    offset += 4u;
+    for (size_t index = 0u; index < count; ++index) {
+        uint32_t length = (uint32_t)text_len(comments[index]);
+        helikon_memcpy(body + offset, &length, 4u);
+        offset += 4u;
+        helikon_memcpy(body + offset, comments[index], length);
+        offset += length;
+    }
+    if (raw != NULL) {
+        uint32_t length = (uint32_t)raw_size;
+        helikon_memcpy(body + offset, &length, 4u);
+        offset += 4u;
+        helikon_memcpy(body + offset, raw, raw_size);
+        offset += raw_size;
+    }
+    return offset;
+}
+
+static int check_vorbis_tags(void)
+{
+    static uint8_t body[1024];
+    static uint8_t tag_file[2048];
+    struct helikon_vorbis_tags tags;
+    const char *const comments[] = {
+        "TITLE=Hello World",
+        "ARTIST=\xc3\x84rtist",
+        "ALBUM=An Album",
+        "ALBUMARTIST=Various",
+        "GENRE=Test",
+        "DATE=1999-12-31",
+        "TRACKNUMBER=7/12",
+        "DISCNUMBER=2/2",
+    };
+    size_t body_size = make_comment_body(body, comments, 8u, NULL, 0u);
+    size_t size = make_flac_comment(tag_file, body, body_size, 1);
+
+    if (expect(helikon_flac_tags_buffer(tag_file, size, &tags) == HELIKON_OK,
+               "vorbis buffer parse"))
+        return 1;
+    if (expect(text_is(tags.title, "Hello World") &&
+                   text_is(tags.artist, "\xc3\x84rtist") &&
+                   text_is(tags.album, "An Album") &&
+                   text_is(tags.album_artist, "Various") &&
+                   text_is(tags.genre, "Test") &&
+                   text_is(tags.year, "1999") && tags.track == 7u &&
+                   tags.disc == 2u,
+               "vorbis buffer fields"))
+        return 1;
+
+    /* First value wins for a repeated field. */
+    const char *const repeated[] = {"TITLE=First", "TITLE=Second"};
+    body_size = make_comment_body(body, repeated, 2u, NULL, 0u);
+    size = make_flac_comment(tag_file, body, body_size, 1);
+    if (expect(helikon_flac_tags_buffer(tag_file, size, &tags) == HELIKON_OK &&
+                   text_is(tags.title, "First"),
+               "vorbis first value wins"))
+        return 1;
+
+    /* Invalid UTF-8 drops the value instead of storing half a character. */
+    const uint8_t bad[] = {'T', 'I', 'T', 'L', 'E', '=', 0xffu, 'x'};
+    body_size = make_comment_body(body, NULL, 0u, bad, sizeof(bad));
+    size = make_flac_comment(tag_file, body, body_size, 1);
+    if (expect(helikon_flac_tags_buffer(tag_file, size, &tags) == HELIKON_OK &&
+                   tags.title[0] == '\0',
+               "vorbis invalid utf8"))
+        return 1;
+
+    /* A comment with no '=' is malformed. */
+    const uint8_t no_equal[] = {'T', 'I', 'T', 'L', 'E'};
+    body_size = make_comment_body(body, NULL, 0u, no_equal, sizeof(no_equal));
+    size = make_flac_comment(tag_file, body, body_size, 0);
+    if (expect(helikon_flac_tags_buffer(tag_file, size, &tags) ==
+                   HELIKON_ERR_FORMAT,
+               "vorbis missing equals"))
+        return 1;
+
+    /* A declared comment length past the block is malformed. */
+    body_size = make_comment_body(body, NULL, 0u, NULL, 0u);
+    body[body_size - 4u] = 0xffu; /* count = 255 with no data after it */
+    size = make_flac_comment(tag_file, body, body_size, 0);
+    if (expect(helikon_flac_tags_buffer(tag_file, size, &tags) ==
+                   HELIKON_ERR_FORMAT,
+               "vorbis short block"))
+        return 1;
+
+    /* No comment block at all. */
+    size = make_flac_comment(tag_file, NULL, 0u, 0);
+    tag_file[4] = 0x80u; /* STREAMINFO is the last block */
+    if (expect(helikon_flac_tags_buffer(tag_file, size, &tags) ==
+                   HELIKON_ERR_NOT_FOUND,
+               "vorbis no block"))
+        return 1;
+
+    /* Not a FLAC file. */
+    helikon_memcpy(tag_file, "RIFF", 4u);
+    if (expect(helikon_flac_tags_buffer(tag_file, 64u, &tags) ==
+                   HELIKON_ERR_NOT_FOUND,
+               "vorbis not flac"))
+        return 1;
+
+    /* The same bytes through a pull source with short reads. */
+    body_size = make_comment_body(body, comments, 8u, NULL, 0u);
+    size = make_flac_comment(tag_file, body, body_size, 1);
+    struct fake_media media;
+    fake_media_init(&media, tag_file, size);
+    media.chunk = 61u;
+    struct helikon_codec_source source;
+    source.read_at = fake_read_at;
+    source.size = media.reported;
+    source.context = &media;
+    if (expect(helikon_flac_tags_source(&source, &tags) == HELIKON_OK &&
+                   text_is(tags.title, "Hello World") &&
+                   tags.track == 7u && tags.disc == 2u,
+               "vorbis source parse"))
+        return 1;
+    source.size = 0u;
+    if (expect(helikon_flac_tags_source(&source, &tags) ==
+                   HELIKON_ERR_UNSUPPORTED,
+               "vorbis source without size"))
+        return 1;
+    if (expect(helikon_flac_tags_source(NULL, &tags) == HELIKON_ERR_ARGUMENT &&
+                   helikon_vorbis_comment_parse(NULL, 0u, &tags) ==
+                       HELIKON_ERR_ARGUMENT &&
+                   helikon_vorbis_comment_parse(body, body_size, NULL) ==
+                       HELIKON_ERR_ARGUMENT,
+               "vorbis bad arguments"))
+        return 1;
+
+    /* A real encoder file: stereo16 has an empty comment block, tagged16 has
+     * the fixture tags. */
+    size_t tagged = load_file("fixtures/tagged16.flac", tag_file,
+                              sizeof(tag_file));
+    if (expect(tagged > 0u, "vorbis tagged fixture load"))
+        return 1;
+    if (expect(helikon_flac_tags_buffer(tag_file, tagged, &tags) ==
+                   HELIKON_OK &&
+                   text_is(tags.title, "Tagged Track") &&
+                   text_is(tags.artist, "Test Artist") &&
+                   text_is(tags.album, "Test Album") &&
+                   text_is(tags.album_artist, "Various Artists") &&
+                   text_is(tags.genre, "Test Genre") &&
+                   text_is(tags.year, "2021") && tags.track == 3u &&
+                   tags.disc == 2u,
+               "vorbis tagged fixture"))
+        return 1;
+    fake_media_init(&media, tag_file, tagged);
+    media.chunk = 173u;
+    source.read_at = fake_read_at;
+    source.size = media.reported;
+    source.context = &media;
+    if (expect(helikon_flac_tags_source(&source, &tags) == HELIKON_OK &&
+                   text_is(tags.title, "Tagged Track"),
+               "vorbis tagged fixture source"))
+        return 1;
+
+    size_t plain = load_file("fixtures/stereo16.flac", tag_file,
+                             sizeof(tag_file));
+    if (expect(plain > 0u, "vorbis plain fixture load"))
+        return 1;
+    if (expect(helikon_flac_tags_buffer(tag_file, plain, &tags) == HELIKON_OK &&
+                   tags.title[0] == '\0' && tags.track == 0u,
+               "vorbis plain fixture"))
+        return 1;
+    return 0;
+}
+
 static int check_id3v2(void)
 {
     struct helikon_id3v2_tags tags;
@@ -1289,6 +1514,8 @@ int main(void)
     if (check_flac_source())
         return 1;
     if (check_mp3_source())
+        return 1;
+    if (check_vorbis_tags())
         return 1;
     if (check_id3v2())
         return 1;
