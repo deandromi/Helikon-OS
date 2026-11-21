@@ -12,6 +12,85 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (twenty-ninth block: the USB device core answers a laptop's SCSI)
+
+## What happened
+
+- Owner goal: be able to format the iPod above 128 GB over USB from a laptop.
+  That needs a working USB mass-storage device, not just LBA48 addressing, so
+  this block built the host-visible half of Helikon Disk Mode.
+- `firmware/usb/usb_descriptors.c/.h`: device descriptor (18 B, `0x1209/0x0001`
+  marked as a placeholder pending **D-56**), one configuration (32 B, MSC
+  class 0x08 / subclass 0x06 / protocol 0x50, bulk IN `0x81`, bulk OUT `0x02`,
+  512-byte bulk packets), and string descriptors built as UTF-16LE at runtime
+  with an ASCII-only helper. No serial string: a device serial is a personal
+  identifier and `disk-mode.md` §7 forbids exposing one.
+- `firmware/usb/usb_control.c/.h`: chapter 9 GET/SET_DESCRIPTOR,
+  SET/GET_CONFIGURATION, SET_ADDRESS, GET_STATUS, endpoint halt via
+  endpoint-recipient SET/CLEAR_FEATURE, plus MSC class GET_MAX_LUN (0) and
+  BULK_ONLY_RESET. Answers are `{stall|in|out|no data, data, length}` so the
+  packet pump has nothing to interpret.
+- `firmware/usb/usb_msc.c/.h`: the bulk-only transport and the SCSI command set
+  over a window (`base_lba`, `sector_count`) of a `struct helikon_block_device`.
+  CBW validation (signature, reserved bits, CDB length, LUN 0 only), CSW with
+  residue, INQUIRY, REQUEST SENSE, READ CAPACITY(10) and (16) via
+  `SERVICE ACTION IN`, READ FORMAT CAPACITIES, MODE SENSE 6/10,
+  READ/WRITE/VERIFY(10/16), SYNCHRONIZE CACHE(10/16), START STOP UNIT and
+  PREVENT/ALLOW. FORMAT UNIT is refused on purpose: a host formats by writing a
+  partition map and a filesystem through the LUN, which keeps every byte
+  visible. A read-only window answers DATA PROTECT; an LBA outside the window
+  answers CHECK CONDITION / LBA OUT OF RANGE.
+- `tests/usb`: a host harness that speaks CBW/CSW the way a laptop does, against
+  a sparse 4 TB fake disk (sector `n` lives at `n % 8192`, so a 64-bit LBA needs
+  no 4 TB array).
+
+## Bugs the tests found (all fixed)
+
+- A READ command's data stage was capped to `in_length`, which only fixed
+  responses set — every READ returned zero bytes. The length now comes from
+  `blocks × sector_size` unless the command filled `in_buffer`.
+- `helikon_usb_msc_command()` reset the whole state, including sense data, at the
+  start of every CBW, so REQUEST SENSE could never see the error it was asked
+  about. A new `begin_command()` clears transport state only; the public reset
+  still clears sense, and REQUEST SENSE clears it once the response is built.
+- Endpoint halt was handled under the device recipient; SET_FEATURE/CLEAR_FEATURE
+  with the endpoint recipient now own it.
+- Test-harness bugs: capacity saturation needs a disk larger than 2 TiB (a 1 TB
+  disk fits in 32 bits), the out-of-range CDB needed READ(16) and a correctly
+  byte-ordered LBA, and an OUT command has no `in_capacity` to check.
+
+## Evidence (host only, no device run)
+
+- `make -C tests/usb test` PASS (`PASS usb`), `make -C tests/usb sanitize` PASS
+  with no ASan/UBSan report. `sanitize` now builds `test_usb_sanitize`, so a
+  sanitizer build can no longer poison the next plain run.
+- The suite pins: descriptor bytes, every control request including a STALL for
+  an unknown request, a STALL for BULK_ONLY_RESET's flag, INQUIRY vendor string
+  and removable bit, CAPACITY(10) = `0xffffffff`, CAPACITY(16) = 4 TB − 1,
+  a WRITE(10) at `0x10000004` read back byte for byte, a 4-sector write in
+  64-byte pieces, sense survival, a read-only window refusing a write, FORMAT
+  UNIT refused, SYNCHRONIZE CACHE reaching the block flush, a malformed CBW, LUN
+  1 refused, a partition window mapping to the right absolute LBA, and an
+  overlong window refused at init.
+- No firmware image changed this block, so no existing image was rebuilt or
+  re-flashed; nothing is claimed for a device.
+
+## Open / next
+
+- S5L8702 HAL: `firmware/hal/6g/usb.c/.h` from `docs/usb-device-stack.md` §2
+  (OTG `0x38400000`, PHY `0x3C400000`, IRQ 19, clock gates, FIFOs, GUSBCFG
+  PHYIF16/TRDT, EP0 + EP1 IN + EP2 OUT) behind a build flag, compile-only.
+- `firmware/usb/disk_mode.c`: explicit opt-in, LUN choice (whole disk for
+  restore/format, or the largest HFS+ partition), no firmware mount while the
+  host owns the LUN, flush on eject, journal check/reboot after release.
+- Then the host-side runbook: backup gate, DFU install, `diskutil`/`newfs_hfs`
+  writing an APM with a >128 GB HFS+ partition, `fsck_hfs -fn`, and a recorded
+  `device-matrix.md` row that stays `not run` until the owner does it.
+- D-56 needs the owner: pick a VID/PID route before any release ships the
+  placeholder.
+
+---
+
 # Handoff — 2026-11-21 (twenty-eighth block: the 128 GiB boundary is pinned on the host)
 
 ## What happened

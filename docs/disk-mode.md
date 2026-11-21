@@ -203,18 +203,29 @@ The LUN must not be exposed with a guessed capacity. In order:
 
 ## 7. USB device stack
 
-Proposed modules; names may change in T-110:
+Modules, as they exist on 2026-11-21 and as they are still missing:
 
 ```text
-firmware/hal/6g/vic.c/.h          VIC, IRQ 19, spurious-IRQ handling
-firmware/hal/6g/usb.c/.h          DesignWare device core, PHY, clocks, EP0/1/2
-firmware/usb/descriptors.c        device/config/interface/endpoint/string
-firmware/usb/core.c               standard requests, SET_ADDRESS/CONFIGURATION
-firmware/usb/bot.c/.h             bulk-only transport, CBW/CSW, stall/reset
-firmware/usb/scsi.c/.h            SCSI commands and sense data
-firmware/usb/msc.c                MSC class, LUN, read/write/flush
-firmware/usb/disk_mode.c/.h       mode state, UI, ATA backend, eject/exit
+firmware/hal/6g/vic.c/.h          VIC, IRQ 19, spurious-IRQ handling          missing
+firmware/hal/6g/usb.c/.h          DesignWare device core, PHY, clocks, EP0/1/2  missing
+firmware/usb/usb_descriptors.c    device/config/interface/endpoint/string      host-tested
+firmware/usb/usb_control.c        chapter 9 requests, endpoint halt, MSC class
+                                  requests (GET_MAX_LUN, BULK_ONLY_RESET)      host-tested
+firmware/usb/usb_msc.c            bulk-only transport (CBW/CSW), the SCSI
+                                  command set and the LUN window               host-tested
+firmware/usb/disk_mode.c/.h       mode state, UI, ATA backend, eject/exit       missing
 ```
+
+The host half — descriptors, control requests and the whole bulk-only mass
+storage path over a `struct helikon_block_device` window — is implemented and
+covered by `tests/usb`, which drives it the way a laptop does: enumeration-sized
+descriptor reads, one CBW per command, a CSW afterwards, a sparse 4 TB fake disk
+for the capacity and high-LBA cases. Those are host tests: no controller, no PHY
+and no device are involved, so nothing here is a device claim.
+
+What the host tests do not cover, and T-110 still owes: the DesignWare register
+programming and PHY bring-up, IRQ 19 and the packet pump, the 100
+connect/disconnect cycles, and a macOS enumeration of "Helikon Disk Mode".
 
 The hardware layer is a Helikon implementation with the donor
 `usb-designware.c` and `usb-s5l8702.c` as the register-level reference. No
@@ -232,7 +243,7 @@ Descriptor baseline:
 | Endpoints | one bulk IN, one bulk OUT, max packet 512 |
 | Strings | manufacturer "Helikon", product "Helikon Disk Mode" |
 | Serial | avoid; do not expose a personal serial number |
-| VID/PID | distinct from Apple; exact ID to be allocated in T-110 |
+| VID/PID | `0x1209/0x0001` in the source as a placeholder; a real allocation is D-56 |
 | INQUIRY | vendor "Helikon", product "Disk Mode", removable medium |
 
 ## 8. SCSI command set
