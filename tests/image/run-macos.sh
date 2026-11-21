@@ -201,6 +201,35 @@ echo "macOS in-place overwrite verified"
 hdiutil detach "$MOUNT" >/dev/null 2>&1
 MOUNTED=""
 
+# A sized truncate of a file that owns an overflow extent: five blocks survive,
+# four return to the bitmap and macOS has to see the exact byte count.
+"$HERE/hfs_image_test" "$IMAGE" truncate-size
+fsck_image "$IMAGE"
+
+hdiutil attach -nobrowse -mountpoint "$MOUNT" "$IMAGE" \
+    >"$TMP/mount.log" 2>&1 || fail "could not remount after the sized truncate"
+MOUNTED=1
+[ -f "$MOUNT/Overflow Direct" ] || fail "sized truncate lost the direct file"
+SIZE=$(stat -f%z "$MOUNT/Overflow Direct")
+[ "$SIZE" -eq 16484 ] || fail "truncated size is $SIZE, expected 16484"
+python3 - "$MOUNT/Overflow Direct" <<'CHECKSIZE'
+import sys
+
+block = 4096
+size = 4 * block + 100
+data = open(sys.argv[1], "rb").read()
+if len(data) != size:
+    raise SystemExit(f"truncated size mismatch: {len(data)}")
+for index, byte in enumerate(data):
+    expected = 0x60 + index // block
+    if byte != expected:
+        raise SystemExit(f"truncated content mismatch at {index}")
+print(f"macOS mount verified: truncated to {size} bytes")
+CHECKSIZE
+echo "macOS sized truncate verified"
+hdiutil detach "$MOUNT" >/dev/null 2>&1
+MOUNTED=""
+
 "$HERE/hfs_image_test" "$IMAGE" overflow-cleanup
 fsck_image "$IMAGE"
 
@@ -251,4 +280,4 @@ PY
 hdiutil detach "$MOUNT" >/dev/null 2>&1
 MOUNTED=""
 
-echo "PASS: disposable image create/append/rename/truncate/delete/overflow/overwrite/Unicode, fsck_hfs clean"
+echo "PASS: disposable image create/append/rename/truncate/delete/overflow/overwrite/truncate-to-size/Unicode, fsck_hfs clean"

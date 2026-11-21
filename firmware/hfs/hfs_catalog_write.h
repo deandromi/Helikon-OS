@@ -76,6 +76,19 @@ int hfs_catalog_rename(struct hfs_catalog *catalog, struct hfs_txn *tx,
                        hfs_btree_key_compare_fn compare,
                        void *compare_context);
 
+/*
+ * Shrink a file to `new_size`. Blocks past the new end return to the bitmap,
+ * the retained extents are rewritten in the inline slots and the overflow tree,
+ * the bytes past the new end inside the last kept block are zeroed, and the
+ * record's size, block count and dates are updated in the same transaction.
+ * `new_size` above the current size is ARGUMENT: this call never grows a fork.
+ */
+int hfs_catalog_truncate_to(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                            uint32_t parent, const uint8_t *name,
+                            size_t units, uint64_t new_size,
+                            hfs_btree_key_compare_fn compare,
+                            void *compare_context);
+
 /* Truncate a file to size zero and free its inline and overflow extents. */
 int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
                               uint32_t parent, const uint8_t *name,

@@ -983,11 +983,11 @@ int hfs_catalog_overwrite_file(struct hfs_catalog *catalog,
                             compare, compare_context);
 }
 
-int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
-                              uint32_t parent, const uint8_t *name,
-                              size_t units,
-                              hfs_btree_key_compare_fn compare,
-                              void *compare_context)
+int hfs_catalog_truncate_to(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                            uint32_t parent, const uint8_t *name,
+                            size_t units, uint64_t new_size,
+                            hfs_btree_key_compare_fn compare,
+                            void *compare_context)
 {
     if (catalog == NULL || tx == NULL || name == NULL || compare == NULL ||
         units == 0 || units > 255u || parent < 2u)
@@ -1011,10 +1011,70 @@ int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     size_t data_offset = 2u + key_length;
     if (record_length < data_offset + 88u + 80u)
         return HFS_ERR_FORMAT;
-    uint8_t *fork = record + data_offset + 88u;
-    uint32_t blocks = be32(fork + 12);
-    if (blocks == 0)
+    uint8_t *fork_bytes = record + data_offset + 88u;
+
+    struct hfs_fork fork;
+    rc = hfs_fork_parse(catalog->btree.volume, fork_bytes, &fork);
+    if (rc != HFS_OK)
+        return rc;
+    if (new_size > fork.size)
+        return HFS_ERR_ARGUMENT;
+    if (new_size == fork.size)
         return HFS_OK;
+    if (fork.blocks == 0)
+        return HFS_ERR_FORMAT;
+
+    uint32_t block_size = catalog->btree.volume->block_size;
+    uint64_t keep_blocks = (new_size + block_size - 1u) / block_size;
+    if (keep_blocks > UINT32_MAX)
+        return HFS_ERR_UNSUPPORTED;
+
+    uint32_t file_id = be32(record + data_offset + 8);
+
+    /*
+     * The whole fork, not just its inline half: a truncate that stopped at
+     * eight extents left every overflow block allocated and its record behind.
+     */
+    static struct hfs_extent map[CATALOG_FORK_MAP_MAX];
+    size_t map_count = 0;
+    rc = fork_map(catalog, tx, fork_bytes, file_id, map, CATALOG_FORK_MAP_MAX,
+                  &map_count);
+    if (rc != HFS_OK)
+        return rc;
+
+    uint32_t inline_blocks = 0;
+    for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i) {
+        if (fork.extents[i].count > UINT32_MAX - inline_blocks)
+            return HFS_ERR_FORMAT;
+        inline_blocks += fork.extents[i].count;
+    }
+
+    /* The records that exist now; their keys are needed to clear them. */
+    static uint32_t old_starts[HFS_OVERFLOW_EXTENT_MAX];
+    size_t old_start_count = 0;
+    uint32_t logical = inline_blocks;
+    while (logical < fork.blocks && old_start_count < HFS_OVERFLOW_EXTENT_MAX) {
+        struct hfs_extent record_extents[HFS_EXTENT_COUNT];
+        size_t got = 0;
+        rc = hfs_extents_overflow_get(catalog->btree.volume, tx, file_id,
+                                      logical, record_extents, HFS_EXTENT_COUNT,
+                                      &got);
+        if (rc != HFS_OK)
+            return rc;
+        if (got == 0)
+            return HFS_ERR_FORMAT;
+        uint32_t record_blocks = 0;
+        for (size_t i = 0; i < got; ++i) {
+            if (record_extents[i].count > fork.blocks - logical -
+                                             record_blocks)
+                return HFS_ERR_FORMAT;
+            record_blocks += record_extents[i].count;
+        }
+        if (record_blocks == 0)
+            return HFS_ERR_FORMAT;
+        old_starts[old_start_count++] = logical;
+        logical += record_blocks;
+    }
 
     struct hfs_bitmap bitmap;
     rc = hfs_bitmap_open(&bitmap, catalog->btree.volume);
@@ -1023,80 +1083,98 @@ int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
     bitmap.modify_date = catalog->now;
     touch_record(record + data_offset, catalog->now);
 
-    uint32_t inline_blocks = 0;
-    for (unsigned int i = 0; i < 8; ++i) {
-        uint32_t start_block = be32(fork + 16 + i * 8);
-        uint32_t extent_count = be32(fork + 20 + i * 8);
-        if (extent_count == 0) {
-            if (start_block != 0)
-                return HFS_ERR_FORMAT;
-            continue;
-        }
-        if (start_block == 0)
-            return HFS_ERR_FORMAT;
-        if (extent_count > UINT32_MAX - inline_blocks)
-            return HFS_ERR_FORMAT;
-        inline_blocks += extent_count;
-    }
-    if (blocks < inline_blocks)
-        return HFS_ERR_FORMAT;
-
-    uint32_t file_id = be32(record + data_offset + 8);
-    if (blocks > inline_blocks) {
-        uint32_t start_block = inline_blocks;
-        uint32_t remaining = blocks - inline_blocks;
-        unsigned int guard = 0;
-        while (remaining > 0) {
-            /*
-             * One B-tree record per iteration; the bound is the HFS+ extents
-             * ceiling, not an arbitrary eight records. A file appended past
-             * eight records used to be undeletable because the truncate walk
-             * stopped here.
-             */
-            if (guard++ >= HFS_OVERFLOW_EXTENT_MAX)
-                return HFS_ERR_UNSUPPORTED;
-            struct hfs_extent overflow[8];
-            size_t overflow_count = 0;
-            rc = hfs_extents_overflow_get(catalog->btree.volume, tx, file_id,
-                                          start_block, overflow, 8,
-                                          &overflow_count);
-            if (rc != HFS_OK || overflow_count == 0)
-                return rc != HFS_OK ? rc : HFS_ERR_FORMAT;
-            uint32_t overflow_blocks = 0;
-            for (size_t i = 0; i < overflow_count; ++i) {
-                if (overflow[i].count > remaining - overflow_blocks)
-                    return HFS_ERR_FORMAT;
-                overflow_blocks += overflow[i].count;
-            }
-            if (overflow_blocks == 0 || overflow_blocks > remaining)
-                return HFS_ERR_FORMAT;
-            for (size_t i = 0; i < overflow_count; ++i) {
-                rc = hfs_bitmap_free(&bitmap, tx, overflow[i].start,
-                                     overflow[i].count);
-                if (rc != HFS_OK)
-                    return rc;
-            }
-            rc = hfs_extents_overflow_clear(catalog->btree.volume, tx,
-                                            file_id, start_block);
-            if (rc != HFS_OK)
-                return rc;
-            start_block += overflow_blocks;
-            remaining -= overflow_blocks;
-        }
-    }
-
-    for (unsigned int i = 0; i < 8; ++i) {
-        uint32_t start_block = be32(fork + 16 + i * 8);
-        uint32_t extent_count = be32(fork + 20 + i * 8);
-        if (extent_count == 0)
-            continue;
-        rc = hfs_bitmap_free(&bitmap, tx, start_block, extent_count);
+    /*
+     * Zero the bytes past the new end of the last kept block before they stop
+     * being visible: a later grow must not expose what the file used to hold.
+     */
+    uint32_t tail = (uint32_t)(keep_blocks * block_size - new_size);
+    if (tail != 0) {
+        static uint8_t zeros[32768];
+        if (tail > sizeof(zeros))
+            return HFS_ERR_UNSUPPORTED;
+        memset(zeros, 0, tail);
+        rc = hfs_fork_stage_map(tx, catalog->btree.volume, map, map_count,
+                                fork.size, new_size, zeros, tail);
         if (rc != HFS_OK)
             return rc;
     }
 
-    memset(fork, 0, 80);
+    /* Free the blocks past the new end and compact the retained prefix. */
+    logical = 0;
+    size_t kept = 0;
+    for (size_t i = 0; i < map_count; ++i) {
+        uint32_t count = map[i].count;
+        if (logical >= keep_blocks) {
+            rc = hfs_bitmap_free(&bitmap, tx, map[i].start, count);
+            if (rc != HFS_OK)
+                return rc;
+        } else if ((uint64_t)logical + count > keep_blocks) {
+            uint32_t kept_count = (uint32_t)(keep_blocks - logical);
+            rc = hfs_bitmap_free(&bitmap, tx, map[i].start + kept_count,
+                                 count - kept_count);
+            if (rc != HFS_OK)
+                return rc;
+            map[kept].start = map[i].start;
+            map[kept].count = kept_count;
+            ++kept;
+        } else {
+            map[kept++] = map[i];
+        }
+        logical += count;
+    }
+
+    /* Rewrite the inline extents from the retained prefix. */
+    memset(fork_bytes + 16, 0, HFS_EXTENT_COUNT * 8u);
+    size_t inline_kept = kept < HFS_EXTENT_COUNT ? kept : HFS_EXTENT_COUNT;
+    for (size_t i = 0; i < inline_kept; ++i) {
+        put32(fork_bytes + 16 + i * 8, map[i].start);
+        put32(fork_bytes + 20 + i * 8, map[i].count);
+    }
+    put32(fork_bytes + 0, (uint32_t)(new_size >> 32));
+    put32(fork_bytes + 4, (uint32_t)new_size);
+    put32(fork_bytes + 12, (uint32_t)keep_blocks); /* clumpSize is left alone */
+
+    /*
+     * Clear every overflow record, then write the retained tail back in groups
+     * of eight. Clearing first keeps the rewrite independent of how the append
+     * path happened to group the records it found.
+     */
+    for (size_t i = 0; i < old_start_count; ++i) {
+        rc = hfs_extents_overflow_clear(catalog->btree.volume, tx, file_id,
+                                        old_starts[i]);
+        if (rc != HFS_OK)
+            return rc;
+    }
+    if (kept > HFS_EXTENT_COUNT) {
+        size_t overflow_kept = kept - HFS_EXTENT_COUNT;
+        uint32_t start_block = inline_blocks;
+        for (size_t index = 0; index < overflow_kept; index += HFS_EXTENT_COUNT) {
+            size_t group = overflow_kept - index;
+            if (group > HFS_EXTENT_COUNT)
+                group = HFS_EXTENT_COUNT;
+            uint32_t group_blocks = 0;
+            for (size_t i = 0; i < group; ++i)
+                group_blocks += map[HFS_EXTENT_COUNT + index + i].count;
+            rc = hfs_extents_overflow_set(catalog->btree.volume, tx, file_id,
+                                          start_block,
+                                          &map[HFS_EXTENT_COUNT + index],
+                                          group);
+            if (rc != HFS_OK)
+                return rc;
+            start_block += group_blocks;
+        }
+    }
 
     return hfs_btree_update(&catalog->btree, tx, record, record_length,
                             compare, compare_context);
+}
+
+int hfs_catalog_truncate_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                              uint32_t parent, const uint8_t *name,
+                              size_t units,
+                              hfs_btree_key_compare_fn compare,
+                              void *compare_context)
+{
+    return hfs_catalog_truncate_to(catalog, tx, parent, name, units, 0,
+                                   compare, compare_context);
 }

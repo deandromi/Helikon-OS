@@ -26,6 +26,8 @@
 #define DATA_PATTERN 0x5au
 #define OVERWRITE_SIZE 512u
 #define OVERWRITE_PATTERN 0xc3u
+/* A sized truncate: half the data fork, not a block multiple. */
+#define TRUNCATE_TO_SIZE 2000u
 
 enum scenario {
     SCENARIO_CREATE,
@@ -33,7 +35,8 @@ enum scenario {
     SCENARIO_TRUNCATE,
     SCENARIO_DELETE,
     SCENARIO_RENAME,
-    SCENARIO_OVERWRITE
+    SCENARIO_OVERWRITE,
+    SCENARIO_TRUNCATE_TO
 };
 
 struct io {
@@ -160,6 +163,8 @@ static int parse_scenario(const char *name, enum scenario *scenario)
         *scenario = SCENARIO_RENAME;
     } else if (strcmp(name, "overwrite") == 0) {
         *scenario = SCENARIO_OVERWRITE;
+    } else if (strcmp(name, "truncate-size") == 0) {
+        *scenario = SCENARIO_TRUNCATE_TO;
     } else {
         return HFS_ERR_ARGUMENT;
     }
@@ -263,6 +268,10 @@ static int inject(struct image *image, enum scenario scenario,
     } else if (scenario == SCENARIO_TRUNCATE) {
         rc = hfs_catalog_truncate_file(&image->catalog, &tx, 2, name, units,
                                        hfs_catalog_key_compare, NULL);
+    } else if (scenario == SCENARIO_TRUNCATE_TO) {
+        rc = hfs_catalog_truncate_to(&image->catalog, &tx, 2, name, units,
+                                     TRUNCATE_TO_SIZE,
+                                     hfs_catalog_key_compare, NULL);
     } else if (scenario == SCENARIO_OVERWRITE) {
         uint8_t data[OVERWRITE_SIZE];
         memset(data, OVERWRITE_PATTERN, sizeof(data));
@@ -386,6 +395,29 @@ static int recover(struct image *image, enum scenario scenario)
 
     if (entry.kind != 2)
         return HFS_ERR_FORMAT;
+    if (scenario == SCENARIO_TRUNCATE_TO) {
+        if (entry.data.size == DATA_SIZE) {
+            rc = read_data(image, &entry);
+            if (rc != HFS_OK)
+                return rc;
+        } else if (entry.data.size == TRUNCATE_TO_SIZE) {
+            uint8_t data[TRUNCATE_TO_SIZE];
+            size_t done = 0;
+            rc = hfs_catalog_read_file(&image->catalog, &entry, 0, data,
+                                       sizeof(data), &done);
+            if (rc != HFS_OK || done != sizeof(data))
+                return rc != HFS_OK ? rc : HFS_ERR_FORMAT;
+            for (size_t i = 0; i < sizeof(data); ++i) {
+                if (data[i] != DATA_PATTERN)
+                    return HFS_ERR_FORMAT;
+            }
+        } else {
+            return HFS_ERR_FORMAT;
+        }
+        printf("recovered present=1 size=%llu\n",
+               (unsigned long long)entry.data.size);
+        return HFS_OK;
+    }
     if (entry.data.size == 0) {
         printf("recovered present=1 size=0\n");
         return HFS_OK;
