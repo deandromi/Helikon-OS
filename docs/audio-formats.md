@@ -1303,3 +1303,66 @@ Full matrix and the three cross-builds were re-run with this slice: all green
 Everything §18.3 lists is still missing — read-ahead policy, Music-hub call
 sites, I2S/DMA run, device evidence — plus next/previous (a queue) and the
 hub-level seek binding. This slice only gives them an API to call.
+
+## 20. Vorbis comments for FLAC — T-099 metadata slice (2026-11-21)
+
+Status: `implemented` as host code with host tests; no library-index caller and
+no device run. This is the FLAC half of T-099's tag matrix, not the matrix.
+
+### 20.1 What landed
+
+`firmware/codec/tag/vorbis.{c,h}` reads a FLAC `VORBIS_COMMENT` block (metadata
+type 4) into fixed UTF-8 fields — title, artist, album, album artist, genre,
+year, track, disc:
+
+- `helikon_vorbis_comment_parse()` takes a block body (vendor length + vendor +
+  comment count + length-prefixed `NAME=value` entries) and zeroes the struct
+  first, so a block with nothing of interest leaves it empty.
+- `helikon_flac_tags_buffer()` checks `fLaC`, walks the metadata chain of a
+  resident file and parses the first comment block. A file with no comment block
+  is `HELIKON_ERR_NOT_FOUND`, not an error.
+- `helikon_flac_tags_source()` does the same over a `read_at` source: it needs a
+  reported size (the metadata chain has no other bound; a source with no size is
+  `HELIKON_ERR_UNSUPPORTED`), reads only block headers plus at most
+  `HELIKON_VORBIS_BLOCK_MAX` (4 KiB) of the comment body, and parses a larger
+  block prefix-wise — complete comments are kept, a cut-off trailing comment is
+  dropped. The block buffer is static because the codec stack budget is 2 KiB;
+  the reader is single-threaded like the probe.
+- Values are already UTF-8: a valid sequence is copied up to the 96-byte field
+  cap on a code-point boundary, an invalid or truncated sequence drops the whole
+  value rather than storing half a character. The first value of a repeated
+  field wins, `TRACKNUMBER=3/12` and `DISCNUMBER=2/2` yield the leading number,
+  and `DATE`/`YEAR` yield the first four digits. `TRACKTOTAL`, `DISCTOTAL`,
+  `ALBUMARTISTSORT` and friends are ignored for now.
+- A comment name without `=`, or a length that runs past the block, is
+  `HELIKON_ERR_FORMAT`; the parser never walks past the block.
+
+The struct deliberately mirrors `struct helikon_id3v2_tags` instead of sharing
+it: the two formats will merge when the library index (T-067) defines the track
+record it stores, and merging now would churn the MP3 wrapper for no gain.
+
+### 20.2 Evidence (host only, no device run)
+
+- `tests/codec` (test + sanitize) adds `check_vorbis_tags()`: a synthetic
+  `fLaC` + STREAMINFO + comment block with eight tags (including a two-byte
+  UTF-8 sequence and `7/12` / `2/2` pairs), first-value-wins, an invalid UTF-8
+  value (dropped), a comment without `=`, a comment count past the block end, a
+  file with no comment block, a non-FLAC buffer, the same bytes through a
+  source answering 61 bytes at a time, a source with no size, and null
+  arguments.
+- A new committed fixture `fixtures/tagged16.flac` is `stereo16.flac` plus eight
+  comments written by `metaflac` (the generator in `make_fixtures.py` recreates
+  it). The test reads it from a buffer and through a 173-byte source, and reads
+  the untagged `stereo16.flac` to prove an empty comment block is `OK` with
+  empty fields.
+- `firmware/codec/tag/vorbis.c` is in the AUDIO source set. The 6G music-hub
+  image still links at 768,396 B because nothing calls the reader yet and
+  `--gc-sections` drops it — the same situation the codec layer was in before
+  the hub called it.
+
+### 20.3 Remaining for T-099
+
+The library index (T-067) has to call these readers and store the result; then
+Ogg Vorbis comments (a different container for the same block), APE tags, MP4
+and ASF tags, multi-value fields, artwork, ReplayGain 1.0/2.0, cuesheets and
+chapters remain. Nothing here is device-tested.

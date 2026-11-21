@@ -112,6 +112,34 @@ def left_side16():
     write_fixture("left_side16", 2, 44100, 16, samples)
 
 
+TAGS = (
+    "TITLE=Tagged Track",
+    "ARTIST=Test Artist",
+    "ALBUM=Test Album",
+    "ALBUMARTIST=Various Artists",
+    "GENRE=Test Genre",
+    "DATE=2021-11-17",
+    "TRACKNUMBER=3/12",
+    "DISCNUMBER=2/2",
+)
+
+
+def tagged16():
+    """Same audio as stereo16, with a VORBIS_COMMENT block for the tag reader."""
+    source = os.path.join(OUT, "stereo16.flac")
+    target = os.path.join(OUT, "tagged16.flac")
+    with open(source, "rb") as handle:
+        data = handle.read()
+    with open(target, "wb") as handle:
+        handle.write(data)
+    command = ["metaflac", "--remove-all-tags"]
+    for tag in TAGS:
+        command.append("--set-tag=" + tag)
+    command.append(target)
+    subprocess.run(command, check=True)
+    print("tagged16", "flac", os.path.getsize(target))
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     stereo16()
@@ -122,6 +150,7 @@ def main():
     verbatim16()
     stereo16_48()
     left_side16()
+    tagged16()
 
 
 if __name__ == "__main__":

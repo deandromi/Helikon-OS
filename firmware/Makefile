@@ -71,6 +71,7 @@ PLAYER_SRC := player/player.c player/wav.c player/vfs_media.c \
               codec/codec.c codec/flac/flac_codec.c \
               codec/flac/flac_decoder.c \
               codec/mp3/mp3_codec.c codec/tag/id3v2.c \
+              codec/tag/vorbis.c \
               codec/libmad/bit.c codec/libmad/frame.c \
               codec/libmad/huffman.c codec/libmad/layer12.c \
               codec/libmad/layer3.c codec/libmad/stream.c \

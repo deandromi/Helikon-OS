@@ -27,12 +27,14 @@ test_src = test_codec.c ../../firmware/codec/codec.c \
            ../../firmware/codec/flac/flac_decoder.c \
            ../../firmware/codec/mp3/mp3_codec.c \
            ../../firmware/codec/tag/id3v2.c \
+           ../../firmware/codec/tag/vorbis.c \
            ../../firmware/player/wav.c ../../firmware/lib/mem.c
 
 test_deps = $(test_src) ../../firmware/codec/codec.h \
             ../../firmware/codec/flac/flac_decoder.h \
             ../../firmware/codec/mp3/mp3.h \
             ../../firmware/codec/tag/id3v2.h \
+            ../../firmware/codec/tag/vorbis.h \
             ../../firmware/codec/libmad/libmad_port.h \
             ../../firmware/player/wav.h ../../firmware/lib/error.h
 

@@ -12,6 +12,55 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (seventh block: FLAC Vorbis comments, T-099 slice)
+
+## What happened
+
+- `firmware/codec/tag/vorbis.{c,h}`: bounded FLAC `VORBIS_COMMENT` reader.
+  `helikon_vorbis_comment_parse()` takes a block body;
+  `helikon_flac_tags_buffer()` walks a resident `fLaC` metadata chain;
+  `helikon_flac_tags_source()` walks the same chain over `read_at`, needs a
+  reported size, and reads at most 4 KiB of the comment body (a bigger block is
+  parsed prefix-wise, keeping complete comments).
+- Fields: title, artist, album, album artist, genre, year (first four digits of
+  DATE), track and disc (leading number of `3/12`). First value wins, values are
+  UTF-8 validated and truncated on a code-point boundary at 96 bytes, an invalid
+  sequence drops the value, and a missing `=` or a length past the block is
+  `FORMAT`. No allocation; the source path uses one static 4 KiB block buffer
+  (single-threaded, 2 KiB codec stack budget).
+- New committed fixture `tests/codec/fixtures/tagged16.flac` = `stereo16.flac`
+  plus eight `metaflac` comments; `make_fixtures.py` recreates it, and
+  `tests/codec/README.md` documents it.
+- `firmware/Makefile` builds `codec/tag/vorbis.c` in the AUDIO set. Nothing calls
+  it yet, so `--gc-sections` drops it from the image (same as the codec layer
+  before the hub called it).
+
+## Evidence
+
+- `tests/codec` test + sanitize PASS with `check_vorbis_tags()`: synthetic
+  `fLaC` + STREAMINFO + comment block (8 tags incl. a 2-byte UTF-8 value and
+  `7/12`/`2/2` pairs), first-value-wins, invalid UTF-8 dropped, missing `=`,
+  count past the block, no comment block, non-FLAC buffer, the same bytes
+  through a 61-byte source, a source with no size, null arguments; plus the real
+  `tagged16.flac` from a buffer and a 173-byte source and the untagged
+  `stereo16.flac` (empty block → OK, empty fields).
+- Rest of the matrix unchanged and green (`player`, `vfs`, `hfsplus`,
+  `firmware`, `bootloader`, `image` test/crash/write-diag/outer-diag/loader,
+  `musicdb`, `ui`).
+- Builds: plain 6G 77,856 B; music-hub 768,396 B (vorbis.o collected); F2 image
+  plus `check-f2-artifact.sh`: PASS.
+- Host-verified only: **no device run**, no library-index caller.
+
+## Open / next
+
+- T-067 library index should call the ID3v2 and Vorbis readers and own the track
+  record; only then do these modules earn image bytes.
+- Remaining T-099: Ogg Vorbis comments, APE, MP4/ASF tags, multi-value fields,
+  artwork, ReplayGain, cuesheets, chapters.
+- T-058 queue/next-previous, read-ahead policy, Music-hub call sites.
+
+---
+
 # Handoff — 2026-11-21 (sixth block: player seek, T-058)
 
 ## What happened
