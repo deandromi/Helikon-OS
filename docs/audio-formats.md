@@ -1468,3 +1468,51 @@ The Music-hub call sites (open a track through the VFS, play, seek, next and
 previous), the I2S/DMA run, an underrun/read-latency measurement on the device,
 and the queue behind next/previous. The window is policy, not evidence: nothing
 here says the 6G keeps up.
+
+## 22. Audio from a real volume — storage-backed decode proof (2026-11-21)
+
+Status: `implemented` as a host proof on a real HFS+ volume. No Music-hub caller
+and no device run.
+
+### 22.1 What it proves
+
+Every earlier player test used a fake media over a resident buffer. This one
+uses the volume itself: `tests/library` creates a disposable journaled HFS+
+image with `hdiutil`, copies the fixture MP3 to `/Music/first.mp3`, unmounts it,
+checks it with `fsck_hfs -fn`, and then mounts it read-only through the VFS and
+plays that file.
+
+The chain under test is the shipped one:
+
+```text
+HFS+ volume -> VFS open/stat -> helikon_vfs_media (codec source)
+            -> read-ahead window -> MP3 decoder -> player ring -> PCM
+```
+
+The assertion is differential, not decorative: the same file is decoded twice,
+once through the volume and once from a resident buffer read back through the
+VFS, and the two PCM streams must be bit-identical. A storage path that loses,
+duplicates or invents a block cannot pass that, and neither can a read-ahead
+window with an off-by-one.
+
+### 22.2 Evidence (host only, no device run)
+
+- `make -C tests/library macos` prints
+  `PASS library: HFS+ -> VFS -> HDB (6 tracks, 3 albums, CRC OK) and audio decodes from the volume`.
+- `make -C tests/library macos-sanitize` runs the same path under ASan and UBSan
+  (the sanitizer runtime is linked; checked with `otool -L`), also PASS.
+- Checks added: the file stats and opens through the VFS; the read-ahead window
+  fills from the VFS and reads no more than the file; the player reports a
+  duration from the volume; the first chunk starts the ring; decoded PCM is
+  non-silent; the window request is honoured; both paths agree on the duration
+  and on the decoded frames, and the PCM matches byte for byte.
+- The audio HAL in this test is a silent host stub (no DMA, I2S or PMU): it
+  records the ring's PCM source so the test can pull frames the way the DMA
+  would. It makes no audio-quality claim.
+
+### 22.3 Remaining
+
+The Music hub still plays its embedded blob: the call sites that resolve a track
+to a path and open it through the VFS are the next piece of T-058, followed by
+next/previous with a queue, an underrun/read-latency measurement and a device
+run. Nothing here is device evidence.

@@ -67,6 +67,7 @@ tests/codec/*.dSYM/
 tests/player/build_mad/
 tests/ui/build_mad/
 tests/vfs/build_mad/
+tests/library/build_mad/
 tests/player/*.dSYM/
 tests/player/test_read_ahead
 

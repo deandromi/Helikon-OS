@@ -42,7 +42,10 @@ fail() {
 }
 
 echo "building the host test"
-make -C "$HERE" all >/dev/null || fail "could not build the host test"
+# Always from scratch: the target does not track CFLAGS, so a `SAN=1` run must
+# not silently reuse the plain binary.
+make -C "$HERE" clean >/dev/null 2>&1 || true
+make -C "$HERE" all SAN="${SAN:-0}" >/dev/null || fail "could not build the host test"
 
 echo "building the fixture catalog"
 python3 "$ROOT/tools/hdb_build.py" fixture --out "$HDB" >/dev/null ||
@@ -62,6 +65,11 @@ MOUNTED=1
 
 mkdir -p "$MOUNT/.helikon"
 cp "$HDB" "$MOUNT/.helikon/music.hdb"
+# One audio file that exists only on this volume: the storage-path decode test
+# reads it through the VFS and compares the PCM with a resident-buffer decode.
+mkdir -p "$MOUNT/Music"
+cp "$ROOT/tests/codec/fixtures/mp3_cbr_stereo16.mp3" "$MOUNT/Music/first.mp3"
+[ -s "$MOUNT/Music/first.mp3" ] || fail "could not copy the audio fixture"
 sync
 hdiutil detach "$MOUNT" >"$TMP/detach.log" 2>&1 ||
     { cat "$TMP/detach.log" >&2 || true
@@ -86,4 +94,4 @@ DEV=""
 echo "running the host test against the image"
 "$HERE/test_library" "$IMAGE"
 
-echo "PASS: the library catalog reads from a real HFS+ volume through the VFS"
+echo "PASS: the library catalog and one audio file read from a real HFS+ volume"

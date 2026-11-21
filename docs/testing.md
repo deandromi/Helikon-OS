@@ -276,28 +276,40 @@ make -C tests/player test
 make -C tests/player sanitize
 ```
 
+A storage-backed decode has its own differential test: `tests/library` mounts a
+real journaled HFS+ image (created by the script), decodes `/Music/first.mp3`
+through the VFS and the read-ahead window, and requires the PCM to match a
+resident-buffer decode of the same bytes byte for byte (`audio-formats.md` §22).
+
 Every host suite that links `firmware/codec/codec.c` also links the vendored
 libmad objects, because the codec registry references the MP3 descriptor even
 when the suite never decodes an MP3. The object rules live in one fragment,
-`tests/libmad.mk`, included by `tests/codec`, `tests/player`, `tests/ui` and
-`tests/vfs` (the last one because it proves the VFS media adapter against the
-real codec registry). Adding a suite that builds the codec layer means
-including it; a missing link shows up as an undefined `helikon_mp3_codec_ops`.
+`tests/libmad.mk`, included by `tests/codec`, `tests/player`, `tests/ui`,
+`tests/vfs` (it proves the VFS media adapter against the real codec registry)
+and `tests/library` (it decodes audio from a real volume). A suite that builds
+the codec layer has to include it; a missing link shows up as an undefined
+`helikon_mp3_codec_ops`.
 
 The fragment deliberately defines no directory targets: the first target of an
 included makefile becomes the includer's default goal, which silently turned
 `make -C tests/vfs` into a no-op until it was removed.
 
 The HelikonDB reader is tested against a generated fixture, with an optional
-real corpus. The storage path — a catalog read from a real HFS+ volume through
-the read-only VFS — has its own macOS-only image test, which creates and
-unmounts the image itself and never touches a device:
+real corpus. The storage path — a catalog *and one audio file* read from a real
+HFS+ volume through the read-only VFS — has its own macOS-only image test, which
+creates and unmounts the image itself and never touches a device:
 
 ```sh
 make -C tests/library macos
+make -C tests/library macos-sanitize
 make -C tests/library test IMAGE=/path/to/hfs-image
 make -C tests/library sanitize IMAGE=/path/to/hfs-image
 ```
+
+The image must hold `/.helikon/music.hdb` and `/Music/first.mp3`; `macos` and
+`macos-sanitize` create it themselves and copy
+`tests/codec/fixtures/mp3_cbr_stereo16.mp3` there, so a hand-built image has to
+carry both files or the test fails on purpose.
 
 For reference, the reader suite:
 

@@ -13,8 +13,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "audio.h"
 #include "error.h"
+#include "player.h"
+#include "read_ahead.h"
 #include "vfs.h"
+#include "vfs_media.h"
 
 static FILE *image;
 static long image_size;
@@ -44,6 +48,242 @@ static int image_read(void *context, uint64_t offset, void *buffer,
     if (fread(buffer, 1u, length, image) != length)
         return HELIKON_ERR_IO;
     return HELIKON_OK;
+}
+
+/*
+ * A silent audio HAL for the host. The player only needs the ring to accept
+ * PCM and to advance its position; there is no DMA, I2S or PMU on this side, and
+ * nothing here pretends otherwise. The captured PCM source is how the test
+ * compares two decodes frame by frame.
+ */
+static helikon_audio_pcm_source captured_source;
+static void *captured_context;
+static size_t captured_frames;
+
+int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
+                       struct helikon_clock *clock, uint32_t timeout_ms)
+{
+    (void)pmu;
+    (void)clock;
+    (void)timeout_ms;
+    memset(audio, 0, sizeof(*audio));
+    audio->initialized = 1;
+    return HELIKON_OK;
+}
+
+int helikon_audio_set_rate(struct helikon_audio *audio, uint32_t sample_rate)
+{
+    audio->sample_rate = sample_rate;
+    return (sample_rate == 44100u || sample_rate == 48000u) ? HELIKON_OK
+                                                            : HELIKON_ERR_UNSUPPORTED;
+}
+
+int helikon_audio_stream_start(struct helikon_audio *audio,
+                               const int16_t *pcm, size_t frames,
+                               uint32_t channels)
+{
+    (void)pcm;
+    (void)channels;
+    audio->stream_frames = frames;
+    audio->stream_played = 0u;
+    audio->stream_started = 1;
+    audio->running = 1;
+    return HELIKON_OK;
+}
+
+int helikon_audio_stream_start_source(struct helikon_audio *audio,
+                                      helikon_audio_pcm_source source,
+                                      void *context, size_t frames)
+{
+    audio->stream_source = source;
+    audio->stream_source_context = context;
+    audio->stream_frames = frames;
+    audio->stream_played = 0u;
+    audio->stream_started = 1;
+    audio->running = 1;
+    captured_source = source;
+    captured_context = context;
+    captured_frames = frames;
+    return HELIKON_OK;
+}
+
+int helikon_audio_stream_service(struct helikon_audio *audio)
+{
+    /* One DMA-sized window per call, like the ring with four buffers. */
+    size_t remaining = audio->stream_frames - audio->stream_played;
+    size_t add = remaining < HELIKON_AUDIO_RING_FRAMES
+                     ? remaining
+                     : HELIKON_AUDIO_RING_FRAMES;
+    audio->stream_played += add;
+    return HELIKON_OK;
+}
+
+int helikon_audio_stream_pause(struct helikon_audio *audio)
+{
+    audio->paused = 1;
+    return HELIKON_OK;
+}
+
+int helikon_audio_stream_resume(struct helikon_audio *audio)
+{
+    audio->paused = 0;
+    audio->running = 1;
+    return HELIKON_OK;
+}
+
+void helikon_audio_stream_stop(struct helikon_audio *audio)
+{
+    audio->stream_started = 0;
+    audio->running = 0;
+    audio->paused = 0;
+}
+
+int helikon_audio_stream_finished(const struct helikon_audio *audio)
+{
+    return audio->stream_started && audio->stream_played >= audio->stream_frames;
+}
+
+uint32_t helikon_audio_stream_position_frames(const struct helikon_audio *audio)
+{
+    return (uint32_t)audio->stream_played;
+}
+
+uint32_t helikon_audio_stream_underruns(const struct helikon_audio *audio)
+{
+    (void)audio;
+    return 0u;
+}
+
+void helikon_audio_peak_levels(const struct helikon_audio *audio,
+                               uint8_t *levels, uint32_t count)
+{
+    (void)audio;
+    if (levels == NULL)
+        return;
+    for (uint32_t index = 0u; index < count; ++index)
+        levels[index] = 0u;
+}
+
+/* Pull frames from the ring's source until `want` or end of stream. */
+static size_t pull_frames(helikon_audio_pcm_source source, void *context,
+                          int16_t *pcm, size_t want)
+{
+    size_t total = 0u;
+    while (total < want) {
+        size_t got = 0u;
+        if (source(context, pcm + total * 2u, want - total, &got) != HELIKON_OK ||
+            got == 0u)
+            break;
+        total += got;
+    }
+    return total;
+}
+
+/*
+ * The whole point of the exercise: an audio file that exists only on the HFS+
+ * volume, opened through the VFS, wrapped in the read-ahead window and decoded
+ * by the player, must produce the same PCM as the same bytes decoded from a
+ * resident buffer. A mismatch means the storage path lost or invented audio.
+ */
+static void test_storage_playback(struct vfs *vfs)
+{
+    static const char *const path = "/Music/first.mp3";
+    struct vfs_entry entry;
+    check(vfs_stat(vfs, path, &entry) == HELIKON_OK, "stat the audio file");
+    if (entry.size == 0u) {
+        check(0, "the audio file is not empty");
+        return;
+    }
+
+    struct vfs_file_handle handle;
+    check(vfs_file_open(vfs, path, &handle) == HELIKON_OK,
+          "open the audio file through the VFS");
+
+    struct helikon_vfs_media media;
+    struct helikon_codec_source raw_source;
+    check(helikon_vfs_media_init(&media, vfs, handle, entry.size, &raw_source) ==
+              HELIKON_OK,
+          "bind the file to a codec source");
+
+    static uint8_t window[HELIKON_READ_AHEAD_BYTES];
+    struct helikon_read_ahead read_ahead;
+    struct helikon_codec_source source;
+    check(helikon_read_ahead_init(&read_ahead, window, sizeof(window),
+                                  &raw_source, &source) == HELIKON_OK,
+          "wrap the source in the read-ahead window");
+
+    struct helikon_pmu pmu;
+    struct helikon_clock clock;
+    memset(&pmu, 0, sizeof(pmu));
+    memset(&clock, 0, sizeof(clock));
+
+    static struct helikon_player player;
+    check(helikon_player_open_media(&player, &source, &pmu, &clock, 2000u) ==
+              HELIKON_OK,
+          "the player opens audio that lives on the volume");
+    check(helikon_player_duration_ms(&player) > 0u,
+          "the player reports a duration from the volume");
+
+    /* The ring starts on the first chunk, as it does on the device. */
+    check(helikon_player_play_chunk(&player, 2047u) == 0,
+          "start playback from the volume");
+    check(captured_source != NULL, "the HAL received a stream source");
+
+    /* Pull real PCM out of the ring's source, the way the DMA would. */
+    static int16_t stored_pcm[8192];
+    size_t want = 2048u;
+    size_t stored_frames =
+        pull_frames(captured_source, captured_context, stored_pcm, want);
+    check(stored_frames != 0u, "the volume produced audio frames");
+    check(stored_frames <= want, "the volume did not produce more than asked");
+
+    uint64_t stored_energy = 0u;
+    for (size_t index = 0u; index < stored_frames * 2u; ++index)
+        stored_energy += (uint64_t)(stored_pcm[index] < 0
+                                        ? -(int32_t)stored_pcm[index]
+                                        : (int32_t)stored_pcm[index]);
+    check(stored_energy != 0u, "the decoded audio is not silence");
+    check(read_ahead.stats.bytes_read > 0u &&
+              read_ahead.stats.bytes_read <= entry.size,
+          "the window read the file, not more");
+    check(read_ahead.stats.refills != 0u, "the window filled from the VFS");
+
+    /* The same file, resident: the reference decode. */
+    static uint8_t resident[262144];
+    check(entry.size <= sizeof(resident), "the fixture fits the resident buffer");
+    size_t loaded = 0u;
+    uint64_t position = 1u;
+    check(vfs_file_seek(vfs, handle, VFS_SEEK_SET, 0, &position) == HELIKON_OK &&
+              position == 0u,
+          "rewind the file");
+    check(vfs_file_read(vfs, handle, resident, (size_t)entry.size, &loaded) ==
+              HELIKON_OK &&
+              loaded == (size_t)entry.size,
+          "read the whole file through the VFS");
+
+    static struct helikon_player reference;
+    check(helikon_player_open(&reference, resident, loaded, &pmu, &clock,
+                              2000u) == HELIKON_OK,
+          "the resident path opens the same bytes");
+    check(helikon_player_duration_ms(&reference) ==
+              helikon_player_duration_ms(&player),
+          "both paths agree on the duration");
+    check(helikon_player_play_chunk(&reference, 2047u) == 0,
+          "start the reference stream");
+    check(captured_source != NULL, "the reference decode started a stream");
+    static int16_t resident_pcm[8192];
+    size_t resident_frames =
+        pull_frames(captured_source, captured_context, resident_pcm, want);
+    check(resident_frames == stored_frames,
+          "both paths decode the same number of frames");
+    check(memcmp(stored_pcm, resident_pcm,
+                 stored_frames * sizeof(int16_t) * 2u) == 0,
+          "storage and buffer decode to the same PCM");
+
+    helikon_player_stop(&player);
+    helikon_player_stop(&reference);
+    check(vfs_file_close(vfs, handle) == HELIKON_OK,
+          "close the audio file");
 }
 
 int main(int argc, char **argv)
@@ -159,13 +399,17 @@ int main(int argc, char **argv)
     check(closed->read(&io, 0u, text, 4u) == HELIKON_ERR_ARGUMENT,
           "a closed adapter refuses reads");
 
+    /* Audio that exists only on this volume: VFS -> window -> codec -> PCM. */
+    test_storage_playback(&vfs);
+
     if (fclose(image) != 0)
         return 2;
     if (failures != 0) {
         fprintf(stderr, "%d failure(s)\n", failures);
         return 1;
     }
-    printf("PASS library: HFS+ -> VFS -> HDB (%u tracks, %u albums, CRC OK)\n",
+    printf("PASS library: HFS+ -> VFS -> HDB (%u tracks, %u albums, CRC OK) "
+           "and audio decodes from the volume\n",
            db.track_count, db.album_count);
     return 0;
 }
