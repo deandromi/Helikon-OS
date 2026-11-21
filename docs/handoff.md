@@ -12,6 +12,63 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (twenty-eighth block: the 128 GiB boundary is pinned on the host)
+
+## What happened
+
+- The owner asked whether storage above 128 GB is possible yet. The honest
+  answer needed evidence, not prose, so the boundary got tests instead of a
+  claim.
+- What existed already: a runtime LBA48 probe (`ata_geometry.c` words 83/86,
+  100–103, 60–61, 106/117–118), `READ/WRITE MULTIPLE EXT` in the HAL for every
+  LBA once LBA48 is selected, 64-bit byte offsets through block, partition and
+  HFS+, and the 128 GiB boundary cases in `test_ata_geometry.c`.
+- What was missing was proof that the layers above the HAL keep a large card's
+  geometry straight. Three host checks now do:
+  - `tests/firmware/test_ata_geometry.c` parses a 1 TB card (1,953,125,000
+    sectors → exactly 1,000,000,000,000 bytes, LBA48 selected) and a 512 GB one,
+    and pins a 128 GiB card staying LBA28 on the nose.
+  - `tests/firmware/test_block.c` scans an Apple map whose HFS+ partition starts
+    above 2^28 sectors, one that straddles the limit, and asserts the 64-bit byte
+    offsets, lengths and the map's 32-bit fields.
+  - `tests/hfsplus/test_volume.c` probes a volume with a base above 128 GiB using
+    a reader that refuses any offset below the base, so a 32-bit truncation would
+    fail immediately; it also proves a base that would wrap is refused, not
+    wrapped.
+- `docs/disk-mode.md` §10.1 was stale: it told the reader to add
+  `HELIKON_HAVE_LBA48`, which D-54 replaced with a runtime decision. §10.2
+  claimed CE-ATA devices "must be rejected", while `ata_geometry.c` follows the
+  donor rule and selects the LBA48 path for them. That contradiction is now
+  recorded as open decision **D-55** instead of being silently resolved either
+  way.
+
+## Evidence (host only, no device run)
+
+- `make -C tests/firmware test` PASS (needs `clean` first: the shared build dir
+  keeps sanitizer objects from `make sanitize`).
+- `make -C tests/hfsplus test` PASS, `PASS base above 128 GiB`, 15 tests in the
+  volume suite.
+- No firmware or bootloader image changes; nothing was re-flashed or claimed.
+- Docs: `disk-mode.md` §10.1/§10.2, `decisions.md` D-55, `tasks.md` T-109,
+  `state.md` Disk Mode paragraph, this handoff and the log.
+
+## Open / next
+
+- The only thing that can turn this into support is a device run: T-109's probe
+  image on a 6G/iFlash SD records IDENTIFY 83/86/100–103, the CE-ATA bit and the
+  APM geometry, and a card above 128 GiB would then need a recorded row in
+  `device-matrix.md`. Until then the correct sentence is "the addressing path is
+  host-proven; no device has mounted a volume above 128 GiB".
+- Capacity migration (§11 option A) does not exist: a host-side tool that adds a
+  larger HFS+ partition in the free space, with a verified backup and `fsck_hfs`.
+- D-55 needs the owner: keep the donor CE-ATA→LBA48 rule (and fix §10.2's
+  wording) or reject CE-ATA devices explicitly.
+- Unchanged from the previous block: T-058's hub call site and the VFS mount,
+  T-059's device half, the artist-tab hint, splash colour-only states,
+  cross-track gapless.
+
+---
+
 # Handoff — 2026-11-21 (twenty-seventh block: next/previous has an order to walk)
 
 ## What happened

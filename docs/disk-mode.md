@@ -276,9 +276,16 @@ GET MAX LUN and Bulk-Only Reset are handled as control requests.
 
 ### 10.1 Build and runtime
 
-- Add `HELIKON_HAVE_LBA48` for the 6G build, mirroring Rockbox `HAVE_LBA48`.
-- The runtime probe still decides; the build flag only enables the path.
+- No build flag: D-54 makes LBA48 a runtime decision, so there is no
+  `HELIKON_HAVE_LBA48` to keep in sync. The firmware always links the EXT
+  command path and the geometry parser that selects it.
 - If LBA48 is not supported, cap at 2^28 sectors and show `LBA28 LIMIT`.
+- Status: the selection rule, the capacity arithmetic and the byte-level path
+  are host-tested at and above the boundary (`tests/firmware/test_ata_geometry.c`
+  has a 1 TB card, `tests/firmware/test_block.c` a partition map above 128 GiB,
+  `tests/hfsplus/test_volume.c` a volume base above it). What is not proven:
+  any of it on a device, and the capacity migration in §11, which is host-side
+  work that does not exist yet.
 
 ### 10.2 Detection
 
@@ -288,7 +295,10 @@ GET MAX LUN and Bulk-Only Reset are handled as control requests.
 - IDENTIFY words 60–61: 28-bit capacity.
 - IDENTIFY word 106 and 117–118: logical/physical sector size.
 - CE-ATA: Rockbox treats CE-ATA as LBA48; Helikon does not implement CE-ATA
-  yet and must reject it explicitly rather than misparse it.
+  commands. The code today follows the donor rule and selects the LBA48 address
+  path when the CE-ATA bit is set, which is **not** the same as a CE-ATA
+  protocol implementation. This section and the code disagree, so D-55 records
+  the question as open rather than picking one silently.
 
 ### 10.3 Command path
 

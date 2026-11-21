@@ -4,6 +4,7 @@
 #include "test_check.h"
 
 #include <stdint.h>
+#include <string.h>
 
 static void make_valid_header(void)
 {
@@ -220,6 +221,55 @@ static int test_journal_missing_info(void)
     return 0;
 }
 
+/*
+ * A volume that starts above 128 GiB. The reader is handed a base offset and
+ * must fold it into every read: this callback refuses any offset below the base,
+ * so a 32-bit truncation in the adapter shows up as an immediate I/O error
+ * rather than as a mount that reads the wrong sectors.
+ */
+static uint64_t base_read_base;
+
+static int base_read(void *context, uint64_t offset, void *buffer, size_t length)
+{
+    (void)context;
+    if (offset < base_read_base)
+        return HFS_ERR_IO;
+    uint64_t relative = offset - base_read_base;
+    if (relative > TEST_IMAGE_SIZE || length > TEST_IMAGE_SIZE - relative)
+        return HFS_ERR_IO;
+    memcpy(buffer, test_image + relative, length);
+    return HFS_OK;
+}
+
+static int test_base_above_128_gib(void)
+{
+    struct hfs_volume volume;
+    make_valid_header();
+
+    /* 128 GiB = 2^37 bytes: above every 32-bit byte offset. */
+    base_read_base = 0x2000000000ull;
+    int rc = hfs_volume_probe(&volume, base_read, NULL, base_read_base,
+                              TEST_IMAGE_SIZE);
+    CHECK(rc == HFS_OK);
+    CHECK(volume.base == base_read_base);
+    CHECK(volume.block_size == 512);
+    CHECK(volume.blocks == 128);
+
+    /* The same volume without the base shift still reads: the base is the only
+     * difference, so the check above cannot pass by accident. */
+    base_read_base = 0u;
+    rc = hfs_volume_probe(&volume, base_read, NULL, 0u, TEST_IMAGE_SIZE);
+    CHECK(rc == HFS_OK);
+    CHECK(volume.base == 0u);
+
+    /* A base whose last byte would wrap is refused, not wrapped. */
+    base_read_base = 0u;
+    rc = hfs_volume_probe(&volume, base_read, NULL,
+                          UINT64_MAX - TEST_IMAGE_SIZE / 2u, TEST_IMAGE_SIZE);
+    CHECK(rc == HFS_ERR_ARGUMENT);
+    return 0;
+}
+
 static int test_bad_arguments(void)
 {
     struct hfs_volume volume;
@@ -255,6 +305,7 @@ int main(void)
         {"journal uninitialized read-only", test_journal_uninitialized_readonly},
         {"journal dirty read-only", test_journal_dirty_readonly},
         {"journal missing info", test_journal_missing_info},
+        {"base above 128 GiB", test_base_above_128_gib},
         {"bad arguments", test_bad_arguments}
     };
 
