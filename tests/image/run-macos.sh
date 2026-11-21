@@ -178,6 +178,9 @@ MOUNTED=1
 SIZE=$(stat -f%z "$MOUNT/Overflow File")
 [ "$SIZE" -eq 49152 ] || fail "overflow file size is $SIZE, expected 49152"
 python3 "$HERE/check-overflow.py" "$MOUNT/Overflow File"
+[ -f "$MOUNT/Overflow Direct" ] || fail "macOS did not see the direct overflow file"
+DIRECT=$(stat -f%z "$MOUNT/Overflow Direct")
+[ "$DIRECT" -eq 36864 ] || fail "direct overflow size is $DIRECT, expected 36864"
 echo "macOS overflow append verified"
 hdiutil detach "$MOUNT" >/dev/null 2>&1
 MOUNTED=""
@@ -189,6 +192,7 @@ hdiutil attach -nobrowse -mountpoint "$MOUNT" "$IMAGE" \
     >"$TMP/mount.log" 2>&1 || fail "could not remount after overflow cleanup"
 MOUNTED=1
 [ ! -e "$MOUNT/Overflow File" ] || fail "overflow file survived cleanup"
+[ ! -e "$MOUNT/Overflow Direct" ] || fail "direct overflow file survived cleanup"
 [ ! -e "$MOUNT/Hole 00" ] || fail "hole file survived cleanup"
 echo "macOS overflow cleanup verified"
 hdiutil detach "$MOUNT" >/dev/null 2>&1

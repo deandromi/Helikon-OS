@@ -12,6 +12,41 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (twelfth block: deleting what overflows)
+
+## What happened
+
+- The overflow image exercise now also deletes an overflowed fork directly: the
+  `overflow` stage leaves a second file (`Overflow Direct`, nine blocks: eight
+  inline extents plus one overflow extent) and `overflow-cleanup` deletes it
+  with no truncate in front of it. The delete frees nine blocks (asserted
+  against `free_blocks`), the file is gone, and the extents tree must still end
+  empty after the remaining truncate and delete.
+- The earlier gap is closed: until now every cleanup truncated first, so the
+  delete-on-overflow path had no coverage even though the delete code was
+  changed in PR #47.
+- Test-side refactor: `append_fragmented_file()` creates a file and appends one
+  block per transaction, so both overflow files are built by the same helper;
+  `HOLE_FILES` went from 24 to 48 (24 freed single blocks) to leave room for the
+  second file.
+
+## Evidence (host only, no device run)
+
+- `tests/image test` and `crash-test`: PASS; `fsck_hfs -fn` clean after the
+  overflow, cleanup and Unicode stages; macOS sees `Overflow Direct` at 36,864
+  bytes and both overflow files gone after cleanup.
+- No writer code changed in this block; the other suites are unaffected.
+
+## Open / next
+
+- Still open from the eleventh block: `APPEND_EXTENT_MAX` (32) caps a fork grown
+  by append, D-05 cache limits, the transaction-block ceiling and the device
+  power-cut matrix.
+- Worth adding: an overflow file that is truncated and then grown again in the
+  same image (reuse of a cleared overflow record).
+
+---
+
 # Handoff — 2026-11-21 (eleventh block: a file that really overflows)
 
 ## What happened
