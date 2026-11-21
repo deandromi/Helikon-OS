@@ -150,8 +150,9 @@ int hfs_bitmap_open(struct hfs_bitmap *bitmap, struct hfs_volume *volume)
     return HFS_OK;
 }
 
-int hfs_bitmap_find(struct hfs_bitmap *bitmap, uint32_t start_hint,
-                    uint32_t count, uint32_t *first_block)
+int hfs_bitmap_find(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
+                    uint32_t start_hint, uint32_t count,
+                    uint32_t *first_block)
 {
     if (bitmap == NULL || first_block == NULL || count == 0)
         return HFS_ERR_ARGUMENT;
@@ -179,7 +180,7 @@ int hfs_bitmap_find(struct hfs_bitmap *bitmap, uint32_t start_hint,
         int rc = map_bitmap_block(bitmap->volume, block_start, &volume_block);
         if (rc != HFS_OK)
             return rc;
-        rc = read_bitmap_block(bitmap->volume, volume_block, buffer, NULL);
+        rc = read_bitmap_block(bitmap->volume, volume_block, buffer, tx);
         if (rc != HFS_OK)
             return rc;
         for (uint32_t bit = first; bit + count <= end; ++bit) {

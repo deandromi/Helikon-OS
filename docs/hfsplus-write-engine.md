@@ -172,6 +172,18 @@ Implementation notes (2026-11-21, host-verified):
   `UNSUPPORTED` rather than staging a partial range. `hfs_fork_stage()` keeps
   its inline-only contract for callers that hold a `struct hfs_fork`, such as
   the B-tree fork paths.
+- **An append fills the partial last block first.** A file whose size is not a
+  block multiple ends inside its last block, so appending straight into fresh
+  blocks left that tail zero and put the new bytes past the size the record
+  reported; `append_range()` now stages the rest of the last block through the
+  fork map, then allocates. A second append in one transaction also returns the
+  blocks the first one staged: `hfs_bitmap_find()` takes the transaction so its
+  search sees staged allocations, and `stage_volume_block()` composes with an
+  already-staged block instead of replacing it with the committed content.
+- **A write can grow the file.** `hfs_catalog_write_file()` writes a range at an
+  offset: the part that exists is an in-place overwrite, a range past the end
+  fills the gap with zeros in bounded chunks and then appends, so a file never
+  exposes uninitialised space. One call is bounded by the transaction budget.
 - **A truncate reaches any size, not only zero.** `hfs_catalog_truncate_to()`
   takes the fork's logical map, keeps the blocks the new size needs, frees the
   rest (splitting the extent that straddles the new end), rewrites the inline

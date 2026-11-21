@@ -230,6 +230,42 @@ echo "macOS sized truncate verified"
 hdiutil detach "$MOUNT" >/dev/null 2>&1
 MOUNTED=""
 
+# A write past the end: the gap it leaves must read back as zeros and the bytes
+# must land at the requested offset.
+"$HERE/hfs_image_test" "$IMAGE" grow
+fsck_image "$IMAGE"
+
+hdiutil attach -nobrowse -mountpoint "$MOUNT" "$IMAGE" \
+    >"$TMP/mount.log" 2>&1 || fail "could not remount after the grow"
+MOUNTED=1
+[ -f "$MOUNT/Overflow Direct" ] || fail "grow lost the direct file"
+SIZE=$(stat -f%z "$MOUNT/Overflow Direct")
+[ "$SIZE" -eq 17384 ] || fail "grown size is $SIZE, expected 17384"
+python3 - "$MOUNT/Overflow Direct" <<'CHECKGROW'
+import sys
+
+block = 4096
+truncated = 4 * block + 100
+offset = truncated + 400
+size = offset + 500
+data = open(sys.argv[1], "rb").read()
+if len(data) != size:
+    raise SystemExit(f"grown size mismatch: {len(data)}")
+for index, byte in enumerate(data):
+    if index < truncated:
+        expected = 0x60 + index // block
+    elif index < offset:
+        expected = 0
+    else:
+        expected = 0xA5
+    if byte != expected:
+        raise SystemExit(f"grown content mismatch at {index}")
+print(f"macOS mount verified: {size} bytes with a zero gap and the written range")
+CHECKGROW
+echo "macOS grow verified"
+hdiutil detach "$MOUNT" >/dev/null 2>&1
+MOUNTED=""
+
 "$HERE/hfs_image_test" "$IMAGE" overflow-cleanup
 fsck_image "$IMAGE"
 
@@ -280,4 +316,4 @@ PY
 hdiutil detach "$MOUNT" >/dev/null 2>&1
 MOUNTED=""
 
-echo "PASS: disposable image create/append/rename/truncate/delete/overflow/overwrite/truncate-to-size/Unicode, fsck_hfs clean"
+echo "PASS: disposable image create/append/rename/truncate/delete/overflow/overwrite/truncate-to-size/grow/Unicode, fsck_hfs clean"

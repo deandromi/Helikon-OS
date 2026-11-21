@@ -311,7 +311,7 @@ static int test_create_delete_file(void)
                                   1200, more, sizeof(more), hfs_catalog_key_compare,
                                   NULL) == HFS_OK);
     apply_txn(&tx);
-    CHECK(get_be32(test_image + 1024 + 48) == 56);
+    CHECK(get_be32(test_image + 1024 + 48) == 57);
     memset(&tx, 0, sizeof(tx));
     tx.journal = &journal;
     tx.active = 1;
@@ -320,15 +320,16 @@ static int test_create_delete_file(void)
           HFS_OK);
     fork = record + data_offset + 88u;
     CHECK(get_be32(fork + 4) == 1800);
-    CHECK(get_be32(fork + 12) == 5);
+    /* The second append fills the partial last block before it grows the fork. */
+    CHECK(get_be32(fork + 12) == 4);
     CHECK(get_be32(fork + 16) == 41);
     CHECK(get_be32(fork + 20) == 1);
     CHECK(get_be32(fork + 24) == 43);
-    CHECK(get_be32(fork + 28) == 4);
+    CHECK(get_be32(fork + 28) == 3);
     CHECK(get_be32(fork + 32) == 0);
     CHECK(get_be32(fork + 36) == 0);
-    CHECK(memcmp(test_image + 45 * TEST_BLOCK_SIZE, more, 512) == 0);
-    CHECK(memcmp(test_image + 46 * TEST_BLOCK_SIZE, more + 512, 88) == 0);
+    CHECK(memcmp(test_image + 44 * TEST_BLOCK_SIZE + 176, more, 336) == 0);
+    CHECK(memcmp(test_image + 45 * TEST_BLOCK_SIZE, more + 336, 264) == 0);
 
     memset(&tx, 0, sizeof(tx));
     tx.journal = &journal;
@@ -1179,6 +1180,181 @@ static int test_finder_info_preserved(void)
 }
 
 /*
+ * A write at an offset past the end: the gap is zeros, the bytes land at the
+ * offset, and the file reads back as exactly offset + length. The write itself
+ * never exposes uninitialised block content.
+ */
+static int test_write_grows_file(void)
+{
+    struct test_env env;
+    CHECK(setup_env(&env) == 0);
+
+    static const uint8_t name[8] = { 0, 'G', 0, 'R', 0, 'O', 0, 'W' };
+    struct hfs_txn tx;
+    uint32_t cnid = 0;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_file(&env.catalog, &tx, 2, name, 4, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &cnid) == HFS_OK);
+    apply_txn(&tx);
+
+    uint8_t chunk[500];
+    for (size_t i = 0; i < sizeof(chunk); ++i)
+        chunk[i] = (uint8_t)(0xa0u + (i & 0x0fu));
+
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_write_file(&env.catalog, &tx, 2, name, 4, 1000, chunk,
+                                 sizeof(chunk), hfs_catalog_key_compare,
+                                 NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    struct hfs_entry entry;
+    CHECK(hfs_catalog_lookup_ascii(&env.catalog, 2, "GROW", &entry) == HFS_OK);
+    CHECK(entry.data.size == 1500);
+    CHECK(entry.data.blocks == 3);
+
+    static uint8_t readback[1500];
+    size_t done = 0;
+    memset(readback, 0xee, sizeof(readback));
+    CHECK(hfs_catalog_read_file(&env.catalog, &entry, 0, readback,
+                               sizeof(readback), &done) == HFS_OK);
+    CHECK(done == 1500);
+    for (size_t i = 0; i < 1000; ++i)
+        CHECK(readback[i] == 0);
+    CHECK(memcmp(readback + 1000, chunk, sizeof(chunk)) == 0);
+
+    /* Writing wholly inside the file changes nothing about its size. */
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_write_file(&env.catalog, &tx, 2, name, 4, 10, chunk, 16,
+                                 hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(hfs_catalog_lookup_ascii(&env.catalog, 2, "GROW", &entry) == HFS_OK);
+    CHECK(entry.data.size == 1500);
+    CHECK(entry.data.blocks == 3);
+    return 0;
+}
+
+/*
+ * A write that starts inside the file and ends past it: the existing bytes are
+ * overwritten in place, the rest is appended, and the boundary is invisible.
+ */
+static int test_write_across_the_end(void)
+{
+    struct test_env env;
+    CHECK(setup_env(&env) == 0);
+
+    static const uint8_t name[8] = { 0, 'E', 0, 'D', 0, 'G', 0, 'E' };
+    static uint8_t payload[1200];
+    for (size_t i = 0; i < sizeof(payload); ++i)
+        payload[i] = (uint8_t)(i & 0xffu);
+
+    struct hfs_txn tx;
+    uint32_t cnid = 0;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_file(&env.catalog, &tx, 2, name, 4, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &cnid) == HFS_OK);
+    apply_txn(&tx);
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_append_file(&env.catalog, &tx, 2, name, 4, 0, payload,
+                                  sizeof(payload), hfs_catalog_key_compare,
+                                  NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    uint8_t tail[600];
+    for (size_t i = 0; i < sizeof(tail); ++i)
+        tail[i] = (uint8_t)(0x50u + (i & 0x0fu));
+
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_write_file(&env.catalog, &tx, 2, name, 4, 1000, tail,
+                                 sizeof(tail), hfs_catalog_key_compare,
+                                 NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    struct hfs_entry entry;
+    CHECK(hfs_catalog_lookup_ascii(&env.catalog, 2, "EDGE", &entry) == HFS_OK);
+    CHECK(entry.data.size == 1600);
+    CHECK(entry.data.blocks == 4);
+
+    static uint8_t readback[1600];
+    size_t done = 0;
+    CHECK(hfs_catalog_read_file(&env.catalog, &entry, 0, readback,
+                               sizeof(readback), &done) == HFS_OK);
+    CHECK(done == 1600);
+    CHECK(memcmp(readback, payload, 1000) == 0);
+    CHECK(memcmp(readback + 1000, tail, sizeof(tail)) == 0);
+    return 0;
+}
+
+/*
+ * Growing a fork that already lives in the extents tree, with a write that
+ * starts inside its last overflow block.
+ */
+static int test_write_grows_fragmented_file(void)
+{
+    struct test_env env;
+    CHECK(setup_env(&env) == 0);
+
+    uint8_t *bitmap = test_image + 18 * TEST_BLOCK_SIZE;
+    memset(bitmap, 0xff, 16);
+    for (uint32_t block = 50; block <= 88; block += 2)
+        bitmap[block / 8] &= (uint8_t)~(0x80u >> (block % 8));
+    put_be32(test_image + 1024 + 48, 20);
+    env.volume.free_blocks = 20;
+
+    static const uint8_t name[8] = { 0, 'G', 0, 'F', 0, 'R', 0, 'G' };
+    static uint8_t payload[20u * 512u];
+    for (size_t i = 0; i < sizeof(payload); ++i)
+        payload[i] = (uint8_t)(0x60u + ((i / 512u) & 0x1fu));
+
+    struct hfs_txn tx;
+    uint32_t cnid = 0;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_file(&env.catalog, &tx, 2, name, 4, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &cnid) == HFS_OK);
+    apply_txn(&tx);
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_append_file(&env.catalog, &tx, 2, name, 4, 0, payload,
+                                  sizeof(payload), hfs_catalog_key_compare,
+                                  NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    uint8_t tail[1000];
+    for (size_t i = 0; i < sizeof(tail); ++i)
+        tail[i] = (uint8_t)(0xc0u + (i & 0x1fu));
+
+    /* The twenty holes are spent; free two more blocks for the growth. */
+    bitmap[90 / 8] &= (uint8_t)~(0x80u >> (90 % 8));
+    bitmap[92 / 8] &= (uint8_t)~(0x80u >> (92 % 8));
+    put_be32(test_image + 1024 + 48, 2);
+    env.volume.free_blocks = 2;
+
+    /* 19 * 512 + 100 = 9828: inside the last block, past the end for the rest. */
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_write_file(&env.catalog, &tx, 2, name, 4,
+                                 19u * 512u + 100u, tail, sizeof(tail),
+                                 hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    struct hfs_entry entry;
+    CHECK(hfs_catalog_lookup_ascii(&env.catalog, 2, "GFRG", &entry) == HFS_OK);
+    uint64_t expected_size = 19u * 512u + 100u + sizeof(tail);
+    CHECK(entry.data.size == expected_size);
+    CHECK(entry.data.blocks == 22); /* ceil(10828 / 512) */
+
+    static uint8_t readback[20u * 512u + sizeof(tail)];
+    size_t done = 0;
+    memset(readback, 0xee, sizeof(readback));
+    CHECK(hfs_catalog_read_file(&env.catalog, &entry, 0, readback,
+                               sizeof(readback), &done) == HFS_OK);
+    CHECK(done == expected_size);
+    CHECK(memcmp(readback, payload, 9828) == 0);
+    CHECK(memcmp(readback + 9828, tail, sizeof(tail)) == 0);
+    return 0;
+}
+
+/*
  * A truncate to a size that is not a block multiple: one block returns to the
  * bitmap, the last kept block keeps its allocation and its tail is zeroed, and
  * the file reads back as exactly `new_size` bytes.
@@ -1744,6 +1920,9 @@ int main(void)
         { "overwrite in place", test_overwrite_file },
         { "overwrite across overflow", test_overwrite_across_overflow },
         { "append past overflow", test_append_past_overflow },
+        { "write grows file", test_write_grows_file },
+        { "write across the end", test_write_across_the_end },
+        { "write grows fragmented file", test_write_grows_fragmented_file },
         { "truncate to size", test_truncate_to_size },
         { "truncate across overflow", test_truncate_across_overflow }
     };

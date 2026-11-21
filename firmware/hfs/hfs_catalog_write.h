@@ -68,6 +68,20 @@ int hfs_catalog_overwrite_file(struct hfs_catalog *catalog,
                                hfs_btree_key_compare_fn compare,
                                void *compare_context);
 
+/*
+ * Write `length` bytes at `offset`, growing the file when the range ends past
+ * its current size. The part that already exists is an in-place overwrite; a
+ * range that starts past the end first fills the gap with zeros, so the file
+ * never exposes uninitialised space. One call is bounded by the transaction
+ * budget; a gap larger than the remaining budget returns HFS_ERR_NO_SPACE, and
+ * the caller commits what it has and continues from the new size.
+ */
+int hfs_catalog_write_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                           uint32_t parent, const uint8_t *name, size_t units,
+                           uint64_t offset, const void *data, size_t length,
+                           hfs_btree_key_compare_fn compare,
+                           void *compare_context);
+
 /* Rename or move a file/folder; the record kind is read from the catalog. */
 int hfs_catalog_rename(struct hfs_catalog *catalog, struct hfs_txn *tx,
                        uint32_t parent, const uint8_t *name, size_t units,

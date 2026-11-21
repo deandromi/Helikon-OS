@@ -12,6 +12,59 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (nineteenth block: a write that grows a file)
+
+## What happened
+
+- **A real append bug, found by the new tests.** `hfs_catalog_append_file()`
+  allocated fresh blocks and wrote the data there, even when the file ended
+  inside its last block. A 1200-byte file that received 600 more bytes kept
+  bytes 1200–1535 as zeros and put the new data at 1536, past the size the
+  record reported. The append path now fills the partial last block through the
+  fork map first, then allocates, and only counts the bytes it actually wrote.
+  `get_be32(fork + 12)` expectations and the raw-image checks in
+  `append past overflow` moved with it.
+- Two supporting fixes the growth path forced: `hfs_bitmap_find()` takes the
+  transaction, so a second allocation in one transaction no longer hands out a
+  block the first one staged (BUSY otherwise); and `stage_volume_block()`
+  composes a partial write with the block already staged in the transaction
+  instead of replacing it with the committed content (a second partial write to
+  the same block used to drop the first one).
+- `hfs_catalog_write_file()` is the general entry point: the part of the range
+  that exists is an in-place overwrite, a range past the end fills the gap with
+  zeros in 4 KiB chunks (no caller buffer the size of the hole) and then
+  appends. One call is bounded by the transaction budget and returns `NO_SPACE`
+  when the gap exceeds it.
+- Tests: `write grows file` (empty file, write at 1000), `write across the end`
+  (1200-byte file, write at 1000 with 600), `write grows fragmented file` (20
+  single-block extents, write inside the last block). The image test gained a
+  `grow` stage on the truncated direct file — 500 bytes written 400 bytes past
+  the end, with macOS verifying the zero gap and the written range — and
+  `run-crash-macos.sh` a grow matrix (34 write + 4 flush + 34 partial cuts).
+
+## Evidence (host only, no device run)
+
+- `tests/hfsplus` test + sanitize PASS (17 catalog-write tests, 118 HFS+ total);
+  `tests/image` test (…/truncate-to-size/**grow**/Unicode, `fsck_hfs` clean at
+  every stage) and `crash-test` PASS (444 cuts); `tests/vfs`,
+  `tests/library macos`, `tests/player`, `tests/codec`, `tests/firmware`,
+  `tests/bootloader`, `tests/musicdb`, `tests/ui` PASS; the VFS, firmware and
+  bootloader sanitizer builds PASS.
+- Builds: plain 6G **80,004 B**; music hub 768,396 B; F2
+  `VERSION=2 BOOTSTATE_STATE=trying` 80,004 B with `tools/check-f2-artifact.sh`
+  PASS.
+
+## Open / next
+
+- The VFS is still read-only: `vfs_file_write`, `vfs_file_truncate` and a
+  writable mount are the T-065 surface that now has a writer to sit on.
+- `hfs_fork_overlay()` is still inline-only (sixteenth block).
+- A gap larger than the transaction budget needs a caller loop; nothing wraps
+  that yet in a helper.
+- No device run for any of this.
+
+---
+
 # Handoff — 2026-11-21 (eighteenth block: a certificate chain for the release key)
 
 ## What happened

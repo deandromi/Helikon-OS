@@ -710,14 +710,22 @@ static int append_tail_extent(struct hfs_volume *volume, struct hfs_txn *tx,
     return HFS_OK;
 }
 
-int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
-                            uint32_t parent, const uint8_t *name,
-                            size_t units, uint64_t offset,
-                            const void *data, size_t length,
-                            hfs_btree_key_compare_fn compare,
-                            void *compare_context)
+static int fork_map(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                    const uint8_t *fork_bytes, uint32_t file_id,
+                    struct hfs_extent *out, size_t capacity, size_t *count);
+
+/*
+ * Append `length` bytes at the current end of the file. `data` may be NULL,
+ * which stages a run of zeros: a grow uses that to fill the gap before a write
+ * at an offset, without a caller buffer the size of the gap.
+ */
+static int append_range(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                        uint32_t parent, const uint8_t *name, size_t units,
+                        uint64_t offset, const void *data, size_t length,
+                        hfs_btree_key_compare_fn compare,
+                        void *compare_context)
 {
-    if (catalog == NULL || tx == NULL || name == NULL || data == NULL ||
+    if (catalog == NULL || tx == NULL || name == NULL ||
         compare == NULL || units == 0 || units > 255u || parent < 2u ||
         length == 0)
         return HFS_ERR_ARGUMENT;
@@ -751,6 +759,42 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
         return HFS_ERR_ARGUMENT;
 
     uint32_t file_id = be32(record + data_offset + 8);
+    struct hfs_volume *volume = catalog->btree.volume;
+    uint32_t block_size = volume->block_size;
+    if (block_size == 0 || block_size > 32768u ||
+        block_size % tx->journal->sector_size != 0)
+        return HFS_ERR_UNSUPPORTED;
+
+    /*
+     * A file whose size is not a block multiple ends inside its last block.
+     * Appending straight into fresh blocks would leave that tail zero and put
+     * the new bytes past the size the record reports, so fill it first.
+     */
+    uint32_t partial = (uint32_t)(old_size % block_size);
+    if (partial != 0) {
+        uint32_t fill = block_size - partial;
+        if (length < fill)
+            fill = (uint32_t)length;
+        static struct hfs_extent map[CATALOG_FORK_MAP_MAX];
+        size_t map_count = 0;
+        static uint8_t zeros[32768];
+        memset(zeros, 0, fill);
+        rc = fork_map(catalog, tx, fork, file_id, map, CATALOG_FORK_MAP_MAX,
+                      &map_count);
+        if (rc != HFS_OK)
+            return rc;
+        rc = hfs_fork_stage_map(tx, volume, map, map_count,
+                                (uint64_t)current.blocks * block_size,
+                                old_size,
+                                data != NULL ? (const uint8_t *)data : zeros,
+                                fill);
+        if (rc != HFS_OK)
+            return rc;
+        if (data != NULL)
+            data = (const uint8_t *)data + fill;
+        old_size += fill;
+        length -= fill;
+    }
 
     struct fork_tail tail;
     memset(&tail, 0, sizeof(tail));
@@ -775,14 +819,7 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
             tail.record_blocks += tail.record[i].count;
     }
 
-    struct hfs_volume *volume = catalog->btree.volume;
-    uint32_t block_size = volume->block_size;
-    if (block_size == 0 || block_size > 32768u ||
-        block_size % tx->journal->sector_size != 0)
-        return HFS_ERR_UNSUPPORTED;
     uint32_t blocks = (uint32_t)((length + block_size - 1u) / block_size);
-    if (blocks == 0)
-        return HFS_ERR_ARGUMENT;
 
     struct hfs_bitmap bitmap;
     rc = hfs_bitmap_open(&bitmap, volume);
@@ -790,12 +827,12 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
         return rc;
     bitmap.modify_date = catalog->now;
     touch_record(record + data_offset, catalog->now);
-    if (blocks + 5u > HFS_TXN_MAX_BLOCKS)
+    if (blocks != 0 && blocks + 5u > HFS_TXN_MAX_BLOCKS)
         return HFS_ERR_NO_SPACE;
     uint32_t firsts[32];
     uint32_t cursor = 0;
     for (uint32_t i = 0; i < blocks; ++i) {
-        rc = hfs_bitmap_find(&bitmap, cursor, 1, &firsts[i]);
+        rc = hfs_bitmap_find(&bitmap, tx, cursor, 1, &firsts[i]);
         if (rc != HFS_OK)
             return rc;
         cursor = firsts[i] + 1u;
@@ -808,7 +845,8 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
         size_t chunk = length - done;
         if (chunk > block_size)
             chunk = block_size;
-        memcpy(block, (const uint8_t *)data + done, chunk);
+        if (data != NULL)
+            memcpy(block, (const uint8_t *)data + done, chunk);
         uint64_t sector = (uint64_t)firsts[i] *
                           (block_size / tx->journal->sector_size);
         rc = hfs_txn_stage_replace(tx, sector, block, block_size);
@@ -848,6 +886,110 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
 
     return hfs_btree_update(&catalog->btree, tx, record, record_length,
                             compare, compare_context);
+}
+
+int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                            uint32_t parent, const uint8_t *name,
+                            size_t units, uint64_t offset,
+                            const void *data, size_t length,
+                            hfs_btree_key_compare_fn compare,
+                            void *compare_context)
+{
+    if (data == NULL)
+        return HFS_ERR_ARGUMENT;
+    return append_range(catalog, tx, parent, name, units, offset, data, length,
+                        compare, compare_context);
+}
+
+/*
+ * Write `length` bytes at `offset`, growing the file when the write ends past
+ * its current size. A range inside the file is an in-place overwrite; a range
+ * that starts past the end first fills the gap with zeros, so a file never holds
+ * uninitialised space. One call is bounded by the transaction budget: a gap
+ * larger than the remaining block budget returns HFS_ERR_NO_SPACE, and the
+ * caller commits what it has and continues.
+ */
+int hfs_catalog_write_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                           uint32_t parent, const uint8_t *name, size_t units,
+                           uint64_t offset, const void *data, size_t length,
+                           hfs_btree_key_compare_fn compare,
+                           void *compare_context)
+{
+    if (catalog == NULL || tx == NULL || name == NULL || data == NULL ||
+        compare == NULL || units == 0 || units > 255u || parent < 2u ||
+        length == 0)
+        return HFS_ERR_ARGUMENT;
+    if (offset > UINT64_MAX - length)
+        return HFS_ERR_ARGUMENT;
+    uint64_t end = offset + length;
+    if (end > UINT32_MAX)
+        return HFS_ERR_UNSUPPORTED;
+
+    static uint8_t canonical[255u * 2u];
+    size_t canonical_units = 0;
+    int rc = hfs_unicode_normalize_name(name, units, canonical,
+                                        sizeof(canonical), &canonical_units);
+    if (rc != HFS_OK)
+        return rc;
+
+    static uint8_t record[CATALOG_MAX_RECORD];
+    size_t record_length;
+    size_t key_length;
+    rc = find_file_record(catalog, tx, parent, canonical, canonical_units,
+                          compare, compare_context, record, &record_length,
+                          &key_length);
+    if (rc != HFS_OK)
+        return rc;
+    size_t data_offset = 2u + key_length;
+    if (record_length < data_offset + 88u + 80u)
+        return HFS_ERR_FORMAT;
+    struct hfs_fork fork;
+    rc = hfs_fork_parse(catalog->btree.volume, record + data_offset + 88u,
+                        &fork);
+    if (rc != HFS_OK)
+        return rc;
+
+    const uint8_t *source = data;
+    uint64_t position = offset;
+    size_t remaining = length;
+
+    /* The part of the range that already has bytes: write it in place. */
+    if (position < fork.size) {
+        size_t head = (size_t)(fork.size - position);
+        if (head > remaining)
+            head = remaining;
+        rc = hfs_catalog_overwrite_file(catalog, tx, parent, name, units,
+                                        position, source, head, compare,
+                                        compare_context);
+        if (rc != HFS_OK)
+            return rc;
+        source += head;
+        position += head;
+        remaining -= head;
+    }
+
+    /*
+     * A write past the end leaves a gap. Fill it with zeros in bounded chunks
+     * so no caller has to hold a buffer the size of the hole, and so the
+     * transaction budget stays the real limit.
+     */
+    while (remaining != 0 && position > fork.size) {
+        uint64_t gap = position - fork.size;
+        size_t chunk = gap > 4096u ? 4096u : (size_t)gap;
+        rc = append_range(catalog, tx, parent, name, units, fork.size, NULL,
+                          chunk, compare, compare_context);
+        if (rc != HFS_OK)
+            return rc;
+        fork.size += chunk;
+    }
+
+    if (remaining != 0) {
+        rc = append_range(catalog, tx, parent, name, units, fork.size, source,
+                          remaining, compare, compare_context);
+        if (rc != HFS_OK)
+            return rc;
+    }
+    return HFS_OK;
 }
 
 /*

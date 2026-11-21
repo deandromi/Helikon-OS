@@ -57,6 +57,15 @@
  */
 #define DIRECT_TRUNC_BLOCKS 4u
 #define DIRECT_TRUNC_SIZE (DIRECT_TRUNC_BLOCKS * TEST_SIZE + 100u)
+/*
+ * Then a write past the end: the gap it leaves has to read back as zeros and
+ * the written bytes have to land at the requested offset.
+ */
+#define GROW_GAP 400u
+#define GROW_OFFSET (DIRECT_TRUNC_SIZE + GROW_GAP)
+#define GROW_LENGTH 500u
+#define GROW_MARKER 0xa5u
+#define GROW_SIZE (GROW_OFFSET + GROW_LENGTH)
 
 struct image {
     int fd;
@@ -794,6 +803,91 @@ static int overwrite_overflow_file(struct image *image)
 }
 
 /*
+ * Write past the end of the truncated file: the gap must read back as zeros and
+ * the bytes must land at the offset, not at the next block boundary.
+ */
+static int grow_direct_file(struct image *image)
+{
+    uint8_t name[64];
+    size_t units = ascii_units(DIRECT_NAME, name, sizeof(name) / 2u);
+    if (units == 0)
+        return HFS_ERR_ARGUMENT;
+
+    struct hfs_entry entry;
+    int rc = hfs_catalog_lookup_ascii(&image->catalog, 2, DIRECT_NAME, &entry);
+    if (rc != HFS_OK)
+        return rc;
+    if (entry.data.size != DIRECT_TRUNC_SIZE)
+        return HFS_ERR_FORMAT;
+
+    struct stats before;
+    if (read_stats(image, &before) != HFS_OK)
+        return HFS_ERR_IO;
+
+    static uint8_t marker[GROW_LENGTH];
+    memset(marker, GROW_MARKER, sizeof(marker));
+
+    struct hfs_txn tx;
+    rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    rc = commit(&tx, hfs_catalog_write_file(&image->catalog, &tx, 2, name,
+                                            units, GROW_OFFSET, marker,
+                                            sizeof(marker),
+                                            hfs_catalog_key_compare, NULL));
+    if (rc != HFS_OK) {
+        fprintf(stderr, "grow write failed: %d\n", rc);
+        return rc;
+    }
+
+    struct hfs_entry after;
+    rc = hfs_catalog_lookup_ascii(&image->catalog, 2, DIRECT_NAME, &after);
+    if (rc != HFS_OK)
+        return rc;
+    if (after.data.size != GROW_SIZE) {
+        fprintf(stderr, "grown size is %llu, expected %u\n",
+                (unsigned long long)after.data.size, GROW_SIZE);
+        return HFS_ERR_FORMAT;
+    }
+    struct stats stats;
+    if (read_stats(image, &stats) != HFS_OK)
+        return HFS_ERR_IO;
+    uint32_t expect_blocks = (GROW_SIZE + TEST_SIZE - 1u) / TEST_SIZE;
+    if (before.free_blocks - stats.free_blocks !=
+        expect_blocks - (DIRECT_TRUNC_SIZE + TEST_SIZE - 1u) / TEST_SIZE) {
+        fprintf(stderr, "grow used %u blocks\n",
+                before.free_blocks - stats.free_blocks);
+        return HFS_ERR_FORMAT;
+    }
+
+    static uint8_t readback[GROW_SIZE];
+    size_t done = 0;
+    memset(readback, 0xee, sizeof(readback));
+    rc = hfs_catalog_read_file(&image->catalog, &after, 0, readback,
+                               sizeof(readback), &done);
+    if (rc != HFS_OK || done != GROW_SIZE)
+        return rc != HFS_OK ? rc : HFS_ERR_FORMAT;
+    for (uint32_t i = 0; i < GROW_SIZE; ++i) {
+        uint8_t expected;
+        if (i < DIRECT_TRUNC_SIZE)
+            expected = (uint8_t)(0x60u + i / TEST_SIZE);
+        else if (i < GROW_OFFSET)
+            expected = 0;
+        else
+            expected = GROW_MARKER;
+        if (readback[i] != expected) {
+            fprintf(stderr, "grown byte %u is %02x, expected %02x\n", i,
+                    readback[i], expected);
+            return HFS_ERR_FORMAT;
+        }
+    }
+
+    printf("grew %s from %u to %u bytes with a %u-byte zero gap\n",
+           DIRECT_NAME, DIRECT_TRUNC_SIZE, GROW_SIZE, GROW_GAP);
+    return HFS_OK;
+}
+
+/*
  * Shrink a file that owns an overflow extent to a size that is not a block
  * multiple. Five blocks survive, four return to the bitmap, the overflow record
  * goes away and the last kept block is zeroed past the new end.
@@ -1076,7 +1170,7 @@ int main(int argc, char **argv)
     if (argc != 3) {
         fprintf(stderr,
                 "usage: %s IMAGE create|rename|truncate|delete|overflow|"
-                "overwrite|truncate-size|overflow-cleanup|unicode\n",
+                "overwrite|truncate-size|grow|overflow-cleanup|unicode\n",
                 argv[0]);
         return 2;
     }
@@ -1090,6 +1184,8 @@ int main(int argc, char **argv)
         rc = create_overflow_file(&image);
     } else if (strcmp(argv[2], "truncate-size") == 0) {
         rc = truncate_direct_file(&image);
+    } else if (strcmp(argv[2], "grow") == 0) {
+        rc = grow_direct_file(&image);
     } else if (strcmp(argv[2], "overwrite") == 0) {
         rc = overwrite_overflow_file(&image);
     } else if (strcmp(argv[2], "overflow-cleanup") == 0) {
