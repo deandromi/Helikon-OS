@@ -26,14 +26,15 @@ static int stage_volume_block(struct hfs_txn *tx, const struct hfs_volume *volum
     return hfs_txn_stage_replace(tx, sector, bounce, block_size);
 }
 
-int hfs_fork_stage(struct hfs_txn *tx, const struct hfs_volume *volume,
-                   const struct hfs_fork *fork, uint64_t offset,
-                   const void *data, size_t length)
+int hfs_fork_stage_map(struct hfs_txn *tx, const struct hfs_volume *volume,
+                       const struct hfs_extent *extents, size_t count,
+                       uint64_t fork_size, uint64_t offset,
+                       const void *data, size_t length)
 {
-    if (tx == NULL || volume == NULL || fork == NULL || data == NULL ||
-        length == 0)
+    if (tx == NULL || volume == NULL || extents == NULL || data == NULL ||
+        count == 0 || length == 0)
         return HFS_ERR_ARGUMENT;
-    if (offset > fork->size || length > fork->size - offset)
+    if (offset > fork_size || length > fork_size - offset)
         return HFS_ERR_ARGUMENT;
     if (volume->block_size == 0 || volume->block_size > 32768u ||
         volume->block_size % tx->journal->sector_size != 0)
@@ -42,19 +43,42 @@ int hfs_fork_stage(struct hfs_txn *tx, const struct hfs_volume *volume,
     static uint8_t bounce[32768];
     const uint8_t *source = data;
     uint64_t end = offset + length;
-    uint64_t extent_start = 0;
 
-    for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i) {
-        uint32_t count = fork->extents[i].count;
-        if (count == 0)
+    /*
+     * Confirm the extents cover the whole range before staging a block: a
+     * hole must fail with nothing half-written into the transaction.
+     */
+    uint64_t covered = 0;
+    uint64_t check_start = 0;
+    for (size_t i = 0; i < count; ++i) {
+        if (extents[i].count == 0)
             continue;
-        uint64_t extent_bytes = (uint64_t)count * volume->block_size;
+        uint64_t extent_bytes = (uint64_t)extents[i].count * volume->block_size;
+        uint64_t extent_end = check_start + extent_bytes;
+        if (offset < extent_end && end > check_start) {
+            uint64_t from = offset > check_start ? offset : check_start;
+            uint64_t to = end < extent_end ? end : extent_end;
+            covered += to - from;
+        }
+        if (extent_end >= end)
+            break;
+        check_start = extent_end;
+    }
+    if (covered != length)
+        return HFS_ERR_UNSUPPORTED;
+
+    uint64_t extent_start = 0;
+    for (size_t i = 0; i < count; ++i) {
+        uint32_t blocks = extents[i].count;
+        if (blocks == 0)
+            continue;
+        uint64_t extent_bytes = (uint64_t)blocks * volume->block_size;
         uint64_t extent_end = extent_start + extent_bytes;
         if (offset < extent_end && end > extent_start) {
             uint64_t from = offset > extent_start ? offset : extent_start;
             uint64_t to = end < extent_end ? end : extent_end;
             uint64_t local = from - extent_start;
-            uint32_t volume_block = fork->extents[i].start +
+            uint32_t volume_block = extents[i].start +
                                     (uint32_t)(local / volume->block_size);
             uint32_t in_block = (uint32_t)(local % volume->block_size);
             uint64_t remaining = to - from;
@@ -82,6 +106,15 @@ int hfs_fork_stage(struct hfs_txn *tx, const struct hfs_volume *volume,
     return HFS_ERR_UNSUPPORTED;
 }
 
+int hfs_fork_stage(struct hfs_txn *tx, const struct hfs_volume *volume,
+                   const struct hfs_fork *fork, uint64_t offset,
+                   const void *data, size_t length)
+{
+    if (fork == NULL)
+        return HFS_ERR_ARGUMENT;
+    return hfs_fork_stage_map(tx, volume, fork->extents, HFS_EXTENT_COUNT,
+                              fork->size, offset, data, length);
+}
 
 int hfs_fork_overlay(const struct hfs_txn *tx,
                      const struct hfs_volume *volume,

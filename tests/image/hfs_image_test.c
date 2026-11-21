@@ -39,6 +39,17 @@
 #define DIRECT_BLOCKS 9u
 #define DIRECT_NAME "Overflow Direct"
 #define DIRECT_SIZE (DIRECT_BLOCKS * TEST_SIZE)
+/*
+ * Two in-place overwrites of the fragmented file: one straddles the boundary
+ * between the eighth inline extent and the first overflow record, one sits
+ * inside the second overflow record. The host driver and the macOS check both
+ * use these windows.
+ */
+#define OVERWRITE_CROSS_OFFSET (8u * TEST_SIZE - 100u)
+#define OVERWRITE_CROSS_LENGTH 300u
+#define OVERWRITE_DEEP_OFFSET (20u * TEST_SIZE + 7u)
+#define OVERWRITE_DEEP_LENGTH 100u
+#define OVERWRITE_MARKER 0xa5u
 
 struct image {
     int fd;
@@ -682,6 +693,99 @@ static int create_overflow_file(struct image *image)
     return HFS_OK;
 }
 
+/*
+ * Overwrite a fragmented file in place. Both ranges live past the eight inline
+ * extents, so this is the case the writer used to refuse: a tag or a header at
+ * the end of a file that the allocator had fragmented.
+ */
+static int overwrite_overflow_file(struct image *image)
+{
+    uint8_t name[64];
+    size_t units = ascii_units(OVERFLOW_NAME, name, sizeof(name) / 2u);
+    if (units == 0)
+        return HFS_ERR_ARGUMENT;
+
+    struct hfs_entry entry;
+    int rc = hfs_catalog_lookup_ascii(&image->catalog, 2, OVERFLOW_NAME,
+                                      &entry);
+    if (rc != HFS_OK)
+        return rc;
+    if (entry.data.size != OVERFLOW_SIZE)
+        return HFS_ERR_FORMAT;
+
+    static uint8_t marker[OVERWRITE_CROSS_LENGTH];
+    memset(marker, OVERWRITE_MARKER, sizeof(marker));
+
+    struct hfs_txn tx;
+    rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    rc = commit(&tx, hfs_catalog_overwrite_file(
+                        &image->catalog, &tx, 2, name, units,
+                        OVERWRITE_CROSS_OFFSET, marker, sizeof(marker),
+                        hfs_catalog_key_compare, NULL));
+    if (rc != HFS_OK) {
+        fprintf(stderr, "cross-boundary overwrite failed: %d\n", rc);
+        return rc;
+    }
+
+    rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK)
+        return rc;
+    rc = commit(&tx, hfs_catalog_overwrite_file(
+                        &image->catalog, &tx, 2, name, units,
+                        OVERWRITE_DEEP_OFFSET, marker,
+                        OVERWRITE_DEEP_LENGTH,
+                        hfs_catalog_key_compare, NULL));
+    if (rc != HFS_OK) {
+        fprintf(stderr, "deep overwrite failed: %d\n", rc);
+        return rc;
+    }
+
+    /*
+     * Read the whole file back through the read core: the markers must be in
+     * place and every byte around them must still hold the append pattern.
+     */
+    static uint8_t readback[OVERFLOW_SIZE];
+    size_t done = 0;
+    rc = hfs_catalog_read_file(&image->catalog, &entry, 0, readback,
+                               sizeof(readback), &done);
+    if (rc != HFS_OK || done != sizeof(readback))
+        return rc != HFS_OK ? rc : HFS_ERR_FORMAT;
+    for (uint32_t i = 0; i < sizeof(readback); ++i) {
+        int overwritten =
+            (i >= OVERWRITE_CROSS_OFFSET &&
+             i < OVERWRITE_CROSS_OFFSET + OVERWRITE_CROSS_LENGTH) ||
+            (i >= OVERWRITE_DEEP_OFFSET &&
+             i < OVERWRITE_DEEP_OFFSET + OVERWRITE_DEEP_LENGTH);
+        uint8_t expected = overwritten ? OVERWRITE_MARKER
+                                       : (uint8_t)(0x40u + i / TEST_SIZE);
+        if (readback[i] != expected) {
+            fprintf(stderr, "overwrite readback mismatch at %u\n", i);
+            return HFS_ERR_FORMAT;
+        }
+    }
+
+    struct hfs_entry after;
+    rc = hfs_catalog_lookup_ascii(&image->catalog, 2, OVERFLOW_NAME, &after);
+    if (rc != HFS_OK)
+        return rc;
+    if (after.data.size != OVERFLOW_SIZE || after.data.blocks != entry.data.blocks) {
+        fprintf(stderr, "overwrite changed size=%llu blocks=%u\n",
+                (unsigned long long)after.data.size, after.data.blocks);
+        return HFS_ERR_FORMAT;
+    }
+
+    struct stats stats;
+    if (read_stats(image, &stats) != HFS_OK)
+        return HFS_ERR_IO;
+
+    printf("overwrote %s at %u+%u and %u+%u in place\n", OVERFLOW_NAME,
+           OVERWRITE_CROSS_OFFSET, OVERWRITE_CROSS_LENGTH,
+           OVERWRITE_DEEP_OFFSET, OVERWRITE_DEEP_LENGTH);
+    return HFS_OK;
+}
+
 static int clear_overflow_file(struct image *image)
 {
     uint8_t name[64];
@@ -857,7 +961,9 @@ static int create_unicode_files(struct image *image)
 int main(int argc, char **argv)
 {
     if (argc != 3) {
-        fprintf(stderr, "usage: %s IMAGE create|rename|truncate|delete|unicode\n",
+        fprintf(stderr,
+                "usage: %s IMAGE create|rename|truncate|delete|overflow|"
+                "overwrite|overflow-cleanup|unicode\n",
                 argv[0]);
         return 2;
     }
@@ -869,6 +975,8 @@ int main(int argc, char **argv)
     }
     if (strcmp(argv[2], "overflow") == 0) {
         rc = create_overflow_file(&image);
+    } else if (strcmp(argv[2], "overwrite") == 0) {
+        rc = overwrite_overflow_file(&image);
     } else if (strcmp(argv[2], "overflow-cleanup") == 0) {
         rc = clear_overflow_file(&image);
     } else if (strcmp(argv[2], "create") == 0) {

@@ -101,7 +101,8 @@ Helikon-OS/
       hfs_extents_write.c/.h one extents-overflow record
       hfs_btree_write.c/.h  node-level record insert/delete/split and offset tables
       hfs_btree_tree.c/.h   tree-level insert, parent/root split, rebalance, fork growth
-      hfs_fork_io.c/.h      fork block staging into a transaction
+      hfs_fork_io.c/.h      fork block staging into a transaction (inline or
+                            a logical extent map)
     vfs/
       vfs.h               read-only VFS API; mount, entries, handles, kinds
       vfs.c               mount/path/lookup/iterate/read/seek implementation
@@ -134,7 +135,8 @@ Helikon-OS/
       test_txn.c            transaction commit/abort/limit tests
       test_bitmap.c         allocation bitmap alloc/free/NO_SPACE tests
       test_btree_write.c    B-tree node insert/delete/split tests
-      test_fork_io.c        fork full/partial block staging tests
+      test_fork_io.c        fork full/partial block staging tests, inline and
+                            multi-extent map
       test_btree_tree.c     tree insert/delete/rebalance model test
       test_btree_grow.c     B-tree fork growth test
       test_catalog_compare.c catalog key/FastUnicodeCompare ordering tests

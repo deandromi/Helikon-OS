@@ -56,8 +56,9 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
 /*
  * Overwrite an existing byte range without changing the file size or its
  * allocation. Data blocks and the catalog record's modify dates are staged in
- * one transaction. Only the eight inline extents are supported; an overflowed
- * fork returns HFS_ERR_UNSUPPORTED. The caller must not overlap ranges.
+ * one transaction. The range may cross the inline extents into the
+ * extents-overflow records, so a fragmented file is writable in place; a range
+ * that no extent covers is refused. The caller must not overlap ranges.
  */
 int hfs_catalog_overwrite_file(struct hfs_catalog *catalog,
                                struct hfs_txn *tx, uint32_t parent,
