@@ -24,6 +24,17 @@ static int mount_fixture(struct vfs *vfs)
                      extents_scratch, sizeof(extents_scratch));
 }
 
+/* The same catalog, with current.img's second block in the extents tree. */
+static int mount_overflow_fixture(struct vfs *vfs)
+{
+    static uint8_t catalog_scratch[TEST_FS_NODE_SIZE];
+    static uint8_t extents_scratch[TEST_FS_NODE_SIZE];
+    test_fs_image_make_overflow();
+    return vfs_mount(vfs, test_image_read, NULL, 0, TEST_IMAGE_SIZE,
+                     catalog_scratch, sizeof(catalog_scratch),
+                     extents_scratch, sizeof(extents_scratch));
+}
+
 static int test_mount_stat(void)
 {
     struct vfs vfs;
@@ -329,6 +340,66 @@ static int test_vfs_media(void)
     return 0;
 }
 
+
+/*
+ * A file whose second block lives in the extents-overflow tree. The read has to
+ * splice both halves, report the byte count and advance the handle; the old
+ * code returned the raw reader result, so done stayed 0 and the position never
+ * moved — a caller would loop on the same bytes forever.
+ */
+static int test_overflow_file_read(void)
+{
+    struct vfs vfs;
+    struct vfs_entry entry;
+    struct vfs_file_handle handle = { 0u, 0u };
+    uint8_t data[1024];
+    size_t done = 0;
+
+    CHECK(mount_overflow_fixture(&vfs) == HELIKON_OK);
+    CHECK(vfs_stat(&vfs, "/.firmware/current.img", &entry) == HELIKON_OK);
+    CHECK(entry.kind == VFS_KIND_FILE);
+    CHECK(entry.size == 1024u);
+    CHECK(vfs_file_open(&vfs, "/.firmware/current.img", &handle) ==
+          HELIKON_OK);
+
+    /* Inline half first: "HELO" at the front of the first block. */
+    memset(data, 0, sizeof(data));
+    CHECK(vfs_file_read(&vfs, handle, data, 512u, &done) == HELIKON_OK);
+    CHECK(done == 512u);
+    CHECK(vfs_file_position(&vfs, handle) == 512u);
+    CHECK(memcmp(data, "HELO", 4u) == 0);
+
+    /* Overflow half: the second block comes from the extents tree. */
+    memset(data, 0, sizeof(data));
+    CHECK(vfs_file_read(&vfs, handle, data, sizeof(data), &done) ==
+          HELIKON_OK);
+    CHECK(done == 512u);
+    CHECK(vfs_file_position(&vfs, handle) == 1024u);
+    for (size_t i = 0; i < 512u; ++i) {
+        if (data[i] != 'B') {
+            fprintf(stderr, "overflow read byte %zu is 0x%02x\n", i, data[i]);
+            CHECK(data[i] == 'B');
+            break;
+        }
+    }
+
+    /* End of file reports done == 0, not an error. */
+    CHECK(vfs_file_read(&vfs, handle, data, sizeof(data), &done) ==
+          HELIKON_OK);
+    CHECK(done == 0u);
+
+    /* A seek across the inline/overflow boundary reads both halves. */
+    uint64_t position = 0;
+    CHECK(vfs_file_seek(&vfs, handle, VFS_SEEK_SET, 1020u, &position) ==
+          HELIKON_OK);
+    CHECK(vfs_file_read(&vfs, handle, data, 8u, &done) == HELIKON_OK);
+    CHECK(done == 4u);
+    CHECK(memcmp(data, "BBBB", 4u) == 0);
+
+    CHECK(vfs_file_close(&vfs, handle) == HELIKON_OK);
+    return 0;
+}
+
 int main(void)
 {
     int failures = 0;
@@ -341,6 +412,7 @@ int main(void)
     failures += test_read_only_boundary();
     failures += test_not_hfs_refused();
     failures += test_vfs_media();
+    failures += test_overflow_file_read();
     if (failures != 0) {
         fprintf(stderr, "test_vfs: %d failure(s)\n", failures);
         return 1;

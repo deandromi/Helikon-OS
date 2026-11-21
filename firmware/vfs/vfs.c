@@ -200,9 +200,20 @@ int vfs_file_read(struct vfs *vfs, struct vfs_file_handle handle,
         if (orc != HELIKON_OK)
             return orc;
         size_t read_done = 0u;
-        return hfs_extents_read(&vfs->extents, &file->entry.data,
-                                file->entry.id, file->position, buffer, count,
-                                &read_done);
+        int rc = hfs_extents_read(&vfs->extents, &file->entry.data,
+                                  file->entry.id, file->position, buffer, count,
+                                  &read_done);
+        if (rc != HELIKON_OK)
+            return rc;
+        /*
+         * An overflow read has to advance the handle and report the byte count
+         * like the inline path: returning the raw reader result left done == 0
+         * and the position unchanged, so a caller looped forever on the same
+         * bytes.
+         */
+        *done = read_done;
+        file->position += read_done;
+        return HELIKON_OK;
     }
     size_t read_done = 0u;
     int rc = hfs_fork_read(&vfs->volume, &file->entry.data, file->position,

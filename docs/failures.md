@@ -121,6 +121,10 @@ fix:
   fork (catalog/extents/attributes) holds eight extents and cannot use the
   extents-overflow tree, so a growth that allocates far from the fork spends a
   slot; eight non-adjacent growths exhaust it. Grow at the fork's end.
+- **A read returns success with `done == 0`** — the VFS extents path returned the
+  raw reader status instead of the byte count and left the handle position
+  unchanged, so a caller looped on the same bytes. Every read path must report
+  `*done` and advance the position, exactly like the inline path.
 - **`HFS_ERR_BUSY` in a delete transaction** — the volume header (free count) was
   already staged by the bitmap and the catalog counts stage collided with it.
   Metadata updaters of the same block merge through `hfs_txn_read()` and

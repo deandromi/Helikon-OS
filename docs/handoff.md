@@ -12,6 +12,42 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (fifteenth block: a fragmented file reads through the VFS)
+
+## What happened
+
+- Found and fixed a real read bug: `vfs_file_read()` handed the extents reader's
+  status straight back. The reader fills the buffer but its `done`-style output
+  stayed unread, so `*done` was 0 and `file->position` never moved — any caller
+  reading a fragmented file (the normal case for a library on a used volume)
+  would loop on the same bytes. The overflow path now sets `*done` and advances
+  the position exactly like the inline path.
+- New fixture `test_fs_image_make_overflow()` — the standard catalog fixture with
+  `current.img` grown to two blocks, one inline extent plus one record in an
+  extents-overflow B-tree (blocks 24..25), and the second block filled with
+  `'B'`. The base fixture is unchanged, so every existing test still sees the
+  three-record, inline-only catalog.
+- `tests/vfs` gained `overflow_file_read`: read the inline half, read the
+  overflow half, EOF, and a seek across the boundary. Nine VFS tests now.
+
+## Evidence (host only, no device run)
+
+- `tests/vfs test` + `sanitize`: PASS (9 tests).
+- `tests/hfsplus`, `tests/image` (test + crash), `tests/library macos`,
+  `tests/player`, `tests/codec`, `tests/firmware`, `tests/bootloader`,
+  `tests/musicdb`, `tests/ui`: PASS.
+- Builds unchanged: plain 6G 78,228 B; music hub 768,396 B; F2 78,228 B with the
+  artifact check PASS.
+
+## Open / next
+
+- The firmware `hfs_file.c` adapter and the bootloader's `hfs_loader.c` still use
+  the inline-only reader. A fragmented firmware image on a real volume would be
+  rejected there; the loader is the next place the overflow splice is needed.
+- No device run for any of this.
+
+---
+
 # Handoff — 2026-11-21 (fourteenth block: an eighty-extent file, and a fork that grows where it ends)
 
 ## What happened

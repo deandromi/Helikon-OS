@@ -12,5 +12,7 @@ struct test_fs_image {
 };
 
 struct test_fs_image test_fs_image_make(void);
+/* The same catalog with current.img's second block in the extents tree. */
+struct test_fs_image test_fs_image_make_overflow(void);
 
 #endif
