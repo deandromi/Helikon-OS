@@ -56,8 +56,9 @@ existing RGB565 framebuffer. There is no allocation in the draw path.
 A separate 1-bit mask set at the same sizes and weights is generated from the
 same Plex face. If the atlas is unavailable, the renderer uses that set and
 `helikon_text_fallback_active()` becomes true. The top bar then shows
-`FONT FALLBACK` instead of the unknown time so the substitution is visible.
-Host tests can force the fallback with `helikon_text_set_fallback(1)`.
+`FONT FALLBACK` in its right slot so the substitution is visible; with a valid
+atlas that slot is empty because the firmware has no real-time clock. Host tests
+can force the fallback with `helikon_text_set_fallback(1)`.
 
 ## Regeneration
 

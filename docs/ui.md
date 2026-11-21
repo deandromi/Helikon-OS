@@ -510,9 +510,17 @@ The Artist view defaults to `ALBUMS`. Tabs are ordered `ALBUMS`, `OVERVIEW`,
 Canvas: 320×240 RGB565. Side margins: 16 px; content column: 288 px. The top bar
 is chrome, not a playback claim.
 
+The time slot is empty in the firmware today: the 6G HAL exposes a monotonic
+timer, not a real-time clock, so there is no honest value to draw and a
+`--:--` placeholder would be permanent furniture for a number the product cannot
+produce. The slot is reserved and the committed mockups show the intended
+`12:34`; the firmware draws a time when an RTC exists. The one string that does
+use the slot today is `FONT FALLBACK`, because a missing font atlas is a build
+error worth seeing (`firmware/ui/FONT_ATLAS.md`).
+
 | Region | Frame (x, y, w, h) | Rule |
 |---|---|---|
-| Top bar | 16, 8, 288, 18 | 11 px label at baseline 20; time right-aligned to 274; battery at 282, 11, 18, 9 |
+| Top bar | 16, 8, 288, 18 | 11 px label at baseline 20; time right-aligned to 274 when a time source exists; battery at 282, 11, 18, 9 |
 | Top rule | 16, 30, 288, 1 | Rule `#B3AD9E` |
 | Footer rule | 16, 226, 288, 1 | Faint `#DCD7CA`, only where a footer exists |
 | Footer text | 16, 236 | 11 px Regular, muted |

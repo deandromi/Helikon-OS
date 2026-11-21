@@ -97,10 +97,12 @@ file grows. Do not rely on chat history for current state.
 - The splash label change invalidates the device-tested loader hash. The last
   device-tested image remains `6bc6927c…`; the new build needs a run before any
   claim.
-- Not fixed from the review: the `--:--` / `FONT FALLBACK` clock slot in
-  `draw_top_bar()` (the firmware cannot read the RTC without the clock HAL being
-  wired into that path), five launcher cells that open a build note, and
-  `SORT: NAME` staying inert (accepted in the chart).
+- The `--:--` placeholder in `draw_top_bar()` is gone: the HAL has a monotonic
+  timer, not an RTC, so the time slot is empty until one exists and
+  `FONT FALLBACK` is the only string that uses it (it reports a missing font
+  atlas, a build error). The mockups keep showing `12:34` as the intended state.
+- Not fixed from the review: five launcher cells that open a build note,
+  `SORT: NAME` staying inert (accepted in the chart), and the tab-row hint.
 
 ---
 
