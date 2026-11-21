@@ -184,6 +184,8 @@ make -C tests/image outer-diag-test
 make -C tests/image loader-test
 ./tools/check-loader-artifact.sh
 
+make -C tests/library macos
+
 DONOR_DIR=/path/to/hfsplus-rockboxed-ipod \
   ./tools/build-diagnostic-bootloader.sh
 

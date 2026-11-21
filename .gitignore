@@ -54,6 +54,8 @@ tests/player/test_wav
 tests/player/test_player
 tests/vfs/test_vfs
 tests/vfs/*.dSYM/
+tests/library/test_library
+tests/library/*.dSYM/
 tests/codec/test_codec
 tests/codec/test_codec_sanitize
 tests/codec/build_mad/

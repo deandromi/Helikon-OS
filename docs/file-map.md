@@ -162,6 +162,10 @@ Helikon-OS/
   tests/musicdb/
     Makefile                HelikonDB fixture and reader test
     test_hdb.c              fixture + optional real-library checks
+  tests/library/
+    Makefile                HFS+ -> VFS -> HDB storage-path test
+    test_library.c          mounts an image, opens /.helikon/music.hdb
+    run-library-macos.sh    disposable hdiutil image + fsck_hfs runner
   tests/ui/
     Makefile                launcher, Music, artist and audio host previews
     test_launcher.c         launcher render and checks
@@ -247,7 +251,8 @@ firmware/
   block/                    block device, flush, power state
   hfs/                      read core + writer + journal + txn (current tree)
   vfs/                      lookup, handles, capabilities, object semantics
-  db/                       immutable database reader and device delta log
+  db/                       immutable database reader and device delta log,
+                            plus the VFS-backed hdb_io adapter
     doctor/                 duplicates, tags, corruption and storage report
   player/                   buffer/decode/output state machine
   audio/                    DSP chain, ReplayGain, EQ, crossfade, routing
@@ -337,7 +342,7 @@ is created; do not let it drift.
 | `firmware/hfs/hfs_catalog_write.c`, `hfs_btree_tree.c`, `hfs_bitmap.c`, `hfs_extents_write.c` | Catalog/bitmap/extents mutation | HFS+ lead | `docs/hfsplus-write-engine.md`, invariants I-03–I-15 | model/property/crash tests, `fsck_hfs` | No journal format, UI or boot policy; no direct writes outside a transaction |
 | `firmware/hfs/hfs_journal.c`, `hfs_txn.c` | Journal append/commit/replay, bounded transaction engine | journal lead | paper §9.3–§9.4, `docs/hfsplus-write-engine.md` | crash injection, idempotent replay | No product policy/UI; never delete/disable/zero the journal |
 | `firmware/vfs/` | Read-only VFS (`vfs.c`/`vfs.h`): mount over the HFS+ read core, bounded path validation, generation-checked file/directory handles, stat/iterate/read/seek; close is stale, writes are a READ_ONLY stub | VFS lead | paper §10, `docs/architecture.md`, T-056 | `tests/vfs` (8 tests, sanitizer-clean); no device run yet | Read-only; no hardware registers; no overlay branch; no errno guessing; empty extents file mounts, overflow forks fail closed if the extents B-tree never opens |
-| `firmware/db/` | HelikonDB v1 read-only catalog reader: header validation, fixed track/album/artist records, strings, indices, artwork, CRC | database lead | paper §12, D-07, D-33, D-53, `docs/helikondb.md` | `tests/musicdb` fixture + 100-song corpus | No iTunesDB, tagcache or device scan; caller owns buffers; catalog is a derived cache |
+| `firmware/db/` | HelikonDB v1 read-only catalog reader: header validation, fixed track/album/artist records, strings, indices, artwork, CRC; `hdb_vfs.c` adapts an open VFS file to `struct hdb_io` so the same reader serves an embedded blob or a catalog inside the volume | database lead | paper §12, D-07, D-33, D-53, `docs/helikondb.md` | `tests/musicdb` fixture + 100-song corpus; `tests/library` reads the catalog from a disposable journaled HFS+ image through the VFS | No iTunesDB, tagcache or device scan; caller owns buffers; catalog is a derived cache; no device run yet |
 | `firmware/player/` | Bounded PCM player (`wav.c`, `player.c`) feeding the four-buffer ring, with a codec-source bridge for compressed PCM; `wav.c` is one RIFF walker over a resident buffer or a pull source (short reads loop on absolute offsets); `vfs_media.c` binds an open VFS file to a codec source; `player.c` opens either a resident buffer (`helikon_player_open`) or a pull source (`helikon_player_open_media`) through one shared HAL bring-up and seeks with `helikon_player_seek_ms` (codec seek plus a stream restart at the target frame) | audio lead | paper §13, §28.3.8, `docs/audio-formats.md` §11, §14 | WAV/player host tests, FLAC bridge test, audio previews, 6G WAV and FLAC runs; WAV source-model tests | No filesystem internals; no unmeasured audiophile claims; only documented WAV/FLAC profiles |
 | `firmware/codec/` | Static codec registry (`codec.c`, `codec.h`) plus the native FLAC decoder (`flac/`), the MP3 wrapper (`mp3/`) over the vendored libmad (`libmad/`, see its README for the modification list), the bounded ID3v2 tag reader (`tag/id3v2.c`), the FLAC Vorbis-comment reader (`tag/vorbis.c`) and the WAV descriptor | audio lead | `docs/audio-formats.md` §11, §13, D-34, T-097 | `tests/codec`; 879,952 frames bit-exact FLAC; MP3 decode/seek tests green (test + sanitize); FLAC workspace 65,608 B, MP3 workspace 30,976 B; no device run for MP3 yet | No `malloc`; caller-owned fixed workspace; 16-bit ring output only; no storage/VFS, ALAC or AAC yet; libmad edits limited to the documented port header |
 | `firmware/ui/` | Launcher renderer and the functional Music section (`music.c`: launcher-style hub, album/artist walls, lists and detail pages over an embedded HDB), the cleaned Music flow from `docs/ui.md` §6, the IBM Plex Sans atlas (`font_atlas.c`) and text renderer (`ui_text.c`), screens, input and focus | UI lead | paper §14, `docs/ui.md`, `docs/helikondb.md`, D-23/D-24 | `tests/ui` previews, frame trace, typography mockup; `5292c8ed…` device run found a ~20 s Artist-open stall | No storage policy; embedded catalog only in the pre-VFS test; default UI must survive skin failure |

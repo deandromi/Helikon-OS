@@ -82,6 +82,61 @@ static int test_valid_btree(void)
     return 0;
 }
 
+/*
+ * A freshly formatted volume carries an empty extents overflow B-tree: depth 0,
+ * no root, no leaves, every record slot unused. That is valid, not corrupt, and
+ * it is what a real macOS-formatted volume hands the mount path.
+ */
+static int test_empty_btree(void)
+{
+    struct hfs_volume volume;
+    struct hfs_btree btree;
+    uint8_t scratch[CATALOG_NODE_SIZE];
+    const uint8_t *record = NULL;
+    size_t length = 0u;
+
+    uint8_t *node = make_btree_fixture();
+    uint8_t *header = node + 14;
+    test_image_put_be16(header, 0);        /* depth */
+    test_image_put_be32(header + 2, 0);    /* root node */
+    test_image_put_be32(header + 6, 0);    /* leaf records */
+    test_image_put_be32(header + 10, 0);   /* first leaf */
+    test_image_put_be32(header + 14, 0);   /* last leaf */
+    test_image_put_be16(header + 20, 10);  /* max key length of an empty tree */
+
+    int rc = hfs_volume_probe(&volume, test_image_read, NULL, 0,
+                              TEST_IMAGE_SIZE);
+    CHECK(rc == HFS_OK);
+    rc = hfs_btree_open(&btree, &volume, &volume.catalog, scratch,
+                        sizeof(scratch));
+    CHECK(rc == HFS_OK);
+    CHECK(btree.empty == 1u);
+    CHECK(btree.total_nodes == CATALOG_TOTAL_NODES);
+
+    const uint8_t *node_data = NULL;
+    CHECK(hfs_btree_read_node(&btree, 1, &node_data) == HFS_ERR_NOT_FOUND);
+
+    struct hfs_btree_leaf_iterator iterator;
+    CHECK(hfs_btree_leaf_init(&btree, &iterator) == HFS_OK);
+    CHECK(iterator.node == 0u);
+    CHECK(hfs_btree_leaf_next(&btree, &iterator, &record, &length) == 0);
+
+    /* An empty-looking header with a stray root is still corrupt. */
+    node = make_btree_fixture();
+    header = node + 14;
+    test_image_put_be16(header, 0);
+    test_image_put_be32(header + 2, 1);
+    test_image_put_be32(header + 6, 0);
+    test_image_put_be32(header + 10, 0);
+    test_image_put_be32(header + 14, 0);
+    rc = hfs_volume_probe(&volume, test_image_read, NULL, 0, TEST_IMAGE_SIZE);
+    CHECK(rc == HFS_OK);
+    rc = hfs_btree_open(&btree, &volume, &volume.catalog, scratch,
+                        sizeof(scratch));
+    CHECK(rc == HFS_ERR_FORMAT);
+    return 0;
+}
+
 static int test_bad_node_size(void)
 {
     struct hfs_volume volume;
@@ -232,6 +287,7 @@ int main(void)
 {
     static const struct test_case tests[] = {
         {"valid btree", test_valid_btree},
+        {"empty btree", test_empty_btree},
         {"bad node size", test_bad_node_size},
         {"fork size mismatch", test_fork_size_mismatch},
         {"bad offset table", test_bad_offset_table},

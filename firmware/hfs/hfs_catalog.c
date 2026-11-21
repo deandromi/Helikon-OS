@@ -263,6 +263,8 @@ static int parse_index_record(const uint8_t *record, size_t length,
 static int catalog_seek_parent(struct hfs_btree *btree, uint32_t target,
                                struct hfs_btree_leaf_iterator *leaf)
 {
+    if (btree->empty)
+        return HFS_ERR_NOT_FOUND;
     uint32_t node = btree->root_node;
 
     for (unsigned int level = 0; level < btree->depth; ++level) {

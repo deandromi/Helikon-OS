@@ -304,8 +304,11 @@ artwork, year and ratings; artist entries without a profile picture use a
 monogram. The 3×5 fallback font is used for dynamic text in this build; the
 first-party Plex atlas remains T-042/T-057. The search mark has no action yet.
 The launcher input init no longer fails when no button is pressed during boot.
-Playback (F5/T-058) and reading `/.helikon/music.hdb` from the real VFS are not
-part of this test.
+Playback (F5/T-058) is not part of this test. Reading `/.helikon/music.hdb`
+from a real volume now has its own host proof: `firmware/db/hdb_vfs.c` adapts an
+open VFS file to `struct hdb_io`, and `tests/library` mounts a disposable
+macOS-created journaled image, opens the catalog at that path and verifies every
+record plus the whole-file CRC (see `testing.md`).
 
 ## 7. Open items
 
