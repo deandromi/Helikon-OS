@@ -404,6 +404,50 @@ static int test_insert_empty_tree(void)
     apply_txn(&tx);
     CHECK(get_be16(node_ptr(root) + 10) == 2u);
     CHECK(get_be32(node_ptr(0) + 20) == 2u);
+
+    /*
+     * Deleting the last record must return the tree to the canonical empty
+     * state (depth 0, no root, node freed) so it can be reopened and refilled.
+     */
+    uint8_t key[TEST_KEY_BYTES];
+    for (uint32_t value = 42u; value <= 43u; ++value) {
+        memset(key, 0, sizeof(key));
+        put_be32(key, value);
+        memset(&tx, 0, sizeof(tx));
+        tx.journal = &journal;
+        tx.active = 1;
+        CHECK(hfs_btree_delete(&reopened, &tx, key, sizeof(key), compare_keys,
+                               NULL) == HFS_OK);
+        apply_txn(&tx);
+    }
+    CHECK(reopened.empty == 1u);
+    CHECK(reopened.depth == 0u);
+    CHECK(reopened.root_node == 0u);
+    CHECK(reopened.leaf_records == 0u);
+    uint8_t *emptied = node_ptr(0);
+    CHECK(get_be16(emptied + 14) == 0u);
+    CHECK(get_be32(emptied + 16) == 0u);
+    CHECK(get_be32(emptied + 20) == 0u);
+    CHECK(get_be32(emptied + 24) == 0u);
+    CHECK(get_be32(emptied + 28) == 0u);
+    CHECK((emptied[248] & 0x40u) == 0u); /* the root node is free again */
+
+    struct hfs_btree reopened_again;
+    CHECK(hfs_btree_open(&reopened_again, &volume, &volume.catalog, scratch,
+                         sizeof(scratch)) == HFS_OK);
+    CHECK(reopened_again.empty == 1u);
+
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    make_record(record, 44);
+    CHECK(hfs_btree_insert(&reopened_again, &tx, record, sizeof(record),
+                           compare_keys, NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(reopened_again.empty == 0u);
+    CHECK(reopened_again.depth == 1u);
+    CHECK(reopened_again.leaf_records == 1u);
+    CHECK(get_be16(node_ptr(reopened_again.root_node) + 10) == 1u);
     return 0;
 }
 

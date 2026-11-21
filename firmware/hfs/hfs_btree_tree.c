@@ -1516,10 +1516,24 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
         return store_header(btree, tx, &header);
     }
     if (level == 0) {
-        rc = stage_node(btree, tx, node_number, node);
+        /*
+         * The root leaf lost its last record. Return the tree to the canonical
+         * empty state (depth 0, no root, every node free) instead of leaving a
+         * root leaf with no records: that is what a freshly formatted volume
+         * looks like, and the reader and create_root() both understand it.
+         */
+        map_set(&header, node_number, 0);
+        ++header.free_nodes;
+        header.depth = 0;
+        header.root_node = 0;
+        header.first_leaf = 0;
+        header.last_leaf = 0;
+        header.leaf_records = 0;
+        rc = store_header(btree, tx, &header);
         if (rc != HFS_OK)
             return rc;
-        return store_header(btree, tx, &header);
+        btree->empty = 1;
+        return HFS_OK;
     }
 
     uint16_t child = path[level - 1u].child;
