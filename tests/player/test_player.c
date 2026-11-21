@@ -20,6 +20,7 @@ static unsigned int resume_calls;
 static helikon_audio_pcm_source started_source;
 static void *started_source_context;
 static size_t started_source_frames;
+static const int16_t *start_pcm;
 
 int helikon_audio_init(struct helikon_audio *audio, struct helikon_pmu *pmu,
                        struct helikon_clock *clock, uint32_t timeout_ms)
@@ -57,6 +58,7 @@ int helikon_audio_stream_start(struct helikon_audio *audio,
     start_calls += 1u;
     start_frames = frames;
     start_channels = channels;
+    start_pcm = pcm;
     return HELIKON_OK;
 }
 
@@ -306,6 +308,171 @@ static int check_media_player(void)
     if (expect(helikon_player_open_media(NULL, &source, &pmu, &clock, 1000u) ==
                    HELIKON_ERR_ARGUMENT,
                "media null player"))
+        return 1;
+    return 0;
+}
+
+static int check_seek_player(void)
+{
+    static uint8_t data[65536];
+    struct helikon_player player;
+    struct helikon_pmu pmu;
+    struct helikon_clock clock;
+    struct fake_media media;
+    struct helikon_codec_source source;
+
+    /* Resident WAV: a seek restarts the buffer at the matching byte. */
+    size_t size = make_wav(data, 2u, 5000u);
+    if (expect(helikon_player_open(&player, data, size, &pmu, &clock, 1000u) ==
+                   HELIKON_OK,
+               "seek WAV open"))
+        return 1;
+    start_calls = 0u;
+    start_pcm = NULL;
+    if (expect(helikon_player_play_chunk(&player, 2047u) == 0 &&
+                   start_calls == 1u && start_frames == 5000u,
+               "seek WAV start"))
+        return 1;
+    if (expect(helikon_player_seek_ms(&player, 50u) == HELIKON_OK,
+               "seek WAV 50ms"))
+        return 1;
+    if (expect(helikon_player_position_ms(&player) == 50u &&
+                   start_calls == 2u && start_frames == 5000u - 2205u &&
+                   start_pcm != NULL,
+               "seek WAV restart"))
+        return 1;
+    if (expect(start_pcm[0] == 2205 && start_pcm[1] == 2206,
+               "seek WAV buffer offset"))
+        return 1;
+    /* Landing where playback already is must not restart the ring. */
+    if (expect(helikon_player_seek_ms(&player, 50u) == HELIKON_OK &&
+                   start_calls == 2u,
+               "seek WAV no-op"))
+        return 1;
+    /* Past the end clamps to the last frame. */
+    if (expect(helikon_player_seek_ms(&player, 60000u) == HELIKON_OK &&
+                   start_frames == 1u,
+               "seek WAV clamps"))
+        return 1;
+    helikon_player_stop(&player);
+
+    /* Media WAV through the codec: seek before the first start. */
+    size = make_wav(data, 2u, 5000u);
+    media.data = data;
+    media.size = size;
+    media.chunk = 37u;
+    source.read_at = fake_read_at;
+    source.size = size;
+    source.context = &media;
+    if (expect(helikon_player_open_media(&player, &source, &pmu, &clock,
+                                         1000u) == HELIKON_OK,
+               "seek media open"))
+        return 1;
+    started_source = NULL;
+    start_calls = 0u;
+    if (expect(helikon_player_seek_ms(&player, 25u) == HELIKON_OK &&
+                   start_calls == 0u && started_source == NULL,
+               "seek media 25ms"))
+        return 1;
+    if (expect(helikon_player_play_chunk(&player, 2047u) == 0 &&
+                   started_source != NULL && start_calls == 1u &&
+                   started_source_frames == 5000u - 1102u,
+               "seek media stream start"))
+        return 1;
+    int16_t chunk[20];
+    size_t got = 0u;
+    if (expect(started_source(started_source_context, chunk, 10u, &got) ==
+                   HELIKON_OK &&
+                   got == 10u,
+               "seek media read"))
+        return 1;
+    for (size_t frame = 0u; frame < 10u; ++frame) {
+        int16_t value = (int16_t)(1102u + frame);
+        if (expect(chunk[frame * 2u] == value &&
+                       chunk[frame * 2u + 1u] == (int16_t)(value + 1),
+                   "seek media data"))
+            return 1;
+    }
+    /* Paused stays paused across a seek. */
+    if (expect(helikon_player_pause(&player) == HELIKON_OK,
+               "seek media pause"))
+        return 1;
+    if (expect(helikon_player_seek_ms(&player, 100u) == HELIKON_OK &&
+                   player.audio.paused == 1 &&
+                   helikon_player_position_ms(&player) == 100u,
+               "seek media keeps pause"))
+        return 1;
+    helikon_player_stop(&player);
+
+    /* FLAC seek is frame-exact: compare against the whole-file decode. */
+    size = load_file("../codec/fixtures/stereo16.flac", data, sizeof(data));
+    if (expect(size > 0u, "seek FLAC fixture load"))
+        return 1;
+    static uint8_t raw_data[65536];
+    size_t raw_size =
+        load_file("../codec/fixtures/stereo16.pcm", raw_data, sizeof(raw_data));
+    if (expect(raw_size >= 2048u * 4u, "seek FLAC raw load"))
+        return 1;
+    media.data = data;
+    media.size = size;
+    media.chunk = 0u;
+    source.size = size;
+    if (expect(helikon_player_open_media(&player, &source, &pmu, &clock,
+                                         1000u) == HELIKON_OK,
+               "seek FLAC open"))
+        return 1;
+    started_source = NULL;
+    if (expect(helikon_player_seek_ms(&player, 20u) == HELIKON_OK &&
+                   started_source == NULL,
+               "seek FLAC 20ms"))
+        return 1;
+    if (expect(helikon_player_play_chunk(&player, 2047u) == 0 &&
+                   started_source != NULL &&
+                   started_source_frames == 2048u - 882u,
+               "seek FLAC stream start"))
+        return 1;
+    if (expect(started_source(started_source_context, chunk, 10u, &got) ==
+                   HELIKON_OK &&
+                   got == 10u,
+               "seek FLAC read"))
+        return 1;
+    for (size_t frame = 0u; frame < 10u; ++frame) {
+        size_t at = (882u + frame) * 4u;
+        int16_t left =
+            (int16_t)(raw_data[at] | ((uint16_t)raw_data[at + 1u] << 8));
+        int16_t right =
+            (int16_t)(raw_data[at + 2u] | ((uint16_t)raw_data[at + 3u] << 8));
+        if (expect(chunk[frame * 2u] == left &&
+                       chunk[frame * 2u + 1u] == right,
+                   "seek FLAC data"))
+            return 1;
+    }
+    helikon_player_stop(&player);
+
+    /* MP3 goes through the same dispatch. */
+    size = load_file("../codec/fixtures/mp3_cbr_stereo16.mp3", data,
+                     sizeof(data));
+    if (expect(size > 0u, "seek MP3 fixture load"))
+        return 1;
+    media.data = data;
+    media.size = size;
+    source.size = size;
+    if (expect(helikon_player_open_media(&player, &source, &pmu, &clock,
+                                         1000u) == HELIKON_OK,
+               "seek MP3 open"))
+        return 1;
+    uint32_t total = player.codec.info.total_frames;
+    if (expect(helikon_player_seek_ms(&player, 10u) == HELIKON_OK,
+               "seek MP3 10ms"))
+        return 1;
+    if (expect(helikon_player_play_chunk(&player, 2047u) == 0 &&
+                   start_frames == total - 441u,
+               "seek MP3 stream start"))
+        return 1;
+    helikon_player_stop(&player);
+
+    if (expect(helikon_player_seek_ms(&player, 0u) == HELIKON_ERR_ARGUMENT,
+               "seek closed player"))
         return 1;
     return 0;
 }
@@ -611,6 +778,8 @@ int main(void)
     if (check_flac_player())
         return 1;
     if (check_media_player())
+        return 1;
+    if (check_seek_player())
         return 1;
 
     printf("PASS player\n");

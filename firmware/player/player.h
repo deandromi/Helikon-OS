@@ -23,6 +23,7 @@ struct helikon_player {
     uint8_t codec_workspace[HELIKON_CODEC_WORKSPACE_MAX]
         __attribute__((aligned(8)));
     size_t offset;
+    uint32_t start_frame; /* first frame of the current stream segment */
     int last_error;
     uint32_t last_stage;
     int opened;
@@ -45,6 +46,15 @@ int helikon_player_open_media(struct helikon_player *player,
                               struct helikon_clock *clock, uint32_t timeout_ms);
 int helikon_player_play_chunk(struct helikon_player *player,
                               uint32_t max_frames);
+/*
+ * Moves playback to `position_ms`. Compressed audio seeks the codec and
+ * restarts the PCM stream; the resident WAV path restarts at the matching byte
+ * offset. Before the first chunk it only moves the start point, so a caller can
+ * open, seek and then play. A position past the end clamps to the last frame,
+ * a seek that lands where playback already is does nothing, and a paused
+ * player stays paused.
+ */
+int helikon_player_seek_ms(struct helikon_player *player, uint32_t position_ms);
 int helikon_player_pause(struct helikon_player *player);
 int helikon_player_resume(struct helikon_player *player);
 void helikon_player_stop(struct helikon_player *player);

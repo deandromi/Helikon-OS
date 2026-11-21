@@ -12,6 +12,49 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (sixth block: player seek, T-058)
+
+## What happened
+
+- `helikon_player_seek_ms()` (`firmware/player/{player.c,player.h}`): target is
+  `ms × rate / 1000` frames, clamped to the last frame; a zero-length stream is
+  `UNSUPPORTED`. Compressed audio seeks the codec first (a refused seek leaves
+  playback untouched), then the PCM stream is stopped (mute + ring drop) and
+  restarted with the remaining frames. The resident WAV path restarts at the
+  matching byte offset.
+- New `start_frame` field: `position_ms()` reports `start_frame + frames played
+  in this segment`, `play_chunk()` keeps the byte offset coherent, and both
+  opens/`stop` reset it. `play_chunk`'s start branch moved into a shared
+  `player_start_stream()` (start frame, remaining frames), used by open-seek and
+  restart.
+- Semantics: a seek that lands where playback already is does nothing; a paused
+  player is re-paused after the restart; a seek before the first chunk only
+  moves the start point, so open → seek → play works.
+
+## Evidence
+
+- `tests/player` test + sanitize PASS with `check_seek_player()`: resident WAV
+  (50 ms → 2205, `5000 − 2205` frames, buffer starts at sample 2205/2206, same
+  seek is a no-op, past-end clamps to one frame), media WAV with 37-byte reads
+  (seek before start starts nothing, then `5000 − 1102`, data `(1102, 1103)…`,
+  pause preserved across a seek), FLAC (20 ms → `2048 − 882`, ten frames
+  identical to the whole-file decode at frame 882), MP3 (10 ms →
+  `total_frames − 441` on a LAME-trimmed file), closed player → `ARGUMENT`.
+- Full matrix green (`codec`, `vfs`, `hfsplus`, `firmware`, `bootloader`,
+  `image` test/crash/write-diag/outer-diag/loader, `musicdb`, `ui`, `player`).
+- Cross-builds: plain 6G 77,856 B; music-hub 768,396 B; F2 image plus
+  `check-f2-artifact.sh`: PASS.
+- Host-verified only: **no device run**, no Music-hub caller.
+
+## Open / next
+
+- Next/previous needs a queue (open the following source, keep the ring fed
+  across the boundary); that is also the road to cross-track gapless.
+- Read-ahead policy, Music-hub call sites, I2S/DMA run, device evidence.
+- ALAC; rest of T-099 metadata.
+
+---
+
 # Handoff — 2026-11-21 (fifth block: the player opens a pull source, T-058)
 
 ## What happened

@@ -18,6 +18,61 @@ static int player_pcm_source(void *context, int16_t *pcm, size_t max_frames,
     return rc;
 }
 
+/* Output frames described by the open file, before any seek. */
+static uint32_t player_total_frames(const struct helikon_player *player)
+{
+    if (player->compressed)
+        return player->codec.info.total_frames;
+    size_t frame_bytes = (size_t)player->wav.channels * 2u;
+    if (frame_bytes == 0u)
+        return 0u;
+    return (uint32_t)(player->wav.bytes / frame_bytes);
+}
+
+static uint32_t player_stream_frames(const struct helikon_player *player)
+{
+    return helikon_audio_stream_position_frames(&player->audio);
+}
+
+/*
+ * Starts the PCM stream at `player->start_frame`. Compressed audio pulls from
+ * the codec (already positioned by the open or the seek), resident WAV hands
+ * the HAL a pointer into the payload.
+ */
+static int player_start_stream(struct helikon_player *player)
+{
+    uint32_t total = player_total_frames(player);
+    uint32_t start = player->start_frame < total ? player->start_frame : total;
+    size_t remaining = (size_t)(total - start);
+    if (remaining == 0u)
+        return HELIKON_ERR_FORMAT;
+
+    int rc;
+    if (player->compressed) {
+        rc = helikon_audio_stream_start_source(&player->audio,
+                                               player_pcm_source, player,
+                                               remaining);
+    } else {
+        size_t frame_bytes = (size_t)player->wav.channels * 2u;
+        if (frame_bytes == 0u || player->wav.pcm == NULL)
+            return HELIKON_ERR_FORMAT;
+        const int16_t *pcm = (const int16_t *)(const void *)player->wav.pcm;
+        pcm += (size_t)start * (size_t)player->wav.channels;
+        rc = helikon_audio_stream_start(&player->audio, pcm, remaining,
+                                        player->wav.channels);
+    }
+    if (rc != HELIKON_OK) {
+        player->last_error = rc;
+        player->last_stage = player->audio.stage;
+        return rc;
+    }
+    player->started = 1;
+    player->offset = (size_t)start * (size_t)player->wav.channels * 2u;
+    player->last_error = HELIKON_OK;
+    player->last_stage = HELIKON_AUDIO_STAGE_NONE;
+    return HELIKON_OK;
+}
+
 /*
  * Brings up the audio HAL for whatever the codec/wav fields now describe.
  * Shared by the buffer and media opens so the two paths cannot drift.
@@ -58,6 +113,7 @@ int helikon_player_open(struct helikon_player *player, const uint8_t *data,
     player->started = 0;
     player->compressed = 0;
     player->offset = 0u;
+    player->start_frame = 0u;
     player->last_error = HELIKON_OK;
     player->last_stage = HELIKON_AUDIO_STAGE_NONE;
     player->audio.stage = HELIKON_AUDIO_STAGE_NONE;
@@ -106,6 +162,7 @@ int helikon_player_open_media(struct helikon_player *player,
     player->started = 0;
     player->compressed = 0;
     player->offset = 0u;
+    player->start_frame = 0u;
     player->last_error = HELIKON_OK;
     player->last_stage = HELIKON_AUDIO_STAGE_NONE;
     player->audio.stage = HELIKON_AUDIO_STAGE_NONE;
@@ -149,33 +206,8 @@ int helikon_player_play_chunk(struct helikon_player *player,
     if (player == NULL || !player->opened)
         return HELIKON_ERR_ARGUMENT;
 
-    if (!player->started) {
-        int rc;
-        if (player->compressed) {
-            rc = helikon_audio_stream_start_source(
-                &player->audio, player_pcm_source, player,
-                player->codec.info.total_frames);
-        } else {
-            size_t frame_bytes = (size_t)player->wav.channels * 2u;
-            if (frame_bytes == 0u)
-                return HELIKON_ERR_FORMAT;
-            size_t frames = player->wav.bytes / frame_bytes;
-            rc = helikon_audio_stream_start(
-                &player->audio,
-                (const int16_t *)(const void *)player->wav.pcm, frames,
-                player->wav.channels);
-        }
-        if (rc != HELIKON_OK) {
-            player->last_error = rc;
-            player->last_stage = player->audio.stage;
-            return rc;
-        }
-        player->started = 1;
-        player->offset = 0u;
-        player->last_error = HELIKON_OK;
-        player->last_stage = HELIKON_AUDIO_STAGE_NONE;
-        return 0;
-    }
+    if (!player->started)
+        return player_start_stream(player);
 
     int rc = helikon_audio_stream_service(&player->audio);
     if (rc != HELIKON_OK) {
@@ -184,12 +216,70 @@ int helikon_player_play_chunk(struct helikon_player *player,
         return rc;
     }
     size_t frame_bytes = (size_t)player->wav.channels * 2u;
-    player->offset = (size_t)helikon_audio_stream_position_frames(
-                         &player->audio) *
-                     frame_bytes;
+    player->offset =
+        ((size_t)player->start_frame + player_stream_frames(player)) *
+        frame_bytes;
     player->last_error = HELIKON_OK;
     player->last_stage = HELIKON_AUDIO_STAGE_NONE;
     return 0;
+}
+
+int helikon_player_seek_ms(struct helikon_player *player, uint32_t position_ms)
+{
+    if (player == NULL || !player->opened || player->wav.sample_rate == 0u)
+        return HELIKON_ERR_ARGUMENT;
+
+    uint32_t total = player_total_frames(player);
+    if (total == 0u)
+        return HELIKON_ERR_UNSUPPORTED;
+
+    uint64_t frame =
+        ((uint64_t)position_ms * player->wav.sample_rate) / 1000u;
+    if (frame >= total)
+        frame = (uint64_t)total - 1u;
+    uint32_t target = (uint32_t)frame;
+
+    /*
+     * Landing on the frame that is already being emitted is a no-op: a
+     * restart would drop the ring for nothing.
+     */
+    if (player->started &&
+        target == player->start_frame + player_stream_frames(player))
+        return HELIKON_OK;
+
+    if (player->compressed) {
+        int rc = helikon_codec_seek(&player->codec, target);
+        if (rc != HELIKON_OK) {
+            player->last_error = rc;
+            player->last_stage = HELIKON_AUDIO_STAGE_CODEC_DATA;
+            return rc;
+        }
+    }
+
+    /*
+     * Before the first chunk a seek only moves the start point: the caller
+     * decides when audio begins.
+     */
+    int was_paused = player->started && player->audio.paused;
+    player->start_frame = target;
+    player->offset = (size_t)target * (size_t)player->wav.channels * 2u;
+    if (!player->started)
+        return HELIKON_OK;
+
+    helikon_audio_stream_stop(&player->audio);
+    player->started = 0;
+    int rc = player_start_stream(player);
+    if (rc != HELIKON_OK)
+        return rc;
+    if (was_paused) {
+        rc = helikon_audio_stream_pause(&player->audio);
+        if (rc != HELIKON_OK) {
+            player->last_error = rc;
+            player->last_stage = HELIKON_AUDIO_STAGE_NONE;
+            return rc;
+        }
+    }
+    return HELIKON_OK;
 }
 
 int helikon_player_pause(struct helikon_player *player)
@@ -216,13 +306,14 @@ void helikon_player_stop(struct helikon_player *player)
     player->compressed = 0;
     player->started = 0;
     player->opened = 0;
+    player->start_frame = 0u;
 }
 
 uint32_t helikon_player_position_ms(const struct helikon_player *player)
 {
     if (player == NULL || player->wav.sample_rate == 0u)
         return 0u;
-    uint32_t frames = helikon_audio_stream_position_frames(&player->audio);
+    uint32_t frames = player->start_frame + player_stream_frames(player);
     return (uint32_t)(((uint64_t)frames * 1000u) /
                       player->wav.sample_rate);
 }

@@ -1247,3 +1247,59 @@ reported), the Music-hub call sites that turn a selected track into a VFS
 handle and a `vfs_media`, pause/resume/seek through that path at hub level, the
 I2S/DMA run and the device evidence. Gapless across a track boundary, resume
 and the T-100/T-101 slices stay where they were.
+
+## 19. Seeking through the player — T-058 host slice (2026-11-21)
+
+Status: `in progress` as host code with host tests. No Music-hub caller, no
+I2S/DMA run and no device run.
+
+### 19.1 What landed
+
+`helikon_player_seek_ms(player, ms)` is the player-level seek the hub needs; it
+owned no code before, even though all three codecs had `seek`:
+
+- The target is `ms × rate / 1000` output frames, clamped to the last frame, so
+  `duration_ms` is a legal argument. On a zero-length stream it returns
+  `HELIKON_ERR_UNSUPPORTED` instead of dividing by nothing.
+- Compressed audio (WAV through a source, FLAC, MP3) seeks the codec first; a
+  codec without seek, or a codec that refuses the frame, fails before the stream
+  is touched, so a failed seek leaves playback where it was.
+- The PCM stream is then restarted at the target: `helikon_audio_stream_stop`
+  (which mutes and drops the ring) and a fresh start with the remaining frame
+  count. The old ring is never played out, so a seek cannot leak pre-seek audio
+  into the new position.
+- The resident WAV path restarts at the matching byte offset instead of going
+  through a codec.
+- The new `start_frame` field makes `helikon_player_position_ms()` report
+  `start_frame + frames played in this segment`, so a seek does not reset the
+  clock to zero, and `helikon_player_play_chunk()` keeps reporting the right
+  offset afterwards.
+- A seek that lands on the frame already being emitted is a no-op (no ring
+  restart, no audible gap), a paused player is re-paused after the restart, and
+  a seek before the first chunk only moves the start point — the caller decides
+  when audio begins.
+
+### 19.2 Evidence (host only, no device run)
+
+`tests/player` (`test` and `sanitize`) adds `check_seek_player()`:
+
+- resident WAV: start, seek to 50 ms, restart reports `5000 − 2205` frames, the
+  buffer pointer lands on sample `(2205, 2206)`, `position_ms() == 50`; the same
+  seek again does not restart; a seek past the end clamps to one frame;
+- media WAV with 37-byte reads: seek to 25 ms before the first chunk starts no
+  stream, then `play_chunk()` starts at `5000 − 1102` frames and the first ten
+  decoded frames are `(1102, 1103)…`; pause then seek keeps `audio.paused`;
+- FLAC: seek to 20 ms restarts at `2048 − 882` frames and ten decoded frames
+  match the whole-file decode at frame 882, frame for frame;
+- MP3: seek to 10 ms restarts at `total_frames − 441` on a trimmed (LAME tag)
+  file, so the gapless length and the seek agree;
+- a closed player returns `HELIKON_ERR_ARGUMENT`.
+
+Full matrix and the three cross-builds were re-run with this slice: all green
+(plain 6G 77,856 B, music-hub 768,396 B, F2 image + artifact check PASS).
+
+### 19.3 Remaining for T-058
+
+Everything §18.3 lists is still missing — read-ahead policy, Music-hub call
+sites, I2S/DMA run, device evidence — plus next/previous (a queue) and the
+hub-level seek binding. This slice only gives them an API to call.
