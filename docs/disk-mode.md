@@ -361,6 +361,35 @@ The firmware never formats, erases, repartitions or repairs. The migration is a
 host-side tool with a verified backup, `fsck_hfs` and an explicit confirmation.
 The whole-disk LUN is the transport; it is not the migration policy.
 
+### 11.1 Formatting above 128 GiB from macOS
+
+The host side of the whole-disk LUN is `tools/disk-mode-format.sh`. It exists
+because the most likely mistake here is formatting the wrong disk, so the script
+refuses everything it can refuse:
+
+- macOS only (`diskutil`), a whole disk only (`/dev/diskN`, not a slice),
+- a block device only (Disk Mode running and connected),
+- never the disk macOS booted from,
+- never without `--backup FILE`, which must exist and be non-empty,
+- never without typing `FORMAT <volume>` unless `--yes` is given,
+- `--dry-run` prints every command and changes nothing.
+
+What it runs, once the checks pass:
+
+```sh
+diskutil unmountDisk force /dev/diskN
+diskutil partitionDisk /dev/diskN APM "Journaled HFS+" IPOD 0b
+diskutil eject /dev/diskN
+```
+
+`APM` is the map an iPod needs; `0b` means "use the whole disk", which is how a
+volume larger than 128 GiB is created in one step. Then the volume is checked
+with `fsck_hfs -fn` and the normal firmware is installed through DFU.
+
+Tested so far: `bash -n`, `--help`, the boot-disk refusal, the missing-backup
+refusal, the slice refusal, and a `--dry-run` against an attached 2 GiB disk
+image. **Not tested against a real iPod**, because no device is available.
+
 ## 12. UI
 
 One status screen, no player UI:
