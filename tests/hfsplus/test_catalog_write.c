@@ -1178,6 +1178,127 @@ static int test_finder_info_preserved(void)
     return 0;
 }
 
+/*
+ * An in-place overwrite of a file that continues in the extents tree. The old
+ * writer staged only the eight inline extents, so every byte past block eight
+ * of a fragmented file was unwritable: "overwrite the tag at the end of this
+ * track" failed with HFS_ERR_UNSUPPORTED on exactly the files a real volume
+ * has. The bitmap here is fragmented so the fork needs two overflow records.
+ */
+static int test_overwrite_across_overflow(void)
+{
+    struct test_env env;
+    CHECK(setup_env(&env) == 0);
+
+    /* Only 50,52,...,88 are free, so every appended block is its own extent. */
+    uint8_t *bitmap = test_image + 18 * TEST_BLOCK_SIZE;
+    memset(bitmap, 0xff, 16);
+    for (uint32_t block = 50; block <= 88; block += 2)
+        bitmap[block / 8] &= (uint8_t)~(0x80u >> (block % 8));
+    put_be32(test_image + 1024 + 48, 20);
+    env.volume.free_blocks = 20;
+
+    static const uint8_t name[8] = {
+        0, 'O', 0, 'F', 0, 'L', 0, 'O'
+    };
+    static uint8_t payload[20u * 512u];
+    for (size_t i = 0; i < sizeof(payload); ++i)
+        payload[i] = (uint8_t)(0x30u + ((i / 512u) & 0x3fu));
+
+    struct hfs_txn tx;
+    uint32_t cnid = 0;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_file(&env.catalog, &tx, 2, name, 4, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &cnid) == HFS_OK);
+    apply_txn(&tx);
+
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_append_file(&env.catalog, &tx, 2, name, 4, 0, payload,
+                                  sizeof(payload), hfs_catalog_key_compare,
+                                  NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    uint8_t key[256];
+    uint8_t record[1024];
+    size_t key_length = build_key(key, 2, name, 4);
+    size_t record_length = 0;
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    size_t data_offset = 2u + key_length;
+    uint8_t *fork = record + data_offset + 88u;
+    CHECK(get_be32(fork + 4) == 20u * 512u);
+    CHECK(get_be32(fork + 12) == 20);
+    CHECK(get_be32(fork + 16) == 50);
+    CHECK(get_be32(fork + 72) == 64); /* eighth inline extent */
+    CHECK(get_be32(fork + 76) == 1);
+
+    /*
+     * Cross the boundary: 100 bytes at the end of logical block 7 (inline
+     * extent 64) and 200 bytes at the start of logical block 8 (the first
+     * overflow record, block 66).
+     */
+    uint8_t replacement[300];
+    for (size_t i = 0; i < sizeof(replacement); ++i)
+        replacement[i] = (uint8_t)(0xa0u + (i & 0x0fu));
+    env.catalog.now = 0x0a0b0c0du;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_overwrite_file(&env.catalog, &tx, 2, name, 4,
+                                     7u * 512u + 412u, replacement,
+                                     sizeof(replacement),
+                                     hfs_catalog_key_compare, NULL) == HFS_OK);
+    CHECK(tx.count == 3); /* two data blocks plus the catalog record */
+    apply_txn(&tx);
+
+    CHECK(memcmp(test_image + 64 * TEST_BLOCK_SIZE + 412, replacement, 100) ==
+          0);
+    CHECK(memcmp(test_image + 66 * TEST_BLOCK_SIZE, replacement + 100, 200) ==
+          0);
+    /* The untouched bytes on both sides of the range keep their payload. */
+    CHECK(memcmp(test_image + 64 * TEST_BLOCK_SIZE, payload + 7 * 512, 412) ==
+          0);
+    CHECK(memcmp(test_image + 66 * TEST_BLOCK_SIZE + 200,
+                 payload + 8 * 512 + 200, 312) == 0);
+
+    /* A range wholly inside the second overflow record. */
+    uint8_t deep[100];
+    memset(deep, 0x7e, sizeof(deep));
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_overwrite_file(&env.catalog, &tx, 2, name, 4,
+                                     16u * 512u + 10u, deep, sizeof(deep),
+                                     hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+    CHECK(memcmp(test_image + 82 * TEST_BLOCK_SIZE + 10, deep,
+                 sizeof(deep)) == 0);
+    CHECK(memcmp(test_image + 82 * TEST_BLOCK_SIZE, payload + 16 * 512, 10) ==
+          0);
+
+    /* The timestamp moved, the size and the extents did not. */
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    data_offset = 2u + key_length;
+    fork = record + data_offset + 88u;
+    CHECK(get_be32(record + data_offset + 16) == 0x0a0b0c0du);
+    CHECK(get_be32(fork + 4) == 20u * 512u);
+    CHECK(get_be32(fork + 12) == 20);
+    CHECK(get_be32(fork + 16) == 50);
+    CHECK(get_be32(fork + 72) == 64);
+
+    /* One byte past the end still refuses, without staging anything. */
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_overwrite_file(&env.catalog, &tx, 2, name, 4,
+                                     20u * 512u - 1u, replacement, 2,
+                                     hfs_catalog_key_compare, NULL) ==
+          HFS_ERR_ARGUMENT);
+    CHECK(tx.count == 0);
+    hfs_txn_abort(&tx);
+    return 0;
+}
+
 static int test_overwrite_file(void)
 {
     struct test_env env;
@@ -1415,6 +1536,7 @@ int main(void)
         { "metadata folder", test_metadata_folder },
         { "finder info preserved", test_finder_info_preserved },
         { "overwrite in place", test_overwrite_file },
+        { "overwrite across overflow", test_overwrite_across_overflow },
         { "append past overflow", test_append_past_overflow }
     };
     int failures = 0;

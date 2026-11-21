@@ -21,6 +21,12 @@
 #define CATALOG_FILE_MODE 0100000u
 #define CATALOG_FOLDER_MODE 0040000u
 #define CATALOG_MAX_RECORD 1024u
+/*
+ * Logical extent map of one data fork: the eight inline extents plus the
+ * extents-overflow entries an overwrite is willing to resolve. A fork more
+ * fragmented than this refuses the write instead of staging a partial range.
+ */
+#define CATALOG_FORK_MAP_MAX (HFS_EXTENT_COUNT + HFS_OVERFLOW_EXTENT_MAX)
 
 static uint16_t be16(const uint8_t *p)
 {
@@ -844,6 +850,77 @@ int hfs_catalog_append_file(struct hfs_catalog *catalog, struct hfs_txn *tx,
                             compare, compare_context);
 }
 
+/*
+ * Build the logical extent map of a data fork: the inline extents first, then
+ * the extents-overflow records in key order. The map is read through the
+ * transaction, so an overwrite sees a fork this transaction already changed,
+ * and the walk stops at the fork's block count instead of trusting a record
+ * count. Returns HFS_ERR_UNSUPPORTED when the fork needs more than `capacity`
+ * entries.
+ */
+static int fork_map(struct hfs_catalog *catalog, struct hfs_txn *tx,
+                    const uint8_t *fork_bytes, uint32_t file_id,
+                    struct hfs_extent *out, size_t capacity, size_t *count)
+{
+    uint32_t blocks = be32(fork_bytes + 12);
+    uint32_t inline_blocks = 0;
+    size_t used = 0;
+
+    for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i) {
+        uint32_t start = be32(fork_bytes + 16 + i * 8);
+        uint32_t extent_count = be32(fork_bytes + 20 + i * 8);
+        if (extent_count == 0) {
+            if (start != 0)
+                return HFS_ERR_FORMAT;
+            continue;
+        }
+        if (start == 0)
+            return HFS_ERR_FORMAT;
+        if (extent_count > UINT32_MAX - inline_blocks)
+            return HFS_ERR_FORMAT;
+        inline_blocks += extent_count;
+        if (used >= capacity)
+            return HFS_ERR_UNSUPPORTED;
+        out[used].start = start;
+        out[used].count = extent_count;
+        ++used;
+    }
+    if (blocks < inline_blocks)
+        return HFS_ERR_FORMAT;
+
+    uint32_t logical = inline_blocks;
+    for (unsigned int guard = 0; logical < blocks; ++guard) {
+        if (guard >= HFS_OVERFLOW_EXTENT_MAX)
+            return HFS_ERR_UNSUPPORTED;
+        struct hfs_extent record[HFS_EXTENT_COUNT];
+        size_t got = 0;
+        int rc = hfs_extents_overflow_get(catalog->btree.volume, tx, file_id,
+                                          logical, record, HFS_EXTENT_COUNT,
+                                          &got);
+        if (rc != HFS_OK)
+            return rc;
+        if (got == 0)
+            return HFS_ERR_FORMAT;
+        uint32_t record_blocks = 0;
+        for (size_t i = 0; i < got; ++i) {
+            if (record[i].count > blocks - logical - record_blocks)
+                return HFS_ERR_FORMAT;
+            record_blocks += record[i].count;
+        }
+        if (record_blocks == 0)
+            return HFS_ERR_FORMAT;
+        for (size_t i = 0; i < got; ++i) {
+            if (used >= capacity)
+                return HFS_ERR_UNSUPPORTED;
+            out[used++] = record[i];
+        }
+        logical += record_blocks;
+    }
+
+    *count = used;
+    return HFS_OK;
+}
+
 int hfs_catalog_overwrite_file(struct hfs_catalog *catalog,
                                struct hfs_txn *tx, uint32_t parent,
                                const uint8_t *name, size_t units,
@@ -884,8 +961,20 @@ int hfs_catalog_overwrite_file(struct hfs_catalog *catalog,
     if (offset > fork.size || length > fork.size - offset)
         return HFS_ERR_ARGUMENT;
 
-    rc = hfs_fork_stage(tx, catalog->btree.volume, &fork, offset, data,
-                        length);
+    /*
+     * The fork may continue in the extents tree. Its map is built from the
+     * record just read plus the overflow records, so an in-place overwrite no
+     * longer stops at the eight inline extents.
+     */
+    static struct hfs_extent map[CATALOG_FORK_MAP_MAX];
+    size_t map_count = 0;
+    rc = fork_map(catalog, tx, fork_bytes, be32(record + data_offset + 8),
+                  map, CATALOG_FORK_MAP_MAX, &map_count);
+    if (rc != HFS_OK)
+        return rc;
+
+    rc = hfs_fork_stage_map(tx, catalog->btree.volume, map, map_count,
+                            fork.size, offset, data, length);
     if (rc != HFS_OK)
         return rc;
 

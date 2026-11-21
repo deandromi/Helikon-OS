@@ -12,6 +12,62 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (sixteenth block: a fragmented file is writable in place)
+
+## What happened
+
+- `hfs_catalog_overwrite_file()` staged a range through the fork's eight inline
+  extents only. A file that had overflowed past them — the normal state of any
+  track the allocator split — refused an in-place write with `UNSUPPORTED`, so
+  "rewrite this tag" worked only on small, contiguous files.
+- `hfs_fork_io.c` gained `hfs_fork_stage_map()`: it walks a collected logical
+  extent list, confirms the extents cover the whole range *before* staging a
+  block, and only then copies each covered block. A hole is a clean refusal
+  with nothing half-written. `hfs_fork_stage()` keeps its inline contract and
+  now delegates to the map form.
+- `hfs_catalog_write.c` gained `fork_map()`, which builds the fork's logical
+  map from the catalog record read in the same transaction plus the
+  extents-overflow records. The overwrite path uses it, so the data write and
+  the record update stay in one transaction. The map is bounded by
+  `HFS_EXTENT_COUNT + HFS_OVERFLOW_EXTENT_MAX`; beyond that the write refuses
+  rather than staging a partial range.
+- Tests: `overwrite across overflow` in `tests/hfsplus/test_catalog_write.c`
+  overwrites across the eighth-inline/first-overflow boundary and wholly inside
+  the second overflow record, then checks timestamps, size, extents and the
+  untouched bytes on both sides. `map across extents` in
+  `tests/hfsplus/test_fork_io.c` pins the map form, the hole refusal and the
+  size bound. `tests/image/hfs_image_test.c` gained an `overwrite` mode;
+  `run-macos.sh` runs it on the 80-block fragmented file after the append stage
+  — two windows, one straddling the boundary — and `check-overflow.py` verifies
+  both windows as macOS sees them, between two `fsck_hfs` runs.
+
+## Evidence (host only, no device run)
+
+- `tests/hfsplus` test + sanitize: PASS (12 catalog-write tests, 5 fork-io
+  tests); `tests/image` test (create/append/rename/truncate/delete/overflow/
+  **overwrite**/Unicode, `fsck_hfs` clean at every stage) and `crash-test`
+  PASS; `tests/vfs`, `tests/library macos`, `tests/player`, `tests/codec`,
+  `tests/firmware`, `tests/bootloader`, `tests/musicdb`, `tests/ui` PASS; the
+  VFS, firmware and bootloader sanitizer builds PASS.
+- Builds: plain 6G **79,912 B** (was 78,228 B: the map code plus the static map
+  buffer); music hub 768,396 B; F2 `VERSION=2 BOOTSTATE_STATE=trying` 79,912 B
+  with `tools/check-f2-artifact.sh` PASS. The recorded F2 candidate
+  `1d6d4c92…` (76,080 B) is the 2026-11-04 artifact, not this build.
+
+## Open / next
+
+- `hfs_fork_overlay()` is still inline-only. It is used by the B-tree read path
+  through a transaction; a B-tree fork that overflowed would read stale nodes.
+  The writer grows B-tree forks by extending the last extent, so this is a
+  ceiling, not a live bug — record it before any volume can grow a B-tree past
+  eight extents.
+- No write path grows a file except an append at EOF, and truncate only reaches
+  size zero. A general write-at-offset and a sized truncate are the next pieces
+  of T-065.
+- No device run for any of this.
+
+---
+
 # Handoff — 2026-11-21 (fifteenth block: a fragmented file reads through the VFS)
 
 ## What happened

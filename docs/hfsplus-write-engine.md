@@ -162,6 +162,23 @@ Implementation notes (2026-11-21, host-verified):
 - **Reads splice the two halves.** `hfs_catalog_read_file()` falls back to
   `hfs_extents_read()` when `fork.blocks > inline_blocks`, so an overflowed file
   can be played or copied without a resident buffer of the whole file.
+- **An in-place overwrite follows the whole fork, not just its inline half.**
+  `hfs_catalog_overwrite_file()` now builds the fork's logical extent map
+  (`fork_map()`: the eight inline extents plus the overflow records, read
+  through the transaction) and hands it to `hfs_fork_stage_map()`. The staging
+  pass confirms the extents cover the range *before* it stages a block, so a
+  hole fails with nothing half-written. A fork needing more than
+  `HFS_EXTENT_COUNT + HFS_OVERFLOW_EXTENT_MAX` entries refuses the write with
+  `UNSUPPORTED` rather than staging a partial range. `hfs_fork_stage()` keeps
+  its inline-only contract for callers that hold a `struct hfs_fork`, such as
+  the B-tree fork paths.
+- **A known ceiling: the B-tree fork overlay is still inline.**
+  `hfs_fork_overlay()` reads the volume through a transaction for the catalog,
+  extents and attributes forks and still walks only their eight inline
+  extents. `grow_locked()` keeps those forks contiguous by allocating at the
+  fork's end, so the ceiling is not reached today; a volume that ever grows a
+  B-tree fork into the overflow tree would have its nodes read stale, and the
+  same map form has to be applied there first.
 - **Truncate walks records until the fork is empty.** The walk used to stop
   after eight records (64 extents), which made a file appended past that point
   undeletable; the bound is now `HFS_OVERFLOW_EXTENT_MAX` (the HFS+ extents

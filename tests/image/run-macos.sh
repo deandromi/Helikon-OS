@@ -185,6 +185,22 @@ echo "macOS overflow append verified"
 hdiutil detach "$MOUNT" >/dev/null 2>&1
 MOUNTED=""
 
+# An in-place overwrite of the same fragmented file: one window straddles the
+# inline/overflow boundary, one sits inside the second overflow record.
+"$HERE/hfs_image_test" "$IMAGE" overwrite
+fsck_image "$IMAGE"
+
+hdiutil attach -nobrowse -mountpoint "$MOUNT" "$IMAGE" \
+    >"$TMP/mount.log" 2>&1 || fail "could not remount after the overwrite"
+MOUNTED=1
+[ -f "$MOUNT/Overflow File" ] || fail "the overwrite lost the overflow file"
+SIZE=$(stat -f%z "$MOUNT/Overflow File")
+[ "$SIZE" -eq 327680 ] || fail "overwritten file size is $SIZE, expected 327680"
+python3 "$HERE/check-overflow.py" "$MOUNT/Overflow File" overwritten
+echo "macOS in-place overwrite verified"
+hdiutil detach "$MOUNT" >/dev/null 2>&1
+MOUNTED=""
+
 "$HERE/hfs_image_test" "$IMAGE" overflow-cleanup
 fsck_image "$IMAGE"
 
@@ -235,4 +251,4 @@ PY
 hdiutil detach "$MOUNT" >/dev/null 2>&1
 MOUNTED=""
 
-echo "PASS: disposable image create/append/rename/truncate/delete/overflow/Unicode, fsck_hfs clean"
+echo "PASS: disposable image create/append/rename/truncate/delete/overflow/overwrite/Unicode, fsck_hfs clean"
