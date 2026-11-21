@@ -131,13 +131,17 @@ int hfs_btree_open(struct hfs_btree *btree, struct hfs_volume *volume,
      * Catalog keys can be up to node_size + 4 bytes (516 for a 512-byte
      * node), so the key-length bound is deliberately slightly above node size.
      */
-    if (depth == 0 || depth > HFS_BTREE_MAX_DEPTH || root == 0 ||
-        root >= total_nodes || leaf_records == 0 || first_leaf == 0 ||
-        last_leaf == 0 || first_leaf >= total_nodes ||
-        last_leaf >= total_nodes || free_nodes > total_nodes ||
-        max_key_length < 2 ||
+    int empty = depth == 0 && root == 0 && leaf_records == 0 &&
+                first_leaf == 0 && last_leaf == 0;
+    if (total_nodes == 0 || free_nodes > total_nodes || max_key_length < 2 ||
         max_key_length > node_size + HFS_BTREE_MAX_KEY_SLACK ||
         fork->size != (uint64_t)total_nodes * node_size)
+        return HFS_ERR_FORMAT;
+    if (!empty &&
+        (depth == 0 || depth > HFS_BTREE_MAX_DEPTH || root == 0 ||
+         root >= total_nodes || leaf_records == 0 || first_leaf == 0 ||
+         last_leaf == 0 || first_leaf >= total_nodes ||
+         last_leaf >= total_nodes))
         return HFS_ERR_FORMAT;
 
     btree->volume = volume;
@@ -155,6 +159,7 @@ int hfs_btree_open(struct hfs_btree *btree, struct hfs_volume *volume,
     btree->last_leaf = last_leaf;
     btree->btree_type = header[36];
     btree->key_compare = header[37];
+    btree->empty = (uint8_t)(empty ? 1u : 0u);
     return HFS_OK;
 }
 
@@ -163,6 +168,8 @@ int hfs_btree_read_node(struct hfs_btree *btree, uint32_t node,
 {
     if (btree == NULL || node_data == NULL)
         return HFS_ERR_ARGUMENT;
+    if (btree->empty)
+        return HFS_ERR_NOT_FOUND;
     if (btree->scratch_size < btree->node_size)
         return HFS_ERR_BUFFER;
     if (node >= btree->total_nodes)

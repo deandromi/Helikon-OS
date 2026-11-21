@@ -264,7 +264,17 @@ included makefile becomes the includer's default goal, which silently turned
 `make -C tests/vfs` into a no-op until it was removed.
 
 The HelikonDB reader is tested against a generated fixture, with an optional
-real corpus:
+real corpus. The storage path — a catalog read from a real HFS+ volume through
+the read-only VFS — has its own macOS-only image test, which creates and
+unmounts the image itself and never touches a device:
+
+```sh
+make -C tests/library macos
+make -C tests/library test IMAGE=/path/to/hfs-image
+make -C tests/library sanitize IMAGE=/path/to/hfs-image
+```
+
+For reference, the reader suite:
 
 ```sh
 make -C tests/musicdb test

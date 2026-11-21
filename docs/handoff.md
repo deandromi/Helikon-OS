@@ -12,6 +12,55 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-21 (eighth block: the catalog reads from a real volume)
+
+## What happened
+
+- **Real bug found and fixed:** `hfs_btree_open()` rejected an empty B-tree
+  (depth 0, no root, no leaves, no records). Every freshly formatted HFS+
+  volume has exactly that in its extents overflow file, so a real macOS-formatted
+  6G volume would have failed `vfs_mount()` with `FORMAT` — the T-056 device half
+  could never have mounted. `struct hfs_btree` gained `empty`; open accepts the
+  empty shape (still validating node size, fork size, node/free counts and key
+  length), `hfs_btree_read_node()` returns `NOT_FOUND`, `hfs_btree_find`/
+  `delete`/`update` return `NOT_FOUND`, `insert` returns `UNSUPPORTED` (a
+  create-root path is T-033), and `catalog_seek_parent()` returns `NOT_FOUND`.
+- `firmware/db/hdb_vfs.{c,h}`: adapts one open VFS file to `struct hdb_io`
+  (stat for size, seek + short-read loop, no allocation), so the HDB reader
+  serves an embedded blob or `/.helikon/music.hdb` inside the volume.
+- `tests/library/`: new host suite. `test_library.c` mounts an image read-only,
+  checks the journal is clean, stats and opens `/.helikon/music.hdb`, runs
+  `hdb_open`, reads track 0 / album 0 / the title index, and verifies the
+  whole-file CRC through the VFS; `run-library-macos.sh` creates a disposable
+  16 MiB journaled HFS+ image with `hdiutil`, writes the fixture catalog, unmounts,
+  checks `fsck_hfs -fn` (clean, no repair) and runs the test.
+- `tests/hfsplus/test_btree.c` gained `empty btree`: an empty header opens, reads
+  refuse with `NOT_FOUND`, iteration ends immediately, and an empty-looking
+  header with a stray root is still `FORMAT`.
+
+## Evidence
+
+- `make -C tests/library macos`: PASS — `HFS+ -> VFS -> HDB (6 tracks, 3 albums,
+  CRC OK)`, fsck clean, journal clean after unmount.
+- `tests/hfsplus` (test + sanitize) PASS with the new case. Full matrix green:
+  `vfs`, `player`, `codec`, `firmware` (clean+test+sanitize), `bootloader`,
+  `image` test/crash/write-diag/outer-diag/loader, `musicdb`, `ui`.
+- Builds: plain 6G 77,992 B (hfs core grew), music-hub 768,396 B, F2 image plus
+  `check-f2-artifact.sh`: PASS.
+- Host-verified only: **no device run**. The test runs against a disposable
+  image, never an iPod.
+
+## Open / next
+
+- The Music hub still opens the embedded catalog; switching it to
+  `hdb_vfs_open` on a mounted volume is the next T-056/T-067 step and needs the
+  boot-time mount, which is device-facing.
+- Creating a root leaf when inserting into an empty B-tree (T-033) so the
+  extents overflow file can actually gain its first record.
+- T-058 queue/next-previous and call sites; ALAC; rest of T-099.
+
+---
+
 # Handoff — 2026-11-21 (seventh block: FLAC Vorbis comments, T-099 slice)
 
 ## What happened

@@ -603,6 +603,9 @@ int hfs_btree_insert(struct hfs_btree *btree, struct hfs_txn *tx,
     if (btree == NULL || tx == NULL || record == NULL || compare == NULL ||
         length < HFS_BTREE_KEY_LENGTH)
         return HFS_ERR_ARGUMENT;
+    /* An empty tree needs a root leaf created first; that path is T-033. */
+    if (btree->empty)
+        return HFS_ERR_UNSUPPORTED;
     const uint8_t *new_record = record;
     uint16_t new_key_length = be16(new_record);
     if ((size_t)new_key_length + HFS_BTREE_KEY_LENGTH > length)
@@ -1306,6 +1309,8 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
 {
     if (btree == NULL || tx == NULL || key == NULL || compare == NULL)
         return HFS_ERR_ARGUMENT;
+    if (btree->empty)
+        return HFS_ERR_NOT_FOUND;
 
     static struct tree_header header;
     int rc = load_header(btree, tx, &header);
@@ -1562,6 +1567,8 @@ int hfs_btree_find(struct hfs_btree *btree, struct hfs_txn *tx,
     if (btree == NULL || tx == NULL || key == NULL || compare == NULL ||
         record == NULL || record_length == NULL)
         return HFS_ERR_ARGUMENT;
+    if (btree->empty)
+        return HFS_ERR_NOT_FOUND;
 
     static struct tree_header header;
     int rc = load_header(btree, tx, &header);
@@ -1651,6 +1658,8 @@ int hfs_btree_update(struct hfs_btree *btree, struct hfs_txn *tx,
     if (btree == NULL || tx == NULL || record == NULL || compare == NULL ||
         length < HFS_BTREE_KEY_LENGTH)
         return HFS_ERR_ARGUMENT;
+    if (btree->empty)
+        return HFS_ERR_NOT_FOUND;
 
     const uint8_t *new_record = record;
     uint16_t new_key_length = be16(new_record);

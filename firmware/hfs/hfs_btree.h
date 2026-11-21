@@ -20,6 +20,14 @@ struct hfs_btree {
     uint32_t last_leaf;
     uint8_t btree_type;
     uint8_t key_compare;
+    /*
+     * A freshly formatted volume has an empty extents overflow B-tree (and the
+     * attributes tree can be empty too): depth 0, no root, no leaves, all
+     * records unused. Such a tree is valid and readable, it simply has no
+     * records; readers report NOT_FOUND and writers refuse with UNSUPPORTED
+     * until a create-root path exists.
+     */
+    uint8_t empty;
 };
 
 struct hfs_btree_leaf_iterator {

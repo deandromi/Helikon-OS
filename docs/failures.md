@@ -61,6 +61,10 @@ Mount requested
   +-- Structural validation fails (B-tree/bitmap/extents)
   |      -> CORRUPT; read-only; no repair; export diagnostics
   |
+  +-- Empty extents overflow B-tree (depth 0, no root, no leaves)
+  |      -> VALID on a freshly formatted volume; mount it, report an empty
+  |         overflow file, and never "repair" it
+  |
   +-- Volume reports dirty/damaged by fsck_hfs
   |      -> read-only; ask user to repair on macOS first
   |
