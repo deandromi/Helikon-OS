@@ -292,9 +292,10 @@ static int mp3_chain_ok(const uint8_t *data, size_t size,
     return mp3_next_sync(data, size, expect, &next, 4u, head) == HELIKON_OK;
 }
 
-static int mp3_probe(const uint8_t *data, size_t size,
+static int mp3_probe(const uint8_t *data, size_t size, uint64_t total_size,
                      struct helikon_codec_info *info)
 {
+    (void)total_size;
     if (info == NULL)
         return HELIKON_ERR_ARGUMENT;
     struct mp3_header head;
@@ -354,8 +355,18 @@ static int mp3_open(struct helikon_codec *codec, void *workspace,
         workspace_size < sizeof(struct mp3_state))
         return HELIKON_ERR_ARGUMENT;
 
+    /*
+     * libmad keeps offsets into the buffer it was handed, so this decoder
+     * still needs a resident image; a pull source is refused rather than
+     * decoded from the probe prefix.
+     */
+    const uint8_t *media = NULL;
+    size_t media_size = 0u;
+    if (!helikon_codec_memory_span(codec, &media, &media_size))
+        return HELIKON_ERR_UNSUPPORTED;
+
     struct mp3_header head;
-    int rc = mp3_parse(codec->data, codec->size, &head, NULL);
+    int rc = mp3_parse(media, media_size, &head, NULL);
     if (rc != HELIKON_OK)
         return rc;
     if (workspace_size < codec->info.workspace_bytes)
@@ -375,11 +386,11 @@ static int mp3_open(struct helikon_codec *codec, void *workspace,
 
     /* Skip the Xing/Info frame's PCM when present to avoid a silent block. */
     struct mp3_xing xing;
-    if (mp3_xing(codec->data, codec->size, &head, &xing) == HELIKON_OK)
+    if (mp3_xing(media, media_size, &head, &xing) == HELIKON_OK)
         state->skip_frames_left = 1u;
 
-    mad_stream_buffer(&state->stream, codec->data + head.offset,
-                      (unsigned long)(codec->size - head.offset));
+    mad_stream_buffer(&state->stream, media + head.offset,
+                      (unsigned long)(media_size - head.offset));
     state->frame_index = 0u;
     codec->state = state;
     return HELIKON_OK;
@@ -477,33 +488,37 @@ static int mp3_seek(struct helikon_codec *codec, uint32_t frame)
         return HELIKON_ERR_ARGUMENT;
 
     struct mp3_state *state = codec->state;
+    const uint8_t *media = NULL;
+    size_t media_size = 0u;
+    if (!helikon_codec_memory_span(codec, &media, &media_size))
+        return HELIKON_ERR_UNSUPPORTED;
     struct mp3_header head;
     struct mp3_xing xing;
-    int rc = mp3_parse(codec->data, codec->size, &head, &xing);
+    int rc = mp3_parse(media, media_size, &head, &xing);
     if (rc != HELIKON_OK)
         return rc;
 
     uint64_t offset;
     if (xing.valid && codec->info.total_frames != 0u) {
         const unsigned int bucket = frame * 100u / codec->info.total_frames;
-        const uint64_t span = (uint64_t)codec->size;
+        const uint64_t span = (uint64_t)media_size;
         offset = (uint64_t)xing.toc[bucket] * span / 256u;
     } else {
         offset = (uint64_t)head.offset +
                  (uint64_t)frame / head.frame_samples * head.frame_bytes;
     }
-    if (offset >= (uint64_t)codec->size)
-        offset = (uint64_t)codec->size - 1u;
+    if (offset >= (uint64_t)media_size)
+        offset = (uint64_t)media_size - 1u;
 
     /* Align the stream to a real frame header at or after the offset. */
     struct mp3_header target;
-    rc = mp3_next_sync(codec->data, codec->size, (size_t)offset, &target,
+    rc = mp3_next_sync(media, media_size, (size_t)offset, &target,
                        (size_t)head.frame_bytes + 4u, &head);
     if (rc != HELIKON_OK)
         return rc;
 
-    mad_stream_buffer(&state->stream, codec->data + target.offset,
-                      (unsigned long)(codec->size - target.offset));
+    mad_stream_buffer(&state->stream, media + target.offset,
+                      (unsigned long)(media_size - target.offset));
     mad_frame_mute(&state->frame);
     mad_synth_mute(&state->synth);
     /* mad_synth_mute does not clear pcm; leave no stale block to emit. */
@@ -529,6 +544,7 @@ const struct helikon_codec_ops helikon_mp3_codec_ops = {
     .name = "mp3",
     .extensions = mp3_extensions,
     .capabilities = HELIKON_CODEC_CAP_SEEK,
+    .streaming = 0u,
     .stack_bytes = 8192u,
     .min_clock_hz = 54000000u,
     .recommended_clock_hz = 216000000u,

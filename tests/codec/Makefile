@@ -9,19 +9,8 @@ CFLAGS := -O2 -g -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow \
           -I../../firmware/codec/libmad -I../../firmware/lib \
           -I../../firmware/player
 
-# Vendored libmad compiles with the 2004 warnings level of its upstream;
-# suppress the modern narrowing diagnostics instead of editing the sources.
-LIBMAD_CFLAGS := -O2 -g -std=c99 -DNDEBUG -Wno-sign-conversion -Wno-conversion \
-                 -Wno-implicit-int-conversion -I../../firmware/codec/libmad \
-                 -I../../firmware/lib
-LIBMAD_SRC := bit.c frame.c huffman.c layer12.c layer3.c stream.c synth.c
-LIBMAD_OBJ := build_mad/bit.o build_mad/frame.o build_mad/huffman.o \
-              build_mad/layer12.o build_mad/layer3.o build_mad/stream.o \
-              build_mad/synth.o
-SAN_LIBMAD_OBJ := build_mad_sanitize/bit.o build_mad_sanitize/frame.o \
-                  build_mad_sanitize/huffman.o build_mad_sanitize/layer12.o \
-                  build_mad_sanitize/layer3.o build_mad_sanitize/stream.o \
-                  build_mad_sanitize/synth.o
+# Vendored libmad object rules are shared with every suite that links codec.c.
+include ../libmad.mk
 
 .PHONY: test sanitize clean
 
@@ -30,15 +19,6 @@ test: test_codec
 
 sanitize: test_codec_sanitize
 	./test_codec_sanitize
-
-build_mad build_mad_sanitize:
-	@mkdir -p $@
-
-build_mad/%.o: ../../firmware/codec/libmad/%.c | build_mad
-	$(CC) $(LIBMAD_CFLAGS) -c $< -o $@
-
-build_mad_sanitize/%.o: ../../firmware/codec/libmad/%.c | build_mad_sanitize
-	$(CC) $(LIBMAD_CFLAGS) $(SANFLAGS) -c $< -o $@
 
 SANFLAGS := -fsanitize=address,undefined -fno-omit-frame-pointer
 

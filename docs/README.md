@@ -136,6 +136,8 @@ status.
 | [`log/2026-11-05.md`](log/2026-11-05.md) | Competitive-roadmap planning and the Rockbox manual review. | living |
 | [`log/2026-11-06.md`](log/2026-11-06.md) | Launcher, HelikonDB, Music hub, companion reset and Alpha 2.0.0 release preparation. | living |
 | [`log/2026-11-08.md`](log/2026-11-08.md) | Codec framework/FLAC, cleaned Music flow and the WAV/FLAC/UI device runs. | living |
+| [`log/2026-11-17.md`](log/2026-11-17.md) | Branch cleanup, the D-29–D-52 decision batch, codec research, T-056 VFS and the T-097/MP3 port. | living |
+| [`log/2026-11-21.md`](log/2026-11-21.md) | The streaming (pull) source model and the WAV conversion. | living |
 | [`adr/README.md`](adr/README.md) | When to create a long-form ADR. | living |
 | [`adr/0001-template.md`](adr/0001-template.md) | ADR template. | template |
 | [`prompts/README.md`](prompts/README.md) | Scope and rules for reusable prompts. | living |

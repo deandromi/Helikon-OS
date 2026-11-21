@@ -924,3 +924,89 @@ Streaming source model (bounded callbacks), gapless (LAME delay/padding),
 resume, half-rate decode, the ARMv5E synth accelerator, coverage for
 MPEG-2/2.5 and Layer I/II execution paths on the host corpus, and the
 T-100/T-101 device gates.
+
+## 14. Streaming (pull) source model — host implementation (2026-11-21)
+
+Status: `implemented` as host code with host tests for the codec that has been
+converted; `unproven` on a device. FLAC and MP3 are still whole-buffer
+decoders and say so. Nothing here claims storage-backed playback; that is
+T-058.
+
+### 14.1 Why this came before the next decoder
+
+Until now `helikon_codec_open()` handed a decoder the entire file as one
+contiguous buffer (`codec->data`, `codec->size`). On a 6G that caps playback at
+what can be resident in DRAM at once, and it bars the VFS (T-056) from ever
+feeding the codec: `hfs_fork_read` is offset-based, not a mapped window. Every
+decoder added before this seam was fixed would have to be reworked, so it was
+done while there were only three.
+
+### 14.2 The contract
+
+- **`struct helikon_codec_source`** (`firmware/codec/codec.h`): an absolute
+  `read_at(context, offset, buffer, length, *read)` plus the total `size`
+  (0 when the media cannot report one). No seek, no cursor, no rewind: an
+  offset-addressed read is what the HFS+ read core and the block layer already
+  provide, and it makes a decoder's position its own business.
+- **`helikon_codec_open_source()`** opens over such a source. A descriptor with
+  `streaming == 0` is refused with `HELIKON_ERR_UNSUPPORTED` rather than being
+  handed a 4 KiB header prefix it would mistake for the file.
+- **`helikon_codec_memory_span()`** returns 1 only when the open codec really
+  holds the whole stream contiguously. `helikon_codec_open()` still exists and
+  wraps the caller's buffer in a memory source, so no existing caller, test or
+  player path changed; it keeps the buffer pointer valid by construction (the
+  adapter's context is the codec, not a stack frame).
+- **Probe semantics**: `ops->probe` now receives `(data, size, total_size)`.
+  `data/size` is the stream head (at most `HELIKON_CODEC_PROBE_BYTES`, 4096),
+  and `total_size` is the true length or 0 when unknown. A probe that cannot
+  decide from the head returns the new **`HELIKON_ERR_NEED_MORE`**
+  (`firmware/lib/error.h`, `-19`); the registry accepts that only from a
+  `streaming` descriptor and lets `open` resolve the head, after which
+  `codec->info` is authoritative. `helikon_codec_probe()` always sees the whole
+  buffer, so it never returns `NEED_MORE` to existing callers.
+
+### 14.3 WAV is converted
+
+`firmware/player/wav.{c,h}` now has one RIFF chunk walker over two backends (a
+resident buffer or a source). `helikon_wav_parse()` keeps its signature for the
+blob player; `helikon_wav_parse_prefix()` parses a head that may be shorter than
+the stream; `helikon_wav_parse_source()` walks a source. The decoder reads PCM
+on demand at `pcm_offset + frame × frame_bytes`, mono is duplicated through a
+256-frame stack buffer, and a short read yields only whole frames. WAV is
+therefore playable from any `read_at` media without ever holding the payload.
+
+### 14.4 Evidence (host only, no device run)
+
+- `make -C tests/codec test` / `sanitize`: PASS, including four new source
+  tests — a fake media that records the largest request and the bytes pulled
+  (one decoded chunk requests exactly `chunk × 4` bytes and pulls no more), a
+  media limited to 37-byte reads (frame count and sample values still exact), a
+  media with no reported length (the RIFF size is the bound), a `JUNK` chunk
+  large enough to push `data` past the probe prefix (`NEED_MORE` from the head,
+  resolved by `open`, tail frame correct), and the refusals (FLAC/MP3 reject a
+  pull source, null arguments, `streaming` flags match behaviour).
+- Full matrix re-run: `tests/codec`, `tests/hfsplus`, `tests/vfs`,
+  `tests/firmware`, `tests/bootloader`, `tests/image` (incl. write-diag,
+  outer-diag, loader-test), `tests/musicdb`, `tests/player`, `tests/ui`.
+- Cross-build: plain 6G (77,856 B), music-hub config with the MP3 fixture
+  (765,392 B raw, MP3 and WAV source symbols linked), `VERSION=2` `trying`
+  image + `check-f2-artifact.sh`: PASS. `helikon_codec_open_source` itself is
+  dropped by `--gc-sections` until T-058 calls it — expected, not a link error.
+
+### 14.5 Test-suite repair found on the way
+
+`tests/player` and `tests/ui` had been failing to link since the MP3 merge: both
+build the codec layer, whose registry references `helikon_mp3_codec_ops`, but
+neither linked the libmad objects. Neither suite was in the T-097 verification
+list, which is why it went unnoticed. The libmad object rules now live in one
+fragment, `tests/libmad.mk`, included by `tests/codec`, `tests/player` and
+`tests/ui`.
+
+### 14.6 Remaining
+
+FLAC streaming (frame headers are already offset-addressable; the residual work
+is letting the decoder refill instead of indexing the buffer), then MP3
+(libmad keeps `main_data` boundaries into the buffer it was given, so a refill
+must preserve the unconsumed tail — the bounce buffer added in §13.2 is the
+starting point). Resume, gapless and the T-100/T-101 device gates are unchanged
+and belong after the streaming conversions, not before.

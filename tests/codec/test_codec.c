@@ -463,6 +463,292 @@ static int check_mp3_mono_vbr_id3(void)
     return 0;
 }
 
+/* ---------- streaming source model ---------- */
+
+/*
+ * A fake media that exposes only `read_at`. It records the largest single
+ * request and the total bytes pulled, so the tests can prove a decoder never
+ * asks for the whole file and never reads ahead of what it decodes.
+ */
+struct fake_media {
+    const uint8_t *data;
+    size_t size;
+    uint64_t reported; /* 0 = the media cannot report a length */
+    size_t chunk;      /* 0 = deliver everything requested */
+    size_t bytes_read;
+    size_t largest_request;
+    unsigned int reads;
+};
+
+static int fake_read_at(void *context, uint64_t offset, void *buffer,
+                        size_t length, size_t *read)
+{
+    struct fake_media *media = context;
+    if (media == NULL || read == NULL || (buffer == NULL && length != 0u))
+        return HELIKON_ERR_ARGUMENT;
+    *read = 0u;
+    media->reads += 1u;
+    if (length > media->largest_request)
+        media->largest_request = length;
+    if (offset > media->size)
+        return HELIKON_ERR_FORMAT;
+    size_t available = media->size - (size_t)offset;
+    size_t count = available < length ? available : length;
+    if (media->chunk != 0u && count > media->chunk)
+        count = media->chunk;
+    if (count != 0u) {
+        helikon_memcpy(buffer, media->data + (size_t)offset, count);
+        media->bytes_read += count;
+    }
+    *read = count;
+    return HELIKON_OK;
+}
+
+static void fake_media_init(struct fake_media *media, const uint8_t *data,
+                            size_t size)
+{
+    helikon_memset(media, 0, sizeof(*media));
+    media->data = data;
+    media->size = size;
+    media->reported = size;
+}
+
+/* A WAV with a `JUNK` chunk big enough to push `data` past the probe prefix. */
+static size_t make_wav_junk(uint8_t *data, size_t frames, size_t junk)
+{
+    size_t data_bytes = frames * 4u;
+    size_t base = make_wav(data, frames);
+    if (junk == 0u)
+        return base;
+
+    size_t total = 44u + junk + 8u + data_bytes;
+
+    /* Shift the 8-byte `data` header and the payload past the junk chunk. */
+    helikon_memcpy(data + 44u + junk, data + 36u, 8u + data_bytes);
+    helikon_memcpy(data + 36u, "JUNK", 4u);
+    data[40] = (uint8_t)(junk & 0xffu);
+    data[41] = (uint8_t)((junk >> 8) & 0xffu);
+    data[42] = (uint8_t)((junk >> 16) & 0xffu);
+    data[43] = (uint8_t)(junk >> 24);
+    for (size_t index = 44u; index < 44u + junk; ++index)
+        data[index] = (uint8_t)index;
+
+    size_t riff_size = 36u + junk + 8u + data_bytes;
+    data[4] = (uint8_t)(riff_size & 0xffu);
+    data[5] = (uint8_t)((riff_size >> 8) & 0xffu);
+    data[6] = (uint8_t)((riff_size >> 16) & 0xffu);
+    data[7] = (uint8_t)(riff_size >> 24);
+    return total;
+}
+
+static int check_wav_source(void)
+{
+    size_t frames_total = 5000u;
+    size_t size = make_wav(file_data, frames_total);
+    struct fake_media media;
+    struct helikon_codec_source source;
+    struct helikon_codec codec;
+
+    fake_media_init(&media, file_data, size);
+    source.read_at = fake_read_at;
+    source.size = media.reported;
+    source.context = &media;
+
+    if (expect(helikon_codec_open_source(&codec, &helikon_wav_codec_ops, &source,
+                                         workspace,
+                                         sizeof(workspace)) == HELIKON_OK,
+               "WAV source open"))
+        return 1;
+    const uint8_t *span = NULL;
+    size_t span_size = 0u;
+    if (expect(!helikon_codec_memory_span(&codec, &span, &span_size),
+               "source is not a memory span"))
+        return 1;
+    if (expect(codec.info.total_frames == frames_total &&
+                   codec.info.sample_rate == 44100u,
+               "WAV source info"))
+        return 1;
+
+    size_t got = 0u;
+    if (expect(helikon_codec_read(&codec, pcm, CHUNK_FRAMES, &got) ==
+                       HELIKON_OK &&
+                   got == CHUNK_FRAMES && pcm[0] == 1 && pcm[1] == 2,
+               "WAV source first frame"))
+        return 1;
+
+    /* Bounded decode-path requests: only the probe prefix may be larger. */
+    if (expect(media.largest_request <= HELIKON_CODEC_PROBE_BYTES,
+               "WAV source bounded request"))
+        return 1;
+
+    if (expect(helikon_codec_seek(&codec, 4000u) == HELIKON_OK &&
+                   helikon_codec_read(&codec, pcm, 1u, &got) == HELIKON_OK &&
+                   got == 1u && pcm[0] == (int16_t)(4000u * 3u + 1u) &&
+                   pcm[1] == (int16_t)(4000u * 5u + 2u),
+               "WAV source seek"))
+        return 1;
+
+    /* Never the whole file: header + the chunks actually decoded. */
+    if (expect(media.bytes_read < size, "WAV source avoids whole file"))
+        return 1;
+    helikon_codec_close(&codec);
+
+    /* One decode chunk pulls exactly one chunk's worth of bytes. */
+    fake_media_init(&media, file_data, size);
+    source.size = media.reported;
+    source.context = &media;
+    if (expect(helikon_codec_open_source(&codec, &helikon_wav_codec_ops, &source,
+                                         workspace,
+                                         sizeof(workspace)) == HELIKON_OK,
+               "WAV request-size reopen"))
+        return 1;
+    media.bytes_read = 0u;
+    media.largest_request = 0u;
+    if (expect(helikon_codec_read(&codec, pcm, CHUNK_FRAMES, &got) ==
+                       HELIKON_OK &&
+                   got == CHUNK_FRAMES,
+               "WAV request-size read"))
+        return 1;
+    if (expect(media.largest_request == CHUNK_FRAMES * 4u &&
+                   media.bytes_read == CHUNK_FRAMES * 4u,
+               "WAV request matches chunk"))
+        return 1;
+    helikon_codec_close(&codec);
+
+    /* Partial reads must not lose or duplicate frames. */
+    fake_media_init(&media, file_data, size);
+    media.chunk = 37u;
+    source.size = media.reported;
+    source.context = &media;
+    if (expect(helikon_codec_open_source(&codec, &helikon_wav_codec_ops, &source,
+                                         workspace,
+                                         sizeof(workspace)) == HELIKON_OK,
+               "WAV short-read open"))
+        return 1;
+    size_t out = 0u;
+    size_t total = 0u;
+    while (total < frames_total) {
+        int rc = helikon_codec_read(&codec, pcm, CHUNK_FRAMES, &out);
+        if (rc != HELIKON_OK || out == 0u)
+            break;
+        if (pcm[0] != (int16_t)(total * 3u + 1u))
+            break;
+        total += out;
+    }
+    if (expect(total == frames_total, "WAV short-read frame count"))
+        return 1;
+    helikon_codec_close(&codec);
+
+    /* A media with no length: the RIFF header is the only bound. */
+    fake_media_init(&media, file_data, size);
+    media.reported = 0u;
+    source.size = 0u;
+    source.context = &media;
+    if (expect(helikon_codec_open_source(&codec, &helikon_wav_codec_ops, &source,
+                                         workspace,
+                                         sizeof(workspace)) == HELIKON_OK,
+               "WAV unknown-size open"))
+        return 1;
+    if (expect(codec.info.total_frames == frames_total,
+               "WAV unknown-size frames"))
+        return 1;
+    helikon_codec_close(&codec);
+    return 0;
+}
+
+static int check_wav_prefix(void)
+{
+    /* `data` sits past the probe prefix; only open can resolve the head. */
+    size_t junk = 6000u;
+    size_t size = make_wav_junk(file_data, 200u, junk);
+    const struct helikon_codec_ops *ops = NULL;
+    struct helikon_codec_info info;
+
+    if (expect(size > HELIKON_CODEC_PROBE_BYTES, "prefix fixture size"))
+        return 1;
+    if (expect(helikon_wav_codec_ops.probe(file_data,
+                                           HELIKON_CODEC_PROBE_BYTES, size,
+                                           &info) == HELIKON_ERR_NEED_MORE,
+               "prefix probe needs more"))
+        return 1;
+    /* The whole-buffer probe still decides immediately. */
+    if (expect(helikon_codec_probe(file_data, size, &ops, &info) == HELIKON_OK &&
+                   ops == &helikon_wav_codec_ops && info.total_frames == 200u,
+               "prefix probe via memory"))
+        return 1;
+
+    struct fake_media media;
+    fake_media_init(&media, file_data, size);
+    struct helikon_codec_source source;
+    source.read_at = fake_read_at;
+    source.size = media.reported;
+    source.context = &media;
+
+    struct helikon_codec codec;
+    if (expect(helikon_codec_open_source(&codec, &helikon_wav_codec_ops, &source,
+                                         workspace,
+                                         sizeof(workspace)) == HELIKON_OK,
+               "prefix source open"))
+        return 1;
+    if (expect(codec.info.total_frames == 200u &&
+                   codec.info.workspace_bytes >= sizeof(codec.info),
+               "prefix source info from open"))
+        return 1;
+    size_t got = 0u;
+    if (expect(helikon_codec_seek(&codec, 199u) == HELIKON_OK &&
+                   helikon_codec_read(&codec, pcm, 1u, &got) == HELIKON_OK &&
+                   got == 1u && pcm[0] == (int16_t)(199u * 3u + 1u),
+               "prefix source tail frame"))
+        return 1;
+    helikon_codec_close(&codec);
+    return 0;
+}
+
+static int check_source_contract(void)
+{
+    struct fake_media media;
+    fake_media_init(&media, file_data, 16u);
+    struct helikon_codec_source source;
+    source.read_at = fake_read_at;
+    source.size = media.reported;
+    source.context = &media;
+    struct helikon_codec codec;
+
+    /* Whole-buffer decoders refuse a pull source instead of misparsing it. */
+    if (expect(helikon_codec_open_source(&codec, &helikon_flac_codec_ops,
+                                         &source, workspace,
+                                         sizeof(workspace)) ==
+                   HELIKON_ERR_UNSUPPORTED,
+               "FLAC refuses a source"))
+        return 1;
+    if (expect(helikon_codec_open_source(&codec, &helikon_mp3_codec_ops,
+                                         &source, workspace,
+                                         sizeof(workspace)) ==
+                   HELIKON_ERR_UNSUPPORTED,
+               "MP3 refuses a source"))
+        return 1;
+    if (expect(helikon_codec_open_source(NULL, &helikon_wav_codec_ops, &source,
+                                         workspace,
+                                         sizeof(workspace)) ==
+                   HELIKON_ERR_ARGUMENT,
+               "source null codec"))
+        return 1;
+    if (expect(helikon_codec_open_source(&codec, &helikon_wav_codec_ops, NULL,
+                                         workspace,
+                                         sizeof(workspace)) ==
+                   HELIKON_ERR_ARGUMENT,
+               "source null media"))
+        return 1;
+
+    /* The streaming flag must match what each descriptor really does. */
+    if (expect(helikon_wav_codec_ops.streaming == 1u &&
+                   helikon_flac_codec_ops.streaming == 0u &&
+                   helikon_mp3_codec_ops.streaming == 0u,
+               "streaming flags"))
+        return 1;
+    return 0;
+}
+
 static int check_registry(void)
 {
     const struct helikon_codec_ops *entries[8];
@@ -587,6 +873,12 @@ int main(void)
     if (check_flac("left_side16", 2u, 16u, 44100u, 1024u))
         return 1;
     if (check_wav())
+        return 1;
+    if (check_wav_source())
+        return 1;
+    if (check_wav_prefix())
+        return 1;
+    if (check_source_contract())
         return 1;
     if (check_mp3_cbr_stereo())
         return 1;
