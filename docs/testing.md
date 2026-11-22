@@ -29,7 +29,7 @@ Helikon-OS validation.
 | Layer | What it proves | Runs on | Current status | Required for |
 |---|---|---|---|---|
 | Host unit | Parser, allocator, name, state-machine logic | Host | `in progress` — HFS+ read core, journal and txn | Every module |
-| Fuzzing | Malformed B-trees, extents, names, journal records do not crash/escape bounds | Host | `planned` | Reader, writer, journal |
+| Fuzzing and mutation sweeps | Malformed B-trees, extents, names, journal records and bitstreams do not crash or escape bounds | Host | `in progress` — 7 libFuzzer harnesses with a committed corpus, plus the HFS+ image and codec mutation sweeps (§3, §3.2) | Reader, writer, journal, decoders |
 | Model-based B-tree | Insert/update/delete, split/merge, key order, free-node map | Host | `planned` | Writer |
 | Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `in progress` — the byte-range block layer has a 4000-range property test; writer/journal properties `planned` | Writer/journal |
 | Differential vs macOS | Same tree/names/metadata/`fsck_hfs` result on both sides; catalog order matches Apple's | Host + macOS | `in progress` — ordering and read differential run; writer-side tree comparisons partly covered | Writer |
@@ -158,6 +158,59 @@ only rejected `shift >= 31` for a 5-bit signed field, and a division by
 `msc->sector_size` in `usb_msc.c` that the analyzer could not refine through the
 struct field. The first two are fixed; the third reads the field into a local
 once, which is also the clearer code.
+
+### 3.2 Mutation sweeps
+
+The fuzzers above run on parsers that were given a harness. Two more layers get
+the same treatment with no libFuzzer and no corpus: a valid input is corrupted a
+few bytes at a time, and the *whole* read path is driven over the result. Nothing
+is asserted about the answer — a corrupted input is allowed to be refused or to
+produce nonsense — only that the code terminates, stays inside its buffers and
+does not trip ASan or UBSan. That is the failure a hand-written test never finds,
+because nobody thinks to corrupt the byte that matters.
+
+| Sweep | File | What it drives |
+|---|---|---|
+| HFS+ | `tests/hfsplus/test_image_mutation.c` | `hfs_volume_probe` → `hfs_check_volume` → `hfs_catalog_open` → lookup/iterate/`read_file` → `hfs_extents_collect` over a mutated volume image |
+| codecs | `tests/codec/test_codec_mutation.c` | `helikon_codec_probe`/`open`/`read`/`seek` over mutated FLAC and MP3 fixtures, then the same bytes through `probe_source`/`open_source`/`read` |
+
+Both are deterministic — one seed, one sequence — and both print the fixture,
+the seed and every changed byte on a finding, so a report replays exactly:
+
+```sh
+cd tests/hfsplus && ./test_image_mutation            # 1,500 passes
+cd tests/hfsplus && ./test_image_mutation 7 40000    # another seed, longer
+cd tests/codec   && ./test_codec_mutation            # 600 passes per fixture
+MUTATION_TRACE=1 ./test_codec_mutation 7 20000       # and a trace per pass
+```
+
+The mutation policy is deliberate rather than uniform: half of the hits land in
+the first 256 bytes (every format's header, and the volume header for HFS+),
+widths are 1, 2 and 4 bytes aligned to their width, and half of the values are
+extreme (`0`, `0xffff`, `0x7fffffff`, `0x80000000`, …) because those are the
+values that make a bounds check fail. A quarter of the codec passes also truncate
+the stream, which is how a decoder meets a half-written final frame.
+
+Each sweep keeps counters and fails if it stops reaching the deep readers, so it
+cannot quietly decay into a test of the probe: the HFS+ sweep printed
+`40,000 iterations, 15,696 probed, 15,246 opened, 28,834 looked up, 14,991
+entries, 14,788 overflow trees` on its last long run, and the codec sweep reports
+its passes per fixture.
+
+The codec sweep found two real defects on its first run
+([#106](https://github.com/deandromi/Helikon-OS/issues/106),
+[#107](https://github.com/deandromi/Helikon-OS/issues/107)): an out-of-bounds read
+of the Xing TOC when seeking to the last frame, and a hard seek failure in the
+last 1 % of a VBR file. Both are fixed and both have a hand-written regression
+test in `tests/codec/test_codec.c`, because a mutation sweep proves that a bug
+*was* found, not that it stays fixed.
+
+Sanitizer scope: the vendored libmad objects are built with AddressSanitizer only
+(`tests/libmad.mk`). Its fixed-point DSP overflows on any corrupt bitstream — all
+upstream behaviour this project does not patch — while a read or write past a
+buffer in the decoder is exactly what the sweep is looking for, and ASan keeps
+that. Every remaining UBSan report is this project's code, so the codec suite now
+runs with `UBSAN_OPTIONS=halt_on_error=1` and a finding fails the build.
 
 ## 4. Model-based B-tree tests
 

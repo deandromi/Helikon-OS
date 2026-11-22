@@ -164,6 +164,11 @@ Helikon-OS/
       test_catalog_compare.c catalog key/FastUnicodeCompare ordering tests
       test_catalog_index.c   two/three-level catalog lookup + mutation fuzz
       test_catalog_write.c  catalog create/delete/append/overwrite/truncate tests
+      test_catalog_header.c a corrupt B-tree header node is refused, and a
+                            header the tree cannot live with is not a mount
+      test_image_mutation.c deterministic mutation sweep: a valid volume image
+                            corrupted 1..8 fields at a time, driven through
+                            probe, hfs_check, the catalog and the extents tree
     image/
       Makefile              disposable-image writer test build
       hfs_image_test.c      create/rename/truncate/delete/overflow/overwrite/
@@ -234,7 +239,12 @@ Helikon-OS/
     Makefile                codec registry, MP3 (libmad) and FLAC host tests
     test_codec.c            probe/open/read/seek/malformed/bit-exact tests,
                             plus the streaming-source tests (bounded reads,
-                            short reads, unknown size, head-only probe)
+                            short reads, unknown size, head-only probe) and the
+                            seek-to-the-end regression (#106/#107)
+    test_codec_mutation.c   deterministic mutation sweep: a valid FLAC/MP3
+                            fixture corrupted 1..8 fields at a time, driven
+                            through probe/open/read/seek and the streaming
+                            source path under ASan/UBSan
     make_fixtures.py        synthetic FLAC/PCM fixture generator
     make_mp3_fixtures.py    lame-based MP3 fixture generator (lame plus ffmpeg
                             for the one Layer II file)
@@ -242,7 +252,9 @@ Helikon-OS/
                             and committed MP3 fixtures (CBR/VBR/mono/ID3v2,
                             MPEG-2, MPEG-2.5, Layer II)
   tests/libmad.mk           shared libmad object rules for every suite that
-                            links firmware/codec/codec.c
+                            links firmware/codec/codec.c; the sanitizer objects
+                            are built with AddressSanitizer only, so a UBSan
+                            report is always this project's own code
   tests/vfs/
     Makefile                read-only VFS host test build/sanitizer targets
     test_vfs.c              mount, path rules, open/read/seek/EOF, handle
@@ -403,7 +415,7 @@ is created; do not let it drift.
 | `firmware/vfs/` | Read-only VFS (`vfs.c`/`vfs.h`): mount over the HFS+ read core, bounded path validation, generation-checked file/directory handles, stat/iterate/read/seek; close is stale, writes are a READ_ONLY stub | VFS lead | paper §10, `docs/architecture.md`, T-056 | `tests/vfs` (9 tests, sanitizer-clean; includes an overflowed-fork read through `test_fs_image_make_overflow()`); no device run yet | Read-only; no hardware registers; no overlay branch; no errno guessing; empty extents file mounts, overflow forks fail closed if the extents B-tree never opens |
 | `firmware/db/` | HelikonDB v1 read-only catalog reader: header validation, fixed track/album/artist records, strings, indices, artwork, CRC; `hdb_vfs.c` adapts an open VFS file to `struct hdb_io` so the same reader serves an embedded blob or a catalog inside the volume | database lead | paper §12, D-07, D-33, D-53, `docs/helikondb.md` | `tests/musicdb` fixture + 100-song corpus; `tests/library` reads the catalog from a disposable journaled HFS+ image through the VFS | No iTunesDB, tagcache or device scan; caller owns buffers; catalog is a derived cache; no device run yet |
 | `firmware/player/` | Bounded PCM player (`wav.c`, `player.c`) feeding the four-buffer ring, with a codec-source bridge for compressed PCM; `wav.c` is one RIFF walker over a resident buffer or a pull source (short reads loop on absolute offsets); `vfs_media.c` binds an open VFS file to a codec source; `read_ahead.c` wraps a source in a 16 KiB window (hits, straddles, bypass, EOF latch); `player.c` opens either a resident buffer (`helikon_player_open`) or a pull source (`helikon_player_open_media`, which wraps it in the window) through one shared HAL bring-up and seeks with `helikon_player_seek_ms` (codec seek plus a stream restart at the target frame); `queue.c` is the next/previous order with repeat and seeded shuffle; `playlist.c` streams M3U/M3U8/PLS entries; `cuesheet.c` reads FILE/TRACK/INDEX into bounded track start frames (mm:ss:ff in 75ths), including pregaps and one file per track | audio lead | paper §13, §28.3.8, `docs/audio-formats.md` §11, §14 | WAV/player host tests, FLAC bridge test, audio previews, 6G WAV and FLAC runs; WAV source-model tests | No filesystem internals; no unmeasured audiophile claims; only documented WAV/FLAC profiles |
-| `firmware/codec/` | Static codec registry (`codec.c`, `codec.h`) plus the native FLAC decoder (`flac/`), the MP3 wrapper (`mp3/`) over the vendored libmad (`libmad/`, see its README for the modification list), the bounded ID3v2 tag reader (`tag/id3v2.c`), the FLAC Vorbis-comment reader (`tag/vorbis.c`) and the WAV descriptor | audio lead | `docs/audio-formats.md` §11, §13, D-34, T-097 | `tests/codec`; 879,952 frames bit-exact FLAC; MP3 decode/seek tests green (test + sanitize), including the whole MPEG family (MPEG-2 22.05 kHz, MPEG-2.5 11.025 kHz, Layer II) with pinned frame counts and trim; FLAC workspace 65,608 B, MP3 workspace 30,976 B; no device run for MP3 yet | No `malloc`; caller-owned fixed workspace; 16-bit ring output only; no storage/VFS, ALAC or AAC yet; libmad edits limited to the documented port header |
+| `firmware/codec/` | Static codec registry (`codec.c`, `codec.h`) plus the native FLAC decoder (`flac/`), the MP3 wrapper (`mp3/`) over the vendored libmad (`libmad/`, see its README for the modification list), the bounded ID3v2 tag reader (`tag/id3v2.c`), the FLAC Vorbis-comment reader (`tag/vorbis.c`) and the WAV descriptor | audio lead | `docs/audio-formats.md` §11, §13, D-34, T-097 | `tests/codec`; 879,952 frames bit-exact FLAC; MP3 decode/seek tests green (test + sanitize), including the whole MPEG family (MPEG-2 22.05 kHz, MPEG-2.5 11.025 kHz, Layer II) with pinned frame counts and trim; FLAC workspace 65,608 B, MP3 workspace 30,976 B; a mutation sweep over mutated FLAC/MP3 fixtures is clean (see `docs/testing.md` §3.2) and found the two seek defects fixed in #106/#107; no device run for MP3 yet | No `malloc`; caller-owned fixed workspace; 16-bit ring output only; no storage/VFS, ALAC or AAC yet; libmad edits limited to the documented port header |
 | `firmware/ui/` | Launcher renderer and the functional Music section (`music.c`: launcher-style hub, album/artist walls, lists and detail pages over an embedded HDB), the cleaned Music flow from `docs/ui.md` §6, the IBM Plex Sans atlas (`font_atlas.c`) and text renderer (`ui_text.c`), screens, input and focus | UI lead | paper §14, `docs/ui.md`, `docs/helikondb.md`, D-23/D-24 | `tests/ui` previews, frame trace, typography mockup; `5292c8ed…` device run found a ~20 s Artist-open stall | No storage policy; embedded catalog only in the pre-VFS test; default UI must survive skin failure |
 | `firmware/input/` | Click wheel/button events, debounce, focus | UI lead | `docs/firmware-architecture.md` §9.7 | event/acceleration tests | No storage or playback policy |
 | `firmware/skin/` | Documented WPS subset | UI lead | paper §28.3.4, D-10/D-15 | 20-skin corpus, hostile skin tests | No raw storage/playback policy; no full WPS engine; no unlicensed assets |

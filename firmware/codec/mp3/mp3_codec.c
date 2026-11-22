@@ -715,8 +715,20 @@ static int mp3_seek(struct helikon_codec *codec, uint32_t frame)
     const uint64_t span = state->source->size;
 
     uint64_t offset;
+    unsigned int bucket = 0u;
+    int from_toc = 0;
     if (state->xing.valid && codec->info.total_frames != 0u && span != 0u) {
-        const unsigned int bucket = frame * 100u / codec->info.total_frames;
+        /*
+         * The TOC holds 100 entries, so the bucket is 0..99. `frame` may equal
+         * total_frames (a seek to the end is legal), which would make the
+         * quotient 100 and read one byte past the table; the multiply is done
+         * in 64 bits because a frame count near UINT32_MAX overflows it.
+         */
+        bucket = (unsigned int)((uint64_t)frame * 100u /
+                                codec->info.total_frames);
+        if (bucket > 99u)
+            bucket = 99u;
+        from_toc = 1;
         offset = state->audio_start + (uint64_t)state->xing.toc[bucket] *
                                           span / 256u;
     } else {
@@ -727,13 +739,32 @@ static int mp3_seek(struct helikon_codec *codec, uint32_t frame)
     if (span != 0u && offset >= span)
         offset = span - 1u;
 
-    /* Align the stream to a real frame header at or after the offset. */
+    /*
+     * Align the stream to a real frame header at or after the offset. The TOC
+     * is a byte-quantised map (256ths of the stream), so its last entries can
+     * land inside the final frame, where no header follows. A seek to the end
+     * of the file is legal and must not fail there: retreat through the
+     * earlier anchors, which is bounded by the table's 100 entries.
+     */
+    const size_t window = (size_t)state->head.frame_bytes + 4u;
     int rc = mp3_window_seek(state, offset);
     if (rc != HELIKON_OK)
         return rc;
     struct mp3_header target;
-    rc = mp3_next_sync(state->window, state->window_len, 0u, &target,
-                       (size_t)state->head.frame_bytes + 4u, &state->head);
+    rc = mp3_next_sync(state->window, state->window_len, 0u, &target, window,
+                       &state->head);
+    for (unsigned int retry = bucket; from_toc != 0 && rc != HELIKON_OK &&
+                                     retry > 0u; --retry) {
+        uint64_t anchor = state->audio_start +
+                          (uint64_t)state->xing.toc[retry - 1u] * span / 256u;
+        if (anchor >= span)
+            anchor = span - 1u;
+        rc = mp3_window_seek(state, anchor);
+        if (rc != HELIKON_OK)
+            return rc;
+        rc = mp3_next_sync(state->window, state->window_len, 0u, &target,
+                           window, &state->head);
+    }
     if (rc != HELIKON_OK)
         return rc;
 

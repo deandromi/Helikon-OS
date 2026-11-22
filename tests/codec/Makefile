@@ -14,21 +14,32 @@ include ../libmad.mk
 
 .PHONY: test sanitize clean
 
-test: test_codec
+test: test_codec test_codec_mutation
 	./test_codec
+	./test_codec_mutation
 
-sanitize: test_codec_sanitize
-	./test_codec_sanitize
+# A finding is a failure, not a note. The vendored libmad objects are built
+# with AddressSanitizer only (see ../libmad.mk), so every remaining undefined
+# behaviour report is this project's code and should stop the suite.
+SAN_ENV = UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1 \
+          ASAN_OPTIONS=fast_unwind_on_fatal=1
+
+sanitize: test_codec_sanitize test_codec_mutation_sanitize
+	$(SAN_ENV) ./test_codec_sanitize
+	$(SAN_ENV) ./test_codec_mutation_sanitize
 
 SANFLAGS := -fsanitize=address,undefined -fno-omit-frame-pointer
 
-test_src = test_codec.c ../../firmware/codec/codec.c \
-           ../../firmware/codec/flac/flac_codec.c \
-           ../../firmware/codec/flac/flac_decoder.c \
-           ../../firmware/codec/mp3/mp3_codec.c \
-           ../../firmware/codec/tag/id3v2.c \
-           ../../firmware/codec/tag/vorbis.c \
-           ../../firmware/player/wav.c ../../firmware/lib/mem.c
+codec_src = ../../firmware/codec/codec.c \
+            ../../firmware/codec/flac/flac_codec.c \
+            ../../firmware/codec/flac/flac_decoder.c \
+            ../../firmware/codec/mp3/mp3_codec.c \
+            ../../firmware/codec/tag/id3v2.c \
+            ../../firmware/codec/tag/vorbis.c \
+            ../../firmware/player/wav.c ../../firmware/lib/mem.c
+
+test_src = test_codec.c $(codec_src)
+mutation_src = test_codec_mutation.c $(codec_src)
 
 test_deps = $(test_src) ../../firmware/codec/codec.h \
             ../../firmware/codec/flac/flac_decoder.h \
@@ -38,12 +49,22 @@ test_deps = $(test_src) ../../firmware/codec/codec.h \
             ../../firmware/codec/libmad/libmad_port.h \
             ../../firmware/player/wav.h ../../firmware/lib/helikon_error.h
 
+mutation_deps = $(mutation_src) $(test_deps)
+
 test_codec: $(test_deps) $(LIBMAD_OBJ)
 	$(CC) $(CFLAGS) -o $@ $(test_src) $(LIBMAD_OBJ)
+
+test_codec_mutation: $(mutation_deps) $(LIBMAD_OBJ)
+	$(CC) $(CFLAGS) -o $@ $(mutation_src) $(LIBMAD_OBJ)
 
 test_codec_sanitize: CFLAGS += $(SANFLAGS)
 test_codec_sanitize: $(test_deps) $(SAN_LIBMAD_OBJ)
 	$(CC) $(CFLAGS) -o $@ $(test_src) $(SAN_LIBMAD_OBJ)
 
+test_codec_mutation_sanitize: CFLAGS += $(SANFLAGS)
+test_codec_mutation_sanitize: $(mutation_deps) $(SAN_LIBMAD_OBJ)
+	$(CC) $(CFLAGS) -o $@ $(mutation_src) $(SAN_LIBMAD_OBJ)
+
 clean:
-	rm -rf test_codec test_codec_sanitize build_mad build_mad_sanitize
+	rm -rf test_codec test_codec_sanitize test_codec_mutation \
+	       test_codec_mutation_sanitize build_mad build_mad_sanitize

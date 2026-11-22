@@ -80,6 +80,8 @@ tests/library/test_library
 tests/library/*.dSYM/
 tests/codec/test_codec
 tests/codec/test_codec_sanitize
+tests/codec/test_codec_mutation
+tests/codec/test_codec_mutation_sanitize
 tests/codec/build_mad/
 tests/codec/build_mad_sanitize/
 tests/codec/*.dSYM/
@@ -97,3 +99,5 @@ tests/hfsplus/test_catalog_header
 *.profraw
 *.profdata
 tests/image/hfs_ops_test
+tests/hfsplus/test_image_mutation
+tests/hfsplus/test_image_mutation.dSYM/

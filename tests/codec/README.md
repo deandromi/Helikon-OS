@@ -56,3 +56,23 @@ frame-index seek for each. Layer I has no fixture: no common encoder produces
 it, and the wrapper's Layer I branch stays unexercised rather than claimed.
 
 The fixture set is generated content only. It contains no owner library audio.
+
+## Mutation sweep
+
+`test_codec_mutation` corrupts a valid fixture a few fields at a time and drives
+the whole decode path over it — probe, open, read, seek, close, then the same
+bytes through the streaming source. It asserts nothing about the audio (a corrupt
+stream may be refused or decode to noise), only that the decoder terminates,
+stays inside its workspace and PCM buffer, and does not trip ASan or UBSan. It
+found #106 and #107; both have a hand-written regression test in `test_codec.c`.
+
+```sh
+make test_codec_mutation && ./test_codec_mutation          # 600 passes per fixture
+./test_codec_mutation 7 20000                              # seed, iterations
+MUTATION_TRACE=1 ./test_codec_mutation 7 20000             # a line per pass
+```
+
+`make sanitize` runs both binaries with `UBSAN_OPTIONS=halt_on_error=1`. The
+vendored libmad objects are built with AddressSanitizer only (`../libmad.mk`):
+its fixed-point DSP overflows on corrupt input by design, while a buffer overrun
+in it is still caught.
