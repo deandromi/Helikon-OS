@@ -60,6 +60,10 @@ static int16_t pcm[CHUNK_FRAMES * 2u];
 static struct mutation mutations[MAX_MUTATIONS];
 static uint32_t mutation_count;
 static uint32_t rng_state;
+/* How often a pass got as far as an open decoder: a sweep that only ever trips
+ * the probe proves nothing, so these are printed and bounded at the end. */
+static uint32_t opened_count;
+static uint32_t source_opened_count;
 
 /* Same generator as the HFS+ mutation sweep: portable and deterministic. */
 static uint32_t next_random(void)
@@ -171,6 +175,7 @@ static void exercise(const char *fixture, size_t size)
         struct helikon_codec codec;
         if (helikon_codec_open(&codec, ops, work, size, workspace,
                                sizeof(workspace)) == HELIKON_OK) {
+            ++opened_count;
             if (info.total_frames == 0u)
                 info = codec.info;
             (void)drain(&codec, &info);
@@ -196,6 +201,7 @@ static void exercise(const char *fixture, size_t size)
         struct helikon_codec codec;
         if (helikon_codec_open_source(&codec, ops, &source, workspace,
                                       sizeof(workspace)) == HELIKON_OK) {
+            ++source_opened_count;
             (void)drain(&codec, &codec.info);
             helikon_codec_close(&codec);
         }
@@ -203,11 +209,52 @@ static void exercise(const char *fixture, size_t size)
     (void)fixture;
 }
 
-static int sweep(const char *path, uint32_t iterations, uint32_t seed)
+/*
+ * A canonical 16-bit stereo WAV, built in memory: RIFF/WAVE, one `fmt ` chunk
+ * and one `data` chunk. The WAV walker is a parser like the others and gets the
+ * same treatment.
+ */
+static size_t make_wav(uint8_t *data, size_t frames)
 {
-    size_t figure_size = load(path);
-    if (figure_size == 0u)
-        return 1;
+    size_t data_bytes = frames * 4u;
+    size_t riff_size = 36u + data_bytes;
+    helikon_memset(data, 0, 44u + data_bytes);
+    helikon_memcpy(data, "RIFF", 4u);
+    data[4] = (uint8_t)(riff_size & 0xffu);
+    data[5] = (uint8_t)((riff_size >> 8) & 0xffu);
+    data[6] = (uint8_t)((riff_size >> 16) & 0xffu);
+    data[7] = (uint8_t)(riff_size >> 24);
+    helikon_memcpy(data + 8u, "WAVE", 4u);
+    helikon_memcpy(data + 12u, "fmt ", 4u);
+    data[16] = 16u;
+    data[20] = 1u;
+    data[22] = 2u;
+    data[24] = 0x44u;
+    data[25] = 0xacu;
+    data[28] = 0x10u;
+    data[29] = 0xb1u;
+    data[30] = 0x02u;
+    data[32] = 4u;
+    data[34] = 16u;
+    helikon_memcpy(data + 36u, "data", 4u);
+    data[40] = (uint8_t)(data_bytes & 0xffu);
+    data[41] = (uint8_t)((data_bytes >> 8) & 0xffu);
+    data[42] = (uint8_t)((data_bytes >> 16) & 0xffu);
+    data[43] = (uint8_t)(data_bytes >> 24);
+    for (size_t frame = 0u; frame < frames; ++frame) {
+        int16_t left = (int16_t)(frame * 3u + 1u);
+        int16_t right = (int16_t)(frame * 5u + 2u);
+        data[44u + frame * 4u] = (uint8_t)(left & 0xff);
+        data[45u + frame * 4u] = (uint8_t)((uint16_t)left >> 8);
+        data[46u + frame * 4u] = (uint8_t)(right & 0xff);
+        data[47u + frame * 4u] = (uint8_t)((uint16_t)right >> 8);
+    }
+    return 44u + data_bytes;
+}
+
+static int sweep_buffer(const char *name, size_t figure_size,
+                        uint32_t iterations, uint32_t seed)
+{
 
     for (uint32_t iteration = 0; iteration < iterations; ++iteration) {
         helikon_memcpy(work, pristine, figure_size);
@@ -247,10 +294,25 @@ static int sweep(const char *path, uint32_t iterations, uint32_t seed)
         if ((next_random() % 4u) == 0u)
             size = 1u + next_random() % (uint32_t)figure_size;
 
-        trace(path, seed, iteration);
-        exercise(path, size);
+        trace(name, seed, iteration);
+        exercise(name, size);
     }
     return 0;
+}
+
+static int sweep(const char *path, uint32_t iterations, uint32_t seed)
+{
+    size_t figure_size = load(path);
+    if (figure_size == 0u)
+        return 1;
+    return sweep_buffer(path, figure_size, iterations, seed);
+}
+
+static int sweep_wav(uint32_t iterations, uint32_t seed)
+{
+    size_t figure_size = make_wav(pristine, 512u);
+    helikon_memcpy(work, pristine, figure_size);
+    return sweep_buffer("built-in WAV", figure_size, iterations, seed);
 }
 
 int main(int argc, char **argv)
@@ -275,8 +337,16 @@ int main(int argc, char **argv)
         if (sweep(fixtures[i], iterations, seed) != 0)
             return 1;
     }
+    if (sweep_wav(iterations, seed) != 0)
+        return 1;
 
-    printf("  codec mutation: %u iterations per fixture over %u fixtures\n",
-           iterations, (unsigned int)(sizeof(fixtures) / sizeof(fixtures[0])));
+    printf("  codec mutation: %u iterations over %u fixtures and a built-in "
+           "WAV, %u opened, %u streaming opens\n",
+           iterations, (unsigned int)(sizeof(fixtures) / sizeof(fixtures[0])),
+           opened_count, source_opened_count);
+    if (opened_count == 0u || source_opened_count == 0u) {
+        fprintf(stderr, "  FAIL the sweep never reached an open decoder\n");
+        return 1;
+    }
     return 0;
 }
