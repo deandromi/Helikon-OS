@@ -67,12 +67,16 @@ static void target_delay_us(void *context, uint32_t microseconds)
     helikon_clock_delay_us((struct helikon_clock *)context, microseconds);
 }
 
+/* PWRCON bits are power-*down* gates: an enable clears the bit and a disable
+ * sets it, as in clock.c, pmu.c, buttons.c and ata.c. Setting the bit here
+ * would gate the OTG and PHY clocks off during bring-up, which is exactly the
+ * kind of inversion the host mock cannot see. */
 static void target_clock_enable(void *context, unsigned int gate)
 {
     (void)context;
-    uint32_t index = gate >= 32u ? 1u : 0u;
-    uint32_t bit = gate % 32u;
-    S5L_PWRCON(index) = S5L_PWRCON(index) | (1u << bit);
+    uint32_t index = gate >> 5;
+    uint32_t bit = 1u << (gate & 0x1fu);
+    S5L_PWRCON(index) = S5L_PWRCON(index) & ~bit;
 }
 
 static void target_irq_enable(void *context, int enable)

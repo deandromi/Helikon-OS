@@ -150,9 +150,12 @@ static void seam_delay(void *context, uint32_t microseconds)
 static void seam_clock(void *context, unsigned int gate)
 {
     (void)context;
-    uint32_t bank = gate >= 32u ? 1u : 0u;
-    uint32_t bit = gate % 32u;
-    PWRCON(bank) = PWRCON(bank) | (1u << bit);
+    /* PWRCON bits are power-*down* gates: enabling clears the bit. The donor's
+     * clockgate_enable() does the same, and setting the bit here would gate the
+     * OTG and PHY clocks off before the core is touched. */
+    uint32_t bank = gate >> 5;
+    uint32_t bit = 1u << (gate & 0x1fu);
+    PWRCON(bank) = PWRCON(bank) & ~bit;
 }
 
 static void seam_irq(void *context, int enable)
