@@ -170,6 +170,9 @@ PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g image
 PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g \
     VERSION=2 BOOTSTATE_STATE=trying image
 PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g DISKMODE=1
+
+DONOR_DIR=/path/to/hfsplus-rockboxed-ipod \
+  ./tools/build-usb-disk-bootloader.sh
 make -C tests/firmware test
 make -C tests/firmware sanitize
 ./tools/check-f2-artifact.sh build/firmware/6g/out

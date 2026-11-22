@@ -13,6 +13,8 @@
 | `helikon_diag_hw.c` | ATA read callback, donor partition scan, splash packing/blit, report screen, button wait and power-off |
 | `helikon_write_diag_hw.c` | Inner-image write diagnostic: ATA read/write/flush, cut hook, splash, report and power-off |
 | `helikon_outer_diag_hw.c` | Outer-volume write diagnostic: ATA read/write/flush, splash, report and power-off |
+| `helikon_usb_disk_hw.c` | USB Disk Mode diagnostic: raw-disk LUN over the firmware's USB stack, polled IRQ, SELECT confirmation. Separate DFU-only image; never mounts a filesystem |
+| `donor-usb-disk.patch` | Adds the Helikon USB stack to the donor build and calls `helikon_usb_disk_main()` after `storage_init()` |
 | `donor-bootloader.patch` | Removes the donor firmware-loading/USB path, adds the Helikon sources and calls the diagnostic after `storage_init()` |
 | `donor-write-diag.patch` | Inner-image write diagnostic integration |
 | `donor-outer-diag.patch` | Outer-volume write diagnostic integration |

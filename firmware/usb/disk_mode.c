@@ -74,7 +74,15 @@ int helikon_disk_mode_start(struct helikon_disk_mode *mode,
     mode->identity = *identity;
     mode->restore_mode = options->restore_mode;
     mode->device = *device;
-    if (!options->restore_mode)
+    /*
+     * The board attaches every block device read-only. Restore mode is the one
+     * caller that may write, so it clears the flag here rather than asking the
+     * board for a writable device: the flag travels with the mode, and a caller
+     * cannot hand in a writable device by mistake.
+     */
+    if (options->restore_mode)
+        mode->device.info.flags &= ~HELIKON_BLOCK_FLAG_READ_ONLY;
+    else
         mode->device.info.flags |= HELIKON_BLOCK_FLAG_READ_ONLY;
 
     uint64_t base = options->restore_mode ? 0u : options->base_lba;

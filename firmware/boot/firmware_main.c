@@ -1111,12 +1111,70 @@ static void disk_mode_paint(struct boot_context *ctx,
                             const struct helikon_disk_mode *mode,
                             const char *line)
 {
+    uint64_t sectors = ctx->board.block.info.sector_count;
+    uint32_t sector_size = ctx->board.block.info.sector_size;
+    uint64_t bytes = sectors * (uint64_t)sector_size;
+    uint64_t tenths_gb = bytes / 100000000ull;
+
+    char capacity[32];
+    size_t used = helikon_format_u64(capacity, sizeof(capacity),
+                                     tenths_gb / 10ull);
+    capacity[used++] = '.';
+    capacity[used++] = (char)('0' + (int)(tenths_gb % 10ull));
+    capacity[used++] = ' ';
+    capacity[used++] = 'G';
+    capacity[used++] = 'B';
+    capacity[used] = '\0';
+
+    char mode_line[48];
+    size_t at = 0u;
+    const char *label = ctx->board.ata.lba48 ? "LBA48" : "LBA28";
+    while (label[at] != '\0' && at + 1u < sizeof(mode_line)) {
+        mode_line[at] = label[at];
+        at += 1u;
+    }
+    mode_line[at] = '\0';
+
     paint_title(ctx, "HELIKON DISK MODE");
     helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
-    helikon_screen_text(&ctx->screen, 16, 100, 3, line);
-    helikon_screen_text(&ctx->screen, 16, 136, 2,
+    helikon_screen_text(&ctx->screen, 16, 92, 3, line);
+    helikon_screen_text(&ctx->screen, 16, 128, 2,
                         helikon_disk_mode_state_name(mode->state));
+    helikon_screen_text(&ctx->screen, 16, 164, 2, capacity);
+    helikon_screen_text(&ctx->screen, 16, 196, 2, mode_line);
+    helikon_screen_text(&ctx->screen, 16, 232, 2, "EJECT BEFORE UNPLUG");
     present_or_trace(ctx, HELIKON_TRACE_INFO, HELIKON_STAGE_ATA);
+}
+
+/*
+ * The owner has to confirm. This image exposes the whole disk writable, so
+ * "the wrong cable was in" must not be enough to hand it over. Thirty seconds
+ * without SELECT powers the player off again.
+ */
+static int disk_mode_confirm(struct boot_context *ctx)
+{
+    paint_title(ctx, "HELIKON DISK MODE");
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+    helikon_screen_text(&ctx->screen, 16, 100, 3, "SELECT: HAND OVER DISK");
+    helikon_screen_text(&ctx->screen, 16, 136, 2, "MENU: POWER OFF");
+    helikon_screen_text(&ctx->screen, 16, 172, 2,
+                        "THE COMPUTER MAY ERASE IT");
+    present_or_trace(ctx, HELIKON_TRACE_INFO, HELIKON_STAGE_ATA);
+
+    for (unsigned int tick = 0u; tick < 300u; ++tick) {
+        uint32_t buttons = 0u;
+        int32_t wheel = 0;
+        int hold = 0;
+        if (helikon_buttons_poll(&ctx->board.buttons, &buttons, &wheel, &hold,
+                                 0u) > 0) {
+            if ((buttons & HELIKON_BUTTON_SELECT) != 0u)
+                return 1;
+            if ((buttons & HELIKON_BUTTON_MENU) != 0u)
+                return 0;
+        }
+        helikon_clock_delay_us(&ctx->board.clock, 100000u);
+    }
+    return 0;
 }
 
 static void disk_mode_run(struct boot_context *ctx)
@@ -1147,7 +1205,11 @@ static void disk_mode_run(struct boot_context *ctx)
     struct helikon_disk_mode mode;
 
     helikon_memset(&mode, 0, sizeof(mode));
-    disk_mode_paint(ctx, &mode, "CONNECT USB");
+
+    if (!disk_mode_confirm(ctx)) {
+        paint_message(ctx, "DISK MODE", "POWER OFF.");
+        boot_power_off(ctx);
+    }
 
     int rc = helikon_vic_init();
     if (rc == HELIKON_OK)
@@ -1539,13 +1601,10 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
      * before the LUN can exist, and the volume must not be mounted: the host
      * owns every sector from the moment the stack connects.
      */
-    rc = helikon_ata_init(&ctx->board.ata, &ctx->board.pmu, &ctx->board.clock,
-                          BOOT_STORAGE_TIMEOUT_MS);
+    rc = helikon_board_storage_init_writable(&ctx->board,
+                                             BOOT_STORAGE_TIMEOUT_MS);
     if (rc != HELIKON_OK)
         boot_fail(ctx, HELIKON_STAGE_ATA, rc, "The disk did not answer.");
-    rc = helikon_board_storage_attach(&ctx->board);
-    if (rc != HELIKON_OK)
-        boot_fail(ctx, HELIKON_STAGE_ATA, rc, "The disk could not be used.");
     disk_mode_run(ctx);
 #endif
 #ifdef HELIKON_DIAG_ATA_PROBE

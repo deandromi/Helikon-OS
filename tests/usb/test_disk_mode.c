@@ -288,10 +288,15 @@ int main(void)
     for (size_t index = 0u; index < sizeof(disk.data); ++index)
         disk.data[index] = (uint8_t)(index * 5u + 1u);
 
+    /*
+     * The board hands every block device to the firmware read-only; Disk Mode
+     * restore mode is the one caller that must clear that flag. Starting the
+     * test from a read-only device is what makes the write below meaningful.
+     */
     struct helikon_block_info info = {
         .sector_size = DISK_SECTOR_SIZE,
         .sector_count = DISK_CAPACITY,
-        .flags = 0u
+        .flags = HELIKON_BLOCK_FLAG_READ_ONLY
     };
     struct helikon_block_device device;
     if (expect(helikon_block_init(&device, &disk_ops, &disk, &info) ==
@@ -331,7 +336,7 @@ int main(void)
                "the whole disk is the window"))
         return 1;
     if (expect((mode.device.info.flags & HELIKON_BLOCK_FLAG_READ_ONLY) == 0u,
-               "restore mode is writable"))
+               "restore mode clears the board's read-only flag"))
         return 1;
 
     /* --- enumeration ------------------------------------------------------ */

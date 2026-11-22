@@ -1,0 +1,36 @@
+diff --git a/bootloader/SOURCES b/bootloader/SOURCES
+index 8510479..1b5038e 100644
+--- a/bootloader/SOURCES
++++ b/bootloader/SOURCES
+@@ -79,3 +79,12 @@ x1000/utils.c
+ #elif defined(ECHO_R1)
+ echoplayer.c
+ #endif
++
++/* Helikon Disk Mode diagnostic (DFU-only, separate image). */
++helikon/helikon_usb_disk_hw.c
++helikon/usb.c
++helikon/usb_descriptors.c
++helikon/usb_control.c
++helikon/usb_msc.c
++helikon/disk_mode.c
++helikon/block.c
+diff --git a/bootloader/ipod-s5l87xx.c b/bootloader/ipod-s5l87xx.c
+index 002f6b8..3203de5 100644
+--- a/bootloader/ipod-s5l87xx.c
++++ b/bootloader/ipod-s5l87xx.c
+@@ -887,6 +887,14 @@ void main(void)
+             fatal_error(ERR_STORAGE);
+         }
+ 
++        /* Helikon Disk Mode: this image never mounts a filesystem and never
++         * loads firmware. It hands the raw disk to a host over USB. */
++        {
++            extern void helikon_usb_disk_main(void) __attribute__((noreturn));
++            helikon_usb_disk_main();
++            __builtin_unreachable();
++        }
++
+         filesystem_init();
+ 
+         /* We wait until HDD spins up to check for hold button */

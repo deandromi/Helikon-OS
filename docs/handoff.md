@@ -12,6 +12,45 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (both halves have a Disk Mode image; neither has run)
+
+## What happened
+
+- **Firmware:** the Disk Mode image now asks first — SELECT hands the disk over,
+  MENU or 30 s powers off — and shows capacity and LBA28/48 on the status line.
+  `helikon_board_storage_init_writable()` gives Disk Mode a writable block
+  device; every other caller keeps the read-only attach. `disk_mode` restore
+  mode now clears the board's read-only flag itself, and the host test starts
+  from a read-only device so the write proves it.
+- **Bootloader:** new separate DFU-only image,
+  `tools/build-usb-disk-bootloader.sh` + `bootloader/hardware/helikon_usb_disk_hw.c`
+  + `donor-usb-disk.patch`. It links the same `usb.c`, `usb_*.c` and
+  `disk_mode.c`, builds the seam over `ata_*`/`udelay`/`PWRCON`, polls
+  `helikon_usb_irq()` instead of touching the donor VIC, and calls the mode
+  after `storage_init()`, before any mount.
+- The entry is `noreturn`: every path ends in `power_off()`, so a future edit
+  cannot fall through into the donor's mount.
+
+## Evidence (host and build only, no device run)
+
+- `make -C tests/usb test` / `sanitize` PASS, including the new read-only-device
+  regression.
+- Firmware Disk Mode image: 40,256 bytes, no mount/player symbols.
+- Bootloader image: 108,104 bytes, sha256 `cef07a56…`; DFU 116,240 bytes,
+  sha256 `bbd7b664…`; `_moveend 0x2203ae40` vs `MOVE_AREA` end `0x22040000`,
+  20,928 bytes headroom; two runs produced identical hashes.
+- Neither image has enumerated, mounted or written anything.
+
+## Open / next
+
+- The owner's run on the 6G: firmware image first (it has the status screen and
+  the script), bootloader image second, and record both in `device-matrix.md`.
+- Suspects if nothing enumerates: PHY/clock sequence, FIFO split, EP0 status
+  stage, and, in the bootloader image, the polled IRQ cadence.
+- D-56 (VID/PID) is still open.
+
+---
+
 # Handoff — 2026-11-21 (thirty-third block: the host script that actually formats the thing)
 
 ## What happened

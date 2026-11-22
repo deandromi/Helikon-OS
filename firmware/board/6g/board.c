@@ -115,7 +115,8 @@ int helikon_board_display_attach(struct helikon_board_runtime *runtime)
     return HELIKON_OK;
 }
 
-int helikon_board_storage_attach(struct helikon_board_runtime *runtime)
+int helikon_board_storage_attach_flags(struct helikon_board_runtime *runtime,
+                                       uint32_t flags)
 {
     if (runtime == NULL || !runtime->ata.initialized ||
         runtime->ata.sector_size < 512u ||
@@ -125,10 +126,29 @@ int helikon_board_storage_attach(struct helikon_board_runtime *runtime)
     struct helikon_block_info info = {
         .sector_size = runtime->ata.sector_size,
         .sector_count = runtime->ata.total_sectors,
-        .flags = HELIKON_BLOCK_FLAG_READ_ONLY
+        .flags = flags
     };
     return helikon_block_init(&runtime->block, &block_ops, &runtime->ata,
                               &info);
+}
+
+int helikon_board_storage_attach(struct helikon_board_runtime *runtime)
+{
+    /* Read-only is the default. A caller that wants writes has to say so. */
+    return helikon_board_storage_attach_flags(runtime,
+                                              HELIKON_BLOCK_FLAG_READ_ONLY);
+}
+
+int helikon_board_storage_init_writable(struct helikon_board_runtime *runtime,
+                                        uint32_t timeout_ms)
+{
+    if (runtime == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    int rc = helikon_ata_init(&runtime->ata, &runtime->pmu, &runtime->clock,
+                              timeout_ms);
+    if (rc != HELIKON_OK)
+        return rc;
+    return helikon_board_storage_attach_flags(runtime, 0u);
 }
 
 int helikon_board_storage_init(struct helikon_board_runtime *runtime,
