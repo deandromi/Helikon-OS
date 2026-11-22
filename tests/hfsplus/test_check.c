@@ -331,6 +331,270 @@ static int test_skipped_bitmap(void)
     return 0;
 }
 
+/*
+ * Catalog records for the leaf tests. A leaf is assembled record by record and
+ * installed as node 1 of a tree, so each test can put exactly one thing wrong:
+ * a key out of order, a thread key that names something, a body two bytes short.
+ */
+static uint8_t leaf_data[512];
+static uint16_t leaf_count;
+static uint16_t leaf_cursor;
+
+static void leaf_start(void)
+{
+    memset(leaf_data, 0, sizeof(leaf_data));
+    put_be32(leaf_data + 0u, 0u);   /* bLink */
+    put_be32(leaf_data + 4u, 0u);   /* fLink */
+    leaf_data[8] = 0xffu;           /* kind: leaf */
+    leaf_data[9] = 1u;              /* height */
+    leaf_cursor = 14u;
+    leaf_count = 0u;
+}
+
+static void leaf_add(const uint8_t *record, size_t length)
+{
+    test_image_put_be16(leaf_data + 512u - 2u * (uint16_t)(leaf_count + 1u),
+                        leaf_cursor);
+    memcpy(leaf_data + leaf_cursor, record, length);
+    /* HFS+ keeps every record on an even offset. */
+    leaf_cursor = (uint16_t)(leaf_cursor + ((length + 1u) & ~(size_t)1u));
+    leaf_count += 1u;
+}
+
+/*
+ * Installs the leaf as node 1 and points the tree's header record at it:
+ * depth 1, root 1, first and last leaf 1. `leaf_records` is what the header
+ * claims, which is not always what the leaf holds — that is the point of the
+ * chain test.
+ */
+static void leaf_install(uint32_t block, uint32_t records)
+{
+    uint8_t *base = test_image + (size_t)block * BLOCK_SIZE;
+    test_image_put_be16(leaf_data + 512u - 2u * (uint16_t)(leaf_count + 1u),
+                        leaf_cursor);
+    test_image_put_be16(leaf_data + 10u, leaf_count);
+    memcpy(base + BLOCK_SIZE, leaf_data, 512u);
+
+    uint8_t *record = base + 14u;
+    test_image_put_be16(record + 0u, 1u);    /* depth */
+    put_be32(record + 2u, 1u);               /* rootNode */
+    put_be32(record + 6u, records);          /* leafRecords */
+    put_be32(record + 10u, 1u);              /* firstLeafNode */
+    put_be32(record + 14u, 1u);              /* lastLeafNode */
+    put_be32(record + 26u, 0u);              /* freeNodes */
+}
+
+/* keyLength, parentID, nameLength, UTF-16BE name; returns the key's byte size. */
+static size_t put_catalog_key(uint8_t *out, uint32_t parent, const char *name)
+{
+    size_t units = strlen(name);
+    test_image_put_be16(out, (uint16_t)(6u + 2u * units));
+    test_image_put_be32(out + 2u, parent);
+    test_image_put_be16(out + 6u, (uint16_t)units);
+    for (size_t index = 0u; index < units; ++index) {
+        out[8u + 2u * index] = 0u;
+        out[9u + 2u * index] = (uint8_t)name[index];
+    }
+    return 8u + 2u * units;
+}
+
+static size_t make_folder_record(uint8_t *out, uint32_t parent, const char *name,
+                                 uint32_t folder_id)
+{
+    size_t key = put_catalog_key(out, parent, name);
+    memset(out + key, 0, 88u);
+    test_image_put_be16(out + key, 1u);        /* recordType: folder */
+    put_be32(out + key + 8u, folder_id);
+    return key + 88u;
+}
+
+static size_t make_file_record(uint8_t *out, uint32_t parent, const char *name,
+                               uint32_t file_id)
+{
+    size_t key = put_catalog_key(out, parent, name);
+    memset(out + key, 0, 248u);
+    test_image_put_be16(out + key, 2u);        /* recordType: file */
+    put_be32(out + key + 8u, file_id);
+    return key + 248u;
+}
+
+static size_t make_thread_record(uint8_t *out, uint32_t cnid, uint16_t type,
+                                 uint32_t parent, const char *name)
+{
+    test_image_put_be16(out, 6u);              /* keyLength: parentID only */
+    test_image_put_be32(out + 2u, cnid);
+    test_image_put_be16(out + 6u, 0u);         /* a thread key never names */
+    size_t units = strlen(name);
+    memset(out + 8u, 0, 10u + 2u * units);
+    test_image_put_be16(out + 8u, type);
+    put_be32(out + 12u, parent);
+    test_image_put_be16(out + 16u, (uint16_t)units);
+    for (size_t index = 0u; index < units; ++index) {
+        out[18u + 2u * index] = 0u;
+        out[19u + 2u * index] = (uint8_t)name[index];
+    }
+    return 8u + 10u + 2u * units;
+}
+
+static void set_header_counts(uint32_t files, uint32_t folders)
+{
+    test_image_put_be32(test_image + 1024u + 32u, files);
+    test_image_put_be32(test_image + 1024u + 36u, folders);
+}
+
+/*
+ * A catalog that a real volume could hold: the root folder, one folder inside
+ * it and the folder threads, keys in leaf order and every body the size its
+ * record type promises. Nothing here is a finding, and that is the assertion.
+ */
+static int test_clean_leaf_catalog(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    uint8_t record[512];
+    make_clean_volume();
+    set_header_counts(0u, 1u);
+
+    leaf_start();
+    leaf_add(record, make_folder_record(record, 1u, "Vol", 2u));
+    leaf_add(record, make_thread_record(record, 2u, 3u, 1u, "Vol"));
+    leaf_add(record, make_folder_record(record, 2u, "alpha", 3u));
+    leaf_add(record, make_thread_record(record, 3u, 3u, 2u, "alpha"));
+    leaf_install(CATALOG_BLOCK, 4u);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK(report.problems == 0u);
+    CHECK(report.catalog_folders == 1u);
+    CHECK(report.catalog_files == 0u);
+    return 0;
+}
+
+/* The same, for a file record: a 248-byte body that a reader may trust. */
+static int test_clean_file_record(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    uint8_t record[512];
+    make_clean_volume();
+    set_header_counts(1u, 0u);
+
+    leaf_start();
+    leaf_add(record, make_file_record(record, 2u, "one.txt", 16u));
+    leaf_add(record, make_thread_record(record, 16u, 4u, 2u, "one.txt"));
+    leaf_install(CATALOG_BLOCK, 2u);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK(report.problems == 0u);
+    CHECK(report.catalog_files == 1u);
+    return 0;
+}
+
+/* Two sibling folders in the wrong order: the tree's own search would miss one. */
+static int test_catalog_order(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    uint8_t record[512];
+    make_clean_volume();
+    set_header_counts(0u, 2u);
+
+    leaf_start();
+    leaf_add(record, make_folder_record(record, 2u, "beta", 3u));
+    leaf_add(record, make_folder_record(record, 2u, "alpha", 4u));
+    leaf_install(CATALOG_BLOCK, 2u);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK((report.problems & HFS_CHECK_CATALOG_ORDER) != 0u);
+    return 0;
+}
+
+/* A header that claims one record more than the chain holds. */
+static int test_catalog_leaf_count(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    uint8_t record[512];
+    make_clean_volume();
+    set_header_counts(0u, 1u);
+
+    leaf_start();
+    leaf_add(record, make_folder_record(record, 2u, "alpha", 3u));
+    leaf_install(CATALOG_BLOCK, 2u);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK((report.problems & HFS_CHECK_BTREE_CHAIN) != 0u);
+    return 0;
+}
+
+/* A thread key that carries a name: no real thread record has one. */
+static int test_catalog_thread_key(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    uint8_t record[512];
+    make_clean_volume();
+    set_header_counts(0u, 1u);
+
+    leaf_start();
+    size_t length = make_thread_record(record, 3u, 3u, 2u, "alpha");
+    /* Give the key the name it must never have: widen the key, shift the body. */
+    memmove(record + 10u, record + 8u, length - 8u);
+    test_image_put_be16(record + 0u, 8u);
+    test_image_put_be16(record + 6u, 1u);
+    record[8] = 0u;
+    record[9] = 'x';
+    leaf_add(record, length + 2u);
+    leaf_install(CATALOG_BLOCK, 1u);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK((report.problems & HFS_CHECK_CATALOG_BODY) != 0u);
+    return 0;
+}
+
+/* A file body cut short: everything after it in the node would be misread. */
+static int test_catalog_short_body(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    uint8_t record[512];
+    make_clean_volume();
+    set_header_counts(1u, 0u);
+
+    leaf_start();
+    size_t length = make_file_record(record, 2u, "one.txt", 16u);
+    leaf_add(record, length - 148u);           /* 100 bytes of the 248 */
+    leaf_install(CATALOG_BLOCK, 1u);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK((report.problems & HFS_CHECK_CATALOG_BODY) != 0u);
+    return 0;
+}
+
+/* Extents keys order by fork type, file ID and start block; two swapped is damage. */
+static int test_extents_order(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    uint8_t record[512];
+    make_clean_volume();
+
+    leaf_start();
+    /* Key: keyLength 10, fork type, pad, file ID, start block; eight extents. */
+    memset(record, 0, 74u);
+    test_image_put_be16(record + 0u, 10u);
+    record[2] = 0u;                            /* data fork */
+    put_be32(record + 4u, 16u);                /* file ID */
+    put_be32(record + 8u, 40u);                /* start block */
+    leaf_add(record, 74u);
+    put_be32(record + 8u, 20u);                /* the earlier start block, second */
+    leaf_add(record, 74u);
+    leaf_install(EXTENTS_BLOCK, 2u);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK((report.problems & HFS_CHECK_EXTENTS_ORDER) != 0u);
+    return 0;
+}
+
 static int test_bad_tree_header(void)
 {
     struct hfs_volume volume;
@@ -404,7 +668,14 @@ int main(void)
         { "skipped bitmap", test_skipped_bitmap },
         { "bad tree header", test_bad_tree_header },
         { "bad tree size", test_bad_tree_size },
-        { "bad tree index", test_bad_tree_index }
+        { "bad tree index", test_bad_tree_index },
+        { "clean leaf catalog", test_clean_leaf_catalog },
+        { "clean file record", test_clean_file_record },
+        { "catalog keys out of order", test_catalog_order },
+        { "leaf chain count", test_catalog_leaf_count },
+        { "thread key with a name", test_catalog_thread_key },
+        { "file body cut short", test_catalog_short_body },
+        { "extents keys out of order", test_extents_order }
     };
 
     int failed = 0;

@@ -50,11 +50,15 @@ test_extents: test_extents.c test_image.c test_image.h test_check.h \
 
 test_check: test_check.c test_image.c test_image.h test_check.h \
             $(HFS)/hfs_check.c $(HFS)/hfs_check.h \
+            $(HFS)/hfs_catalog_compare.c $(HFS)/hfs_catalog_compare.h \
+            $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode.h \
+            $(HFS)/hfs_unicode_data.c \
             $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h \
             $(HFS)/hfs_extents.c $(HFS)/hfs_extents.h \
             $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_check.c test_image.c \
-	  $(HFS)/hfs_check.c $(HFS)/hfs_btree.c $(HFS)/hfs_extents.c \
+	  $(HFS)/hfs_check.c $(HFS)/hfs_catalog_compare.c $(HFS)/hfs_unicode.c \
+	  $(HFS)/hfs_unicode_data.c $(HFS)/hfs_btree.c $(HFS)/hfs_extents.c \
 	  $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
 
 test_journal: test_journal.c test_check.h \

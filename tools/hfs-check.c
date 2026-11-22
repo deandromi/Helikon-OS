@@ -46,6 +46,12 @@ static void print_flags(uint32_t problems)
         { HFS_CHECK_BTREE_HEADER, "a B-tree header is not valid" },
         { HFS_CHECK_BTREE_SIZE, "a B-tree does not fit its fork" },
         { HFS_CHECK_BTREE_INDEX, "a B-tree node index is out of range" },
+        { HFS_CHECK_BTREE_CHAIN, "a B-tree leaf chain does not match its header" },
+        { HFS_CHECK_CATALOG_ORDER, "catalog keys are out of order" },
+        { HFS_CHECK_CATALOG_BODY, "a catalog record body is malformed" },
+        { HFS_CHECK_EXTENTS_ORDER, "extents keys are out of order" },
+        { HFS_CHECK_CATALOG_COUNT, "the catalog count disagrees with the header" },
+        { HFS_CHECK_CATALOG_RECORD, "a catalog record or key is malformed" },
         { HFS_CHECK_SKIPPED_BITMAP, "the bitmap was not counted (overflowed fork)" }
     };
 
