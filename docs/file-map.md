@@ -68,7 +68,8 @@ Helikon-OS/
     hal/6g/               clock, PMU, backlight, LCD, ATA read/write/flush, buttons, CPU, CS42L55/I2S/DMA
     block/                block device with read-only gate, bounce, APM/MBR/raw scan
     storage/              mount the music volume: partition scan, HFS+ probe,
-                          VFS mount and the catalog, read-only (mount.c/.h)
+                          VFS mount and the catalog, read-only (mount.c/.h),
+                          and the ATA driver as a block device (ata_block.c/.h)
     library/              HDB path index, playlist resolution into the queue, and
                           the storage-backed music source (volume + catalog +
                           index + queue + player, next/previous)

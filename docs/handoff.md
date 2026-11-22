@@ -12,6 +12,40 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (ATA as a block device: T-127)
+
+## What happened
+
+- **`firmware/storage/ata_block.c/.h`** — `helikon_ata_block_init` presents the
+  ATA driver as the block device the mount expects: the driver's own
+  read/write/flush/power functions are the ops table, and the device is read-only
+  unless the caller asks otherwise.
+- **The geometry is the point.** `helikon_ata_block_info` refuses a sector size
+  below 512 or not a power of two, a zero sector count, and a sector-count product
+  that overflows 64 bits — the bug class where a 1 TB card is described as
+  128 GiB. An ATA handle with no valid IDENTIFY is `UNSUPPORTED`, never a device
+  built from a failed init's placeholders.
+- **`tests/firmware/test_ata_block.c`** replaces the driver with counted stubs and
+  checks the arithmetic, the refusals, the read-only gate (no driver call), the
+  out-of-range refusal (no driver call) and delegation on a valid read.
+
+## Evidence
+
+- `make -C tests/firmware test` and `sanitize` → `PASS ata block` among 14
+  binaries.
+- `./tools/host-tests.sh clang` → 9 suites.
+- `./tools/static-analysis.sh` → 80 units, 0 findings.
+- `make -C firmware BOARD=6g image` → 80,020 B unchanged (`--gc-sections`).
+
+## Open / next
+
+- **Boot-time call site**: `helikon_ata_init` → `helikon_ata_block_init` →
+  `helikon_storage_mount` → `helikon_storage_open_catalog` → `music_source`, in
+  that order, before the UI starts. That is T-056's device half and it needs the
+  hardware; none of it is claimed to work on a 6G yet.
+- The hub then calls `helikon_music_source_play_playlist` on the mounted volume,
+  and a dirty journal needs a read-only badge (policy undecided).
+
 # Handoff — 2026-11-22 (mounting the volume: T-126)
 
 ## What happened

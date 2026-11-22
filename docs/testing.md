@@ -528,6 +528,11 @@ make -C tests/player test
 make -C tests/player sanitize
 ```
 
+`tests/firmware` also covers the ATA-to-block bridge (`test_ata_block`): the
+geometry arithmetic that decides whether a 1 TB card is 1 TB or 128 GiB, the
+read-only gate in front of the driver, and that the block ops really are the
+driver's own functions.
+
 `test_cuesheet` covers an album cue (one file, three tracks, frames checked
 against `mm:ss:ff` arithmetic), the pregap and sub-index rules, the times that
 cannot exist (`00:60:00`, `00:00:75`, two fields, four fields, letters, an
