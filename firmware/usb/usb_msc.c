@@ -711,6 +711,22 @@ void helikon_usb_msc_status(struct helikon_usb_msc *msc,
                   : (msc->failed ? HELIKON_USB_CSW_FAILED : HELIKON_USB_CSW_PASSED);
 }
 
+void helikon_usb_msc_phase_error_csw(const uint8_t cbw[HELIKON_USB_CBW_SIZE],
+                                     uint8_t csw[HELIKON_USB_CSW_SIZE])
+{
+    if (csw == NULL)
+        return;
+    uint32_t tag = 0u;
+    if (cbw != NULL) {
+        tag = (uint32_t)cbw[4] | ((uint32_t)cbw[5] << 8) |
+              ((uint32_t)cbw[6] << 16) | ((uint32_t)cbw[7] << 24);
+    }
+    put_le32(csw, HELIKON_USB_CSW_SIGNATURE);
+    put_le32(csw + 4, tag);
+    put_le32(csw + 8, 0u);
+    csw[12] = HELIKON_USB_CSW_PHASE_ERROR;
+}
+
 const struct helikon_usb_sense *helikon_usb_msc_sense(
     const struct helikon_usb_msc *msc)
 {

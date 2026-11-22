@@ -212,10 +212,22 @@ static void handle_cbw(struct helikon_disk_mode *mode)
     int rc = helikon_usb_msc_command(&mode->msc, mode->cbw, &result);
     mode->commands += 1u;
     if (rc != HELIKON_OK) {
-        /* A malformed CBW is a transport error: drop the command, count it, and
-         * leave the host to reset the pipe. */
+        /*
+         * A CBW the transport refuses still gets an answer. Going silent leaves
+         * the host waiting out its transfer timeout and then resetting the pipe,
+         * which turns one bad byte into seconds of stall; a 13-byte CSW with
+         * PHASE_ERROR closes the command at once. The tag is echoed from the
+         * CBW, even though its signature was the thing that failed.
+         */
         mode->errors += 1u;
-        mode->phase = HELIKON_DISK_MODE_BOT_IDLE;
+        helikon_usb_msc_phase_error_csw(mode->cbw, mode->csw);
+        mode->phase = HELIKON_DISK_MODE_BOT_IN_CSW;
+        mode->csw_pending = 0;
+        if (mode->ops.ep1_send(mode->ops.context, mode->csw,
+                               HELIKON_USB_CSW_SIZE) != HELIKON_OK) {
+            mode->errors += 1u;
+            mode->state = HELIKON_DISK_MODE_ERROR;
+        }
         return;
     }
     begin_stage(mode, &result);

@@ -61,6 +61,8 @@ tests/usb/test_usb_hal
 tests/usb/test_usb_hal_sanitize
 tests/usb/test_disk_mode
 tests/usb/test_disk_mode_sanitize
+tests/usb/fuzz_msc
+tests/usb/fuzz_msc_sanitize
 tests/usb/*.dSYM/
 tests/vfs/test_vfs
 tests/vfs/*.dSYM/

@@ -530,6 +530,64 @@ int main(void)
                "with DATA PROTECT"))
         return 1;
 
+    /* --- a refused CBW still gets answered -------------------------------- */
+    {
+        /*
+         * The transport refuses a CBW with a broken signature. It must still send
+         * a 13-byte CSW — PHASE_ERROR, tag echoed, zero residue — because going
+         * silent makes the host wait out its transfer timeout before it resets
+         * the pipe, which turns one bad byte into seconds of stall.
+         */
+        uint8_t cdb[6] = { 0x00u, 0, 0, 0, 0, 0 };
+        make_cbw(mode.cbw, 0x0badf00du, 0u, 1, cdb, 6u);
+        mode.cbw[0] = 0x58u; /* 'X': not "USBC" */
+        unsigned int before = transport.ep1_count;
+        unsigned int errors_before = mode.errors;
+        if (expect(helikon_disk_mode_event(&mode, HELIKON_USB_EVENT_EP2_OUT_DONE,
+                                           NULL, HELIKON_USB_CBW_SIZE) ==
+                       HELIKON_OK,
+                   "a malformed CBW is handled"))
+            return 1;
+        if (expect(transport.ep1_count == before + 1u &&
+                       transport.ep1_length[before] == HELIKON_USB_CSW_SIZE,
+                   "the refusal is answered with a CSW"))
+            return 1;
+        const uint8_t *csw = transport.ep1[before];
+        if (expect(csw[0] == 'U' && csw[1] == 'S' && csw[2] == 'B' &&
+                       csw[3] == 'S',
+                   "the CSW has the USBS signature"))
+            return 1;
+        if (expect(csw[4] == 0x0du && csw[5] == 0xf0u && csw[6] == 0xadu &&
+                       csw[7] == 0x0bu,
+                   "the CSW echoes the tag from the broken CBW"))
+            return 1;
+        if (expect(csw[8] == 0u && csw[9] == 0u && csw[10] == 0u &&
+                       csw[11] == 0u,
+                   "the phase-error CSW carries no residue"))
+            return 1;
+        if (expect(csw[12] == HELIKON_USB_CSW_PHASE_ERROR,
+                   "the CSW reports a phase error"))
+            return 1;
+        if (expect(mode.errors == errors_before + 1u, "the refusal is counted"))
+            return 1;
+        if (expect(mode.phase == HELIKON_DISK_MODE_BOT_IN_CSW,
+                   "the transport waits for the CSW to leave"))
+            return 1;
+        unsigned int arms_before = transport.ep2_arms;
+        int enumerated = mode.state == HELIKON_DISK_MODE_ENUMERATED;
+        if (expect(helikon_disk_mode_event(&mode, HELIKON_USB_EVENT_EP1_IN_DONE,
+                                           NULL, 0u) == HELIKON_OK,
+                   "the phase-error CSW completes"))
+            return 1;
+        if (expect(mode.phase == HELIKON_DISK_MODE_BOT_IDLE,
+                   "the mode is idle again"))
+            return 1;
+        if (enumerated &&
+            expect(transport.ep2_arms == arms_before + 1u,
+                   "the next CBW is armed"))
+            return 1;
+    }
+
     /* --- reset and disconnect -------------------------------------------- */
     expect(helikon_disk_mode_event(&mode, HELIKON_USB_EVENT_BUS_RESET, NULL,
                                    0u) == HELIKON_OK,

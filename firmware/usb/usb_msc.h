@@ -116,6 +116,16 @@ int helikon_usb_msc_out(struct helikon_usb_msc *msc, const void *buffer,
                         uint32_t length, uint32_t *consumed);
 
 /* Builds the CSW for the current command. */
+/*
+ * The CSW a transport sends when it refuses a CBW outright (wrong signature,
+ * reserved bits set, or a CDB length outside 1..16). The tag is echoed from the
+ * CBW's bytes 4..7 so the host can match it, the status is PHASE_ERROR and the
+ * residue is zero because nothing transferred. Sending nothing leaves the host
+ * waiting out its transfer timeout; this answers immediately.
+ */
+void helikon_usb_msc_phase_error_csw(const uint8_t cbw[HELIKON_USB_CBW_SIZE],
+                                     uint8_t csw[HELIKON_USB_CSW_SIZE]);
+
 /* Returns 1 once if the host asked to eject, then clears the flag. */
 int helikon_usb_msc_take_eject(struct helikon_usb_msc *msc);
 

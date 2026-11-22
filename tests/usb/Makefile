@@ -25,11 +25,16 @@ HAL := ../../firmware/hal/6g
 HAL_SOURCES := test_usb_hal.c $(HAL)/usb.c
 MODE_BIN := test_disk_mode
 MODE_SAN_BIN := test_disk_mode_sanitize
+FUZZ_BIN := fuzz_msc
+FUZZ_SAN_BIN := fuzz_msc_sanitize
+FUZZ_SOURCES := fuzz_msc.c $(USB)/usb_msc.c $(BLOCK)/block.c $(BLOCK)/bounce.c \
+                $(LIB)/mem.c $(LIB)/string.c
+
 MODE_SOURCES := test_disk_mode.c $(USB)/disk_mode.c $(USB)/usb_control.c \
                $(USB)/usb_descriptors.c $(USB)/usb_msc.c \
                $(BLOCK)/block.c $(BLOCK)/bounce.c $(LIB)/mem.c $(LIB)/string.c
 
-.PHONY: all test sanitize clean
+.PHONY: all test sanitize fuzz fuzz-sanitize clean
 
 all: $(BIN)
 
@@ -65,6 +70,23 @@ $(MODE_SAN_BIN): $(MODE_SOURCES) $(USB)/disk_mode.h $(USB)/usb_msc.h \
 	$(CC) $(CFLAGS) -O1 -fsanitize=address,undefined -fno-omit-frame-pointer \
 	    -o $@ $(MODE_SOURCES)
 
+# Malformed CBWs, hostile CDB lengths and a data stage that stops halfway: the
+# transport must refuse all of it, keep its window and never report a success it
+# did not achieve. Deterministic, so a failure reproduces from the seed.
+$(FUZZ_BIN): $(FUZZ_SOURCES) $(USB)/usb_msc.h $(BLOCK)/block.h
+	$(CC) $(CFLAGS) -o $@ $(FUZZ_SOURCES)
+
+fuzz: $(FUZZ_BIN)
+	./$(FUZZ_BIN)
+
+$(FUZZ_SAN_BIN): $(FUZZ_SOURCES) $(USB)/usb_msc.h $(BLOCK)/block.h
+	$(CC) $(CFLAGS) -O1 -fsanitize=address,undefined -fno-omit-frame-pointer \
+	    -o $@ $(FUZZ_SOURCES)
+
+fuzz-sanitize:
+	$(MAKE) $(FUZZ_SAN_BIN)
+	./$(FUZZ_SAN_BIN) -n 25000
+
 sanitize:
 	$(MAKE) clean
 	$(MAKE) $(SAN_BIN)
@@ -73,8 +95,12 @@ sanitize:
 	./$(HAL_SAN_BIN)
 	$(MAKE) $(MODE_SAN_BIN)
 	./$(MODE_SAN_BIN)
+	$(MAKE) $(FUZZ_SAN_BIN)
+	./$(FUZZ_SAN_BIN) -n 25000
 
 clean:
-	rm -f $(BIN) $(SAN_BIN) $(HAL_BIN) $(HAL_SAN_BIN) $(MODE_BIN) $(MODE_SAN_BIN)
+	rm -f $(BIN) $(SAN_BIN) $(HAL_BIN) $(HAL_SAN_BIN) $(MODE_BIN) $(MODE_SAN_BIN) \
+	    $(FUZZ_BIN) $(FUZZ_SAN_BIN)
 	rm -rf $(BIN).dSYM $(SAN_BIN).dSYM $(HAL_BIN).dSYM $(HAL_SAN_BIN).dSYM \
-	    $(MODE_BIN).dSYM $(MODE_SAN_BIN).dSYM
+	    $(MODE_BIN).dSYM $(MODE_SAN_BIN).dSYM $(FUZZ_BIN).dSYM \
+	    $(FUZZ_SAN_BIN).dSYM
