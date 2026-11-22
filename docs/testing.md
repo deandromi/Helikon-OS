@@ -172,7 +172,7 @@ because nobody thinks to corrupt the byte that matters.
 | Sweep | File | What it drives |
 |---|---|---|
 | HFS+ | `tests/hfsplus/test_image_mutation.c` | `hfs_volume_probe` → `hfs_check_volume` → `hfs_catalog_open` → lookup/iterate/`read_file` → `hfs_extents_collect` over a mutated volume image |
-| codecs | `tests/codec/test_codec_mutation.c` | `helikon_codec_probe`/`open`/`read`/`seek` over mutated FLAC and MP3 fixtures, then the same bytes through `probe_source`/`open_source`/`read` |
+| codecs | `tests/codec/test_codec_mutation.c` | `helikon_codec_probe`/`open`/`read`/`seek` over mutated FLAC and MP3 fixtures plus a built-in WAV (which also covers the RIFF chunk walker), then the same bytes through `probe_source`/`open_source`/`read` |
 
 Both are deterministic — one seed, one sequence — and both print the fixture,
 the seed and every changed byte on a finding, so a report replays exactly:

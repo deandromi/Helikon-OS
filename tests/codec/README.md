@@ -59,8 +59,9 @@ The fixture set is generated content only. It contains no owner library audio.
 
 ## Mutation sweep
 
-`test_codec_mutation` corrupts a valid fixture a few fields at a time and drives
-the whole decode path over it — probe, open, read, seek, close, then the same
+`test_codec_mutation` corrupts a valid fixture a few fields at a time (the FLAC
+and MP3 fixtures, plus a WAV built in memory so the RIFF walker is covered too)
+and drives the whole decode path over it — probe, open, read, seek, close, then the same
 bytes through the streaming source. It asserts nothing about the audio (a corrupt
 stream may be refused or decode to noise), only that the decoder terminates,
 stays inside its workspace and PCM buffer, and does not trip ASan or UBSan. It
