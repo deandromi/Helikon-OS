@@ -16,6 +16,17 @@ OUT := ../../build/ui
 FIXTURE := ../../build/musicdb/fixture.hdb
 BLOB_SRC := $(OUT)/fixture_blob.S
 BLOB_OBJ := $(OUT)/fixture_blob.o
+
+# The HDB fixture is linked as an incbin blob. The assembler syntax differs:
+# Mach-O wants a segment/section pair and an underscore on every symbol, ELF
+# wants a plain section name and the symbol as written. CI builds on both.
+ifeq ($(shell uname -s),Darwin)
+BLOB_SECTION := __TEXT,__const
+BLOB_SYMBOL := _
+else
+BLOB_SECTION := .rodata
+BLOB_SYMBOL :=
+endif
 MUSIC_TEST := $(OUT)/test_music
 AUDIO_TEST := $(OUT)/test_audio
 
@@ -54,7 +65,14 @@ $(FIXTURE): ../../tools/hdb_build.py
 
 $(BLOB_SRC): $(FIXTURE)
 	@mkdir -p $(OUT)
-	@printf '.section __TEXT,__const\n.globl _helikon_hdb_start\n_helikon_hdb_start:\n.incbin "%s"\n.globl _helikon_hdb_end\n_helikon_hdb_end:\n' "$(abspath $(FIXTURE))" > $@
+	@{ \
+	    echo ".section $(BLOB_SECTION)"; \
+	    echo ".globl $(BLOB_SYMBOL)helikon_hdb_start"; \
+	    echo "$(BLOB_SYMBOL)helikon_hdb_start:"; \
+	    echo ".incbin \"$(abspath $(FIXTURE))\""; \
+	    echo ".globl $(BLOB_SYMBOL)helikon_hdb_end"; \
+	    echo "$(BLOB_SYMBOL)helikon_hdb_end:"; \
+	} > $@
 
 $(BLOB_OBJ): $(BLOB_SRC)
 	$(CC) -c $< -o $@

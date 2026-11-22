@@ -46,23 +46,43 @@ jobs:
       - name: Run the suites
         run: ./tools/host-tests.sh clang --keep-going
 
+      # The runner prints only the tail of a red suite. The full log is where
+      # the first error is, so keep it when the job fails.
+      - name: Keep the suite logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-test-logs-portable
+          path: build/host-tests/
+          if-no-files-found: ignore
+
   sanitize:
     name: host suites (sanitizers)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install clang
+      - name: Install clang, Pillow and mutagen
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang
+          sudo apt-get install -y clang python3-pil python3-mutagen
 
       - name: Run the suites under ASan and UBSan
         run: ./tools/host-tests.sh clang --sanitize --keep-going
 
+      - name: Keep the suite logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-test-logs-sanitize
+          path: build/host-tests/
+          if-no-files-found: ignore
+
   macos:
     name: disk-image suites (macos)
-    runs-on: macos-14
+    # `macos-latest` rather than a pinned version: a cancelled-in-one-second job
+    # on `macos-14` is what this label replaced.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -73,6 +93,14 @@ jobs:
 
       - name: Run the suites
         run: ./tools/host-tests.sh clang --macos --keep-going
+
+      - name: Keep the suite logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-test-logs-macos
+          path: build/host-tests/
+          if-no-files-found: ignore
 
   build:
     name: firmware builds
