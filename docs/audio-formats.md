@@ -1791,3 +1791,74 @@ The firmware mounts no volume at boot (T-056 device half), so the Music hub stil
 plays its embedded blob: this object is waiting for the mount, the hub call site
 and a device run. Nothing here is device evidence, and the >128 GiB / Disk Mode
 line is unaffected.
+
+## 27. Mounting the volume at boot — T-126 host half (2026-11-22)
+
+Status: `implemented` as host code with a test over a real image. Nothing calls it
+at boot yet and there is no device run.
+
+### 27.1 Why this was the missing step
+
+The read-only block layer, the Apple Partition Map scan, the HFS+ read core, the
+VFS, the catalog over the VFS, the library index and the music source each
+existed. But at boot the firmware mounted *nothing* — every one of those was
+reached in a host test through a file handle, never the way the device would
+reach it. That gap is why the Music hub still plays an embedded blob.
+
+`firmware/storage/mount.c` is the step between the disk and everything above it:
+
+```text
+block device -> partition scan (APM, MBR, whole-disk HFS+)
+             -> HFS+ probe, read-only
+             -> VFS mount with one sector, one catalog and one extents scratch
+             -> /.helikon/music.hdb through the VFS -> HelikonDB reader
+```
+
+Three decisions worth stating:
+
+- **Try every partition, keep the first that mounts.** A 6G disk carries firmware
+  partitions that are not HFS+; picking by index works on one disk and fails on
+  the next. The scanner reports all of them as `0xaf`-family candidates, and
+  "it mounts" is the honest test. The last error is what the caller sees when
+  none does.
+- **Read-only, and the journal state is reported, not cleared.** A dirty journal
+  costs the ability to write; the mount is read-only, so it costs nothing else.
+  Clearing or ignoring the flag would be the silent bypass I-04 forbids.
+- **A catalog is optional.** `helikon_storage_mount` mounts the volume;
+  `helikon_storage_open_catalog` opens `/.helikon/music.hdb` separately, because a
+  volume without a catalog is still a volume to read files from. A second call
+  replaces the first instead of leaking the file handle.
+
+Memory is fixed: 4 KiB sector scratch, 8 KiB catalog and 8 KiB extents node
+buffers, plus the structures. No allocation.
+
+### 27.2 Evidence (host only, no device run)
+
+`tests/library` gained a fourth phase that presents the same disposable journaled
+image as a **read-only 512-byte block device** and goes up from there, which is
+the first test in the repository that reaches the music path through the
+firmware's own mount instead of a file handle:
+
+```text
+PASS storage mount: block device -> partition -> HFS+ -> catalog, playlist played
+```
+
+It checks: the image presents as a block device; the mount succeeds; the scan
+finds one partition (a whole-disk HFS+ volume) and it is the one that mounted; the
+mounted range is the whole image; the journal is clean; the catalog opens through
+the mount with six tracks and a known size; opening the catalog twice replaces the
+first; a music source on the mounted volume plays `/Playlists/first.m3u` with
+three resolved entries and non-silent PCM; and `helikon_storage_unmount` twice is
+safe.
+
+- `make -C tests/library macos` → four `PASS` lines; `macos-sanitize` the same,
+  ASan/UBSan clean.
+- `./tools/static-analysis.sh` → 79 units, 0 findings.
+- `make -C firmware BOARD=6g image` → 80,020 B unchanged: `storage/mount.c` is
+  compiled into the image and collected until a caller exists.
+
+### 27.3 Remaining
+
+The ATA glue that hands this function a live block device, the boot-time call
+site, a dirty-journal policy for the UI and a device run are T-056's device half.
+Nothing here claims the 6G mounts anything yet.

@@ -54,13 +54,14 @@ INCLUDES="-Ifirmware/lib -Ifirmware -Ifirmware/hfs -Ifirmware/block \
 -Ifirmware/boot -Ifirmware/diag -Ifirmware/db -Ifirmware/vfs -Ifirmware/player \
 -Ifirmware/ui -Ifirmware/codec -Ifirmware/codec/flac -Ifirmware/codec/mp3 \
 -Ifirmware/usb -Ifirmware/hal/6g -Ifirmware/board/6g -Ifirmware/library \
+-Ifirmware/storage \
 -Ifbootloader"
 
 # One line per tree: the globs to analyse.
 sources() {
     find firmware/hfs firmware/block firmware/boot firmware/diag firmware/db \
         firmware/vfs firmware/player firmware/ui firmware/usb firmware/codec \
-        firmware/library bootloader -name '*.c' \
+        firmware/library firmware/storage bootloader -name '*.c' \
         ! -path 'firmware/codec/libmad/*' \
         ! -path 'bootloader/hardware/*' 2>/dev/null | sort
 }

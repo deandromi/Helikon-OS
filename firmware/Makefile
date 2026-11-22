@@ -86,6 +86,10 @@ endif
 # Compiled always so it cannot rot; without a caller the linker drops it.
 LIBRARY_SRC := db/hdb.c library/library.c library/music_source.c
 VFS_SRC := vfs/vfs.c
+# Mounting the volume at boot: block device -> partition -> HFS+ -> VFS ->
+# catalog (T-126). Nothing calls it yet, so the linker drops it; the host test
+# `tests/library` drives this exact path over a real image.
+STORAGE_SRC := storage/mount.c
 # Helikon Disk Mode image (D-54): the whole disk as a writable USB LUN, for a
 # restore/format from a laptop. A separate image on purpose — the normal
 # firmware never exposes a writable LUN. `make -C firmware BOARD=6g DISKMODE=1`.
@@ -100,7 +104,7 @@ USB_SRC := usb/usb_descriptors.c usb/usb_control.c usb/usb_msc.c \
 
 ALL_SRC := $(BOOT_SRC) $(LIB_SRC) $(BOARD_SRC) $(HAL_SRC) $(BLOCK_SRC) \
            $(DIAG_SRC) $(HFS_ADAPTER_SRC) $(HFS_SRC) $(UI_SRC) \
-           $(PLAYER_SRC) $(LIBRARY_SRC) $(VFS_SRC) $(USB_SRC)
+           $(PLAYER_SRC) $(LIBRARY_SRC) $(VFS_SRC) $(STORAGE_SRC) $(USB_SRC)
 OBJS := $(patsubst %.c,$(BUILD)/%.o,$(patsubst %.S,$(BUILD)/%.o,$(ALL_SRC)))
 
 ifneq ($(HDB),)
