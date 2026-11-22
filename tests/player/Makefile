@@ -3,8 +3,9 @@
 
 CC ?= cc
 BASE_CFLAGS := -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow \
-               -Wundef -Wpointer-arith -I../../firmware/player \
-               -I../../firmware/lib -I../../firmware/hal/6g \
+               -Wundef -Wpointer-arith -DHELIKON_HOST_TEST \
+               -I../../firmware/player \
+               -idirafter ../../firmware/lib -I../../firmware/hal/6g \
                -I../../firmware/codec -I../../firmware/codec/flac \
                -I../../firmware/codec/mp3 -I../../firmware/codec/libmad
 CFLAGS ?= -O2 -g
@@ -16,11 +17,12 @@ include ../libmad.mk
 
 .PHONY: test sanitize clean
 
-test: test_wav test_player test_read_ahead test_queue
+test: test_wav test_player test_read_ahead test_queue test_playlist
 	./test_wav
 	./test_player
 	./test_read_ahead
 	./test_queue
+	./test_playlist
 
 # The media path links the codec registry (libmad included), so it runs under
 # the same sanitizers as the codec suite.
@@ -30,6 +32,11 @@ sanitize: clean
 test_wav: test_wav.c ../../firmware/player/wav.c ../../firmware/player/wav.h \
           ../../firmware/lib/mem.c
 	$(CC) $(CFLAGS) -o $@ test_wav.c ../../firmware/player/wav.c \
+	      ../../firmware/lib/mem.c
+
+test_playlist: test_playlist.c ../../firmware/player/playlist.c \
+               ../../firmware/player/playlist.h ../../firmware/lib/mem.c
+	$(CC) $(CFLAGS) -o $@ test_playlist.c ../../firmware/player/playlist.c \
 	      ../../firmware/lib/mem.c
 
 test_read_ahead: test_read_ahead.c ../../firmware/player/read_ahead.c \
@@ -64,4 +71,5 @@ test_player: test_player.c ../../firmware/player/player.c \
 	      ../../firmware/lib/mem.c $(LIBMAD_OBJ)
 
 clean:
-	rm -rf test_wav test_player test_read_ahead test_queue build_mad
+	rm -rf test_wav test_player test_read_ahead test_queue test_playlist \
+	  build_mad *.dSYM

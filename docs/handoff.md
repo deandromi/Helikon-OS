@@ -12,6 +12,50 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (playlist import: T-093's first slice)
+
+## What happened
+
+- **`firmware/player/playlist.c/.h`** — M3U, M3U8 and PLS import as a *streaming*
+  parser: `helikon_playlist_open(parser, text, length, base, format)` and
+  `helikon_playlist_next(parser, entry)`, one entry at a time. A 512-entry array
+  of paths does not belong on a 6G.
+- **The rules are in the header**: LF/CRLF, BOM, trimmed lines, `#EXTINF`
+  title+duration for the next path (fractional truncated, `-1` unknown), other
+  `#` lines ignored, UTF-8 (not percent-encoded) paths resolved against the
+  playlist's folder, `.` dropped and `..` popped, absolute entries kept, escapes
+  above the root / control characters / invalid UTF-8 refused **and counted**,
+  over-long paths and over-capacity files refused rather than truncated, a NUL in
+  the buffer refused at open, PLS read by numeric index so `TitleN` before or
+  after `FileN` both work.
+- **Nine host test groups** in `tests/player/test_playlist.c`, including the
+  four-bad-entries case that must still deliver the good one after them.
+- **A `playlist` fuzz harness** with eight seeds; its invariants are properties
+  of the output (absolute, terminated, no control characters, never over the cap,
+  `next` never fails after `open`).
+- **A test-suite bug found on the way**: `tests/player` compiled
+  `firmware/lib/mem.c` without `-DHELIKON_HOST_TEST`, so `memcpy` resolved to the
+  freestanding shim and clang's idiom recognition made `helikon_memcpy` call
+  itself — a stack overflow at `-O2` that ASan hid. The suite now uses
+  `-DHELIKON_HOST_TEST` and `-idirafter` for `firmware/lib`, like `tests/codec`.
+
+## Evidence
+
+- `make -C tests/player test` → `PASS playlist import`, plus the four existing
+  binaries; `make -C tests/player sanitize` green.
+- `./tools/fuzz.sh --replay` → 6 harnesses clean (8 playlist seeds).
+- `./tools/static-analysis.sh` → 75 units, 0 findings (the new file included).
+- `make -C firmware BOARD=6g image` unchanged at 80,020 B; the audio+UI image
+  builds at 768,200 B with `playlist.c` compiled, so it is warning-clean on the
+  target too.
+
+## Open / next
+
+- Nothing in the firmware calls the importer yet: the caller needs VFS path
+  resolution to a library id before the queue can be filled from a playlist.
+- Cuesheets (`FILE`/`TRACK`/`INDEX` with frame offsets) are a different shape and
+  are not implemented; T-093 also wants export, bookmarks and resume state.
+
 # Handoff — 2026-11-22 (the writer's half: our volume, judged by macOS)
 
 ## What happened

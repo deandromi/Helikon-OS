@@ -60,6 +60,7 @@ tools/desktop/dist/
 tests/ui/test_launcher
 tests/ui/*.dSYM/
 tests/player/test_wav
+tests/player/test_playlist
 tests/player/test_player
 tests/usb/test_usb
 tests/usb/test_usb_sanitize

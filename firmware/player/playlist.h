@@ -1,0 +1,98 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
+/*
+ * Playlist text import: M3U, M3U8 and PLS.
+ *
+ * A playlist file is a list of paths, so the only thing this module has to be
+ * good at is text. It is a *streaming* parser: `next()` yields one entry at a
+ * time from a buffer the caller already owns, because 512 entries times a path
+ * is not something a 6G should hold in RAM at once. The caller resolves an entry
+ * to a library id (or refuses it) and moves on.
+ *
+ * The rules, in one place, because every one of them is a bug otherwise:
+ *
+ *   - Both LF and CRLF end a line; a UTF-8 BOM at the start is skipped.
+ *   - Leading and trailing spaces and tabs are trimmed. A path with a leading
+ *     space is not a thing HFS+ users have; a trailing one is a common artifact
+ *     of hand-edited files.
+ *   - `#EXTINF:<seconds>,<title>` carries the title and duration for the next
+ *     path. Every other `#` line is a comment and is ignored, including
+ *     `#EXTM3U`.
+ *   - `#EXTINF` durations may be fractional; they are truncated to seconds.
+ *   - Paths are UTF-8, not percent-encoded (M3U8 in practice is not a URI
+ *     list), and are resolved against the playlist's own folder. `.` components
+ *     are dropped and `..` pops one; an entry that escapes the root is refused.
+ *   - A path that is not valid UTF-8 or contains a control character is refused.
+ *   - An entry longer than `HELIKON_PLAYLIST_PATH_MAX`, or a file with more than
+ *     `HELIKON_PLAYLIST_MAX_ENTRIES` entries, is refused rather than truncated.
+ *     Refusals are counted in `skipped` so the UI can say "3 entries skipped"
+ *     instead of silently dropping them.
+ *   - PLS is read by index: `File1=`, `Title1=`, `Length1=`, and so on, in
+ *     numeric order rather than file order, because writers do not agree on
+ *     whether Title comes before or after its File line.
+ *
+ * Cuesheets are a different animal (tracks inside one file, with frame offsets)
+ * and are not handled here yet.
+ */
+#ifndef HELIKON_PLAYER_PLAYLIST_H
+#define HELIKON_PLAYER_PLAYLIST_H
+
+#include <stddef.h>
+#include <stdint.h>
+
+/* A path HFS+ can hold is longer, but an entry this long is not a playlist. */
+#define HELIKON_PLAYLIST_PATH_MAX 512u
+#define HELIKON_PLAYLIST_TITLE_MAX 128u
+#define HELIKON_PLAYLIST_BASE_MAX 256u
+#define HELIKON_PLAYLIST_MAX_ENTRIES 512u
+
+enum helikon_playlist_format {
+    HELIKON_PLAYLIST_AUTO = 0,
+    HELIKON_PLAYLIST_M3U = 1,
+    HELIKON_PLAYLIST_PLS = 2
+};
+
+struct helikon_playlist_entry {
+    char path[HELIKON_PLAYLIST_PATH_MAX];
+    char title[HELIKON_PLAYLIST_TITLE_MAX];
+    uint32_t duration_s;
+    uint8_t has_title;
+    uint8_t has_duration;
+};
+
+struct helikon_playlist_parser {
+    const char *text;
+    size_t length;
+    size_t offset;             /* next unread byte, for M3U */
+    char base[HELIKON_PLAYLIST_BASE_MAX];
+    char pending_title[HELIKON_PLAYLIST_TITLE_MAX];
+    uint32_t pending_duration;
+    uint32_t pls_index;        /* next PLS index to look for */
+    uint32_t pls_count;        /* highest FileN seen at open */
+    uint32_t emitted;
+    uint32_t skipped;
+    uint8_t format;
+    uint8_t pending_kind;      /* 0 none, 1 title, 2 duration, 3 both */
+};
+
+/*
+ * Prepare a parser over `length` bytes of `text`. `base` is the playlist's own
+ * folder as an absolute path ("/" or "/Music/Playlists"); a NULL or empty base
+ * means the root. `format` may be AUTO to detect from the first line.
+ *
+ * Refuses a buffer that contains a NUL byte: a text playlist with one is corrupt,
+ * and pretending the rest of the file does not exist would hide it.
+ */
+int helikon_playlist_open(struct helikon_playlist_parser *parser,
+                          const char *text, size_t length, const char *base,
+                          uint8_t format);
+
+/*
+ * Next entry: 1 for an entry, 0 at the end, or a negative HELIKON_ERR_*. Entries
+ * that are refused are counted and skipped, so a malformed line in the middle of
+ * a list does not lose the rest of it; a file that is not a playlist at all is
+ * refused at `open`.
+ */
+int helikon_playlist_next(struct helikon_playlist_parser *parser,
+                          struct helikon_playlist_entry *entry);
+
+#endif

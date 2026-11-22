@@ -90,7 +90,7 @@ guard is the backstop, not the contract.
 
 ## 3. Fuzzing and sanitizers
 
-`tools/fuzz.sh` builds and runs the libFuzzer harnesses. Five exist, each with
+`tools/fuzz.sh` builds and runs the libFuzzer harnesses. Six exist, each with
 a stated invariant, because a fuzz target that only proves "does not crash" is
 worth much less than one that knows what would be wrong:
 
@@ -101,6 +101,7 @@ worth much less than one that knows what would be wrong:
 | `hdb` | `firmware/db/hdb.c` | a database whose header claims more bytes than the file holds is refused, and every offset the reader reports is inside the file it was given |
 | `manifest` | `bootloader/manifest.c`, `bootstate.c` | a short or corrupt page is refused and leaves the output untouched; an accepted image size is inside DRAM |
 | `journal` | `firmware/hfs/hfs_journal.c` | a journal whose checksum does not match is never reported clean (I-04); a hostile but checksum-consistent journal may fail to replay but never writes outside the device |
+| `playlist` | `firmware/player/playlist.c` | every entry path is absolute, terminated and free of control characters; `open` refuses a buffer with a NUL instead of stopping at it; the entry count never exceeds the cap and `next` never fails after `open` succeeded |
 
 ```sh
 ./tools/fuzz.sh                    # every harness, 60 seconds each
