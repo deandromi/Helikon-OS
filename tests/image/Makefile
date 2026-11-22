@@ -26,7 +26,7 @@ HEADERS = $(HFS)/hfs_catalog.h $(HFS)/hfs_catalog_compare.h \
 .PHONY: all test f2-test crash-test format-test write-diag-test outer-diag-test clean
 
 all: hfs_image_test hfs_crash_test hfs_ops_test f2_host write_diag_host \
-     outer_diag_host loader_host hfs-check
+     outer_diag_host loader_host hfs-check unicode_order_host
 
 hfs_image_test: hfs_image_test.c $(COMMON) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) hfs_image_test.c $(COMMON) $(LDFLAGS) -o $@
@@ -79,6 +79,12 @@ test: hfs_image_test f2_host
 f2-test: f2_host
 	./run-f2-macos.sh
 
+# Differential tool: the catalog order macOS produced, and a read of what it
+# wrote. `unicode-order-test` drives it from the macOS side.
+unicode_order_host: unicode_order_host.c $(HFS)/hfs_file.c $(COMMON) $(HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) unicode_order_host.c $(HFS)/hfs_file.c \
+	  $(COMMON) $(LDFLAGS) -o $@
+
 # Host CLI over the read-only structural check: `./hfs-check image.dmg`.
 hfs-check: ../../tools/hfs-check.c ../../firmware/hfs/hfs_check.c \
            ../../firmware/hfs/hfs_catalog_compare.c \
@@ -117,6 +123,10 @@ outer-diag-test: outer_diag_host
 loader-test: loader_host
 	./run-loader-macos.sh
 
+# The ordering oracle: macOS builds the catalog, so its order is Apple's answer.
+unicode-order-test: unicode_order_host
+	./run-unicode-order-macos.sh
+
 clean:
 	rm -rf hfs_image_test hfs_crash_test hfs_ops_test f2_host write_diag_host \
-	  outer_diag_host loader_host hfs-check *.dSYM
+	  outer_diag_host loader_host hfs-check unicode_order_host *.dSYM

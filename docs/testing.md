@@ -32,7 +32,7 @@ Helikon-OS validation.
 | Fuzzing | Malformed B-trees, extents, names, journal records do not crash/escape bounds | Host | `planned` | Reader, writer, journal |
 | Model-based B-tree | Insert/update/delete, split/merge, key order, free-node map | Host | `planned` | Writer |
 | Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `in progress` — the byte-range block layer has a 4000-range property test; writer/journal properties `planned` | Writer/journal |
-| Differential vs macOS | Same tree/names/metadata/`fsck_hfs` result on both sides | Host + macOS | `planned` | Writer |
+| Differential vs macOS | Same tree/names/metadata/`fsck_hfs` result on both sides; catalog order matches Apple's | Host + macOS | `in progress` — ordering and read differential run; writer-side tree comparisons partly covered | Writer |
 | Bootloader diagnostics | Read-only volume/catalog/file report and splash | Host | `in progress` — 8 tests | Boot screen |
 | Device | Boot, mount, playback, write, USB, sleep, recovery | 6G (then 7G/ports) | `not run` | Any hardware claim |
 | Power-loss | Every metadata operation at every journal boundary | Device/rig | `not run` | Write release |
@@ -691,6 +691,50 @@ image `1d6d4c92…` (76,080 bytes) is host-verified, but the write gate is
 unfinished and unconfirmed due to a currently unfixable bug. It is **not** part
 of Alpha 2.0.0 and has no confirmed 6G result.
 [`f2-bootstate-test.md`](f2-bootstate-test.md) is its runbook.
+
+### 5.8 The macOS differential: catalog order and a read of what macOS wrote
+
+A reimplementation of Apple's `FastUnicodeCompare` cannot be proved correct by a
+unit test: the expectation would be our own understanding of it again. What can
+be checked is the effect. HFS+ stores a directory's entries in a B-tree ordered
+by that comparator, so **macOS's own catalog is the oracle** — if our comparator
+re-sorts the names macOS stored and reproduces Apple's order, the two agree on
+every pair in the corpus.
+
+`make -C tests/image unicode-order-test` (`run-unicode-order-macos.sh`) does that
+and the read half against one disposable 24 MiB journaled image:
+
+1. macOS creates 47 names under `/Order` in a shuffled order — digits, case
+   pairs, punctuation, precomposed and decomposed Latin, canonically reordered
+   combining marks, Greek, Cyrillic, Hebrew, Arabic, Devanagari, CJK, Hangul,
+   kana, emoji, fullwidth forms, and both sides of the 255-unit name limit.
+   Shuffled, because otherwise the creation order and the comparator order would
+   be the same by accident.
+2. macOS also writes a small tree under `/Tree`: a zero-length file, one byte, a
+   whole block, a partial block, a 70,000-byte file that needs many blocks, and
+   two levels of folders.
+3. `unicode_order_host list IMAGE /Order` reads the catalog back through our
+   iterator — that is Apple's order. `unicode_order_host sort` re-sorts the same
+   names with our comparator. The two files must be identical.
+4. `unicode_order_host canon` normalizes the requested names and compares the set
+   with what macOS stored, which is the normalization half of the same question.
+5. `unicode_order_host tree IMAGE /Tree` prints `path<TAB>kind<TAB>size` for
+   every entry; the macOS side prints the same from `os.walk`. Names, kinds,
+   sizes and nesting must match.
+6. `unicode_order_host read IMAGE /Tree/sub/nested.bin` hashes to the SHA-256
+   macOS wrote, which walks the extents path over a real fork.
+7. `fsck_hfs -fn` on the image, no repair, as everywhere else in this directory.
+
+`unicode_order_host` is host tooling in `tests/image/`. It opens the image
+read-only, prints names and records on stdout and diagnostics on stderr, so
+nothing but the answer can be compared — a warning that leaked into stdout would
+turn a real difference into a pass. The corpus, the image and the mount live in a
+temporary directory; the script never accepts an existing image or a device.
+
+The first run of the ordering half was made to fail on purpose: inverting the
+comparison in `hfs_fast_unicode_compare` produced a red test with the mismatched
+pairs printed, so the differential is known to be able to fail rather than
+observed to pass.
 
 ## 6. Device tests
 
