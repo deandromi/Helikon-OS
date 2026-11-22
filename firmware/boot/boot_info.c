@@ -76,7 +76,7 @@ int helikon_boot_info_parse(uintptr_t address,
         return HELIKON_ERR_BOOT_INFO_INVALID;
 
     uint64_t image_end = (uint64_t)image_load + (uint64_t)image_size;
-    if (image_end > (uint64_t)page_base)
+    if (image_end > (uint64_t)expect->image_ceiling)
         return HELIKON_ERR_BOOT_INFO_INVALID;
 
     /* The first 512 bytes are defined for version 1; reserved is zero. */

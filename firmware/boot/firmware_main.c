@@ -1307,7 +1307,10 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
         .page_size = board->boot_info_size,
         .board_id = board->id,
         .image_load = board->image_base,
-        .image_size = (uint32_t)(__image_end - __image_start)
+        .image_size = (uint32_t)(__image_end - __image_start),
+        /* The loader writes the page above the image, so the page address is
+         * the ceiling the image must stay under. */
+        .image_ceiling = (uintptr_t)board->boot_info_base
     };
     ctx->boot_info_status = helikon_boot_info_parse(boot_info_pointer, &expect,
                                                     &ctx->boot_info);

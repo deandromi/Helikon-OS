@@ -57,11 +57,22 @@ struct helikon_boot_info_page {
 
 /* Facts the running image expects the loader to have described. */
 struct helikon_boot_info_expect {
-    uintptr_t page_base;
-    uint32_t page_size;
+    uintptr_t page_base;   /* address the page was found at */
+    uint32_t page_size;    /* bytes readable from page_base */
     uint32_t board_id;
     uint32_t image_load;
     uint32_t image_size;
+    /*
+     * The image must end at or below this address: the loader writes the page
+     * after the image it just loaded, so a page that claims an image reaching
+     * past it describes a boot that cannot have happened. On the 6G the loader
+     * passes the page address itself. A host test has no DRAM map and its page
+     * sits wherever the linker or the stack put it, so it passes the device
+     * ceiling it is modelling instead — comparing a synthetic image against a
+     * host address made this check pass on macOS and fail on anything that
+     * links a static array below 0x08001234.
+     */
+    uintptr_t image_ceiling;
 };
 
 /* Verified, non-pointer view for the rest of the firmware. */
