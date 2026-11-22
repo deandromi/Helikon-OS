@@ -12,6 +12,40 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (mounting the volume: T-126)
+
+## What happened
+
+- **`firmware/storage/mount.c/.h`** — the step the firmware never had:
+  `helikon_storage_mount` scans the partition map (APM, MBR, whole-disk HFS+),
+  tries each partition as HFS+ and keeps the first that mounts, then mounts it
+  read-only through the VFS with fixed 4 KiB sector, 8 KiB catalog and 8 KiB
+  extents scratches. `helikon_storage_open_catalog` opens `/.helikon/music.hdb`
+  through the mounted volume; a volume without a catalog still mounts.
+- **Decisions**: "it mounts" beats "it is partition N" (a 6G disk carries non-HFS+
+  firmware partitions); a dirty journal is *reported*, never cleared (I-04); the
+  catalog is a separate call; a sector bigger than the fixed scratch is `BUFFER`.
+- **`tests/library` fourth phase** presents the image as a read-only 512-byte
+  block device and goes up through this exact path to playback.
+
+## Evidence
+
+- `make -C tests/library macos` → `PASS storage mount: block device -> partition
+  -> HFS+ -> catalog, playlist played` plus the three earlier `PASS` lines;
+  `macos-sanitize` green.
+- `./tools/static-analysis.sh` → 79 units, 0 findings.
+- `make -C firmware BOARD=6g image` → 80,020 B unchanged (`--gc-sections` drops
+  `storage/mount.c`: nothing calls it yet).
+
+## Open / next
+
+- **ATA glue + boot-time call site** are all that stand between this and a
+  firmware that mounts its own disk: `helikon_block_device` over the ATA read
+  path, then `helikon_storage_mount` before the UI starts. That is T-056's device
+  half and the first thing that needs the hardware.
+- The Music hub then calls `helikon_music_source_*` on the mount.
+- Dirty-journal policy for the UI (read-only badge) is undecided.
+
 # Handoff — 2026-11-22 (the music path in one object: music_source, T-125)
 
 ## What happened

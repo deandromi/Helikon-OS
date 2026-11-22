@@ -14,6 +14,7 @@ CFLAGS := -O2 -g -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow \
           -Wundef -Wpointer-arith -DHELIKON_HOST_TEST \
           -I../../firmware/db -I../../firmware/vfs -I../../firmware/hfs \
           -I../../firmware/player -I../../firmware/library \
+          -I../../firmware/storage -I../../firmware/block \
           -I../../firmware/codec \
           -I../../firmware/codec/flac -I../../firmware/codec/mp3 \
           -I../../firmware/codec/libmad -I../../firmware/hal/6g \
@@ -39,6 +40,8 @@ LIB := ../../firmware/lib
 PLAYER := ../../firmware/player
 CODEC := ../../firmware/codec
 LIBRARY := ../../firmware/library
+STORAGE := ../../firmware/storage
+BLOCK := ../../firmware/block
 
 SOURCES := test_library.c \
            $(VFS)/vfs.c \
@@ -50,6 +53,8 @@ SOURCES := test_library.c \
            $(PLAYER)/player.c $(PLAYER)/wav.c $(PLAYER)/vfs_media.c \
            $(PLAYER)/read_ahead.c $(PLAYER)/playlist.c $(PLAYER)/queue.c \
            $(LIBRARY)/library.c $(LIBRARY)/music_source.c \
+           $(STORAGE)/mount.c $(BLOCK)/block.c $(BLOCK)/bounce.c \
+           $(BLOCK)/partition.c $(HFS)/hfs_block_adapter.c \
            $(CODEC)/codec.c $(CODEC)/flac/flac_codec.c \
            $(CODEC)/flac/flac_decoder.c $(CODEC)/mp3/mp3_codec.c \
            $(CODEC)/tag/id3v2.c $(CODEC)/tag/vorbis.c \

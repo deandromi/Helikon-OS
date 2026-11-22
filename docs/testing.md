@@ -604,7 +604,11 @@ third phase drives `firmware/library/music_source.c` — the object that owns
 volume + catalog + index + queue + player — from the same playlist through
 `next`, `previous`, repeat-one, repeat-all, the end of the queue, a stale
 playlist, a folder, a missing path, a too-small buffer and a track id past the
-catalog (`audio-formats.md` §26).
+catalog (`audio-formats.md` §26). A fourth phase goes in at the bottom: it
+presents the same image as a read-only 512-byte block device and mounts it
+through `firmware/storage/mount.c` — partition scan, HFS+ probe, VFS, catalog —
+then plays the playlist over that mount, which is the only test that reaches the
+music path the way the device will (`audio-formats.md` §27).
 
 Every host suite that links `firmware/codec/codec.c` also links the vendored
 libmad objects, because the codec registry references the MP3 descriptor even

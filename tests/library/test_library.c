@@ -19,6 +19,7 @@
 #include "audio.h"
 #include "helikon_error.h"
 #include "library.h"
+#include "mount.h"
 #include "music_source.h"
 #include "player.h"
 #include "read_ahead.h"
@@ -607,6 +608,117 @@ static void test_music_source(struct vfs *vfs, const struct hdb *db)
            failures == 0u ? "PASS" : "FAIL");
 }
 
+/* The image as the firmware sees it: a read-only block device of 512-byte sectors. */
+#define TEST_SECTOR 512u
+
+static int block_read(void *context, uint64_t lba, uint32_t count,
+                      void *buffer, uint32_t timeout_ms)
+{
+    (void)context;
+    (void)timeout_ms;
+    uint64_t offset = lba * TEST_SECTOR;
+    size_t length = (size_t)count * TEST_SECTOR;
+    if (offset > (uint64_t)image_size ||
+        length > (size_t)((uint64_t)image_size - offset))
+        return HELIKON_ERR_IO;
+    if (fseek(image, (long)offset, SEEK_SET) != 0)
+        return HELIKON_ERR_IO;
+    if (fread(buffer, 1u, length, image) != length)
+        return HELIKON_ERR_IO;
+    return HELIKON_OK;
+}
+
+static int block_write(void *context, uint64_t lba, uint32_t count,
+                       const void *buffer, uint32_t timeout_ms)
+{
+    (void)context;
+    (void)lba;
+    (void)count;
+    (void)buffer;
+    (void)timeout_ms;
+    return HELIKON_ERR_READ_ONLY;
+}
+
+static int block_flush(void *context, uint32_t timeout_ms)
+{
+    (void)context;
+    (void)timeout_ms;
+    return HELIKON_ERR_READ_ONLY;
+}
+
+static int block_power(void *context, int on, uint32_t timeout_ms)
+{
+    (void)context;
+    (void)on;
+    (void)timeout_ms;
+    return HELIKON_OK;
+}
+
+static const struct helikon_block_ops block_ops = {
+    block_read, block_write, block_flush, block_power,
+};
+
+/*
+ * The firmware's own way in: block device -> partition scan -> HFS+ -> VFS ->
+ * `/.helikon/music.hdb`. Everything above was reached through a file handle in
+ * this test until now; this phase reaches it the way the device will.
+ */
+static void test_storage_mount(void)
+{
+    static struct helikon_storage storage;
+    struct helikon_block_device device;
+    struct helikon_block_info info;
+    memset(&info, 0, sizeof(info));
+    info.sector_size = TEST_SECTOR;
+    info.sector_count = (uint64_t)image_size / TEST_SECTOR;
+    info.flags = HELIKON_BLOCK_FLAG_READ_ONLY;
+
+    check(helikon_block_init(&device, &block_ops, NULL, &info) == HELIKON_OK,
+          "the image presents as a block device");
+    check(helikon_storage_mount(&storage, &device, 1000u) == HELIKON_OK,
+          "the image mounts through block -> partition -> HFS+");
+    check(storage.partition_count == 1u,
+          "a whole-disk HFS+ image reports one partition");
+    check(storage.mounted_index == 0u, "and it is the one that mounted");
+    check(storage.base == 0u && storage.length == (uint64_t)image_size,
+          "the mounted range is the whole image");
+    check(storage.vfs.journal_dirty == 0u, "the journal is clean");
+
+    check(helikon_storage_open_catalog(&storage) == HELIKON_OK,
+          "the catalog opens through the mount");
+    check(storage.db.track_count == 6u, "six tracks through the mount");
+    check(storage.catalog_size > 128u, "and the catalog size is known");
+    check(helikon_storage_open_catalog(&storage) == HELIKON_OK,
+          "opening the catalog twice replaces the first");
+
+    /* The whole chain, from the block device to audio frames. */
+    struct helikon_pmu pmu;
+    struct helikon_clock clock;
+    memset(&pmu, 0, sizeof(pmu));
+    memset(&clock, 0, sizeof(clock));
+    static struct helikon_music_source music;
+    check(helikon_music_source_open(&music, &storage.vfs, &storage.db, &pmu,
+                                    &clock, 2000u) == HELIKON_OK,
+          "a music source opens on the mounted volume");
+    struct helikon_playlist_queue_result result;
+    check(helikon_music_source_play_playlist(&music, "/Playlists/first.m3u",
+                                            &result) == HELIKON_OK,
+          "a playlist plays through the mount");
+    check(result.added == 3u, "with three resolved entries");
+    check(sound_energy(2048u) != 0u,
+          "and audio reaches the ring through block -> partition -> HFS+");
+    helikon_music_source_close(&music);
+
+    helikon_storage_unmount(&storage);
+    helikon_storage_unmount(&storage);
+    check(storage.mounted == 0u && storage.catalog_open == 0u,
+          "unmount is idempotent");
+
+    printf("%s storage mount: block device -> partition -> HFS+ -> catalog, "
+           "playlist played\n",
+           failures == 0u ? "PASS" : "FAIL");
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2) {
@@ -712,6 +824,9 @@ int main(int argc, char **argv)
     /* The same path through the object the hub will own, including next and
      * previous over the queue. */
     test_music_source(&vfs, &db);
+
+    /* And the firmware's own way in, from the block device up. */
+    test_storage_mount();
 
     struct hdb_vfs_io missing;
     check(hdb_vfs_open(&missing, &vfs, "/.helikon/missing.hdb") ==
