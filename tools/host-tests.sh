@@ -24,7 +24,10 @@
 #              an HFS+ image. The `ui` suite needs Pillow to write its PNGs.
 #   --macos    tests/image: the disposable disk images, hdiutil, fsck_hfs and
 #              the macOS mount. It creates its own images and never touches a
-#              device or a library.
+#              device or a library. `HOST_TESTS_MACOS_SKIP=format-test` leaves a
+#              driver out, for a host whose disk cannot hold the 140 GiB sparse
+#              image `format-test` formats — a hosted runner, typically; the
+#              skip is printed, never silent.
 #
 # `--sanitize` uses the suites' own `sanitize` targets (AddressSanitizer plus
 # UndefinedBehaviorSanitizer) and skips the ones that do not offer them. It needs
@@ -152,9 +155,16 @@ if [ "$macos" = yes ]; then
     if [ "$(uname -s)" = Darwin ]; then
         mode=macos
         mkdir -p "$LOGS/$mode"
+        targets=""
+        for target in $MACOS_TARGETS; do
+            case " ${HOST_TESTS_MACOS_SKIP:-} " in
+                *" $target "*) printf 'host-tests: skipping %s\n' "$target" ;;
+                *) targets="$targets $target" ;;
+            esac
+        done
         printf 'host-tests: disk-image suites (macOS)\n'
         # shellcheck disable=SC2086
-        if ! run_suite image "$MACOS_TARGETS" "" image; then
+        if ! run_suite image "$targets" "" image; then
             status=1
         fi
     else
