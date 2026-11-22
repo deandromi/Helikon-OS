@@ -623,12 +623,15 @@ int main(int argc, char **argv)
             close_image(&image);
             return 1;
         }
+        /* Print the description before the checks, so a failing step names
+         * itself. The old order only printed "ok", which meant the operation
+         * that broke the volume was the one line missing from the log. */
+        if (getenv("HFS_OPS_VERBOSE") != NULL)
+            fprintf(stderr, "op %lu: %s\n", step, op_description);
         if (verify_model(&image, &model) != 0)
             goto failed;
         if (check_blocks(&image, &model) != 0)
             goto failed;
-        if (getenv("HFS_OPS_VERBOSE") != NULL)
-            fprintf(stderr, "op %lu ok: %s\n", step, op_description);
     }
 
     uint32_t live = live_count(&model);

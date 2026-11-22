@@ -12,6 +12,52 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (the soak's lost block: an extent that grew without its count)
+
+## What happened
+
+- **The open writer bug is closed.** The soak failed at seed 3, operation 157:
+  an append of three blocks to a fork whose inline extents were nearly full left
+  the fork claiming 12 blocks while its extents covered 11, with no overflow
+  record at logical 11. The lost block was a hole no reader could reach and a
+  block the bitmap kept allocated.
+- **Cause:** `append_tail_extent()` had a fast path that extends the last extent
+  when the next block follows it, and that path bumped `count` but neither
+  `inline_blocks` nor `record_blocks`. The inline count is what the *next*
+  overflow record is keyed by, so the record was written one logical block early
+  whenever an append extended an extent it had just created.
+- **Fix:** the path moves the matching counter. Nine lines, including the comment
+  that says why the counter matters.
+- **Regression:** `test_append_extends_new_extent` in
+  `tests/hfsplus/test_catalog_write.c` arranges the bitmap so three appended
+  blocks are 66, 67 and 69 — first starts an extent, second extends it, third
+  needs the record — then reads all twelve blocks back. It fails without the fix
+  and passes with it.
+- **The soak is green:** `run-ops-macos.sh 8 300`, 8 seeds, structural check and
+  `fsck_hfs` clean after each. The default run is now 4 seeds x 200 operations.
+- **The harness prints better:** with `HFS_OPS_VERBOSE=1` it now prints the
+  operation description *before* the checks, so a failing step names itself. The
+  old order printed only "ok" and the operation that broke the volume was the one
+  line missing from the log — which is why this looked like "a create corrupted an
+  unrelated file" for a while.
+
+## Evidence
+
+```
+./run-ops-macos.sh 8 300          PASS: 8 seeds x 300 operations, hfs-check clean,
+                                  fsck_hfs clean (10 s)
+make -C tests/hfsplus test        19 cases, including the new one
+without the fix                   FAIL append extends the new extent
+```
+
+## Open / next
+
+- No device run; this is host evidence on disposable 16 MiB images.
+- Next: the fuzzers (ID3v2, Vorbis, HDB, manifest/bootstate, journal replay),
+  the macOS differential read, the Unicode order differential.
+
+---
+
 # Handoff — 2026-11-22 (one test command, CI on every push, a preview every night)
 
 ## What happened
@@ -79,8 +125,12 @@ PR #89 checks                                  portable pass, sanitizers pass,
 - **The macOS job takes ~8 minutes**, mostly `format-test` (a 150 GiB sparse
   image and `fsck_hfs`) and its queue wait. Fine for now; worth watching.
 - **Firmware image is 80,020 bytes** after the expect-struct change (was 80,008).
-- **Next in the queue:** the soak's open writer bug (seed 3, op 157, `n22`), then
-  the fuzzers, the macOS differential read and the Unicode order differential.
+- **The soak's open writer bug is fixed** (see the next entry): `append_tail_extent`
+  did not carry the block count forward when it extended an extent, so an
+  overflow record could be keyed one logical block early. `run-ops-macos.sh 8
+  300` is green and `test_append_extends_new_extent` pins it.
+- **Next in the queue:** the fuzzers, the macOS differential read and the Unicode
+  order differential.
 
 ---
 

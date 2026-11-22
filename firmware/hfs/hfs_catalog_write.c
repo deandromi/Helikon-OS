@@ -674,8 +674,17 @@ static int append_tail_extent(struct hfs_volume *volume, struct hfs_txn *tx,
         last = &tail->inline_extents[tail->inline_count - 1u];
     if (last != NULL && last->start + last->count == start_block) {
         ++last->count;
-        if (tail->have_record)
+        /* The block count is what the key of the next overflow record is
+         * derived from, so extending an extent has to move it too. Leaving it
+         * behind wrote the next record under the wrong start block: the fork
+         * then claimed a block no record covered, which is a lost block and,
+         * for the file, a hole nothing can read. */
+        if (tail->have_record) {
+            ++tail->record_blocks;
             tail->record_dirty = 1;
+        } else {
+            ++tail->inline_blocks;
+        }
         return HFS_OK;
     }
 

@@ -302,8 +302,8 @@ loss rather than an error. `tests/image/run-ops-macos.sh` adds the outside
 oracles: `hfs-check` over the whole volume and `fsck_hfs -fn`, after each seed.
 
 ```sh
-make -C tests/image ops-test          # 2 seeds x 120 operations, ~10 s
-tests/image/run-ops-macos.sh 8 300    # the soak
+make -C tests/image ops-test          # 4 seeds x 200 operations, ~10 s
+tests/image/run-ops-macos.sh 8 300    # the soak, green on 2026-11-22
 ```
 
 The seed and operation index are the whole reproduction: every random draw comes
@@ -311,8 +311,7 @@ from one LCG, so a failure prints the two numbers that rerun it, and
 `hfs_ops_test IMAGE dump NAME` prints a file's inline extents and overflow
 records so the state can be read instead of guessed at.
 
-It found three real bugs on its first runs, two of them now fixed with unit
-regressions:
+It found three real bugs, all three now fixed with unit regressions:
 
 1. **Shrinking a file inside its last block failed.** `hfs_catalog_truncate_to`
    asked the fork writer to zero the whole tail of the last kept block, which
@@ -324,11 +323,16 @@ regressions:
    the same transaction, the second delete walked a root of zero into the header
    node and returned `FORMAT`. `hfs_btree_delete` now reads the staged header and
    answers `NOT_FOUND` for a tree the transaction already emptied.
-3. **Open:** a longer soak (`run-ops-macos.sh 8 300`) still reproduces a fork
-   whose block count outruns its extent records — seed 3, operation 157, file
-   `n22` claims 12 blocks with 11 inline and no overflow record at logical 11.
-   The dump and the operation log (`HFS_OPS_VERBOSE=1`) are in the log entry; the
-   default two-seed run stays green so the target is usable meanwhile.
+3. **Appending three blocks in one call lost the third.** A fork with seven
+   inline extents (nine blocks) grew by three blocks at 219, 220 and X: the
+   first started a new extent, the second extended it, and the third had to go
+   into an overflow record keyed by the fork's covered block count.
+   `append_tail_extent` extended the extent without moving that count, so the
+   record was written one logical block early — the fork claimed twelve blocks,
+   eleven were covered, and the twelfth was a hole no reader could reach and a
+   block the bitmap kept allocated. Found at seed 3, operation 157, file `n22`;
+   `test_append_extends_new_extent` reproduces exactly that allocation order and
+   fails without the fix. The soak `run-ops-macos.sh 8 300` is green.
 
 ### 5.4 Firmware-loader host test
 

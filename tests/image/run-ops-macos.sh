@@ -23,11 +23,11 @@ if [ "$(uname -s)" != Darwin ]; then
 fi
 
 HERE=$(cd "$(dirname "$0")" && pwd)
-# Two seeds by default so the target stays quick; the soak the harness was
-# written for is `./run-ops-macos.sh 8 300`, which today is not green — see
-# docs/testing.md §5.3.4 for the open finding it reproduces.
-SEEDS=${1:-2}
-OPS=${2:-120}
+# Four seeds by default so the target is quick but not trivial; the soak is
+# `./run-ops-macos.sh 8 300`, green since the append-tail fix and what CI's
+# macOS job runs. See docs/testing.md §5.3.4.
+SEEDS=${1:-4}
+OPS=${2:-200}
 TMP=$(mktemp -d "${TMPDIR:-/tmp}/helikon-ops-test.XXXXXX")
 IMAGE="$TMP/ops.dmg"
 DEV=""

@@ -1997,6 +1997,150 @@ static int test_append_past_overflow(void)
     return 0;
 }
 
+/*
+ * An append that extends the extent it just created and then needs an overflow
+ * record for the next one. The record is keyed by the fork's covered block
+ * count, so growing an extent has to move that count too; while it did not, the
+ * record landed one logical block early. The fork then claimed twelve blocks
+ * with eleven covered, and the twelfth was a block no reader could reach — a
+ * hole and a leak at the same time.
+ *
+ * The randomized writer in tests/image found this on a 16 MiB volume (seed 3,
+ * operation 157); this is the same shape in 512-byte blocks, with the allocation
+ * bitmap arranged so the three new blocks are 66, 67 and 69: the first starts a
+ * new inline extent, the second extends it, the third starts the record.
+ */
+static int test_append_extends_new_extent(void)
+{
+    make_image();
+    struct hfs_volume volume;
+    CHECK(hfs_volume_probe(&volume, test_image_read, NULL, 0,
+                           TEST_IMAGE_SIZE) == HFS_OK);
+    struct hfs_btree btree;
+    memset(&btree, 0, sizeof(btree));
+    btree.volume = &volume;
+    btree.fork = &volume.catalog;
+    btree.node_size = TEST_NODE_SIZE;
+    btree.total_nodes = TEST_NODES;
+    btree.free_nodes = TEST_NODES - 2;
+    btree.depth = 1;
+    btree.root_node = 1;
+    btree.first_leaf = 1;
+    btree.last_leaf = 1;
+    static uint8_t scratch[TEST_NODE_SIZE];
+    btree.scratch = scratch;
+    btree.scratch_size = sizeof(scratch);
+
+    struct hfs_catalog catalog;
+    memset(&catalog, 0, sizeof(catalog));
+    catalog.btree = btree;
+
+    struct hfs_journal journal;
+    struct hfs_txn tx;
+    memset(&journal, 0, sizeof(journal));
+    journal.sector_size = TEST_BLOCK_SIZE;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(seed_root(&btree, &tx) == HFS_OK);
+    apply_txn(&tx);
+
+    static const uint8_t name[TEST_NAME_UNITS * 2] = {
+        0, 'G', 0, 'R', 0, 'O', 0, 'W'
+    };
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    uint32_t cnid = 0;
+    CHECK(hfs_catalog_create_file(&catalog, &tx, 2, name, 4, 0644,
+                                  hfs_catalog_key_compare, NULL, &cnid) ==
+          HFS_OK);
+    apply_txn(&tx);
+
+    /* Twelve free blocks: 50,51,52 as a run, then even blocks to 64, then
+     * 66,67,69 for the growth. First fit takes them in this order. */
+    static const uint32_t holes[] = { 50, 51, 52, 54, 56, 58, 60, 62, 64,
+                                      66, 67, 69 };
+    const size_t hole_count = sizeof(holes) / sizeof(holes[0]);
+    uint8_t *bitmap = test_image + 18 * TEST_BLOCK_SIZE;
+    memset(bitmap, 0xff, 16);
+    for (size_t i = 0; i < hole_count; ++i) {
+        uint32_t block = holes[i];
+        bitmap[block / 8] &= (uint8_t)~(0x80u >> (block % 8));
+    }
+    put_be32(test_image + 1024 + 48, (uint32_t)hole_count);
+    volume.free_blocks = (uint32_t)hole_count;
+
+    uint8_t block[TEST_BLOCK_SIZE];
+    uint8_t expected[12 * TEST_BLOCK_SIZE];
+    for (uint32_t i = 0; i < 9; ++i) {
+        memset(block, (int)(0x40u + i), sizeof(block));
+        memcpy(expected + i * TEST_BLOCK_SIZE, block, sizeof(block));
+        memset(&tx, 0, sizeof(tx));
+        tx.journal = &journal;
+        tx.active = 1;
+        CHECK(hfs_catalog_append_file(&catalog, &tx, 2, name, 4,
+                                      (uint64_t)i * TEST_BLOCK_SIZE, block,
+                                      sizeof(block), hfs_catalog_key_compare,
+                                      NULL) == HFS_OK);
+        apply_txn(&tx);
+    }
+
+    /* Three blocks in one call: 66 starts the eighth inline extent, 67 extends
+     * it, 69 has to be covered by a record keyed by logical block 11. */
+    for (uint32_t i = 0; i < 3; ++i) {
+        memset(block, (int)(0x50u + i), sizeof(block));
+        memcpy(expected + (9u + i) * TEST_BLOCK_SIZE, block, sizeof(block));
+    }
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    CHECK(hfs_catalog_append_file(&catalog, &tx, 2, name, 4,
+                                  9u * TEST_BLOCK_SIZE, expected + 9u *
+                                  TEST_BLOCK_SIZE, 3u * TEST_BLOCK_SIZE,
+                                  hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    struct hfs_extent overflow[8];
+    size_t overflow_count = 0;
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    /* The key is the logical block, and the fork covers eleven inline blocks
+     * before the record starts. Asking for ten is what the old counter wrote. */
+    CHECK(hfs_extents_overflow_get(&volume, &tx, cnid, 11, overflow, 8,
+                                   &overflow_count) == HFS_OK);
+    CHECK(overflow_count == 1);
+    CHECK(overflow[0].start == 69 && overflow[0].count == 1);
+
+    uint8_t key[256];
+    uint8_t record[1024];
+    size_t record_length = 0;
+    size_t key_length = build_key(key, 2, name, 4);
+    CHECK(hfs_btree_find(&btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    size_t data_offset = 2u + key_length;
+    uint8_t *fork = record + data_offset + 88u;
+    CHECK(get_be32(fork + 12) == 12);
+    struct hfs_fork parsed;
+    CHECK(hfs_fork_parse(&volume, fork, &parsed) == HFS_OK);
+    CHECK(parsed.blocks == 12);
+    CHECK(parsed.size == 12u * TEST_BLOCK_SIZE);
+
+    /* And every block is reachable: twelve blocks, each with its own fill. */
+    struct hfs_entry entry;
+    CHECK(hfs_catalog_lookup_ascii(&catalog, 2, "GROW", &entry) == HFS_OK);
+    CHECK(entry.data.size == sizeof(expected));
+    uint8_t readback[12 * TEST_BLOCK_SIZE];
+    size_t done = 0;
+    CHECK(hfs_catalog_read_file(&catalog, &entry, 0, readback,
+                                sizeof(readback), &done) == HFS_OK);
+    CHECK(done == sizeof(readback));
+    CHECK(memcmp(readback, expected, sizeof(expected)) == 0);
+    return 0;
+}
+
 struct test_case {
     const char *name;
     int (*run)(void);
@@ -2017,6 +2161,7 @@ int main(void)
         { "overwrite in place", test_overwrite_file },
         { "overwrite across overflow", test_overwrite_across_overflow },
         { "append past overflow", test_append_past_overflow },
+        { "append extends the new extent", test_append_extends_new_extent },
         { "write grows file", test_write_grows_file },
         { "write across the end", test_write_across_the_end },
         { "write grows fragmented file", test_write_grows_fragmented_file },
