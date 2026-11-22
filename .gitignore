@@ -103,3 +103,5 @@ tests/hfsplus/test_image_mutation
 tests/hfsplus/test_image_mutation.dSYM/
 tests/hfsplus/test_bitmap_props
 tests/hfsplus/test_bitmap_props.dSYM/
+tests/hfsplus/test_journal_props
+tests/hfsplus/test_journal_props.dSYM/

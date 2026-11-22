@@ -12,6 +12,49 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (journal crash-atomicity property test: T-133)
+
+## What happened
+
+- **A property test for the commit path.** `tests/hfsplus/test_journal_props.c`
+  gives the device a write budget: a budget of `i` means the first `i` writes
+  reach the medium and every later one is silently lost, which is what a power
+  cut looks like to a caller. For every budget from 0 to the number of writes the
+  whole append+replay path performs, it runs the transaction into that budget,
+  remounts (reopens the journal from the medium and replays what it says is
+  committed), and then requires: every target sector holds either its whole
+  payload or none of it; no two targets disagree; no byte outside the journal and
+  the targets moved; and the journal is clean again. A third of the trials start
+  the journal near its end so every replay wraps, and each wrap trial ends with an
+  idempotence check.
+- **The expected state is built from the transaction's own payload**, not from a
+  reference run of the code under test. The first version did use a reference run
+  and would have passed a commit-before-payload mutation, because both runs were
+  wrong the same way; that mistake is worth remembering for the next property
+  test.
+- **No defect found.** 238 write boundaries over 24 transactions plus 8 wrap
+  trials, plain and under ASan/UBSan.
+- **Teeth proven by mutation, twice.** Committing before the payload reaches the
+  medium trips the sanity check; a replay that marks the journal clean before
+  applying its blocks trips the sweep with `FAIL transaction 0: 1 of 2 targets
+  applied at write 6, the rest not`. Both mutations were reverted.
+
+## What it cannot prove
+
+The device honours the barrier only in hardware. The budget model drops whole
+writes and never reorders them, so a missing `flush()` between the payload and the
+commit is invisible here. That stays the device matrix's job (`docs/testing.md`
+§3.4 says so on the page).
+
+## Open / next
+
+- The same write-budget model applies to the transaction engine above the
+  journal: cut a `hfs_txn_commit` at every write and require the volume to be
+  all-or-nothing. That needs the fixture image plus the model from
+  `test_bitmap_props.c`.
+- Writer-path mutation sweep (`hfs_btree_tree.c` / `hfs_catalog_write.c`) is
+  still the weakest-covered area at 76.6 % / 87 %.
+
 # Handoff — 2026-11-22 (the allocator property test, and the two defects it found: T-132)
 
 ## What happened

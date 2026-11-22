@@ -35,7 +35,7 @@ Helikon-OS validation.
 | Differential vs macOS | Same tree/names/metadata/`fsck_hfs` result on both sides; catalog order matches Apple's | Host + macOS | `in progress` — ordering and read differential run; writer-side tree comparisons partly covered | Writer |
 | Bootloader diagnostics | Read-only volume/catalog/file report and splash | Host | `in progress` — 8 tests | Boot screen |
 | Device | Boot, mount, playback, write, USB, sleep, recovery | 6G (then 7G/ports) | `not run` | Any hardware claim |
-| Power-loss | Every metadata operation at every journal boundary | Device/rig | `not run` | Write release |
+| Power-loss | Every metadata operation at every journal boundary | Device/rig | `not run` on a device; the journal commit path has a host crash-atomicity property test over every write boundary (§3.4) | Write release |
 | Battery/RAM | Runtime, sleep drain, peak RAM, soak | Device/rig | `not run` | Goal 1/4, D-12 |
 | Skin corpus | 20 skins, tags, frame/memory caps, fallback | Device | `not run` | Goal 3, D-10 |
 | App sandbox | Permissions, quotas, escape, crash isolation | Device | `not run` | Goals 15/18, D-08 |
@@ -246,6 +246,46 @@ wrapped, so a hint above the free space reported `NO_SPACE` with megabytes free)
 and [#111](https://github.com/deandromi/Helikon-OS/issues/111) (`hfs_bitmap_free`
 staged the first bitmap block before validating the second, leaving half-cleared
 bits in the caller's transaction after a refusal).
+
+### 3.4 Journal crash-atomicity property test
+
+`tests/hfsplus/test_journal_props.c` asks the question a power cut asks: for
+every write boundary in the commit path, is the volume either exactly as it was
+or exactly as it should be, never in between?
+
+The device keeps a write budget. A budget of `i` means the first `i` writes reach
+the medium and every later one is silently lost — what a power cut looks like to
+a caller whose write buffer was accepted and whose device then stopped existing.
+For each random transaction the test records the before image, runs append and
+replay with no budget (and checks the payload actually landed, so the sweep
+cannot pass vacuously), then for *every* budget replays the whole path into it
+and remounts: it reopens the journal from the medium and replays what the journal
+says is committed. After that remount:
+
+- every target sector holds either its whole payload or none of it;
+- no two targets disagree about which — a half-applied transaction is a defect;
+- no byte outside the journal and the targets moved;
+- the journal is clean again.
+
+The expected "committed" state comes from the transaction's own payload, not from
+a reference run of the code under test, so a bug that misapplies a block
+everywhere cannot hide by being reproduced everywhere. A third of the trials start
+with the journal near its end so every replay wraps.
+
+```sh
+cd tests/hfsplus && ./test_journal_props             # 24 transactions
+cd tests/hfsplus && ./test_journal_props 7 200       # another seed, longer
+```
+
+It found no defect (238 write boundaries over 24 transactions, plus 8 wrap
+trials). To show it bites, two mutations were injected and reverted: committing
+before the payload reaches the medium is caught by the sanity check, and a replay
+that marks the journal clean before applying its blocks is caught by the sweep
+with `FAIL transaction 0: 1 of 2 targets applied at write 6, the rest not`.
+
+What it cannot prove: that the device honours the barrier. The budget model drops
+whole writes and never reorders them, so a missing `flush()` between payload and
+commit is invisible here — that is the hardware's job and the device matrix's.
 
 ## 4. Model-based B-tree tests
 
