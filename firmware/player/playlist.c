@@ -527,7 +527,17 @@ int helikon_playlist_open(struct helikon_playlist_parser *parser,
     parser->format = format;
 
     if (format == HELIKON_PLAYLIST_PLS) {
-        parser->pls_count = pls_highest_index(parser);
+        /*
+         * The scan index is bounded by the entry cap, not by the highest number
+         * in the file: `File00000087161458=` is a valid line and iterating to it
+         * one index at a time is 87 million scans for an answer that could only
+         * ever be one of 512 entries. Indices above the cap are ignored, the
+         * same as entries beyond it.
+         */
+        uint32_t highest = pls_highest_index(parser);
+        if (highest > HELIKON_PLAYLIST_MAX_ENTRIES)
+            highest = HELIKON_PLAYLIST_MAX_ENTRIES;
+        parser->pls_count = highest;
         parser->pls_index = 1u;
     }
     return HELIKON_OK;

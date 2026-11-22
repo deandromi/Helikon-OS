@@ -331,12 +331,43 @@ static int check_capacity(void)
     return 0;
 }
 
+static int check_pls_huge_index(void)
+{
+    struct helikon_playlist_parser parser;
+    struct helikon_playlist_entry entry;
+
+    /*
+     * A fuzzer found this: one line with an index of 87 million made the parser
+     * walk 87 million indices one at a time. The scan is bounded by the entry
+     * cap now, so a number like this is ignored rather than walked to.
+     */
+    const char text[] =
+        "[playlist]\n"
+        "File00000087161458=ten.mp3\n"
+        "File1=real.mp3\n"
+        "Title1=Real\n";
+
+    if (open_text(&parser, text, "/", HELIKON_PLAYLIST_AUTO) != HELIKON_OK)
+        return expect(0, "a huge index still opens");
+    if (expect(parser.pls_count == HELIKON_PLAYLIST_MAX_ENTRIES,
+               "the scan stops at the entry cap"))
+        return 1;
+    if (expect(helikon_playlist_next(&parser, &entry) == 1, "the in-range entry"))
+        return 1;
+    if (expect(strcmp(entry.path, "/real.mp3") == 0,
+               "a huge index does not hide the entries that are in range"))
+        return 1;
+    if (expect(helikon_playlist_next(&parser, &entry) == 0, "and the list ends"))
+        return 1;
+    return 0;
+}
+
 int main(void)
 {
     if (check_basic_m3u() || check_comments_bom_crlf() || check_extinf() ||
         check_title_survives_blank_line() || check_path_resolution() ||
         check_escape_and_bad_entries() || check_nul_and_arguments() ||
-        check_pls() || check_capacity())
+        check_pls() || check_pls_huge_index() || check_capacity())
         return 1;
     if (failures != 0u) {
         printf("FAIL playlist import\n");

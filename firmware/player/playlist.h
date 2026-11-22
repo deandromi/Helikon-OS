@@ -28,7 +28,10 @@
  *     instead of silently dropping them.
  *   - PLS is read by index: `File1=`, `Title1=`, `Length1=`, and so on, in
  *     numeric order rather than file order, because writers do not agree on
- *     whether Title comes before or after its File line.
+ *     whether Title comes before or after its File line. The index scan stops at
+ *     `HELIKON_PLAYLIST_MAX_ENTRIES`: an entry numbered above the cap is ignored
+ *     rather than walked to, because `File99999999=` is otherwise a very slow
+ *     way to return nothing.
  *
  * Cuesheets are a different animal (tracks inside one file, with frame offsets)
  * and are not handled here yet.

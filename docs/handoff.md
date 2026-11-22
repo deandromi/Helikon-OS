@@ -30,9 +30,11 @@ file grows. Do not rely on chat history for current state.
   after `FileN` both work.
 - **Nine host test groups** in `tests/player/test_playlist.c`, including the
   four-bad-entries case that must still deliver the good one after them.
-- **A `playlist` fuzz harness** with eight seeds; its invariants are properties
+- **A `playlist` fuzz harness** with nine seeds; its invariants are properties
   of the output (absolute, terminated, no control characters, never over the cap,
-  `next` never fails after `open`).
+  `next` never fails after `open`). Its first finding, twelve seconds into the
+  guided CI run: `File00000087161458=` made the PLS index scan walk 87 million
+  indices. Bounded by the entry cap now; the reproducer is a corpus file.
 - **A test-suite bug found on the way**: `tests/player` compiled
   `firmware/lib/mem.c` without `-DHELIKON_HOST_TEST`, so `memcpy` resolved to the
   freestanding shim and clang's idiom recognition made `helikon_memcpy` call
