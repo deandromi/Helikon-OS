@@ -331,4 +331,3 @@ fi
 echo "our writer's catalog order matches Apple's for $COUNT names"
 
 echo "PASS: catalog order, canonical form, tree read, file content and a written volume macOS agrees with"
-
