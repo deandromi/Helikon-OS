@@ -161,6 +161,127 @@ static int test_duplicate_sector(void)
     return 0;
 }
 
+/*
+ * A stage means "these bytes hold this data", so a second stage over the same
+ * ground patches it instead of failing. Without that a 4096-byte node costs one
+ * slot per 512-byte sector and a B-tree root split cannot fit the budget
+ * (issue #115).
+ */
+static int test_replace_patches_in_place(void)
+{
+    struct hfs_journal journal;
+    struct hfs_txn tx;
+    uint8_t data[HFS_TXN_BLOCK_MAX];
+    make_journal(TEST_SECTOR, TEST_SECTOR);
+    CHECK(open_journal(&journal) == HFS_OK);
+    CHECK(hfs_txn_begin(&tx, &journal) == HFS_OK);
+
+    /* One whole entry, then a smaller stage inside it. */
+    memset(data, 0x11, 2048);
+    CHECK(hfs_txn_stage_replace(&tx, TEST_TARGET, data, 2048) == HFS_OK);
+    CHECK(tx.count == 1u);
+    memset(data, 0x22, TEST_SECTOR);
+    CHECK(hfs_txn_stage_replace(&tx, TEST_TARGET + 1u, data, TEST_SECTOR) ==
+          HFS_OK);
+    CHECK(tx.count == 1u);
+    CHECK(tx.blocks[0].sector == TEST_TARGET);
+    CHECK(tx.blocks[0].size == 2048u);
+    for (uint32_t i = 0; i < 2048u; ++i) {
+        const uint8_t want = (i >= TEST_SECTOR && i < 2u * TEST_SECTOR) ?
+                             0x22 : 0x11;
+        CHECK(tx.blocks[0].data[i] == want);
+    }
+
+    /* Growing it by overlapping its last sector keeps one entry and keeps the
+     * bytes the new stage does not cover. */
+    memset(data, 0x33, 2u * TEST_SECTOR);
+    CHECK(hfs_txn_stage_replace(&tx, TEST_TARGET + 3u, data,
+                                2u * TEST_SECTOR) == HFS_OK);
+    CHECK(tx.count == 1u);
+    CHECK(tx.blocks[0].size == 5u * TEST_SECTOR);
+    CHECK(tx.blocks[0].data[2u * TEST_SECTOR] == 0x11);
+    CHECK(tx.blocks[0].data[3u * TEST_SECTOR] == 0x33);
+    CHECK(tx.blocks[0].data[4u * TEST_SECTOR] == 0x33);
+    CHECK(tx.blocks[0].data[0] == 0x11);
+
+    /*
+     * A stage of the first sector patches it and leaves the rest of the run
+     * alone: the entry keeps its size, because the transaction holds bytes, and
+     * nothing here knows what the medium says past the range it was given.
+     */
+    memset(data, 0x44, TEST_SECTOR);
+    CHECK(hfs_txn_stage_replace(&tx, TEST_TARGET, data, TEST_SECTOR) == HFS_OK);
+    CHECK(tx.count == 1u);
+    CHECK(tx.blocks[0].size == 5u * TEST_SECTOR);
+    CHECK(tx.blocks[0].data[0] == 0x44);
+    CHECK(tx.blocks[0].data[TEST_SECTOR] == 0x22);
+    CHECK(tx.blocks[0].data[4u * TEST_SECTOR] == 0x33);
+    return 0;
+}
+
+/*
+ * Adjacent stages stay separate entries - neighbours are different objects -
+ * and one stage that covers them all folds them into one.
+ */
+static int test_adjacent_stages_stay_separate(void)
+{
+    struct hfs_journal journal;
+    struct hfs_txn tx;
+    uint8_t data[HFS_TXN_BLOCK_MAX];
+    make_journal(TEST_SECTOR, TEST_SECTOR);
+    CHECK(open_journal(&journal) == HFS_OK);
+    CHECK(hfs_txn_begin(&tx, &journal) == HFS_OK);
+
+    for (uint32_t i = 0; i < 8u; ++i) {
+        memset(data, (uint8_t)(i + 1u), TEST_SECTOR);
+        CHECK(hfs_txn_stage_replace(&tx, TEST_TARGET + i, data, TEST_SECTOR) ==
+              HFS_OK);
+    }
+    CHECK(tx.count == 8u);
+    for (uint32_t i = 0; i < 8u; ++i) {
+        CHECK(tx.blocks[i].sector == TEST_TARGET + i);
+        CHECK(tx.blocks[i].size == TEST_SECTOR);
+        CHECK(tx.blocks[i].data[0] == (uint8_t)(i + 1u));
+    }
+
+    /* One stage over the whole run folds them into a single entry. */
+    memset(data, 0x77, 8u * TEST_SECTOR);
+    CHECK(hfs_txn_stage_replace(&tx, TEST_TARGET, data, 8u * TEST_SECTOR) ==
+          HFS_OK);
+    CHECK(tx.count == 1u);
+    CHECK(tx.blocks[0].sector == TEST_TARGET);
+    CHECK(tx.blocks[0].size == 8u * TEST_SECTOR);
+    CHECK(tx.blocks[0].data[0] == 0x77);
+    CHECK(tx.blocks[0].data[8u * TEST_SECTOR - 1u] == 0x77);
+    return 0;
+}
+
+/* A merge that would not fit one entry is refused, and nothing changes. */
+static int test_merge_over_the_block_limit_is_busy(void)
+{
+    struct hfs_journal journal;
+    struct hfs_txn tx;
+    uint8_t data[HFS_TXN_BLOCK_MAX];
+    make_journal(TEST_SECTOR, TEST_SECTOR);
+    CHECK(open_journal(&journal) == HFS_OK);
+    CHECK(hfs_txn_begin(&tx, &journal) == HFS_OK);
+
+    memset(data, 0x55, HFS_TXN_BLOCK_MAX);
+    CHECK(hfs_txn_stage_replace(&tx, TEST_TARGET, data, HFS_TXN_BLOCK_MAX) ==
+          HFS_OK);
+    CHECK(tx.count == 1u);
+    /* Overlap the last sector: the union is 8192 + 512 bytes, which no single
+     * entry may hold. */
+    memset(data, 0x66, 2u * TEST_SECTOR);
+    CHECK(hfs_txn_stage_replace(&tx, TEST_TARGET + HFS_TXN_BLOCK_MAX /
+                                TEST_SECTOR - 1u, data, 2u * TEST_SECTOR) ==
+          HFS_ERR_BUSY);
+    CHECK(tx.count == 1u);
+    CHECK(tx.blocks[0].size == HFS_TXN_BLOCK_MAX);
+    CHECK(tx.blocks[0].data[0] == 0x55);
+    return 0;
+}
+
 static int test_too_many_blocks(void)
 {
     struct hfs_journal journal;
@@ -214,6 +335,11 @@ int main(void)
         { "commit two blocks", test_commit_two_blocks },
         { "abort leaves target", test_abort_leaves_target },
         { "duplicate sector", test_duplicate_sector },
+        { "replace patches in place", test_replace_patches_in_place },
+        { "adjacent stages stay separate",
+          test_adjacent_stages_stay_separate },
+        { "merge over the block limit is busy",
+          test_merge_over_the_block_limit_is_busy },
         { "too many blocks", test_too_many_blocks },
         { "dirty journal refuses txn", test_dirty_journal_refuses_txn },
         { "bad block size", test_bad_block_size }

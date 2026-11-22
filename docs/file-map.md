@@ -178,8 +178,13 @@ Helikon-OS/
                             is remounted from the medium and the volume must be
                             all-or-nothing, with a wrap variant
       test_txn_overlay_props.c transaction overlay property test: staging rules,
-                            order of overlapping blocks, boundary slices and a
-                            full 32-block transaction checked against a model
+                            patch/merge behaviour, boundary slices and a full
+                            32-block transaction checked against a byte map
+      test_catalog_ops_props.c catalog operation property test: random creates,
+                            deletes, renames, writes and truncates against a
+                            directory model, with every folder's valence, every
+                            file's contents and `hfs_check_volume` checked after
+                            each operation
     image/
       Makefile              disposable-image writer test build
       hfs_image_test.c      create/rename/truncate/delete/overflow/overwrite/

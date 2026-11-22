@@ -12,6 +12,65 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-23 (catalog operation property test: T-136, and the staging fix it found: T-135)
+
+## What happened
+
+- **A model-based test for catalog operations.** `tests/hfsplus/test_catalog_ops_props.c`
+  runs a random sequence of creates, deletes, renames, writes and truncates on a
+  1 MiB volume with 4096-byte B-tree nodes, and after every operation checks the
+  image against a directory model: each folder's children by name/ID/kind, each
+  folder's valence against its child count, each file's size and full contents
+  read back through the reader, the volume header's file and folder counts, and
+  `hfs_check_volume` (key order across leaves, the leaf chain, every fork against
+  the allocation bitmap, the free-block count). Refusals are held to the same
+  standard: a delete of a folder with children, a folder moved into its own
+  subtree, a truncate that would grow the file, and a `NO_SPACE` staged write must
+  leave the image byte-identical.
+- **It found a real defect (issue #115).** With 512-byte allocation blocks, a
+  B-tree node cost one transaction slot per sector and a root split needed 34 of
+  the 32 slots, so the catalog could never grow past depth 1 — a permanent
+  refusal, not corruption. Raising `HFS_TXN_MAX_BLOCKS` to 96 made the same sweep
+  pass, which isolated the cause.
+- **The fix (T-135).** `hfs_txn_stage_replace` now patches the bytes it is given:
+  the exact range is replaced, a range that lies inside or overlaps a staged run
+  is merged into it while the union fits in `HFS_TXN_BLOCK_MAX`, and a union that
+  would not fit is refused with `BUSY` and changes nothing. Runs that merely touch
+  are kept separate. `hfs_fork_stage_map` stages runs of whole allocation blocks
+  instead of one block at a time, so a node is one entry and a root split six.
+  The journal needed no change: it already writes an entry of any sector-multiple
+  size.
+- **Two tests were rewritten for the new contract.** `test_txn.c` gains explicit
+  cases (patch in place, grow by overlap, adjacent runs stay separate, over-limit
+  merge refused) and `test_txn_overlay_props.c` now models the staged bytes as a
+  byte map, cross-checks it byte for byte against the transaction's entries after
+  every step, and predicts only the union size from the entries themselves,
+  because a byte map cannot tell two abutting entries from one run.
+
+## Evidence
+
+- `make -C tests/hfsplus test` and `sanitize` exit 0 with both new suites in the
+  list; the catalog sweep is 600 operations (90 creates, 66 deletes, 102 renames,
+  93 writes, 32 truncates) and a 1,200-operation run over a second seed passes.
+- `./tools/host-tests.sh clang` 9 suites pass, `--sanitize` 8 suites pass,
+  `./tools/static-analysis.sh` reports 0 findings, the 6G cross-build is
+  80,840 B.
+- Docs: `docs/testing.md` §3.5 (rewritten), §3.6, §3.7, §4; `docs/tasks.md`
+  T-135/T-136; `docs/state.md` transaction and catalog rows; `docs/file-map.md`.
+
+## Open / next
+
+- The B-tree itself still has no model test: §4 lists what is missing (a tree-level
+  insert/delete model, forced root changes, `FastUnicodeCompare` names in the same
+  model, `fsck_hfs` on the result).
+- `hfs_check_volume` does not check the free-node map or node ownership; the
+  catalog test would catch a leaked node only through the free-block count.
+- Sweep 10 (a mutation sweep over the writer path) is still queued.
+- The F2 write path remains host-only and unconfirmed; none of this is a device
+  claim.
+
+---
+
 # Handoff — 2026-11-22 (transaction overlay property test: T-134)
 
 ## What happened
