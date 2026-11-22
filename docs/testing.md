@@ -31,7 +31,7 @@ Helikon-OS validation.
 | Host unit | Parser, allocator, name, state-machine logic | Host | `in progress` — HFS+ read core, journal and txn | Every module |
 | Fuzzing and mutation sweeps | Malformed B-trees, extents, names, journal records and bitstreams do not crash or escape bounds | Host | `in progress` — 7 libFuzzer harnesses with a committed corpus, plus the HFS+ image and codec mutation sweeps (§3, §3.2) | Reader, writer, journal, decoders |
 | Model-based B-tree | Insert/update/delete, split/merge, key order, free-node map | Host | `planned` | Writer |
-| Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `in progress` — the byte-range block layer has a 4000-range property test; writer/journal properties `planned` | Writer/journal |
+| Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `in progress` — the byte-range block layer has a 4000-range property test and the allocation bitmap has a 4,000-step model test (§3.3); B-tree and journal properties `planned` | Writer/journal |
 | Differential vs macOS | Same tree/names/metadata/`fsck_hfs` result on both sides; catalog order matches Apple's | Host + macOS | `in progress` — ordering and read differential run; writer-side tree comparisons partly covered | Writer |
 | Bootloader diagnostics | Read-only volume/catalog/file report and splash | Host | `in progress` — 8 tests | Boot screen |
 | Device | Boot, mount, playback, write, USB, sleep, recovery | 6G (then 7G/ports) | `not run` | Any hardware claim |
@@ -211,6 +211,41 @@ upstream behaviour this project does not patch — while a read or write past a
 buffer in the decoder is exactly what the sweep is looking for, and ASan keeps
 that. Every remaining UBSan report is this project's code, so the codec suite now
 runs with `UBSAN_OPTIONS=halt_on_error=1` and a finding fails the build.
+
+### 3.3 Allocation property test
+
+`tests/hfsplus/test_bitmap_props.c` allocates and frees random runs in a
+128-block volume for thousands of steps against a model of what the bitmap
+should say, committing every 16 steps and reopening the volume from the image so
+the assertions are made against committed bytes, not a cached field. It names no
+individual case; the failures it is built to catch are the ones a case-by-case
+suite misses:
+
+- a run handed out that overlaps an allocated one (a double allocation, which
+  later overwrites another file's blocks);
+- a free of a block that is not allocated, which inflates the free count until
+  the volume claims blocks that do not exist;
+- `free_blocks` drifting from the bits in either the volume header or the
+  allocation fork;
+- a search that misses a run that does exist, or refuses one that does not;
+- the transaction overlay handing the same block out twice inside one commit
+  window.
+
+A second case builds a 5000-block volume whose bitmap spans two blocks, because
+one bitmap block only describes `block_size * 8` blocks and a range can cross
+that seam, and asserts that a refused free leaves `tx.count == 0`.
+
+```sh
+cd tests/hfsplus && ./test_bitmap_props             # 4,000 steps
+cd tests/hfsplus && ./test_bitmap_props 7 20000     # another seed, longer
+```
+
+It found two defects on its first run, both fixed:
+[#110](https://github.com/deandromi/Helikon-OS/issues/110) (the allocator never
+wrapped, so a hint above the free space reported `NO_SPACE` with megabytes free)
+and [#111](https://github.com/deandromi/Helikon-OS/issues/111) (`hfs_bitmap_free`
+staged the first bitmap block before validating the second, leaving half-cleared
+bits in the caller's transaction after a refusal).
 
 ## 4. Model-based B-tree tests
 

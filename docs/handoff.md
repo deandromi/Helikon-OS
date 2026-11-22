@@ -12,6 +12,50 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (the allocator property test, and the two defects it found: T-132)
+
+## What happened
+
+- **A property test for the allocation bitmap.** `tests/hfsplus/test_bitmap_props.c`
+  allocates and frees random runs for thousands of steps against a model,
+  commits every 16 steps and reopens the volume from the image, so every
+  assertion is made against committed bytes. It also checks the two things a
+  case-by-case suite never does: the transaction overlay must not hand the same
+  block out twice inside one commit window, and a refused free must leave the
+  transaction exactly as it was.
+- **#110 — the allocator never wrapped.** `hfs_bitmap_find`/`alloc` searched from
+  the hint to the end of the volume and gave up. The sweep failed on step 10
+  with 81 free blocks: `alloc(run 5, hint 121) -> NO_SPACE`. A catalog tree high
+  on a full upper half could not grow, and a hint equal to the volume size was
+  refused outright. Fixed: the from-hint pass runs first (fork growth still
+  prefers the adjacent block), then a wrapped pass over `[0, hint)`; a hint at or
+  past the end starts at block 0.
+- **#111 — a refused free staged half a range.** `hfs_bitmap_free` validated and
+  staged one bitmap block at a time, so a range that crossed the seam and hit an
+  already-free block returned `FORMAT` with the first block already staged in
+  the caller's transaction. Whoever committed next wrote a bitmap whose bits and
+  `free_blocks` disagreed. Fixed: the whole range is validated before anything
+  is staged.
+
+## Evidence
+
+- With the fixes reverted, the sweep fails at step 10 (`CHECK(rc == HFS_OK)`) and
+  the two-block case prints `FAIL a refused free left 1 block(s) staged in the
+  transaction`. With them, both pass.
+- 60,000 steps over three seeds under ASan/UBSan: no double allocation, no
+  double free, no drift, no sanitizer finding.
+- `make -C tests/hfsplus test` and `sanitize` green (19 + 1 + 3 + 5 + 2 + 6 + 1
+  groups as before, plus the new test).
+
+## Open / next
+
+- The property test covers alloc/free on one bitmap block set and the seam. It
+  does not model allocation-file *overflow extents* — `map_bitmap_block` returns
+  `UNSUPPORTED` beyond the eight inline extents, so a volume whose bitmap itself
+  is fragmented is still unsupported (recorded in `docs/state.md`).
+- Next property targets from `docs/testing.md` §1: B-tree insert/delete against a
+  model, and journal replay idempotence.
+
 # Handoff — 2026-11-22 (mutation sweeps, and the two seek bugs they found: T-131)
 
 ## What happened

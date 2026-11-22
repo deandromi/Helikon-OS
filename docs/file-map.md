@@ -169,6 +169,10 @@ Helikon-OS/
       test_image_mutation.c deterministic mutation sweep: a valid volume image
                             corrupted 1..8 fields at a time, driven through
                             probe, hfs_check, the catalog and the extents tree
+      test_bitmap_props.c    allocation property test: 4,000 random alloc/free
+                            runs against a model, every commit reopened from the
+                            image, plus a two-bitmap-block volume for the
+                            partial-free case
     image/
       Makefile              disposable-image writer test build
       hfs_image_test.c      create/rename/truncate/delete/overflow/overwrite/
