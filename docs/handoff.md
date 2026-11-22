@@ -41,7 +41,15 @@ file grows. Do not rely on chat history for current state.
 make -C tests/hfsplus test && make -C tests/hfsplus sanitize   # 26 cases
 make -C tests/image hfs-check && ./tests/image/hfs-check VOL    # 0/1/2
 make -C tests/image test                                       # F2 promotion PASS
+./tools/coverage.sh                                            # 82.2% of lines
 ```
+
+**Coverage:** `./tools/coverage.sh` reports 82.2 % of `firmware/` + `bootloader/`
+lines reached by the host suites (16,126 lines, 2,872 never executed). Weakest:
+`hfs_btree_tree.c` 76.6 %, `layer3.c` 81.7 %, `flac_decoder.c` 81.0 %,
+`usb_msc.c` 77.0 %, `usb.c` 76.9 %, `hfs_catalog_write.c` 87.0 %, `layer12.c`
+46.9 %, `inner_image.c` 59.4 %, `disk_mode.c` 69.9 %, `partition.c` 60.9 %. Only
+`bootloader/loader_error.c` is never executed at all.
 
 ## Open / next
 

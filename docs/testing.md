@@ -227,6 +227,45 @@ FastUnicodeCompare; a 32 MiB volume reports clean and the same volume with
 through its overflow extents. "Not checked" stays a separate field from
 "problems", because a large volume must never look corrupt.
 
+### 5.3.3 Coverage of the host suites
+
+`tools/coverage.sh` answers a different question from any single test: which
+lines of `firmware/` and `bootloader/` does any host suite ever execute? It
+builds every suite with clang's source-based coverage, runs them, merges the
+profiles and prints the files with the most unexecuted lines. It is a map, not a
+gate: a file at 70 % is not a failure, it is a place to look.
+
+The number to read is the last line. At the time of writing the suites reach
+**82 %** of 16,126 lines, and the ten weakest files are:
+
+| file | lines | covered |
+|---|---|---|
+| `firmware/hfs/hfs_btree_tree.c` | 1549 | 76.6 % |
+| `firmware/codec/libmad/layer3.c` | 1281 | 81.7 % |
+| `firmware/codec/flac/flac_decoder.c` | 699 | 81.0 % |
+| `firmware/usb/usb_msc.c` | 573 | 77.0 % |
+| `firmware/hal/6g/usb.c` | 563 | 76.9 % |
+| `firmware/hfs/hfs_catalog_write.c` | 988 | 87.0 % |
+| `firmware/codec/libmad/layer12.c` | 241 | 46.9 % |
+| `bootloader/inner_image.c` | 234 | 59.4 % |
+| `firmware/usb/disk_mode.c` | 306 | 69.9 % |
+| `firmware/block/partition.c` | 179 | 60.9 % |
+
+Two lessons came out of building it. `tests/firmware` compiles its objects with
+`HOSTCC`, not `CC`, so a coverage run that sets only `CC` links uninstrumented
+code and reports whole modules as untouched — the script sets both. And
+`bootloader/loader_error.c` is the only file no test executes at all: the
+`strerror` table for the loader's diagnostics. Everything else is reached by
+something.
+
+```sh
+./tools/coverage.sh                       # writes build/coverage/coverage.txt
+COVERAGE_IMAGE=/tmp/vol.img ./tools/coverage.sh   # also runs the library suite
+```
+
+The suites are left instrumented, so run `make -C tests/<suite> clean` before a
+normal build.
+
 ### 5.4 Firmware-loader host test
 
 `tests/bootloader/test_ed25519.c` checks the RFC 8032 vectors, a fixed 192-byte
