@@ -186,8 +186,13 @@ first mount, and the test would then be describing a volume it changed.
 itself?" without writing anything: block size and count, every fork's extents
 against the volume, fork sizes against their blocks, the allocation file against
 the block count, the header's free-block count against the bitmap (when the whole
-bitmap is inline), and the three metadata B-tree headers through the reader's own
-validation.
+bitmap is inline), the three metadata B-tree headers through the reader's own
+validation, and the catalog: every leaf record's key, and the file and folder
+counts the volume header claims against the records actually present. The root
+folder is excluded from the folder count because the format excludes it, and the
+padding bits of the bitmap's last byte are ignored because macOS leaves them
+zero — both rules came from running the check against real volumes, where the
+first drafts produced false alarms.
 
 ```sh
 make -C tests/hfsplus test_check            # 13 cases, one corruption each

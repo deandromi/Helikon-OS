@@ -18,6 +18,17 @@
 
 #include "hfs_btree.h"
 
+static uint32_t be32(const uint8_t *p)
+{
+    return ((uint32_t)p[0] << 24) | ((uint32_t)p[1] << 16) |
+           ((uint32_t)p[2] << 8) | (uint32_t)p[3];
+}
+
+static uint16_t be16(const uint8_t *p)
+{
+    return (uint16_t)(((uint16_t)p[0] << 8) | (uint16_t)p[1]);
+}
+
 static int power2(uint32_t value)
 {
     return value != 0u && (value & (value - 1u)) == 0u;
@@ -178,6 +189,94 @@ static uint32_t check_tree(struct hfs_volume *volume, const struct hfs_fork *for
     return 0u;
 }
 
+/*
+ * The catalog: walk every leaf record, check the key the record claims to have,
+ * and count what is actually there. The volume header keeps the file and folder
+ * counts, and fsck checks them the same way; a count that drifts is the quietest
+ * kind of catalog damage.
+ */
+static void check_catalog(struct hfs_volume *volume,
+                          struct hfs_check_report *report)
+{
+    uint8_t header[HFS_VOLUME_HEADER_SIZE];
+    if (volume->read == NULL ||
+        volume->read(volume->context,
+                     volume->base + HFS_VOLUME_HEADER_OFFSET, header,
+                     sizeof(header)) != 0) {
+        report->problems |= HFS_CHECK_CATALOG_RECORD;
+        return;
+    }
+    report->header_files = be32(header + 32);
+    report->header_folders = be32(header + 36);
+
+    static uint8_t scratch[HFS_MAX_NODE_SIZE + 1u];
+    struct hfs_btree btree;
+    if (hfs_btree_open(&btree, volume, &volume->catalog, scratch,
+                       sizeof(scratch)) != HFS_OK) {
+        report->problems |= HFS_CHECK_BTREE_HEADER;
+        return;
+    }
+    if (btree.empty != 0u) {
+        report->catalog_files = 0u;
+        report->catalog_folders = 0u;
+    } else {
+        struct hfs_btree_leaf_iterator iterator;
+        hfs_btree_leaf_init(&btree, &iterator);
+        for (;;) {
+            const uint8_t *record = NULL;
+            size_t length = 0u;
+            int rc = hfs_btree_leaf_next(&btree, &iterator, &record, &length);
+            if (rc < 0) {
+                report->problems |= HFS_CHECK_CATALOG_RECORD;
+                break;
+            }
+            if (rc == 0)
+                break;
+            /*
+             * Catalog key: keyLength(2), parentID(4), nodeName(2 + 2*n). The
+             * keyLength field counts everything after itself, so the record
+             * type sits at `2 + keyLength`. A key that does not fit its record,
+             * or a type byte outside 1..4, is a damaged leaf.
+             */
+            uint16_t key_length = be16(record);
+            size_t key_total = (size_t)key_length + 2u;
+            if (key_length < 6u || key_length > btree.node_size + 4u ||
+                key_total >= length) {
+                report->problems |= HFS_CHECK_CATALOG_RECORD;
+                continue;
+            }
+            uint16_t name_length = be16(record + 6);
+            if ((uint32_t)name_length * 2u + 6u > key_length) {
+                report->problems |= HFS_CHECK_CATALOG_RECORD;
+                continue;
+            }
+            /* Catalog records start with a 16-bit recordType, not a byte. */
+            if (key_total + 2u > length) {
+                report->problems |= HFS_CHECK_CATALOG_RECORD;
+                continue;
+            }
+            uint32_t parent = be32(record + 2);
+            uint16_t type = be16(record + key_total);
+            /*
+             * The root folder has a catalog record of its own — parentID 1, its
+             * name is the volume name — but the volume header's folder count
+             * excludes it, so it is not counted here either. Every other folder
+             * has a real parent CNID (the root's is 2).
+             */
+            if (type == 1u) {
+                if (parent != 1u)
+                    report->catalog_folders += 1u;
+            } else if (type == 2u) {
+                report->catalog_files += 1u;
+            }
+        }
+    }
+
+    if (report->catalog_files != report->header_files ||
+        report->catalog_folders != report->header_folders)
+        report->problems |= HFS_CHECK_CATALOG_COUNT;
+}
+
 int hfs_check_volume(struct hfs_volume *volume, struct hfs_check_report *report)
 {
     if (volume == NULL || report == NULL)
@@ -208,5 +307,8 @@ int hfs_check_volume(struct hfs_volume *volume, struct hfs_check_report *report)
     report->problems |= check_tree(volume, &volume->attributes_file,
                                    &report->attributes_depth,
                                    &report->attributes_nodes);
+
+    if (report->catalog_nodes != 0u)
+        check_catalog(volume, report);
     return HFS_OK;
 }

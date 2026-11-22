@@ -90,6 +90,9 @@ int main(int argc, char **argv)
     printf("  free blocks: header %u, bitmap %u%s\n", report.free_blocks_claimed,
            report.free_blocks_counted,
            report.bitmap_counted != 0 ? "" : " (not counted)");
+    printf("  catalog: %u files, %u folders (header says %u and %u)\n",
+           report.catalog_files, report.catalog_folders, report.header_files,
+           report.header_folders);
     printf("  trees: catalog depth %u/%u nodes, extents %u/%u, attributes %u/%u\n",
            report.catalog_depth, report.catalog_nodes, report.extents_depth,
            report.extents_nodes, report.attributes_depth,

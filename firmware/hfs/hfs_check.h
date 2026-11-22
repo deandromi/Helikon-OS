@@ -21,10 +21,12 @@
  *    leaves them zero, so treating them as corruption would fire on every real
  *    volume;
  *  - the catalog, extents and attributes B-tree headers: node size, total
- *    nodes against the fork, depth, root and leaf node indices.
+ *    nodes against the fork, depth, root and leaf node indices;
+ *  - the catalog itself: every leaf node's key length, and the file and folder
+ *    counts the volume header claims against the records actually there.
  *
- * What it does not check yet: B-tree node bodies, record ordering, the catalog
- * tree's own counts, and overflow extents. Those are the next slice.
+ * What it does not check yet: key ordering across leaves, index nodes, record
+ * bodies, and overflow extents. Those are the next slice.
  */
 #ifndef HELIKON_HFS_HFS_CHECK_H
 #define HELIKON_HFS_HFS_CHECK_H
@@ -53,6 +55,8 @@
  * scrub "fail". It is reported separately and a caller decides what to say.
  */
 #define HFS_CHECK_SKIPPED_BITMAP 0x00001000u
+#define HFS_CHECK_CATALOG_COUNT 0x00002000u
+#define HFS_CHECK_CATALOG_RECORD 0x00004000u
 
 /* The allocation bitmap is counted this far and no further. 1 MiB of bitmap is
  * 8,388,608 blocks; a volume whose bitmap does not fit inline is skipped whole,
@@ -74,6 +78,10 @@ struct hfs_check_report {
     uint32_t catalog_nodes;
     uint32_t extents_nodes;
     uint32_t attributes_nodes;
+    uint32_t catalog_files;
+    uint32_t catalog_folders;
+    uint32_t header_files;
+    uint32_t header_folders;
 };
 
 /*
