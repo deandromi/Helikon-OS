@@ -32,6 +32,7 @@ tests/bootloader/test_ed25519
 tests/bootloader/test_certificate
 tests/bootloader/test_splash_color
 tests/bootloader/test_boot_info_page
+tests/bootloader/test_loader_error
 tests/hfsplus/test_catalog_index
 tests/hfsplus/test_check
 tests/hfsplus/test_check.dSYM/
@@ -49,6 +50,7 @@ tests/firmware/test_trace
 tests/firmware/test_vic
 tests/firmware/*.dSYM/
 tests/firmware/test_hfs_file
+tests/firmware/test_bounce_props
 
 # macOS companion app (SwiftPM)
 tools/desktop/.build/

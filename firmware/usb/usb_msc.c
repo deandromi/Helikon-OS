@@ -368,20 +368,26 @@ static int read_data(struct helikon_usb_msc *msc, void *buffer, uint32_t length)
 static int write_data(struct helikon_usb_msc *msc, const void *buffer,
                       uint32_t length)
 {
+    /* A transport that reported a zero sector size would divide by zero inside
+     * an interrupt path. The check is at init already; this copies the value into
+     * a local so the loop cannot see it change either. */
+    uint32_t sector_size = msc->sector_size;
+    if (sector_size == 0u)
+        return HELIKON_ERR_FORMAT;
     const uint8_t *in = buffer;
     uint32_t done = 0u;
 
     while (done < length) {
         uint64_t absolute = msc->transferred + done;
-        uint64_t lba = msc->lba + absolute / msc->sector_size;
-        uint32_t within = (uint32_t)(absolute % msc->sector_size);
+        uint64_t lba = msc->lba + absolute / sector_size;
+        uint32_t within = (uint32_t)(absolute % sector_size);
         uint32_t take = length - done;
-        if (take > msc->sector_size - within)
-            take = msc->sector_size - within;
+        if (take > sector_size - within)
+            take = sector_size - within;
 
         int rc;
-        if (within == 0u && take == msc->sector_size) {
-            uint32_t sectors = (length - done) / msc->sector_size;
+        if (within == 0u && take == sector_size) {
+            uint32_t sectors = (length - done) / sector_size;
             if (sectors > MSC_MAX_SECTORS_PER_CALL)
                 sectors = MSC_MAX_SECTORS_PER_CALL;
             rc = helikon_block_write(msc->device, msc->base_lba + lba, sectors,

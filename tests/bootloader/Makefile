@@ -67,7 +67,7 @@ HFS_LOADER_HEADERS = ../../bootloader/hfs_loader.h \
 .PHONY: all test sanitize clean
 
 all: test_diag test_inner_image test_loader test_loader_hfs test_ed25519 \
-     test_certificate
+     test_certificate test_loader_error
 
 test_diag: $(SOURCES) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(SOURCES) $(LDFLAGS) -o $@
@@ -87,6 +87,13 @@ test_ed25519: $(ED25519_SOURCES) $(ED25519_HEADERS)
 test_certificate: $(CERTIFICATE_SOURCES) $(CERTIFICATE_HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(CERTIFICATE_SOURCES) $(LDFLAGS) -o $@
 
+# The one file no other test reached: the loader's error strings. It is linked
+# alone, so this test is also a link check for it.
+test_loader_error: test_loader_error.c ../../bootloader/loader_error.c \
+                   ../../bootloader/loader_error.h ../hfsplus/test_check.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) test_loader_error.c \
+	  ../../bootloader/loader_error.c $(LDFLAGS) -o $@
+
 test_splash_color: $(SPLASH_SOURCES) $(SPLASH_HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_splash_color.c $(LDFLAGS) -lm -o $@
 
@@ -99,7 +106,7 @@ test_boot_info_page: $(BOOT_INFO_PAGE_SOURCES) $(BOOT_INFO_PAGE_HEADERS)
 	  ../../firmware/lib/mem.c $(LDFLAGS) -o $@
 
 test: test_diag test_inner_image test_loader test_loader_hfs test_ed25519 \
-      test_certificate test_splash_color test_boot_info_page
+      test_certificate test_splash_color test_boot_info_page test_loader_error
 	./test_diag
 	./test_inner_image
 	./test_loader
@@ -108,6 +115,7 @@ test: test_diag test_inner_image test_loader test_loader_hfs test_ed25519 \
 	./test_certificate
 	./test_splash_color
 	./test_boot_info_page
+	./test_loader_error
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)

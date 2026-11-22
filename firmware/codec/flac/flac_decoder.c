@@ -519,7 +519,13 @@ static int flac_decode_lpc(struct helikon_flac_decoder *decoder,
 
     uint32_t precision = flac_bits_read(bits, 4u) + 1u;
     int32_t shift = flac_bits_read_signed(bits, 5u);
-    if (bits->error != 0 || precision == 16u || shift < 0)
+    /*
+     * The field is five signed bits, so the range check below can only reject
+     * negatives today. It is written against 32 anyway: `sum >> shift` is
+     * undefined for a shift at or past the width, and a reader that ever takes
+     * more bits must not inherit that.
+     */
+    if (bits->error != 0 || precision == 16u || shift < 0 || shift >= 32)
         return HELIKON_ERR_FORMAT;
 
     int32_t coeffs[32];
