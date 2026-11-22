@@ -173,6 +173,10 @@ Helikon-OS/
                             runs against a model, every commit reopened from the
                             image, plus a two-bitmap-block volume for the
                             partial-free case
+      test_journal_props.c   crash-atomicity property test: a write budget drops
+                            every write past a chosen boundary, then the journal
+                            is remounted from the medium and the volume must be
+                            all-or-nothing, with a wrap variant
     image/
       Makefile              disposable-image writer test build
       hfs_image_test.c      create/rename/truncate/delete/overflow/overwrite/
