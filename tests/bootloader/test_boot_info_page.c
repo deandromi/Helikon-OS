@@ -17,7 +17,7 @@
 
 #include "boot_info.h"
 #include "boot_info_page.h"
-#include "error.h"
+#include "helikon_error.h"
 
 #define PAGE_ADDR ((uintptr_t)page)
 #define IMAGE_LOAD 0x08000000u

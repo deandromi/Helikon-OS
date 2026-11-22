@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "bounce.h"
 
-#include "error.h"
+#include "helikon_error.h"
 #include "mem.h"
 
 static int read_aligned(const struct helikon_block_device *device,

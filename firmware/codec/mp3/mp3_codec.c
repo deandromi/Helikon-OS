@@ -18,7 +18,7 @@
 #include "../libmad/frame.h"
 #include "../libmad/synth.h"
 
-#include "error.h"
+#include "helikon_error.h"
 #include "mem.h"
 #include "tag/id3v2.h"
 

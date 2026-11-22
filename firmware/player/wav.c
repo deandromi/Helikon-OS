@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #include "codec.h"
-#include "error.h"
+#include "helikon_error.h"
 #include "mem.h"
 
 /*

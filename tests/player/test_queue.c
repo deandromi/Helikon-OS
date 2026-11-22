@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "error.h"
+#include "helikon_error.h"
 
 static unsigned int failures;
 

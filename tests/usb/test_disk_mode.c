@@ -16,7 +16,7 @@
 
 #include "block.h"
 #include "disk_mode.h"
-#include "error.h"
+#include "helikon_error.h"
 #include "usb_descriptors.h"
 #include "usb_msc.h"
 

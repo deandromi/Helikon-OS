@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#include "error.h"
+#include "helikon_error.h"
 
 void helikon_stages_init(struct helikon_stages *stages,
                          uint64_t (*now_us)(void *context), void *context)

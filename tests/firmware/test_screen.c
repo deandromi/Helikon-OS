@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
-#include "error.h"
+#include "helikon_error.h"
 #include "screen.h"
 
 #include "test_check.h"

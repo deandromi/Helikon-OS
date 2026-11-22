@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
+#include "helikon_error.h"
 
 #define USB_REQUEST_TYPE_DIR_IN 0x80u
 #define USB_REQUEST_TYPE_TYPE_MASK 0x60u

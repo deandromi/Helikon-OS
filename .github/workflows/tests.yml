@@ -36,10 +36,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install clang and Pillow
+      - name: Install clang, Pillow and mutagen
+        # `tests/ui` renders the launcher and the music browser, which needs the
+        # HDB fixture built by `tools/hdb_build.py`; that script imports both.
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang python3-pil
+          sudo apt-get install -y clang python3-pil python3-mutagen
 
       - name: Run the suites
         run: ./tools/host-tests.sh clang --keep-going

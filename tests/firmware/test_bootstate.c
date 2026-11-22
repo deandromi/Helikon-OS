@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "bootstate.h"
-#include "error.h"
+#include "helikon_error.h"
 #include "sha256.h"
 
 #include <string.h>

@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "block.h"
 #include "bounce.h"
-#include "endian.h"
-#include "error.h"
+#include "helikon_endian.h"
+#include "helikon_error.h"
 #include "mem.h"
 #include "partition.h"
 

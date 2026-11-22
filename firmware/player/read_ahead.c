@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
+#include "helikon_error.h"
 
 #define READ_AHEAD_UNKNOWN_END UINT64_MAX
 

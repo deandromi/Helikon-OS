@@ -1812,7 +1812,7 @@ changed, so images written by the new code stay readable either way.
   `(data, size, total_size)`: `data/size` is a head of at most
   `HELIKON_CODEC_PROBE_BYTES` (4096) and `total_size` is the true length or 0.
   A probe that cannot decide returns the new `HELIKON_ERR_NEED_MORE`
-  (`firmware/lib/error.h`, `-19`, with a `failure_reason` string); the registry
+  (`firmware/lib/helikon_error.h`, `-19`, with a `failure_reason` string); the registry
   accepts that only from a `streaming` descriptor, lets `open` resolve the head,
   and treats `codec->info` as authoritative afterwards. `helikon_codec_probe()`
   always sees the whole buffer and never returns `NEED_MORE`.
@@ -2718,7 +2718,7 @@ crash matrix:   overwrite covered 22 write cuts + flush + partial modes;
   `make -C firmware BOARD=6g {,size,test,image}` targets. The F1 host groups
   pass with ASan/UBSan. The existing HFS+ (104) and bootloader (31) suites still
   pass with sanitizers; the disposable-image and loader fixtures still pass.
-- Moved the canonical error enum to `firmware/lib/error.h` and kept the
+- Moved the canonical error enum to `firmware/lib/helikon_error.h` and kept the
   `HFS_ERR_*` aliases; added `BOOT_INFO_INVALID`. Updated the HFS and bootloader
   host include paths and the donor build scripts to copy `error.h`.
 - Updated `state.md`, `tasks.md`, `file-map.md`, `failures.md`, `testing.md` and

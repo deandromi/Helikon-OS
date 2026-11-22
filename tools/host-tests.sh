@@ -9,6 +9,7 @@
 #   ./tools/host-tests.sh --macos            # the disk-image suites (Darwin)
 #   ./tools/host-tests.sh clang --macos --sanitize   # both, in that order
 #   ./tools/host-tests.sh --keep-going       # run them all, report every failure
+#   ./tools/host-tests.sh --fast             # keep the objects from the last run
 #   ./tools/host-tests.sh --list             # print the portable suites, exit
 #
 # This is the single command a change is expected to pass before it is reviewed,
@@ -28,6 +29,12 @@
 # `--sanitize` uses the suites' own `sanitize` targets (AddressSanitizer plus
 # UndefinedBehaviorSanitizer) and skips the ones that do not offer them. It needs
 # a compiler with the sanitizers, which is why it is a separate pass.
+#
+# Every suite is cleaned before it is built unless `--fast` is given. A
+# `sanitize` target leaves instrumented objects behind and a later plain build
+# will then fail to link them (`tests/firmware` did exactly that), so the default
+# is the same clean build a runner gets. `--fast` is for the tight loop while
+# editing one suite.
 
 set -eu
 
@@ -45,7 +52,7 @@ outer-diag-test ops-test"
 cc=cc
 sanitize=no
 macos=no
-clean=no
+clean=yes
 keep_going=no
 
 for arg in "$@"; do
@@ -53,6 +60,7 @@ for arg in "$@"; do
         --sanitize) sanitize=yes ;;
         --macos) macos=yes ;;
         --clean) clean=yes ;;
+        --fast) clean=no ;;
         --keep-going) keep_going=yes ;;
         --list)
             echo "$SUITES"

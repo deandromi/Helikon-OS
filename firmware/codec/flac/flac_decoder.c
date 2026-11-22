@@ -12,7 +12,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
+#include "helikon_error.h"
 #include "mem.h"
 
 #define FLAC_BLOCK_MAX HELIKON_FLAC_MAX_BLOCK

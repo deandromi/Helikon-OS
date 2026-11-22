@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "ata_geometry.h"
-#include "error.h"
+#include "helikon_error.h"
 
 #include "test_check.h"
 

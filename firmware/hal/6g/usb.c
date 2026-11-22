@@ -25,7 +25,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
+#include "helikon_error.h"
 #include "usb_hw.h"
 
 #define HELIKON_USB_EP0 0u

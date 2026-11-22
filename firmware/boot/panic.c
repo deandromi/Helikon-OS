@@ -2,7 +2,7 @@
 #include "panic.h"
 
 #include "clock.h"
-#include "error.h"
+#include "helikon_error.h"
 
 static struct helikon_panic_hooks panic_hooks;
 static struct helikon_trace *panic_trace;

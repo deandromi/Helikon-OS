@@ -5,8 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-/* The project has one error taxonomy; see firmware/lib/error.h. */
-#include "error.h"
+/* The project has one error taxonomy; see firmware/lib/helikon_error.h. */
+#include "helikon_error.h"
 
 #define HFS_VOLUME_HEADER_OFFSET 1024u
 #define HFS_VOLUME_HEADER_SIZE 512u

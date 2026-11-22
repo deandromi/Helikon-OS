@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include "lcd.h"
 
-#include "error.h"
+#include "helikon_error.h"
 #include "s5l8702_regs.h"
 
 /* 8-bit command-set sequence actions. */

@@ -4,7 +4,7 @@
 
 #include <stddef.h>
 
-#include "error.h"
+#include "helikon_error.h"
 
 static int player_pcm_source(void *context, int16_t *pcm, size_t max_frames,
                              size_t *frames)

@@ -64,8 +64,14 @@ red suite with its last twenty lines:
 ./tools/host-tests.sh clang --sanitize          # ASan + UBSan over the same code
 ./tools/host-tests.sh --macos                   # tests/image: hdiutil and fsck_hfs
 ./tools/host-tests.sh clang --keep-going        # every suite, every failure
+./tools/host-tests.sh clang --fast              # keep the last run's objects
 HOST_TESTS_IMAGE=/tmp/vol.img ./tools/host-tests.sh clang   # adds tests/library
 ```
+
+Each suite is cleaned before it is built, unless `--fast` is given. That is not
+fussiness: a `sanitize` target leaves instrumented objects behind, and the next
+plain build then fails to link them — `tests/firmware` did exactly that on the
+first CI run.
 
 The suites stay separate Makefiles, so a single red test is still
 `make -C tests/hfsplus test`; the runner exists so a change cannot pass review by

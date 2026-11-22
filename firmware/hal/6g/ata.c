@@ -4,7 +4,7 @@
 #include "ata.h"
 
 #include "ata_geometry.h"
-#include "error.h"
+#include "helikon_error.h"
 #include "s5l8702_regs.h"
 
 #define ATA_CMD_READ_SECTORS 0x20u

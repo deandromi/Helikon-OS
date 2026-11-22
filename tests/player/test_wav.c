@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "error.h"
+#include "helikon_error.h"
 
 static void put16(uint8_t *data, uint32_t offset, uint16_t value)
 {

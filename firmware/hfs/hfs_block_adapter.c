@@ -2,7 +2,7 @@
 #include "hfs_block_adapter.h"
 
 #include "bounce.h"
-#include "error.h"
+#include "helikon_error.h"
 
 int helikon_hfs_block_adapter_init(struct helikon_hfs_block_adapter *adapter,
                                    const struct helikon_block_device *device,

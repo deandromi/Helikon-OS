@@ -3,7 +3,7 @@
 
 #include <string.h>
 
-#include "error.h"
+#include "helikon_error.h"
 
 /* Page field offsets from ADR-0004; the firmware parser is the authority. */
 #define HANDOFF_CRC_OFFSET 72u

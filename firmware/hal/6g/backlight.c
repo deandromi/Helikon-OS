@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include "backlight.h"
 
-#include "error.h"
+#include "helikon_error.h"
 
 int helikon_backlight_init(struct helikon_backlight *backlight,
                            struct helikon_pmu *pmu, uint32_t timeout_ms)

@@ -19,7 +19,7 @@
 #include "bootstate.h"
 #include "clock.h"
 #include "cpu.h"
-#include "error.h"
+#include "helikon_error.h"
 #include "format.h"
 #include "hfs_block_adapter.h"
 #include "hfs_catalog.h"

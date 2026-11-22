@@ -36,7 +36,7 @@ test_deps = $(test_src) ../../firmware/codec/codec.h \
             ../../firmware/codec/tag/id3v2.h \
             ../../firmware/codec/tag/vorbis.h \
             ../../firmware/codec/libmad/libmad_port.h \
-            ../../firmware/player/wav.h ../../firmware/lib/error.h
+            ../../firmware/player/wav.h ../../firmware/lib/helikon_error.h
 
 test_codec: $(test_deps) $(LIBMAD_OBJ)
 	$(CC) $(CFLAGS) -o $@ $(test_src) $(LIBMAD_OBJ)

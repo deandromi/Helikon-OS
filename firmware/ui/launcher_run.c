@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "launcher_run.h"
 
-#include "error.h"
+#include "helikon_error.h"
 #include "launcher.h"
 #include "music.h"
 

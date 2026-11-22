@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
+#include "helikon_error.h"
 
 /* Deterministic shuffle: xorshift32, seeded by the caller. */
 static uint32_t queue_random(struct helikon_queue *queue)

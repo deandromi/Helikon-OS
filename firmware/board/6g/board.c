@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include "board.h"
 
-#include "error.h"
+#include "helikon_error.h"
 #include "memory_map.h"
 
 static const struct helikon_board board_6g = {

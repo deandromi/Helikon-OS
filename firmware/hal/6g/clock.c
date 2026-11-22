@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include "clock.h"
 
-#include "error.h"
+#include "helikon_error.h"
 #include "s5l8702_regs.h"
 
 #define CG16_DISABLE_BIT 0x8000u

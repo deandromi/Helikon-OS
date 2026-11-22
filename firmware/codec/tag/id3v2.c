@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
+#include "helikon_error.h"
 #include "mem.h"
 
 /* ID3v2.3/2.4 frame header: 4-byte id, 4-byte size, 2 bytes of flags. */

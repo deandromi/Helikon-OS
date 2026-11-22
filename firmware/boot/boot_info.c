@@ -2,8 +2,8 @@
 #include "boot_info.h"
 
 #include "crc32.h"
-#include "endian.h"
-#include "error.h"
+#include "helikon_endian.h"
+#include "helikon_error.h"
 #include "mem.h"
 #include "static_assert.h"
 

@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
+#include "helikon_error.h"
 #include "mem.h"
 #include "mp3/mp3.h"
 #include "wav.h"
