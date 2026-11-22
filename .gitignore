@@ -87,3 +87,6 @@ tests/player/test_read_ahead
 tests/player/test_queue
 
 tests/hfsplus/test_catalog_header
+# clang coverage profiles (tools/coverage.sh writes them under build/)
+*.profraw
+*.profdata
