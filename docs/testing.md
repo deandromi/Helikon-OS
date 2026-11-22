@@ -599,7 +599,12 @@ The same suite then takes the user-facing path (`audio-formats.md` §24): it
 resolves `/Playlists/first.m3u` against the catalog read through the VFS, checks
 the queue order and the four counts, and plays each queued track from its catalog
 path. Every file the fixture catalog names is a real file on that image, so a
-catalog that drifts from the volume fails instead of passing on names alone.
+catalog that drifts from the volume fails instead of passing on names alone. A
+third phase drives `firmware/library/music_source.c` — the object that owns
+volume + catalog + index + queue + player — from the same playlist through
+`next`, `previous`, repeat-one, repeat-all, the end of the queue, a stale
+playlist, a folder, a missing path, a too-small buffer and a track id past the
+catalog (`audio-formats.md` §26).
 
 Every host suite that links `firmware/codec/codec.c` also links the vendored
 libmad objects, because the codec registry references the MP3 descriptor even
@@ -627,7 +632,8 @@ make -C tests/library sanitize IMAGE=/path/to/hfs-image
 ```
 
 The image must hold `/.helikon/music.hdb`, the files the catalog names,
-`/Music/first.mp3` and `/Playlists/first.m3u`; `macos` and `macos-sanitize`
+`/Music/first.mp3`, `/Playlists/first.m3u` and `/Playlists/stale.m3u`; `macos`
+and `macos-sanitize`
 create it themselves and copy `tests/codec/fixtures/mp3_cbr_stereo16.mp3` into
 each of them, so a hand-built image has to carry the same files or the test fails
 on purpose. The CI macOS job runs it as `make -C tests/image library-test`, which

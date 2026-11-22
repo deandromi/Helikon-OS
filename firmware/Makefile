@@ -84,7 +84,7 @@ PLAYER_SRC := player/player.c player/wav.c player/vfs_media.c \
               codec/libmad/synth.c hal/$(BOARD)/audio.c
 endif
 # Compiled always so it cannot rot; without a caller the linker drops it.
-LIBRARY_SRC := db/hdb.c library/library.c
+LIBRARY_SRC := db/hdb.c library/library.c library/music_source.c
 VFS_SRC := vfs/vfs.c
 # Helikon Disk Mode image (D-54): the whole disk as a writable USB LUN, for a
 # restore/format from a laptop. A separate image on purpose — the normal

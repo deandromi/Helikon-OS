@@ -101,6 +101,14 @@ cat > "$MOUNT/Playlists/first.m3u" <<'PLAYLIST'
 ../../escape.m4a
 PLAYLIST
 [ -s "$MOUNT/Playlists/first.m3u" ] || fail "could not write the playlist"
+
+# A playlist whose only entry the catalog does not have: the resolver must report
+# it and the source must not start a track it cannot play.
+cat > "$MOUNT/Playlists/stale.m3u" <<'PLAYLIST'
+#EXTM3U
+../Music/Nowhere/Gone.m4a
+PLAYLIST
+[ -s "$MOUNT/Playlists/stale.m3u" ] || fail "could not write the stale playlist"
 sync
 hdiutil detach "$MOUNT" >"$TMP/detach.log" 2>&1 ||
     { cat "$TMP/detach.log" >&2 || true

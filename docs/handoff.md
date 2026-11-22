@@ -12,6 +12,47 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (the music path in one object: music_source, T-125)
+
+## What happened
+
+- **`firmware/library/music_source.c/.h`** — binds a mounted VFS and an HDB,
+  builds the index once, and plays a playlist that lives on the volume: VFS read
+  → playlist parser → index → queue → `hdb_track` → path → VFS open → codec →
+  player. Then `next`/`previous` step the queue, closing and reopening the file
+  each time. No allocation: index + queue + 8 KiB playlist buffer + the player's
+  31 KiB workspace and 16 KiB window, ~68 KiB of `.bss`.
+- **Rules in the header, each one a check**: one file at a time and a failed open
+  leaves nothing playing; a missing path is `NOT_FOUND` with the queue unmoved;
+  the end stops rather than wrapping; `REPEAT_ONE` replays the same id; a playlist
+  that resolves to nothing stops playback.
+- **`tests/library` third phase** drives it over the disposable journaled image
+  and prints `PASS music source: one object over the volume, 3 queued, walked 5,
+  2, 0 and stopped at the end`. The image gained `/Playlists/stale.m3u`.
+- **Real defect found by that phase**: the playlist base was `/Playlists/`, so
+  `..` popped the empty trailing component instead of `Playlists`; relative
+  entries landed under `/Playlists/Music/...` and `../../escape.m4a` was
+  *accepted*. Fixed to `/Playlists`, with the reason in a comment.
+
+## Evidence
+
+- `make -C tests/library macos` → three `PASS` lines (playlist, music source,
+  library); `macos-sanitize` the same, sanitizer-clean.
+- `./tools/static-analysis.sh` → 78 units, 0 findings.
+- `make -C firmware BOARD=6g image` → 80,020 B unchanged (`--gc-sections` drops
+  the object: nothing calls it); music-hub image builds at 768,200 B.
+
+## Open / next
+
+- **The mount.** Nothing above `tests/library` calls this, because the firmware
+  mounts no volume at boot (T-056 device half). That is the single blocker
+  between this object and a Music hub that plays the library.
+- The hub then needs a call site: a playlist row that calls
+  `helikon_music_source_play_playlist`, next/previous bound to wheel
+  left/right, and a Now Playing path from `helikon_music_source_path`.
+- No device run of any of it; the embedded-blob player is still what the device
+  image does.
+
 # Handoff — 2026-11-22 (one file, twelve tracks: the cue sheet reader, T-124)
 
 ## What happened
