@@ -190,6 +190,7 @@ metadata B-tree headers through the reader's own validation, each tree's leaf
 chain (it ends at the header's last leaf and holds the number of records the
 header claims), the key order of the catalog and the extents tree across leaf
 boundaries, every catalog record body against the structure its type promises,
+each index node's child pointer, level and key against the subtree it points at,
 and the file and folder counts the volume header claims against the records
 actually present. The root
 folder is excluded from the folder count because the format excludes it, and the
@@ -203,7 +204,7 @@ counted rather than skipped: the 140 GiB volume reads 36,594,065 free blocks bot
 ways in about 0.2 s. The pass is I/O-bound and belongs off the boot path.
 
 ```sh
-make -C tests/hfsplus test_check            # 22 cases, one corruption each
+make -C tests/hfsplus test_check            # 26 cases, one corruption each
 make -C tests/image hfs-check
 ./tests/image/hfs-check disk.img            # 0 clean, 1 findings, 2 unusable
 ```
@@ -211,9 +212,11 @@ make -C tests/image hfs-check
 Its tests build a 125-block volume by hand and put exactly one thing wrong in
 each case: two sibling folders in the wrong key order, a thread key that carries
 a name, a file body cut from 248 bytes to 100, a header claiming one record more
-than its leaf holds, two extents records swapped, and two clean catalogs — one
-folder, one file — that must report nothing at all. The clean case matters most:
-a checker that cries wolf is worse than no checker.
+than its leaf holds, two extents records swapped, an index key that sorts after
+the subtree it points at, a child pointer past the last node, a leaf that claims
+to be an index node, and three clean catalogs — one folder, one file, and a real
+depth-2 tree with an index node over two leaves — that must report nothing at
+all. The clean cases matter most: a checker that cries wolf is worse than none.
 
 Run against real volumes: a 64 MB macOS `HFS+J` volume holding nested folders,
 16 files and names such as `£ euro.txt` and `日本.txt` across a 128-node catalog

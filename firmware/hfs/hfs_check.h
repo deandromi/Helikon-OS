@@ -31,11 +31,18 @@
  *  - catalog record bodies: a file record carries 248 bytes and a real file ID,
  *    a folder record 88 bytes and a real folder ID, a thread record names its
  *    item and its key names nothing, and only types 1..4 appear;
+ *  - index nodes: every child pointer is inside the tree, the child is the level
+ *    below (an index node, or a leaf at the last step), and the key that points
+ *    at a subtree is not greater than that subtree's first key - the rule a
+ *    search depends on. A stale ancestor key is allowed, because HFS+ leaves one
+ *    behind after a delete;
  *  - the file and folder counts the volume header claims against the records
  *    actually there.
  *
- * What it does not check yet: index nodes, the free-node map, quarantine, and
- * the charging/idle scrub policy. Those are the next slices.
+ * What it does not check yet: the free-node map and node ownership, the
+ * attributes tree's index keys (its key order is not exercised by any fixture
+ * here), quarantine, and the charging/idle scrub policy. Those are the next
+ * slices.
  */
 #ifndef HELIKON_HFS_HFS_CHECK_H
 #define HELIKON_HFS_HFS_CHECK_H

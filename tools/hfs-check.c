@@ -45,7 +45,7 @@ static void print_flags(uint32_t problems)
         { HFS_CHECK_FREE_MISMATCH, "the free-block count disagrees with the bitmap" },
         { HFS_CHECK_BTREE_HEADER, "a B-tree header is not valid" },
         { HFS_CHECK_BTREE_SIZE, "a B-tree does not fit its fork" },
-        { HFS_CHECK_BTREE_INDEX, "a B-tree node index is out of range" },
+        { HFS_CHECK_BTREE_INDEX, "a B-tree index node or child pointer is not valid" },
         { HFS_CHECK_BTREE_CHAIN, "a B-tree leaf chain does not match its header" },
         { HFS_CHECK_CATALOG_ORDER, "catalog keys are out of order" },
         { HFS_CHECK_CATALOG_BODY, "a catalog record body is malformed" },

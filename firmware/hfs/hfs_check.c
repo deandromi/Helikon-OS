@@ -268,6 +268,12 @@ static uint32_t check_tree(struct hfs_volume *volume, const struct hfs_fork *for
  */
 #define CHECK_KEY_MAX 516u
 
+/* The reader's own depth limit (`HFS_BTREE_MAX_DEPTH`); the walk stack matches it. */
+#define CHECK_MAX_DEPTH 32u
+
+typedef int (*check_compare_fn)(const uint8_t *a, size_t a_length,
+                                const uint8_t *b, size_t b_length);
+
 /*
  * One leaf-chain walk. `compare` receives a key without its two-byte length
  * field, exactly as the B-tree's own comparator sees it; `record`, when set,
@@ -275,8 +281,7 @@ static uint32_t check_tree(struct hfs_volume *volume, const struct hfs_fork *for
  * the findings this walk can raise, so the caller keeps its own vocabulary.
  */
 struct leaf_walk {
-    int (*compare)(const uint8_t *a, size_t a_length, const uint8_t *b,
-                   size_t b_length);
+    check_compare_fn compare;
     void (*record)(const uint8_t *record, size_t length, uint16_t key_length,
                    struct hfs_check_report *report);
     uint32_t key_bit;
@@ -519,6 +524,151 @@ static void check_extents_keys(struct hfs_volume *volume,
     walk_leaves(&btree, &walk, report);
 }
 
+/*
+ * Index nodes. Every record in an index node is a key and a child pointer, and a
+ * search trusts three things about them: the child exists, it is the level below
+ * (an index node until the last step, a leaf after it), and the key that points
+ * at a subtree is not greater than the first key in that subtree. HFS+ lets an
+ * ancestor key go stale after a delete — it may sit below the subtree's first
+ * key — so the rule is "not greater", which is exactly what a search needs, and
+ * a key that sorts above the subtree makes those records unreachable.
+ *
+ * The walk is iterative and bounded by the tree's depth; reaching more nodes than
+ * the tree has is a cycle, and a cycle is reported as a chain finding.
+ */
+struct index_frame {
+    uint32_t node;
+    uint16_t height;
+};
+
+static void check_index_nodes(struct hfs_btree *btree, check_compare_fn compare,
+                              struct hfs_check_report *report)
+{
+    if (btree->empty != 0u || btree->depth < 2u)
+        return;
+
+    struct index_frame frames[CHECK_MAX_DEPTH];
+    uint8_t previous[CHECK_KEY_MAX];
+    uint8_t key[CHECK_KEY_MAX];
+    size_t previous_length = 0u;
+    uint32_t visited = 0u;
+    size_t depth = 0u;
+    frames[depth].node = btree->root_node;
+    frames[depth].height = btree->depth;
+    depth += 1u;
+
+    while (depth != 0u) {
+        struct index_frame frame = frames[depth - 1u];
+        depth -= 1u;
+        if (++visited > btree->total_nodes) {
+            report->problems |= HFS_CHECK_BTREE_CHAIN;
+            return;
+        }
+
+        const uint8_t *node = NULL;
+        if (hfs_btree_read_node(btree, frame.node, &node) != HFS_OK ||
+            node[8] != 0u || node[9] != (uint8_t)frame.height ||
+            be16(node + 10) == 0u) {
+            report->problems |= HFS_CHECK_BTREE_INDEX;
+            continue;
+        }
+        uint16_t count = be16(node + 10);
+
+        int have_previous = 0;
+        for (uint16_t index = 0u; index < count; ++index) {
+            /*
+             * The node is re-read for every record: the child read below lands in
+             * the same scratch buffer, so a record pointer only lives until then.
+             */
+            if (hfs_btree_read_node(btree, frame.node, &node) != HFS_OK) {
+                report->problems |= HFS_CHECK_BTREE_INDEX;
+                break;
+            }
+            const uint8_t *record = NULL;
+            size_t length = 0u;
+            if (hfs_btree_node_record(node, btree->node_size, index, &record,
+                                      &length) != HFS_OK) {
+                report->problems |= HFS_CHECK_BTREE_INDEX;
+                break;
+            }
+            uint16_t key_length = be16(record);
+            if ((size_t)key_length + 6u > length ||
+                (size_t)key_length > CHECK_KEY_MAX) {
+                report->problems |= HFS_CHECK_BTREE_INDEX;
+                break;
+            }
+            uint32_t child = be32(record + 2u + (size_t)key_length);
+            for (uint16_t copy = 0u; copy < key_length; ++copy)
+                key[copy] = record[2u + copy];
+
+            if (have_previous != 0 &&
+                compare(previous, previous_length, key, key_length) >= 0)
+                report->problems |= HFS_CHECK_BTREE_INDEX;
+            for (uint16_t copy = 0u; copy < key_length; ++copy)
+                previous[copy] = key[copy];
+            previous_length = (size_t)key_length;
+            have_previous = 1;
+
+            if (child >= btree->total_nodes) {
+                report->problems |= HFS_CHECK_BTREE_INDEX;
+                continue;
+            }
+
+            const uint8_t *child_node = NULL;
+            if (hfs_btree_read_node(btree, child, &child_node) != HFS_OK) {
+                report->problems |= HFS_CHECK_BTREE_INDEX;
+                continue;
+            }
+            /* The last level of index nodes points at leaves; the rest at index. */
+            uint8_t kind = frame.height == 2u ? 0xffu : 0x00u;
+            if (child_node[8] != kind ||
+                (uint16_t)child_node[9] + 1u != (uint16_t)frame.height ||
+                be16(child_node + 10) == 0u) {
+                report->problems |= HFS_CHECK_BTREE_INDEX;
+                continue;
+            }
+            const uint8_t *first = NULL;
+            size_t first_length = 0u;
+            if (hfs_btree_node_record(child_node, btree->node_size, 0u, &first,
+                                      &first_length) != HFS_OK ||
+                first_length < 2u) {
+                report->problems |= HFS_CHECK_BTREE_INDEX;
+                continue;
+            }
+            uint16_t first_key_length = be16(first);
+            if ((size_t)first_key_length + 2u > first_length) {
+                report->problems |= HFS_CHECK_BTREE_INDEX;
+                continue;
+            }
+            if (compare(key, key_length, first + 2u, first_key_length) > 0)
+                report->problems |= HFS_CHECK_BTREE_INDEX;
+
+            /* Leaves are already covered by the leaf-chain walk. */
+            if (frame.height > 2u) {
+                if (depth == CHECK_MAX_DEPTH) {
+                    report->problems |= HFS_CHECK_BTREE_CHAIN;
+                    return;
+                }
+                frames[depth].node = child;
+                frames[depth].height = (uint16_t)(frame.height - 1u);
+                depth += 1u;
+            }
+        }
+    }
+}
+
+static void check_index_tree(struct hfs_volume *volume, const struct hfs_fork *fork,
+                             check_compare_fn compare,
+                             struct hfs_check_report *report)
+{
+    static uint8_t scratch[HFS_MAX_NODE_SIZE + 1u];
+    struct hfs_btree btree;
+    /* A tree that will not open is already a header finding. */
+    if (hfs_btree_open(&btree, volume, fork, scratch, sizeof(scratch)) != HFS_OK)
+        return;
+    check_index_nodes(&btree, compare, report);
+}
+
 int hfs_check_volume(struct hfs_volume *volume, struct hfs_check_report *report)
 {
     if (volume == NULL || report == NULL)
@@ -550,9 +700,13 @@ int hfs_check_volume(struct hfs_volume *volume, struct hfs_check_report *report)
                                    &report->attributes_depth,
                                    &report->attributes_nodes);
 
-    if (report->extents_nodes != 0u)
+    if (report->extents_nodes != 0u) {
         check_extents_keys(volume, report);
-    if (report->catalog_nodes != 0u)
+        check_index_tree(volume, &volume->extents, extents_key_compare, report);
+    }
+    if (report->catalog_nodes != 0u) {
         check_catalog(volume, report);
+        check_index_tree(volume, &volume->catalog, catalog_key_compare, report);
+    }
     return HFS_OK;
 }

@@ -21,12 +21,13 @@
 #define HEADER_BLOCK 2u
 #define ALLOCATION_BLOCK 3u
 #define CATALOG_BLOCK 4u
-#define CATALOG_BLOCKS 2u
-#define EXTENTS_BLOCK 6u
+/* Four nodes, so the index-node tests can have a root, an index and two leaves. */
+#define CATALOG_BLOCKS 4u
+#define EXTENTS_BLOCK 8u
 #define EXTENTS_BLOCKS 2u
-#define ATTRIBUTES_BLOCK 8u
+#define ATTRIBUTES_BLOCK 10u
 #define ATTRIBUTES_BLOCKS 2u
-#define USED_BLOCKS 10u
+#define USED_BLOCKS 12u
 
 static void put_be32(uint8_t *p, uint32_t value)
 {
@@ -97,7 +98,7 @@ static void make_bitmap(void)
      * the three padding bits of the last byte are defined as used.
      */
     bitmap[0] = 0xffu;
-    bitmap[1] = 0xc0u;
+    bitmap[1] = 0xf0u;
     /* Byte 15 covers blocks 120..127: 120..124 free, and the three padding bits
      * (125..127) set. */
     bitmap[15] = 0x07u;
@@ -340,15 +341,45 @@ static uint8_t leaf_data[512];
 static uint16_t leaf_count;
 static uint16_t leaf_cursor;
 
-static void leaf_start(void)
+/* Starts any node: kind 0xff is a leaf, 0 an index node. */
+static void node_start(uint8_t kind, uint16_t height, uint32_t f_link,
+                       uint32_t b_link)
 {
     memset(leaf_data, 0, sizeof(leaf_data));
-    put_be32(leaf_data + 0u, 0u);   /* bLink */
-    put_be32(leaf_data + 4u, 0u);   /* fLink */
-    leaf_data[8] = 0xffu;           /* kind: leaf */
-    leaf_data[9] = 1u;              /* height */
+    put_be32(leaf_data + 0u, f_link);
+    put_be32(leaf_data + 4u, b_link);
+    leaf_data[8] = kind;
+    leaf_data[9] = (uint8_t)height;
     leaf_cursor = 14u;
     leaf_count = 0u;
+}
+
+static void leaf_start(void)
+{
+    node_start(0xffu, 1u, 0u, 0u);
+}
+
+/* Writes the assembled node into the tree at `block`, node index `node`. */
+static void node_write(uint32_t block, uint32_t node)
+{
+    uint8_t *target = test_image + ((size_t)block + node) * BLOCK_SIZE;
+    test_image_put_be16(leaf_data + 512u - 2u * (uint16_t)(leaf_count + 1u),
+                        leaf_cursor);
+    test_image_put_be16(leaf_data + 10u, leaf_count);
+    memcpy(target, leaf_data, 512u);
+}
+
+/* The tree's header record: where the walk starts and what it promises. */
+static void tree_header(uint32_t block, uint16_t depth, uint32_t root,
+                        uint32_t records, uint32_t first, uint32_t last)
+{
+    uint8_t *record = test_image + (size_t)block * BLOCK_SIZE + 14u;
+    test_image_put_be16(record + 0u, depth);
+    put_be32(record + 2u, root);
+    put_be32(record + 6u, records);
+    put_be32(record + 10u, first);
+    put_be32(record + 14u, last);
+    put_be32(record + 26u, 0u);
 }
 
 static void leaf_add(const uint8_t *record, size_t length)
@@ -369,19 +400,8 @@ static void leaf_add(const uint8_t *record, size_t length)
  */
 static void leaf_install(uint32_t block, uint32_t records)
 {
-    uint8_t *base = test_image + (size_t)block * BLOCK_SIZE;
-    test_image_put_be16(leaf_data + 512u - 2u * (uint16_t)(leaf_count + 1u),
-                        leaf_cursor);
-    test_image_put_be16(leaf_data + 10u, leaf_count);
-    memcpy(base + BLOCK_SIZE, leaf_data, 512u);
-
-    uint8_t *record = base + 14u;
-    test_image_put_be16(record + 0u, 1u);    /* depth */
-    put_be32(record + 2u, 1u);               /* rootNode */
-    put_be32(record + 6u, records);          /* leafRecords */
-    put_be32(record + 10u, 1u);              /* firstLeafNode */
-    put_be32(record + 14u, 1u);              /* lastLeafNode */
-    put_be32(record + 26u, 0u);              /* freeNodes */
+    node_write(block, 1u);
+    tree_header(block, 1u, 1u, records, 1u, 1u);
 }
 
 /* keyLength, parentID, nameLength, UTF-16BE name; returns the key's byte size. */
@@ -440,6 +460,45 @@ static void set_header_counts(uint32_t files, uint32_t folders)
 {
     test_image_put_be32(test_image + 1024u + 32u, files);
     test_image_put_be32(test_image + 1024u + 36u, folders);
+}
+
+/* One index record: the key and the child node it points at. */
+static void index_add(uint32_t parent, const char *name, uint32_t child)
+{
+    uint8_t record[512];
+    size_t key = put_catalog_key(record, parent, name);
+    put_be32(record + key, child);
+    leaf_add(record, key + 4u);
+}
+
+/*
+ * A real depth-2 catalog: one index node over two leaves, with one key per leaf
+ * -- the first key of that leaf, which is the rule HFS+ indexes by. Every index
+ * test starts here and then puts one thing wrong.
+ */
+static void make_two_level_catalog(void)
+{
+    uint8_t record[512];
+    make_clean_volume();
+    set_header_counts(1u, 1u);
+
+    /* Leaf 2: the folder "alpha" under the root folder. */
+    node_start(0xffu, 1u, 3u, 0u);
+    leaf_add(record, make_folder_record(record, 2u, "alpha", 3u));
+    node_write(CATALOG_BLOCK, 2u);
+
+    /* Leaf 3: the file "one.txt" under the same folder. */
+    node_start(0xffu, 1u, 0u, 2u);
+    leaf_add(record, make_file_record(record, 2u, "one.txt", 16u));
+    node_write(CATALOG_BLOCK, 3u);
+
+    /* Index 1: the first key of each leaf, pointing at it. */
+    node_start(0x00u, 2u, 0u, 0u);
+    index_add(2u, "alpha", 2u);
+    index_add(2u, "one.txt", 3u);
+    node_write(CATALOG_BLOCK, 1u);
+
+    tree_header(CATALOG_BLOCK, 2u, 1u, 2u, 2u, 3u);
 }
 
 /*
@@ -595,6 +654,68 @@ static int test_extents_order(void)
     return 0;
 }
 
+/* The depth-2 catalog above is valid and must report nothing. */
+static int test_index_clean(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    make_two_level_catalog();
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK(report.problems == 0u);
+    CHECK(report.catalog_depth == 2u);
+    return 0;
+}
+
+/* An index key that sorts after the subtree it points at: those records are lost. */
+static int test_index_key_above_child(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    make_two_level_catalog();
+
+    /* Rewrite the index with "omega" for the leaf whose first key is "alpha". */
+    node_start(0x00u, 2u, 0u, 0u);
+    index_add(2u, "omega", 2u);
+    index_add(2u, "one.txt", 3u);
+    node_write(CATALOG_BLOCK, 1u);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK((report.problems & HFS_CHECK_BTREE_INDEX) != 0u);
+    return 0;
+}
+
+/* A child pointer past the last node. */
+static int test_index_child_range(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    make_two_level_catalog();
+
+    /* The second index record's child: 14 bytes of node, 18 of key, then the
+     * child pointer. */
+    uint8_t *node = test_image + (size_t)(CATALOG_BLOCK + 1u) * BLOCK_SIZE;
+    put_be32(node + 14u + 18u + 4u, 9u);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK((report.problems & HFS_CHECK_BTREE_INDEX) != 0u);
+    return 0;
+}
+
+/* A leaf that claims to be an index node. */
+static int test_index_child_level(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    make_two_level_catalog();
+
+    test_image[(size_t)(CATALOG_BLOCK + 3u) * BLOCK_SIZE + 8u] = 0x00u;
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK((report.problems & HFS_CHECK_BTREE_INDEX) != 0u);
+    return 0;
+}
+
 static int test_bad_tree_header(void)
 {
     struct hfs_volume volume;
@@ -675,7 +796,11 @@ int main(void)
         { "leaf chain count", test_catalog_leaf_count },
         { "thread key with a name", test_catalog_thread_key },
         { "file body cut short", test_catalog_short_body },
-        { "extents keys out of order", test_extents_order }
+        { "extents keys out of order", test_extents_order },
+        { "clean index node", test_index_clean },
+        { "index key above its child", test_index_key_above_child },
+        { "index child out of range", test_index_child_range },
+        { "index child at the wrong level", test_index_child_level }
     };
 
     int failed = 0;
