@@ -73,6 +73,7 @@ PLAYER_SRC :=
 ifneq ($(AUDIO),)
 PLAYER_SRC := player/player.c player/wav.c player/vfs_media.c \
               player/read_ahead.c player/queue.c player/playlist.c \
+              player/cuesheet.c \
               codec/codec.c codec/flac/flac_codec.c \
               codec/flac/flac_decoder.c \
               codec/mp3/mp3_codec.c codec/tag/id3v2.c \

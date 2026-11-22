@@ -1,0 +1,6 @@
+﻿file "a.flac" wave
+track 01 audio
+title First Light
+index 01 00:00:00
+FLAGS DCP
+ISRC ABCDE1234567
