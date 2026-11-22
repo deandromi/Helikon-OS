@@ -99,6 +99,12 @@ jobs:
           echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
 
       - name: Run the suites
+        # `format-test` formats a 140 GiB sparse image. It fit one runner and
+        # not the next, which makes it a coin flip in CI and a reliable local
+        # run; the >128 GiB format evidence stays the owner's macOS run in
+        # docs/device-matrix.md, not this job.
+        env:
+          HOST_TESTS_MACOS_SKIP: format-test
         run: ./tools/host-tests.sh clang --macos --keep-going
 
       - name: Keep the suite logs

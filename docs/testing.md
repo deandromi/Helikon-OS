@@ -787,7 +787,7 @@ Two workflows, both in `.github/workflows/`, both host-only.
 |---|---|---|
 | `portable` | ubuntu | `tools/host-tests.sh clang --keep-going` — the nine portable suites |
 | `sanitize` | ubuntu | the same suites under ASan and UBSan |
-| `macos` | macos-14 | `tools/host-tests.sh clang --macos` — the disk-image suites: `hdiutil`, `fsck_hfs`, the mount |
+| `macos` | macos-latest | `tools/host-tests.sh clang --macos` — the disk-image suites: `hdiutil`, `fsck_hfs`, the mount. `HOST_TESTS_MACOS_SKIP=format-test`, because a 140 GiB sparse image does not reliably fit a hosted runner |
 | `build` | ubuntu | `make -C firmware BOARD=6g image` and `DISKMODE=1 image` with the distro ARM toolchain |
 
 The Linux jobs exist so the code is not only correct on the owner's Mac, and
