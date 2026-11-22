@@ -53,13 +53,16 @@ HUB_CELLS = (
     ("Tracks", "list", mock.LAUNCHER_ACCENTS["Podcasts"]),
 )
 
+# Only the title and the rule: the firmware has no search, so the wall strips
+# carry no magnifier to promise one (the mockup in tools/render-ui-mockup.py
+# still draws it; the firmware never will until a search exists).
 HEADERS = (
-    ("ALBUMS", True),
-    ("ARTISTS", True),
-    ("TRACKS", False),
-    ("ALBUM", False),
-    ("ARTIST", False),
-    ("TRACK", False),
+    "ALBUMS",
+    "ARTISTS",
+    "TRACKS",
+    "ALBUM",
+    "ARTIST",
+    "TRACK",
 )
 
 ARTIST_TABS = (
@@ -84,7 +87,13 @@ def benguiat(size, weight):
 
 
 def background_tile():
-    """320x64: folio, wordmark and divider exactly as the launcher mockup."""
+    """320x64: folio, wordmark and divider exactly as the launcher mockup.
+
+    The corner clock and battery stay: this tile is the launcher's own masthead,
+    where it is the owner's artwork. The Music hub blits the same tile and masks
+    the pair in firmware (mask_baked_hub_clock), because the hub would otherwise
+    show a clock the HAL cannot read and a charge level nothing measures.
+    """
     image = mock.Image.new("RGB", (mock.WIDTH, 64), PAPER)
     draw = mock.ImageDraw.Draw(image)
     system = mock.ui_font(11, 400)
@@ -133,14 +142,12 @@ def icon_tile(kind, accent, x, y):
     return tile, icon_x, icon_y
 
 
-def header_tile(title, with_search):
-    """320x40 wall header: Benguiat title, rule and optional search icon."""
+def header_tile(title):
+    """320x40 wall header: Benguiat title and the rule under it."""
     image = mock.Image.new("RGB", (mock.WIDTH, 40), PAPER)
     draw = mock.ImageDraw.Draw(image)
     title_font = benguiat(18, "Book")
     draw.text((29, 26), title, font=title_font, fill=INK, anchor="ls")
-    if with_search:
-        image.paste(mock.search_icon(12), (280, 8))
     draw.line((29, 36, 291, 36), fill=RULE)
     return image
 
@@ -224,9 +231,8 @@ def main():
         hub_plinths.append(rgb565(mock.mix(accent, PAPER, 0.50)))
 
     headers = []
-    for title, with_search in HEADERS:
-        headers.append((f"header_{title.lower()}",
-                        header_tile(title, with_search)))
+    for title in HEADERS:
+        headers.append((f"header_{title.lower()}", header_tile(title)))
 
     artist_header = artist_top_bar()
     artist_hero = mock.artist_hero(width=mock.WIDTH, height=68)
