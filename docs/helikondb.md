@@ -301,8 +301,9 @@ genre/facts, PLAY plate, OVERVIEW / ALBUMS / TRACKS tabs, biography and facts.
 Left/right switches tabs; the wheel moves album/track selection; SELECT opens
 the focused item; MENU returns. Album, artist and track pages show 96×96
 artwork, year and ratings; artist entries without a profile picture use a
-monogram. The 3×5 fallback font is used for dynamic text in this build; the
-first-party Plex atlas remains T-042/T-057. The search mark has no action yet.
+monogram. Every Music screen draws from the first-party Plex atlas since T-128;
+the 3×5 diagnostic face is no longer used there. The wall headers carry no search
+mark because the firmware has no search.
 The launcher input init no longer fails when no button is pressed during boot.
 Playback (F5/T-058) is not part of this test. Reading `/.helikon/music.hdb`
 from a real volume now has its own host proof: `firmware/db/hdb_vfs.c` adapts an

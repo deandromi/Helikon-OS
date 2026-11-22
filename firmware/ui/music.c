@@ -90,7 +90,6 @@ extern const uint8_t helikon_hdb_end[];
 
 static struct hdb db;
 static uint16_t art_pixels[MUSIC_ART_SIZE * MUSIC_ART_SIZE];
-static char text_buffer[192];
 static struct helikon_screen *screen;
 static struct helikon_buttons *buttons;
 static struct helikon_clock *clock;
@@ -270,33 +269,49 @@ static void ascii_text(char *dest, uint32_t capacity, const char *source,
     dest[out] = '\0';
 }
 
+/*
+ * Every word on a Music screen goes through the IBM Plex atlas (D-23). The
+ * diagnostic 3x5 face that used to draw the footers, the wall captions and the
+ * whole tracks list is gone from this file: it made one footer band read as two
+ * different products, and the atlas already carries its own 1-bit fallback for a
+ * missing atlas (D-24). Callers keep the top y and the character budget they
+ * always had; the wrappers place a baseline inside that band and turn the budget
+ * into the pixel limit the atlas takes, so no layout moved.
+ */
+static uint8_t body_style(uint32_t scale)
+{
+    return scale >= 2u ? HELIKON_FONT_14_500 : HELIKON_FONT_11_500;
+}
+
+static int32_t body_baseline(uint32_t y, uint32_t scale)
+{
+    return (int32_t)y + (scale >= 2u ? 11 : 8);
+}
+
+static uint32_t body_limit(uint32_t max_chars, uint32_t scale)
+{
+    uint32_t width = max_chars == 0u ? 0u : max_chars * 4u * scale - scale;
+    return width > MUSIC_COLUMN ? MUSIC_COLUMN : width;
+}
+
 static void draw_text(struct helikon_screen *target, uint32_t x, uint32_t y,
                       uint32_t scale, const char *source, uint32_t max_chars)
 {
-    ascii_text(text_buffer, sizeof(text_buffer), source, max_chars);
-    helikon_screen_set_foreground(target, target->foreground);
-    helikon_screen_text(target, x, y, scale, text_buffer);
-}
-
-
-static uint32_t text_width(const char *text, uint32_t scale)
-{
-    uint32_t length = 0u;
-    if (text == NULL)
-        return 0u;
-    while (text[length] != '\0')
-        ++length;
-    return length == 0u ? 0u : length * 4u * scale - scale;
+    /* Straight to the atlas: it owns UTF-8, so the "\xc2\xb7" separators these
+     * captions build survive instead of collapsing to a space. */
+    (void)helikon_text_draw(target, (int32_t)x, body_baseline(y, scale),
+                            body_style(scale), target->foreground, source,
+                            body_limit(max_chars, scale));
 }
 
 static void draw_text_right(struct helikon_screen *target, uint32_t right,
                             uint32_t y, uint32_t scale, const char *source,
                             uint32_t max_chars)
 {
-    ascii_text(text_buffer, sizeof(text_buffer), source, max_chars);
-    uint32_t width = text_width(text_buffer, scale);
-    uint32_t x = right > width ? right - width : 0u;
-    helikon_screen_text(target, x, y, scale, text_buffer);
+    (void)helikon_text_draw_right(target, (int32_t)right,
+                                  body_baseline(y, scale), body_style(scale),
+                                  target->foreground, source,
+                                  body_limit(max_chars, scale));
 }
 
 static void draw_diamond(struct helikon_screen *target, uint32_t cx,
@@ -426,14 +441,10 @@ static void draw_monogram(struct helikon_screen *target, uint32_t x,
     char initial[2];
     initial[0] = text[0] != '\0' ? text[0] : ' ';
     initial[1] = '\0';
-    uint32_t scale = 4u;
-    uint32_t width = text_width(initial, scale);
-    uint32_t height = 5u * scale;
-    uint32_t tx = x + (MUSIC_TILE_SIZE - width) / 2u;
-    uint32_t ty = y + (MUSIC_TILE_SIZE - height) / 2u;
-    helikon_screen_set_foreground(target, MUSIC_MUTED);
-    helikon_screen_text(target, tx, ty, scale, initial);
-    helikon_screen_set_foreground(target, MUSIC_INK);
+    (void)helikon_text_draw_centered(target,
+                                     (int32_t)(x + MUSIC_TILE_SIZE / 2u),
+                                     (int32_t)(y + 32u), HELIKON_FONT_17_600,
+                                     MUSIC_MUTED, initial);
 }
 
 static void draw_wall_cell(struct helikon_screen *target, uint32_t x,
@@ -623,6 +634,23 @@ static void blit_header(struct helikon_screen *target, uint32_t header)
 }
 
 
+static void draw_battery(struct helikon_screen *target);
+
+/*
+ * The Music hub reuses the launcher tile as its masthead, and that tile carries
+ * a mockup clock ("12:34") and a full battery in its top-right corner. On the
+ * launcher they are the owner's artwork; on the hub they would be data the
+ * firmware cannot produce: the HAL has a monotonic timer, not an RTC, and no
+ * fuel-gauge reading, so the clock would never tick and the battery would never
+ * fall. draw_top_bar() already refuses to fake the same two values (#62); mask
+ * the baked pair and draw the outline every other screen shows.
+ */
+static void mask_baked_hub_clock(struct helikon_screen *target)
+{
+    helikon_screen_fill_rect(target, 236u, 6u, 71u, 17u, MUSIC_PAPER);
+}
+
+
 static void draw_wall_header(struct helikon_screen *target, uint32_t header,
                              uint32_t count, uint32_t count_right,
                              uint32_t count_y)
@@ -647,14 +675,14 @@ static void draw_wall(struct helikon_screen *target, enum wall_kind kind,
     draw_wall_header(target, header, count, 270u, 17u);
 
     if (count == 0u) {
-        helikon_screen_set_foreground(target, MUSIC_INK);
-        helikon_screen_text(target, MUSIC_GRID_X, 80u, 2u,
-                            kind == WALL_ALBUMS ? "NO ALBUMS" : "NO ARTISTS");
+        (void)helikon_text_draw(target, (int32_t)MUSIC_GRID_X, 91, MUSIC_FONT_14,
+                                MUSIC_INK,
+                                kind == WALL_ALBUMS ? "NO ALBUMS" : "NO ARTISTS",
+                                MUSIC_COLUMN);
         helikon_screen_fill_rect(target, MUSIC_X, 226u, MUSIC_COLUMN, 1u,
                                  MUSIC_FAINT);
-        helikon_screen_set_foreground(target, MUSIC_MUTED);
-        helikon_screen_text(target, 14u, 236u, 1u, "MENU BACK");
-        helikon_screen_set_foreground(target, MUSIC_INK);
+        (void)helikon_text_draw(target, 14, 236, MUSIC_FONT_11, MUSIC_MUTED,
+                                "MENU BACK", 120u);
         (void)helikon_screen_present_all(target);
         return;
     }
@@ -708,6 +736,8 @@ static void draw_hub(struct helikon_screen *target, uint32_t selected)
                           helikon_launcher_background.height,
                           helikon_launcher_background.pixels,
                           helikon_launcher_background.width);
+    mask_baked_hub_clock(target);
+    draw_battery(target);
 
     for (uint32_t index = 0u; index < HELIKON_MUSIC_HUB_CELLS; ++index) {
         uint32_t x = 24u + index * 104u;
@@ -741,10 +771,11 @@ static void draw_hub(struct helikon_screen *target, uint32_t selected)
 
     helikon_screen_fill_rect(target, MUSIC_X, 226u, MUSIC_COLUMN, 1u,
                              MUSIC_FAINT);
-    helikon_screen_set_foreground(target, MUSIC_MUTED);
-    helikon_screen_text(target, 14u, 236u, 1u, "SELECT OPEN");
-    draw_text_right(target, 306u, 236u, 1u, "MENU BACK", 12u);
-    helikon_screen_set_foreground(target, MUSIC_INK);
+    (void)helikon_text_draw(target, 14, 236, MUSIC_FONT_11, MUSIC_MUTED,
+                            "SELECT OPEN", 120u);
+    (void)helikon_text_draw_right(target, (int32_t)MUSIC_RIGHT, 236,
+                                   MUSIC_FONT_11, MUSIC_MUTED, "MENU BACK",
+                                   120u);
     (void)helikon_screen_present_all(target);
 }
 
@@ -757,9 +788,8 @@ static void draw_frame(struct helikon_screen *target, const char *title)
     helikon_screen_fill_rect(target, 12u, 30u, 296u, 1u, MUSIC_MUTED);
     helikon_screen_fill_rect(target, MUSIC_X, 226u, MUSIC_COLUMN, 1u,
                              MUSIC_FAINT);
-    helikon_screen_set_foreground(target, MUSIC_MUTED);
-    helikon_screen_text(target, 14u, 236u, 1u, "MENU BACK");
-    helikon_screen_set_foreground(target, MUSIC_INK);
+    (void)helikon_text_draw(target, 14, 236, MUSIC_FONT_11, MUSIC_MUTED,
+                            "MENU BACK", 120u);
 }
 
 
@@ -920,9 +950,8 @@ static void draw_list(struct helikon_screen *target, const struct list_spec *spe
         draw_wall_header(target, MUSIC_HEADER_TRACKS, count, 291u, 17u);
         helikon_screen_fill_rect(target, MUSIC_X, 226u, MUSIC_COLUMN, 1u,
                                  MUSIC_FAINT);
-        helikon_screen_set_foreground(target, MUSIC_MUTED);
-        helikon_screen_text(target, 14u, 236u, 1u, "MENU BACK");
-        helikon_screen_set_foreground(target, MUSIC_INK);
+        (void)helikon_text_draw(target, 14, 236, MUSIC_FONT_11, MUSIC_MUTED,
+                                "MENU BACK", 120u);
     } else {
         char title[192];
         list_title(spec, count, title, sizeof(title));
@@ -946,14 +975,13 @@ static void draw_list(struct helikon_screen *target, const struct list_spec *spe
         }
         draw_text(target, 14u, y, 2u, label, 46u);
     }
-    helikon_screen_set_foreground(target, MUSIC_MUTED);
     char position[24];
     copy_text(position, sizeof(position), "");
     append_u32(position, sizeof(position), selected + 1u);
     append_text(position, sizeof(position), "/");
     append_u32(position, sizeof(position), count);
-    helikon_screen_text(target, 272u, 236u, 1u, position);
-    helikon_screen_set_foreground(target, MUSIC_INK);
+    (void)helikon_text_draw_right(target, (int32_t)MUSIC_RIGHT, 236,
+                                   MUSIC_FONT_11, MUSIC_MUTED, position, 80u);
     (void)helikon_screen_present_all(target);
 }
 
@@ -1016,7 +1044,8 @@ static int run_list(const struct list_spec *spec, uint32_t *selected_io)
         *selected_io = selected;
     if (count == 0u) {
         draw_frame(screen, "TRACKS");
-        helikon_screen_text(screen, 14u, 60u, 2u, "NO TRACKS IN LIBRARY");
+        (void)helikon_text_draw(screen, 14, 73, MUSIC_FONT_17, MUSIC_INK,
+                                "NO TRACKS IN LIBRARY", MUSIC_COLUMN);
         (void)helikon_screen_present_all(screen);
         uint64_t idle = helikon_clock_now_us(clock);
         for (;;) {
@@ -3573,9 +3602,11 @@ int helikon_music_run(struct helikon_screen *screen_arg,
     if (hdb_open(&db, &io) != HELIKON_OK) {
         draw_frame(screen, "MUSIC");
         helikon_screen_set_foreground(screen, MUSIC_INK);
-        helikon_screen_text(screen, 14u, 60u, 2u, "LIBRARY UNAVAILABLE");
-        helikon_screen_text(screen, 14u, 90u, 1u,
-                            "REBUILD THE IMAGE WITH A VALID HDB");
+        (void)helikon_text_draw(screen, 14, 73, MUSIC_FONT_17, MUSIC_INK,
+                                "LIBRARY UNAVAILABLE", MUSIC_COLUMN);
+        (void)helikon_text_draw(screen, 14, 97, MUSIC_FONT_11, MUSIC_MUTED,
+                                "REBUILD THE IMAGE WITH A VALID HDB",
+                                MUSIC_COLUMN);
         (void)helikon_screen_present_all(screen);
         for (;;) {
             uint32_t events = 0u;

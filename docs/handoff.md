@@ -12,6 +12,42 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (Music flow truth and typography: T-128)
+
+## What happened
+
+- **The hub stopped showing a clock.** It blits `helikon_launcher_background` as
+  its masthead, and that owner-artwork tile carries a mockup `12:34` and a full
+  battery. `mask_baked_hub_clock()` clears the corner and `draw_battery()` draws
+  the honest outline, so the hub no longer claims an RTC or a fuel gauge.
+- **The 3×5 diagnostic face is gone from `firmware/ui/music.c`.** `draw_text` and
+  `draw_text_right` now place a baseline in the band the caller used and give the
+  atlas a pixel limit derived from the old character budget, so no layout moved.
+  Footers, wall captions, wall counts and the whole Tracks list are Plex now, and
+  the `·` separators survive because the text reaches the atlas as UTF-8.
+- **The wall headers lost the mockup magnifier**: there is no search, so the strip
+  no longer promises one. `tools/make-launcher-assets.py` no longer draws it and
+  the two committed strips were cleared.
+- **`tests/ui/test_music.c`** probes the hub's real corner, the wall's corner and
+  the colour count of both text bands (16–17 colours for atlas text, 2 for the 3×5
+  face), so neither defect can return quietly.
+
+## Evidence
+
+- `./tools/host-tests.sh clang` → 9 suites.
+- `./tools/static-analysis.sh` → 80 units, 0 findings.
+- `make -C tests/ui preview` → 34 screens re-rendered from the firmware sources.
+- Music-hub image 767,960 B (was 768,200 B); plain 6G image 80,020 B.
+- Visit: `.unslopovich/visits/2026-11-22-2200-firmware-music-ui.md`, 17 → 20 / 24.
+
+## Open / next
+
+- **T-129**: the launcher masthead still carries the same baked clock and battery.
+  That is owner artwork; decide regenerate-without-them or record the exception.
+- `NO CREDITS LISTED` and `▶ PLAYING` remain owner decisions from 2026-11-21.
+- The companion and the boot splash were not revisited in this pass.
+- Nothing here was seen on a panel; the renders are host builds.
+
 # Handoff — 2026-11-22 (ATA as a block device: T-127)
 
 ## What happened

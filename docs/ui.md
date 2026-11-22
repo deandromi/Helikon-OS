@@ -219,12 +219,16 @@ headers, counts, a selected caption and a position. Artist entries without a
 profile picture use a monogram. Tracks is the title-index list. The wheel or
 left/right moves, SELECT opens and MENU returns one level; album, artist and
 track pages reuse the same header language. Artwork is 96×96 RGB565 scaled
-96→46 with nearest-neighbour sampling on the wall. The search mark is present
-but has no action yet.
+96→46 with nearest-neighbour sampling on the wall. The wall headers carry the
+title and the rule only: the mockup's search mark was removed because the
+firmware has no search, and it returns when one exists.
 
-The build uses the 3×5 fallback font for dynamic text until the Plex atlas
-(T-042/T-057). The first audio build adds a Now Playing progress view for the
-embedded WAV track; other tracks state that playback is next.
+Every word on these screens is drawn from the IBM Plex atlas, including the
+footers, the wall captions and the Tracks list; the 3×5 diagnostic face that
+drew them before T-128 is gone from `firmware/ui/music.c`. The atlas keeps its
+own 1-bit fallback (D-24) and shows `FONT FALLBACK` in the time slot when it is
+in use. The first audio build adds a Now Playing progress view for the embedded
+WAV track; other tracks state that playback is next.
 
 For the pre-VFS test, the signed image embeds a 100-song HelikonDB:
 

@@ -119,6 +119,35 @@ static int any_color(uint32_t x, uint32_t y, uint32_t width, uint32_t height,
     return 0;
 }
 
+/* Counts distinct colours in a band. The atlas draws anti-aliased text, so a
+ * band holding a word has more than the paper/ink pair; the retired 3x5
+ * diagnostic face drew solid pixels and only ever produced two. This is how a
+ * test notices the typography regressing without reading the source. */
+static int distinct_colors(uint32_t x, uint32_t y, uint32_t width,
+                           uint32_t height)
+{
+    uint16_t seen[64];
+    int count = 0;
+    for (uint32_t row = 0u; row < height; ++row) {
+        for (uint32_t column = 0u; column < width; ++column) {
+            uint16_t value = (uint16_t)pixel(x + column, y + row);
+            int known = 0;
+            for (int index = 0; index < count; ++index) {
+                if (seen[index] == value) {
+                    known = 1;
+                    break;
+                }
+            }
+            if (!known) {
+                if (count == 64)
+                    return count;
+                seen[count++] = value;
+            }
+        }
+    }
+    return count;
+}
+
 static int any_not_paper(uint32_t x, uint32_t y, uint32_t width,
                          uint32_t height)
 {
@@ -222,6 +251,21 @@ int main(int argc, char **argv)
         return 1;
     if (check(pixel(56u, 94u) == MUSIC_INK, "hub focus diamond"))
         return 1;
+    /* The launcher tile bakes a "12:34" clock and a full battery into its
+     * corner, and the hub blits that tile as its masthead. Neither value is
+     * real: the HAL counts microseconds and never reads a clock or a charge
+     * level. It survived the #62 fix because the clock probe further down only
+     * ran on the artists screen, which draws its own honest top bar. */
+    if (check(!any_not_paper(236u, 6u, 43u, 17u),
+              "hub hides the baked corner clock"))
+        return 1;
+    if (check(pixel(290u, 15u) == MUSIC_PAPER, "hub battery is not filled"))
+        return 1;
+    if (check(pixel(282u, 12u) == MUSIC_MUTED, "hub battery outline drawn"))
+        return 1;
+    if (check(distinct_colors(14u, 226u, 120u, 12u) > 3,
+              "hub footer is anti-aliased atlas text"))
+        return 1;
 
     draw_wall(&target, WALL_ALBUMS, 0u);
     snprintf(path, sizeof(path), "%s-albums.ppm", prefix);
@@ -229,6 +273,17 @@ int main(int argc, char **argv)
     if (check(pixel(100u, 36u) == MUSIC_RULE, "album wall header rule"))
         return 1;
     if (check(pixel(29u, 44u) == MUSIC_INK, "album wall selected frame"))
+        return 1;
+    /* The mockup put a magnifier in the wall header's corner and the generated
+     * strip used to carry it, but the firmware has no search: SELECT opens the
+     * row and the wheel scrolls. A glyph that opens nothing is a promise the
+     * product cannot keep, so the strip is blank there and the count owns the
+     * corner (drawn at x <= 270). */
+    if (check(!any_not_paper(276u, 4u, 20u, 18u),
+              "album wall header has no dead search glyph"))
+        return 1;
+    if (check(distinct_colors(29u, 220u, 200u, 14u) > 3,
+              "wall caption is anti-aliased atlas text"))
         return 1;
 
     struct list_spec tracks = { .kind = LIST_SONGS, .parent = 0u };
