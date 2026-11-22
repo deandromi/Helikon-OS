@@ -89,7 +89,7 @@ VFS_SRC := vfs/vfs.c
 # Mounting the volume at boot: block device -> partition -> HFS+ -> VFS ->
 # catalog (T-126). Nothing calls it yet, so the linker drops it; the host test
 # `tests/library` drives this exact path over a real image.
-STORAGE_SRC := storage/mount.c
+STORAGE_SRC := storage/mount.c storage/ata_block.c
 # Helikon Disk Mode image (D-54): the whole disk as a writable USB LUN, for a
 # restore/format from a laptop. A separate image on purpose — the normal
 # firmware never exposes a writable LUN. `make -C firmware BOARD=6g DISKMODE=1`.

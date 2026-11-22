@@ -1862,3 +1862,26 @@ safe.
 The ATA glue that hands this function a live block device, the boot-time call
 site, a dirty-journal policy for the UI and a device run are T-056's device half.
 Nothing here claims the 6G mounts anything yet.
+
+### 27.4 The ATA side of the same step (2026-11-22)
+
+`firmware/storage/ata_block.c/.h` is the ten lines between the ATA driver and
+that mount: `helikon_ata_read/write/flush/power` already have the block-ops
+signatures, so the table *is* the driver rather than four wrappers that can drift
+apart, and the device is presented read-only unless the caller asks otherwise.
+
+The one thing worth writing code for is the geometry. `helikon_ata_block_info`
+refuses a sector size below 512 or not a power of two, a zero sector count, and a
+sector size times sector count that does not fit a 64-bit capacity — the class of
+mistake where a 1 TB card is described as 128 GiB and the driver reads the first
+eighth of the disk as if it were all of it. `helikon_ata_block_init` refuses an
+ATA handle with no valid IDENTIFY (`UNSUPPORTED`) rather than publishing the
+placeholder numbers that a failed init leaves behind.
+
+`tests/firmware/test_ata_block.c` replaces the driver with stubs and checks the
+info arithmetic (512 B and 4 KiB sectors, a 2 TiB count, the refusals, the
+overflow), the read-only gate answering `READ_ONLY` *without* reaching the
+driver, out-of-range reads answering `ARGUMENT` before the driver, and that
+`helikon_block_read` really delegates to `helikon_ata_read`. `make -C
+tests/firmware test` and `sanitize` pass; static analysis 80 units, 0 findings;
+the 6G image is unchanged at 80,020 B because nothing calls the bridge yet.

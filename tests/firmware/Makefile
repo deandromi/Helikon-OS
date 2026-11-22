@@ -14,10 +14,12 @@ FW_CFLAGS := $(CFLAGS) -ffreestanding -fno-builtin -nostdinc \
              -isystem $(HOST_INCLUDE) -DHELIKON_HOST_TEST \
              -I../../firmware/lib -I../../firmware/boot \
              -I../../firmware/block -I../../firmware/diag \
-             -I../../firmware/hfs
+             -I../../firmware/hfs -I../../firmware/storage \
+             -I../../firmware/hal/6g
 TEST_CFLAGS := $(CFLAGS) -I../../firmware/lib -I../../firmware/boot \
                -I../../firmware/block -I../../firmware/diag \
-               -I../../firmware/hfs
+               -I../../firmware/hfs -I../../firmware/storage \
+               -I../../firmware/hal/6g
 
 FW_OBJS := $(BUILD)/lib/mem.o $(BUILD)/lib/string.o $(BUILD)/lib/crc32.o \
            $(BUILD)/lib/sha256.o $(BUILD)/lib/ring.o $(BUILD)/lib/pool.o \
@@ -31,6 +33,7 @@ FW_OBJS := $(BUILD)/lib/mem.o $(BUILD)/lib/string.o $(BUILD)/lib/crc32.o \
            $(BUILD)/hfs/hfs_block_adapter.o
 
 TESTS := test_lib test_boot_info test_bootstate test_block test_ata_geometry \
+         test_ata_block \
          test_stages test_ring test_pool test_screen test_trace test_hfs_file \
          test_vic test_bounce_props
 
@@ -58,6 +61,11 @@ test_bootstate: test_bootstate.c test_check.h $(BUILD)/boot/bootstate.o \
 	$(HOSTCC) $(TEST_CFLAGS) test_bootstate.c $(BUILD)/boot/bootstate.o \
 	  $(BUILD)/lib/sha256.o $(BUILD)/lib/mem.o $(BUILD)/lib/string.o \
 	  $(LDFLAGS) -o $@
+
+test_ata_block: test_ata_block.c test_check.h $(BUILD)/storage/ata_block.o \
+               $(BUILD)/block/block.o $(BUILD)/lib/mem.o
+	$(HOSTCC) $(TEST_CFLAGS) test_ata_block.c $(BUILD)/storage/ata_block.o \
+	  $(BUILD)/block/block.o $(BUILD)/lib/mem.o $(LDFLAGS) -o $@
 
 test_block: test_block.c test_check.h $(BUILD)/block/block.o \
             $(BUILD)/block/bounce.o $(BUILD)/block/partition.o \
@@ -125,6 +133,7 @@ test: $(TESTS)
 	./test_boot_info
 	./test_bootstate
 	./test_block
+	./test_ata_block
 	./test_ata_geometry
 	./test_stages
 	./test_ring
@@ -153,7 +162,7 @@ endif
 # default for exactly this reason.
 sanitize:
 	$(MAKE) clean
-	$(MAKE) CFLAGS='$(SAN_CFLAGS)' FW_CFLAGS='$(SAN_CFLAGS) -ffreestanding -fno-builtin -nostdinc -isystem $(HOST_INCLUDE) -DHELIKON_HOST_TEST -I../../firmware/lib -I../../firmware/boot -I../../firmware/block -I../../firmware/diag -I../../firmware/hfs' LDFLAGS='$(SAN_LDFLAGS)' test
+	$(MAKE) CFLAGS='$(SAN_CFLAGS)' FW_CFLAGS='$(SAN_CFLAGS) -ffreestanding -fno-builtin -nostdinc -isystem $(HOST_INCLUDE) -DHELIKON_HOST_TEST -I../../firmware/lib -I../../firmware/boot -I../../firmware/block -I../../firmware/diag -I../../firmware/hfs -I../../firmware/storage -I../../firmware/hal/6g' LDFLAGS='$(SAN_LDFLAGS)' test
 
 clean:
 	rm -rf $(BUILD) $(TESTS) *.dSYM
