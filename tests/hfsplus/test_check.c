@@ -267,6 +267,22 @@ static int test_bitmap_padding_ignored(void)
     return 0;
 }
 
+static int test_catalog_count(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    make_clean_volume();
+    /* The tree is empty, so a file count of three is a lie. */
+    test_image_put_be32(test_image + 1024u + 32u, 3u);
+
+    if (probe_and_check(&volume, &report) != HFS_OK)
+        return 0;
+    CHECK((report.problems & HFS_CHECK_CATALOG_COUNT) != 0u);
+    CHECK(report.header_files == 3u);
+    CHECK(report.catalog_files == 0u);
+    return 0;
+}
+
 static int test_skipped_bitmap(void)
 {
     struct hfs_volume volume;
@@ -356,6 +372,7 @@ int main(void)
         { "allocation too small", test_allocation_too_small },
         { "free count mismatch", test_free_mismatch },
         { "bitmap padding ignored", test_bitmap_padding_ignored },
+        { "catalog count mismatch", test_catalog_count },
         { "skipped bitmap", test_skipped_bitmap },
         { "bad tree header", test_bad_tree_header },
         { "bad tree size", test_bad_tree_size },
