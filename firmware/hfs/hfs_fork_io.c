@@ -94,6 +94,34 @@ int hfs_fork_stage_map(struct hfs_txn *tx, const struct hfs_volume *volume,
             const uint8_t *src = source + (from - offset);
 
             while (remaining > 0) {
+                /*
+                 * Stage whole blocks in runs, not one at a time: a 4096-byte
+                 * B-tree node is one object and belongs in one transaction
+                 * entry. One entry per allocation block would cost a 512-byte
+                 * block volume eight slots per node, and a B-tree root split
+                 * more slots than HFS_TXN_MAX_BLOCKS has (issue #115).
+                 */
+                if (in_block == 0 && remaining >= volume->block_size) {
+                    uint32_t run_blocks = (uint32_t)(remaining /
+                                                     volume->block_size);
+                    uint32_t limit = HFS_TXN_BLOCK_MAX / volume->block_size;
+                    if (limit == 0u)
+                        limit = 1u;
+                    if (run_blocks > limit)
+                        run_blocks = limit;
+                    uint32_t run_length = run_blocks * volume->block_size;
+                    uint64_t run_sector =
+                        (uint64_t)volume_block *
+                        (volume->block_size / tx->journal->sector_size);
+                    int rc = hfs_txn_stage_replace(tx, run_sector, src,
+                                                   run_length);
+                    if (rc != HFS_OK)
+                        return rc;
+                    src += run_length;
+                    remaining -= run_length;
+                    volume_block += run_blocks;
+                    continue;
+                }
                 uint32_t chunk = volume->block_size - in_block;
                 if (chunk > remaining)
                     chunk = (uint32_t)remaining;

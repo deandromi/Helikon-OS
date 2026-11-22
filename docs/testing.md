@@ -31,7 +31,7 @@ Helikon-OS validation.
 | Host unit | Parser, allocator, name, state-machine logic | Host | `in progress` — HFS+ read core, journal and txn | Every module |
 | Fuzzing and mutation sweeps | Malformed B-trees, extents, names, journal records and bitstreams do not crash or escape bounds | Host | `in progress` — 7 libFuzzer harnesses with a committed corpus, plus the HFS+ image and codec mutation sweeps (§3, §3.2) | Reader, writer, journal, decoders |
 | Model-based B-tree | Insert/update/delete, split/merge, key order, free-node map | Host | `planned` | Writer |
-| Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `in progress` — the byte-range block layer has a 4000-range property test, the allocation bitmap has a 4,000-step model test (§3.3), the transaction overlay has one (§3.5) and the journal commit path is cut at every write (§3.4); B-tree properties `planned` | Writer/journal |
+| Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `in progress` — the byte-range block layer has a 4000-range property test, the allocation bitmap has a 4,000-step model test (§3.3), the transaction overlay has one (§3.5), the journal commit path is cut at every write (§3.4), and the catalog runs random operations against a directory model plus `hfs_check_volume` (§3.6); a B-tree insert/delete model and the macOS differential remain `planned` | Writer/journal |
 | Differential vs macOS | Same tree/names/metadata/`fsck_hfs` result on both sides; catalog order matches Apple's | Host + macOS | `in progress` — ordering and read differential run; writer-side tree comparisons partly covered | Writer |
 | Bootloader diagnostics | Read-only volume/catalog/file report and splash | Host | `in progress` — 8 tests | Boot screen |
 | Device | Boot, mount, playback, write, USB, sleep, recovery | 6G (then 7G/ports) | `not run` | Any hardware claim |
@@ -292,49 +292,107 @@ commit is invisible here — that is the hardware's job and the device matrix's.
 The overlay is why two updaters of the volume header can live in one
 transaction: the second reads through the first one's staged bytes instead of
 the committed ones, so it cannot silently drop the first one's change.
-`tests/hfsplus/test_txn_overlay_props.c` models the contract and hammers it with
-random stages and random ranges:
+`tests/hfsplus/test_txn_overlay_props.c` models the staged bytes as a byte map
+and hammers it with random stages and random ranges:
 
 - `hfs_txn_overlay` patches exactly the staged bytes that intersect a range and
   leaves the rest of the caller's buffer alone — it never reads the disk, which
   is `hfs_txn_read`'s job, and the model expresses both that way;
 - it answers 1 when anything intersected, 0 when nothing did, and a zero-length
   range touches nothing even when the offset sits inside a staged block;
-- staged blocks are applied in the order they were staged, so where two overlap
-  the later one wins (callers stage whole sectors, so an overlap is a caller bug,
-  but the answer must still be the documented one);
-- slices at both ends are copied from the right offset of the block data,
-  including ranges that start one byte before or end one byte after a block;
-- `stage` rules hold: a duplicate sector is `BUSY`, replacing with a different
-  size is `BUSY`, the 33rd block is `NO_SPACE`, a bad size is `ARGUMENT`, and a
-  full transaction's overlay over the whole image still matches the model.
+- a later stage of the same bytes wins whatever its size: the exact range, a
+  hole inside a run, or a range that overlaps the end of a run all leave the
+  newest bytes in place, and the run keeps any bytes the new stage did not cover;
+- runs that only touch stay separate entries — neighbours are different objects
+  — while one stage that covers several of them folds them into a single entry,
+  which is what keeps a 4096-byte node at one transaction slot (issue #115);
+- a stage whose union with the runs it overlaps would exceed
+  `HFS_TXN_BLOCK_MAX` is refused with `BUSY` and changes nothing;
+- `stage` rules hold: a duplicate start sector is `BUSY`, the 33rd entry is
+  `NO_SPACE`, a bad size is `ARGUMENT`, and a full transaction's overlay over
+  the whole image still matches the model.
 
-The expected answer is computed by applying the model's own staged list to a
-copy of the caller's buffer, a second expression of the contract rather than a
-call back into the code under test.
+The expected answer is computed from the byte map, a second expression of the
+contract rather than a call back into the code under test. The one prediction it
+takes from the transaction's own runs is the union size, because a byte map
+cannot tell two abutting entries from one run. After every step it also checks
+that the byte map and the transaction's entries agree byte for byte and that no
+two entries overlap.
 
 ```sh
 cd tests/hfsplus && ./test_txn_overlay_props              # 4,000 steps
 cd tests/hfsplus && ./test_txn_overlay_props 7 20000      # another seed, longer
 ```
 
-It found no defect. Teeth checked by mutation: widening the adjacency test to
-`block_end < offset || block_start > end` is caught by the boundary cases with
-`FAIL rc == expected_overlap`.
+It found no overlay defect. Teeth checked by mutation: widening the intersection
+test to `block_end < offset || block_start > end` is caught by the boundary cases
+with `FAIL rc == expected_overlap`.
+
+### 3.6 Catalog operation property test
+
+`tests/hfsplus/test_catalog_ops_props.c` runs a random sequence of creates,
+deletes, renames, writes and truncates against a model of the directory tree and
+asks the image after every operation:
+
+- the children of every folder, by name, ID and kind, against the model;
+- each folder's valence against the number of children the model says it has —
+  a valence that drifts is a folder that later refuses to be deleted, or one
+  that is deleted with its children still inside;
+- each file's size and full contents, read back through the reader;
+- the volume header's file and folder counts (which do not count the root
+  folder, as `newfs_hfs` leaves a fresh volume at 0 and 0);
+- `hfs_check_volume`, which independently re-walks the catalog and the extents
+  tree, checks key order across leaf boundaries, the leaf chain, every fork
+  against the allocation bitmap, and the free-block count.
+
+The model is written from the documentation, not from the code: names are unique
+per parent, a folder's valence is its child count, deleting a folder with
+children is `NOT_EMPTY`, moving a folder inside its own subtree is `ARGUMENT`,
+truncating past the end is `ARGUMENT`, and a refused call must not change one
+byte of the image (checked against a snapshot). The fixture is a 1 MiB volume
+with 4096-byte nodes — several file records per leaf, so inserts split nodes and
+deletes merge them — and three trees, with the extents tree starting empty.
+
+```sh
+cd tests/hfsplus && ./test_catalog_ops_props              # 600 operations
+cd tests/hfsplus && ./test_catalog_ops_props 2 1200       # another seed, longer
+```
+
+The committed sweep is 600 operations (about 90 creates, 66 deletes, 102
+renames, 93 writes, 32 truncates), plain and under ASan/UBSan. It found one
+defect, issue #115: on a volume whose allocation block is 512 bytes, every
+B-tree node cost one transaction slot per sector, so a root split needed 34 slots
+and the catalog could never grow past depth 1. The fix is the staging coalescing
+described in §3.5.
+
+### 3.7 What the property tests do not prove
+
+They compare the writer against a model of the same host code, so they cannot
+show that a device honours a flush, that the allocation bitmap matches what
+macOS would do, or that `fsck_hfs` accepts the tree. Those stay device-matrix and
+macOS-differential work.
 
 ## 4. Model-based B-tree tests
 
-The writer needs a model independent of the implementation:
+Status: `in progress`. §3.6 covers the catalog layer — creates, deletes,
+renames, writes and truncates against a directory model, with `hfs_check_volume`
+after every operation, which re-walks the tree and checks key order, the leaf
+chain, every fork against the allocation bitmap and the free-block count. Node
+splits and merges are reached (the fixture holds several file records per leaf
+and the sweep creates and deletes enough to split and merge), but the free-node
+map and node ownership are still unchecked by `hfs_check_volume`, and the
+following are still `planned`:
 
-- Generate a random sequence of insert/delete/update operations.
-- Apply them to a reference model and to the on-disk tree.
-- Compare key order, leaf links, free-node map, record counts and lookup results.
-- Force node splits/merges at boundaries, including root changes.
-- Compare names with Apple `FastUnicodeCompare` and composed/decomposed forms.
-- After each operation, validate the tree and run the structural checker.
+- a B-tree-level model: random insert/delete/update keys applied to a model of
+  the tree and to the on-disk nodes, comparing key order, leaf links, node
+  heights and lookup results at every step;
+- forced root changes and split/merge cascades at node boundaries;
+- names with Apple `FastUnicodeCompare` and composed/decomposed forms in the
+  same model;
+- `fsck_hfs` on the result (macOS differential, §5).
 
 A model test that only checks "the file is there" is not enough; it must check
-the catalog structure and `fsck_hfs` compatibility.
+the tree structure and `fsck_hfs` compatibility.
 
 ## 5. Differential tests against macOS
 
