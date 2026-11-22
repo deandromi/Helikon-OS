@@ -185,10 +185,13 @@ first mount, and the test would then be describing a volume it changed.
 `firmware/hfs/hfs_check.c` answers "does this volume's own metadata agree with
 itself?" without writing anything: block size and count, every fork's extents
 against the volume, fork sizes against their blocks, the allocation file against
-the block count, the header's free-block count against the bitmap (when the whole
-bitmap is inline), the three metadata B-tree headers through the reader's own
-validation, and the catalog: every leaf record's key, and the file and folder
-counts the volume header claims against the records actually present. The root
+the block count, the header's free-block count against the bitmap, the three
+metadata B-tree headers through the reader's own validation, each tree's leaf
+chain (it ends at the header's last leaf and holds the number of records the
+header claims), the key order of the catalog and the extents tree across leaf
+boundaries, every catalog record body against the structure its type promises,
+and the file and folder counts the volume header claims against the records
+actually present. The root
 folder is excluded from the folder count because the format excludes it, and the
 padding bits of the bitmap's last byte are ignored because macOS leaves them
 zero — both rules came from running the check against real volumes, where the
@@ -200,20 +203,26 @@ counted rather than skipped: the 140 GiB volume reads 36,594,065 free blocks bot
 ways in about 0.2 s. The pass is I/O-bound and belongs off the boot path.
 
 ```sh
-make -C tests/hfsplus test_check            # 13 cases, one corruption each
+make -C tests/hfsplus test_check            # 22 cases, one corruption each
 make -C tests/image hfs-check
 ./tests/image/hfs-check disk.img            # 0 clean, 1 findings, 2 unusable
 ```
 
 Its tests build a 125-block volume by hand and put exactly one thing wrong in
-each case; the clean case must report zero findings, which is the property that
-matters most. Run against real volumes: a 32 MiB macOS `HFS+J` volume reports
-clean; the same volume with `free_blocks` bumped by five reports the mismatch; a
-140 GiB volume formatted by `tools/disk-mode-format.sh` reports clean and says it
-did not count the bitmap, because that one lives in the extents overflow tree and
-the check does not chase overflow records yet. That last part is why "not
-checked" is a separate field from "problems": a large volume must not look
-corrupt.
+each case: two sibling folders in the wrong key order, a thread key that carries
+a name, a file body cut from 248 bytes to 100, a header claiming one record more
+than its leaf holds, two extents records swapped, and two clean catalogs — one
+folder, one file — that must report nothing at all. The clean case matters most:
+a checker that cries wolf is worse than no checker.
+
+Run against real volumes: a 64 MB macOS `HFS+J` volume holding nested folders,
+16 files and names such as `£ euro.txt` and `日本.txt` across a 128-node catalog
+reports clean, which is the check that the key order really does match Apple's
+FastUnicodeCompare; a 32 MiB volume reports clean and the same volume with
+`free_blocks` bumped by five reports the mismatch; a 140 GiB volume formatted by
+`tools/disk-mode-format.sh` reports clean with 36,594,065 free blocks counted
+through its overflow extents. "Not checked" stays a separate field from
+"problems", because a large volume must never look corrupt.
 
 ### 5.4 Firmware-loader host test
 

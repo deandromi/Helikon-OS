@@ -22,11 +22,20 @@
  *    volume;
  *  - the catalog, extents and attributes B-tree headers: node size, total
  *    nodes against the fork, depth, root and leaf node indices;
- *  - the catalog itself: every leaf node's key length, and the file and folder
- *    counts the volume header claims against the records actually there.
+ *  - each tree's leaf chain: it ends at the header's last leaf, it holds the
+ *    number of records the header claims, and every key is well formed;
+ *  - key order: catalog keys strictly increase in leaf order (parent ID, then
+ *    the name under Apple's FastUnicodeCompare) and extents keys strictly
+ *    increase in leaf order (fork type, file ID, start block), across leaf
+ *    boundaries as well as inside one leaf;
+ *  - catalog record bodies: a file record carries 248 bytes and a real file ID,
+ *    a folder record 88 bytes and a real folder ID, a thread record names its
+ *    item and its key names nothing, and only types 1..4 appear;
+ *  - the file and folder counts the volume header claims against the records
+ *    actually there.
  *
- * What it does not check yet: key ordering across leaves, index nodes, record
- * bodies, and overflow extents. Those are the next slice.
+ * What it does not check yet: index nodes, the free-node map, quarantine, and
+ * the charging/idle scrub policy. Those are the next slices.
  */
 #ifndef HELIKON_HFS_HFS_CHECK_H
 #define HELIKON_HFS_HFS_CHECK_H
@@ -57,6 +66,15 @@
 #define HFS_CHECK_SKIPPED_BITMAP 0x00001000u
 #define HFS_CHECK_CATALOG_COUNT 0x00002000u
 #define HFS_CHECK_CATALOG_RECORD 0x00004000u
+/* A leaf chain that does not match its header: wrong end, wrong count, or a
+ * break the iterator refused to walk past. */
+#define HFS_CHECK_BTREE_CHAIN 0x00008000u
+/* Catalog keys that do not strictly increase in leaf order. */
+#define HFS_CHECK_CATALOG_ORDER 0x00010000u
+/* A catalog record body that is not what its record type promises. */
+#define HFS_CHECK_CATALOG_BODY 0x00020000u
+/* Extents keys that do not strictly increase, or that do not fit their record. */
+#define HFS_CHECK_EXTENTS_ORDER 0x00040000u
 
 /*
  * The allocation bitmap is counted up to this size. 8 MiB of bitmap describes

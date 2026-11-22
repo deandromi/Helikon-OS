@@ -101,7 +101,7 @@ Helikon-OS/
       hfs_journal.c/.h      Apple HFS+ journal append/replay and validation
       hfs_txn.c/.h          bounded staged-block transaction engine
       hfs_bitmap.c/.h       allocation bitmap alloc/free and header staging
-      hfs_check.c/.h        read-only structural check (T-020, first slice)
+      hfs_check.c/.h        read-only structural check (T-020)
       hfs_volume_write.c/.h primary/alternate header count staging
       hfs_catalog_write.c/.h catalog create/delete and in-place overwrite
       hfs_extents_write.c/.h one extents-overflow record

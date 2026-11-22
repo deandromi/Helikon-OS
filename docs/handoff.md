@@ -3,12 +3,51 @@
 > Purpose: the latest session handoff and the reusable template.
 > Status: living document
 > Owner: session author; next agent reads this first
-> Last updated: 2026-11-21
+> Last updated: 2026-11-22
 > Source: `docs/state.md`, `docs/tasks.md`, repository history; D-54;
 > [`disk-mode.md`](disk-mode.md)
 
 Keep the newest handoff at the top. Move older entries to `docs/log/` when this
 file grows. Do not rely on chat history for current state.
+
+---
+
+# Handoff — 2026-11-22 (structural check: leaf chains, key order, record bodies)
+
+## What happened
+
+- **T-020 keeps growing.** `firmware/hfs/hfs_check.c` now walks each metadata
+  tree's leaf chain, checks catalog and extents key order across leaf boundaries,
+  and validates every catalog record body against its type. The allocation file
+  is read through its resolved extent map, so a large volume's bitmap is counted
+  instead of skipped (PR #84).
+- **Host coverage:** `tests/hfsplus/test_check` is 22 cases, including two clean
+  catalogs that must report nothing; `make -C tests/hfsplus test` and `sanitize`
+  green.
+- **Real volumes:** a 64 MB macOS `HFS+J` volume with nested folders, 16 files
+  and non-ASCII names across a 128-node catalog is clean; a 32 MiB image is clean
+  and its tampered twin still reports only the free-block mismatch; the 140 GiB
+  volume formatted by `tools/disk-mode-format.sh` is clean with 36,594,065 free
+  blocks counted through the overflow extents.
+- **Images unchanged:** 80,008 B firmware, 40,524 B Disk Mode. Nothing calls the
+  checker from an image yet; it stays a host/diagnostic path.
+- Built binaries are no longer tracked: `tests/hfsplus/test_check` had slipped
+  into #82 and is ignored now.
+
+## Evidence
+
+```
+make -C tests/hfsplus test && make -C tests/hfsplus sanitize   # 22 cases
+make -C tests/image hfs-check && ./tests/image/hfs-check VOL    # 0/1/2
+make -C tests/image test                                       # F2 promotion PASS
+```
+
+## Open / next
+
+- **T-020 next slices:** index nodes (each index key versus its child's first
+  key), the free-node map, then quarantine and the charging/idle scrub policy.
+- **Still device-free:** every remaining T-110/T-112/T-115 item needs silicon.
+- **Before any device claim:** nothing here has run on a 6G.
 
 ---
 

@@ -15,8 +15,10 @@
 #include "hfs_check.h"
 
 #include <stddef.h>
+#include <string.h>
 
 #include "hfs_btree.h"
+#include "hfs_catalog_compare.h"
 #include "hfs_extents.h"
 
 static uint32_t be32(const uint8_t *p)
@@ -258,10 +260,196 @@ static uint32_t check_tree(struct hfs_volume *volume, const struct hfs_fork *for
 }
 
 /*
+ * The longest key either metadata tree can hold: a catalog key is six bytes of
+ * parent ID and name length plus at most 255 UTF-16 units. The previous key is
+ * kept whole so ordering across a leaf boundary is checked the same way as
+ * ordering inside one leaf, which is the only way a chain of leaves can be
+ * trusted.
+ */
+#define CHECK_KEY_MAX 516u
+
+/*
+ * One leaf-chain walk. `compare` receives a key without its two-byte length
+ * field, exactly as the B-tree's own comparator sees it; `record`, when set,
+ * gets every record for a tree-specific look at its body. The three bits are
+ * the findings this walk can raise, so the caller keeps its own vocabulary.
+ */
+struct leaf_walk {
+    int (*compare)(const uint8_t *a, size_t a_length, const uint8_t *b,
+                   size_t b_length);
+    void (*record)(const uint8_t *record, size_t length, uint16_t key_length,
+                   struct hfs_check_report *report);
+    uint32_t key_bit;
+    uint32_t order_bit;
+    uint32_t chain_bit;
+};
+
+/*
+ * The leaf chain promises four things: it starts at the header's first leaf, it
+ * ends at the header's last leaf, it holds the number of records the header
+ * claims, and its keys strictly increase. `hfs_btree_leaf_next` already refuses
+ * a broken previous pointer, a leaf outside the tree and a loop, so a walk that
+ * fails is a chain finding and nothing after it can be ordered against what came
+ * before.
+ */
+static void walk_leaves(struct hfs_btree *btree, const struct leaf_walk *walk,
+                        struct hfs_check_report *report)
+{
+    uint8_t previous[CHECK_KEY_MAX];
+    size_t previous_length = 0u;
+    uint32_t counted = 0u;
+    int have_previous = 0;
+
+    if (btree->empty != 0u) {
+        /* An empty tree has no leaves at all, so a record count would be a lie. */
+        if (btree->leaf_records != 0u)
+            report->problems |= walk->chain_bit;
+        return;
+    }
+
+    struct hfs_btree_leaf_iterator iterator;
+    hfs_btree_leaf_init(btree, &iterator);
+    for (;;) {
+        const uint8_t *record = NULL;
+        size_t length = 0u;
+        int rc = hfs_btree_leaf_next(btree, &iterator, &record, &length);
+        if (rc < 0) {
+            report->problems |= walk->chain_bit;
+            return;
+        }
+        if (rc == 0)
+            break;
+
+        if (length < 2u) {
+            report->problems |= walk->key_bit;
+            continue;
+        }
+        uint16_t key_length = be16(record);
+        if ((size_t)key_length + 2u > length ||
+            (size_t)key_length > CHECK_KEY_MAX) {
+            report->problems |= walk->key_bit;
+            continue;
+        }
+
+        if (walk->compare != NULL) {
+            /*
+             * Strictly greater: a catalog or extents key is unique, so an equal
+             * neighbour is a duplicate, and a duplicate is a key the tree's own
+             * search can no longer find reliably.
+             */
+            if (have_previous != 0 &&
+                walk->compare(previous, previous_length, record + 2,
+                              key_length) >= 0)
+                report->problems |= walk->order_bit;
+            for (size_t index = 0u; index < (size_t)key_length; ++index)
+                previous[index] = record[2u + index];
+            previous_length = (size_t)key_length;
+            have_previous = 1;
+        }
+
+        if (walk->record != NULL)
+            walk->record(record, length, key_length, report);
+        counted += 1u;
+    }
+
+    if (iterator.previous != btree->last_leaf || counted != btree->leaf_records)
+        report->problems |= walk->chain_bit;
+}
+
+/*
+ * The order the writer inserts in, so the check and the writes cannot disagree.
+ * Only HFS+ reaches here — the probe refuses HFSX, the one format whose catalog
+ * compares binary instead — so FastUnicodeCompare is always the right rule.
+ */
+static int catalog_key_compare(const uint8_t *a, size_t a_length,
+                               const uint8_t *b, size_t b_length)
+{
+    return hfs_catalog_key_compare(NULL, a, a_length, b, b_length);
+}
+
+/*
+ * Catalog record bodies. The key names the parent and the name; the body must be
+ * the structure its record type promises, because a reader that trusts a short
+ * body reads whatever follows it in the node.
+ *
+ *  - a file record carries an HFSPlusCatalogFile (248 bytes) and a real file ID;
+ *  - a folder record carries an HFSPlusCatalogFolder (88 bytes) and a real
+ *    folder ID — 0 and 1 are reserved, the root's own ID is 2;
+ *  - a thread record (types 3 and 4) has an empty key name and carries the
+ *    parent and the name of the item it threads, so a thread key that names
+ *    something is damage, and so is a thread that names nothing.
+ *
+ * The volume header's file and folder counts are tallied here too, and the root
+ * folder — parent ID 1 — is excluded, exactly as the header excludes it.
+ */
+static void catalog_record(const uint8_t *record, size_t length,
+                           uint16_t key_length,
+                           struct hfs_check_report *report)
+{
+    if (key_length < 6u) {
+        report->problems |= HFS_CHECK_CATALOG_RECORD;
+        return;
+    }
+    uint16_t name_length = be16(record + 6);
+    if ((uint32_t)name_length * 2u + 6u > key_length) {
+        report->problems |= HFS_CHECK_CATALOG_RECORD;
+        return;
+    }
+    size_t field_offset = (size_t)key_length + 2u;
+    if (field_offset + 2u > length) {
+        report->problems |= HFS_CHECK_CATALOG_RECORD;
+        return;
+    }
+    const uint8_t *field = record + field_offset;
+    /* Catalog records start with a 16-bit recordType, not a byte. */
+    uint16_t type = be16(field);
+    /* The body length includes the recordType, as the HFS+ structures do. */
+    size_t body_length = length - field_offset;
+    uint32_t parent = be32(record + 2);
+
+    switch (type) {
+    case 1u: /* folder */
+        if (body_length < 88u || name_length == 0u) {
+            report->problems |= HFS_CHECK_CATALOG_BODY;
+            break;
+        }
+        if (be32(field + 8) < 2u)
+            report->problems |= HFS_CHECK_CATALOG_BODY;
+        if (parent != 1u)
+            report->catalog_folders += 1u;
+        break;
+    case 2u: /* file */
+        if (body_length < 248u || name_length == 0u) {
+            report->problems |= HFS_CHECK_CATALOG_BODY;
+            break;
+        }
+        if (be32(field + 8) < 2u)
+            report->problems |= HFS_CHECK_CATALOG_BODY;
+        report->catalog_files += 1u;
+        break;
+    case 3u: /* folder thread */
+    case 4u: { /* file thread */
+        if (name_length != 0u || body_length < 10u) {
+            report->problems |= HFS_CHECK_CATALOG_BODY;
+            break;
+        }
+        uint16_t thread_name = be16(field + 8);
+        if (thread_name == 0u ||
+            (uint32_t)thread_name * 2u + 10u > body_length)
+            report->problems |= HFS_CHECK_CATALOG_BODY;
+        break;
+    }
+    default:
+        report->problems |= HFS_CHECK_CATALOG_RECORD;
+        break;
+    }
+}
+
+/*
  * The catalog: walk every leaf record, check the key the record claims to have,
- * and count what is actually there. The volume header keeps the file and folder
- * counts, and fsck checks them the same way; a count that drifts is the quietest
- * kind of catalog damage.
+ * check the body that key promises, and count what is actually there. The volume
+ * header keeps the file and folder counts, and fsck checks them the same way; a
+ * count that drifts is the quietest kind of catalog damage.
  */
 static void check_catalog(struct hfs_volume *volume,
                           struct hfs_check_report *report)
@@ -284,65 +472,51 @@ static void check_catalog(struct hfs_volume *volume,
         report->problems |= HFS_CHECK_BTREE_HEADER;
         return;
     }
-    if (btree.empty != 0u) {
-        report->catalog_files = 0u;
-        report->catalog_folders = 0u;
-    } else {
-        struct hfs_btree_leaf_iterator iterator;
-        hfs_btree_leaf_init(&btree, &iterator);
-        for (;;) {
-            const uint8_t *record = NULL;
-            size_t length = 0u;
-            int rc = hfs_btree_leaf_next(&btree, &iterator, &record, &length);
-            if (rc < 0) {
-                report->problems |= HFS_CHECK_CATALOG_RECORD;
-                break;
-            }
-            if (rc == 0)
-                break;
-            /*
-             * Catalog key: keyLength(2), parentID(4), nodeName(2 + 2*n). The
-             * keyLength field counts everything after itself, so the record
-             * type sits at `2 + keyLength`. A key that does not fit its record,
-             * or a type byte outside 1..4, is a damaged leaf.
-             */
-            uint16_t key_length = be16(record);
-            size_t key_total = (size_t)key_length + 2u;
-            if (key_length < 6u || key_length > btree.node_size + 4u ||
-                key_total >= length) {
-                report->problems |= HFS_CHECK_CATALOG_RECORD;
-                continue;
-            }
-            uint16_t name_length = be16(record + 6);
-            if ((uint32_t)name_length * 2u + 6u > key_length) {
-                report->problems |= HFS_CHECK_CATALOG_RECORD;
-                continue;
-            }
-            /* Catalog records start with a 16-bit recordType, not a byte. */
-            if (key_total + 2u > length) {
-                report->problems |= HFS_CHECK_CATALOG_RECORD;
-                continue;
-            }
-            uint32_t parent = be32(record + 2);
-            uint16_t type = be16(record + key_total);
-            /*
-             * The root folder has a catalog record of its own — parentID 1, its
-             * name is the volume name — but the volume header's folder count
-             * excludes it, so it is not counted here either. Every other folder
-             * has a real parent CNID (the root's is 2).
-             */
-            if (type == 1u) {
-                if (parent != 1u)
-                    report->catalog_folders += 1u;
-            } else if (type == 2u) {
-                report->catalog_files += 1u;
-            }
-        }
-    }
+
+    static const struct leaf_walk walk = {
+        catalog_key_compare, catalog_record, HFS_CHECK_CATALOG_RECORD,
+        HFS_CHECK_CATALOG_ORDER, HFS_CHECK_BTREE_CHAIN
+    };
+    walk_leaves(&btree, &walk, report);
 
     if (report->catalog_files != report->header_files ||
         report->catalog_folders != report->header_folders)
         report->problems |= HFS_CHECK_CATALOG_COUNT;
+}
+
+/*
+ * Extents keys order by fork type, then file ID, then start block, and every
+ * one of those is big-endian, so comparing the raw key bytes is the same order
+ * the tree itself uses. A record's extent list needs no separate check:
+ * `check_allocation` already walks the map this tree supplies.
+ */
+static int extents_key_compare(const uint8_t *a, size_t a_length,
+                               const uint8_t *b, size_t b_length)
+{
+    size_t common = a_length < b_length ? a_length : b_length;
+    int result = common == 0u ? 0 : memcmp(a, b, common);
+    if (result != 0)
+        return result < 0 ? -1 : 1;
+    if (a_length != b_length)
+        return a_length < b_length ? -1 : 1;
+    return 0;
+}
+
+static void check_extents_keys(struct hfs_volume *volume,
+                               struct hfs_check_report *report)
+{
+    static uint8_t scratch[HFS_MAX_NODE_SIZE + 1u];
+    struct hfs_btree btree;
+    if (hfs_btree_open(&btree, volume, &volume->extents, scratch,
+                       sizeof(scratch)) != HFS_OK) {
+        report->problems |= HFS_CHECK_BTREE_HEADER;
+        return;
+    }
+    static const struct leaf_walk walk = {
+        extents_key_compare, NULL, HFS_CHECK_EXTENTS_ORDER,
+        HFS_CHECK_EXTENTS_ORDER, HFS_CHECK_BTREE_CHAIN
+    };
+    walk_leaves(&btree, &walk, report);
 }
 
 int hfs_check_volume(struct hfs_volume *volume, struct hfs_check_report *report)
@@ -376,6 +550,8 @@ int hfs_check_volume(struct hfs_volume *volume, struct hfs_check_report *report)
                                    &report->attributes_depth,
                                    &report->attributes_nodes);
 
+    if (report->extents_nodes != 0u)
+        check_extents_keys(volume, report);
     if (report->catalog_nodes != 0u)
         check_catalog(volume, report);
     return HFS_OK;
