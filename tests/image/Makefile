@@ -25,7 +25,8 @@ HEADERS = $(HFS)/hfs_catalog.h $(HFS)/hfs_catalog_compare.h \
 
 .PHONY: all test f2-test crash-test format-test write-diag-test outer-diag-test clean
 
-all: hfs_image_test hfs_crash_test f2_host write_diag_host outer_diag_host loader_host
+all: hfs_image_test hfs_crash_test f2_host write_diag_host outer_diag_host loader_host \
+     hfs-check
 
 hfs_image_test: hfs_image_test.c $(COMMON) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) hfs_image_test.c $(COMMON) $(LDFLAGS) -o $@
@@ -77,6 +78,13 @@ test: hfs_image_test f2_host
 
 f2-test: f2_host
 	./run-f2-macos.sh
+
+# Host CLI over the read-only structural check: `./hfs-check image.dmg`.
+hfs-check: ../../tools/hfs-check.c ../../firmware/hfs/hfs_check.c \
+           ../../firmware/hfs/hfs_btree.c ../../firmware/hfs/hfs_volume.c
+	$(CC) -I../../firmware/hfs -idirafter ../../firmware/lib \
+	  $(CFLAGS) -o $@ ../../tools/hfs-check.c ../../firmware/hfs/hfs_check.c \
+	  ../../firmware/hfs/hfs_btree.c ../../firmware/hfs/hfs_volume.c $(LDFLAGS)
 
 crash-test: hfs_crash_test
 	./run-crash-macos.sh

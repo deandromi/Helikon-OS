@@ -4,7 +4,7 @@ CFLAGS ?= -O2 -g
 CFLAGS += -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow
 CPPFLAGS += -I../../firmware/hfs -idirafter ../../firmware/lib
 HFS = ../../firmware/hfs
-TESTS = test_volume test_btree test_unicode test_catalog test_extents test_journal test_txn test_bitmap test_btree_write test_fork_io test_btree_tree test_catalog_compare test_catalog_write test_btree_grow test_catalog_index test_catalog_header
+TESTS = test_volume test_btree test_unicode test_catalog test_extents test_journal test_txn test_bitmap test_btree_write test_fork_io test_btree_tree test_catalog_compare test_catalog_write test_btree_grow test_catalog_index test_catalog_header test_check
 
 .PHONY: all test sanitize clean
 
@@ -46,6 +46,14 @@ test_extents: test_extents.c test_image.c test_image.h test_check.h \
               $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_extents.c test_image.c \
 	  $(HFS)/hfs_extents.c $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c \
+	  $(LDFLAGS) -o $@
+
+test_check: test_check.c test_image.c test_image.h test_check.h \
+            $(HFS)/hfs_check.c $(HFS)/hfs_check.h \
+            $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h \
+            $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
+	$(CC) $(CPPFLAGS) $(CFLAGS) test_check.c test_image.c \
+	  $(HFS)/hfs_check.c $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c \
 	  $(LDFLAGS) -o $@
 
 test_journal: test_journal.c test_check.h \
@@ -174,6 +182,7 @@ test: $(TESTS)
 	./test_unicode
 	./test_catalog
 	./test_extents
+	./test_check
 	./test_journal
 	./test_txn
 	./test_bitmap

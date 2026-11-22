@@ -22,6 +22,7 @@ tests/image/hfs_image_test
 tests/image/f2_host
 tests/image/*.dSYM/
 tests/image/hfs_crash_test
+tests/image/hfs-check
 tests/image/write_diag_host
 tests/image/outer_diag_host
 tests/image/loader_host
