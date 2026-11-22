@@ -86,10 +86,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install the Ed25519 fixture dependency
-        # The loader suite skips itself when `cryptography` is missing, so a
-        # refused install costs coverage, not the job.
-        run: python3 -m pip install --user cryptography || true
+      - name: Python fixtures (mutagen, Pillow, cryptography)
+        # The runner's python3 is Homebrew's and refuses a system install
+        # ("externally-managed-environment"), so the fixtures get a venv and the
+        # venv comes first on PATH: the Makefiles call plain `python3`.
+        # mutagen and Pillow build the HDB fixture for tests/ui and
+        # tests/musicdb; cryptography is what the loader suite links against.
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet --upgrade pip
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet mutagen Pillow cryptography
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
 
       - name: Run the suites
         run: ./tools/host-tests.sh clang --macos --keep-going
