@@ -42,25 +42,43 @@ file grows. Do not rely on chat history for current state.
   T-116/T-117 are in `tasks.md` with the honest status: local evidence green,
   no GitHub run yet.
 
+## What the first CI runs found
+
+Four runs on the pull request, each red for a different reason, and none of them
+something a macOS host run could show. `firmware/lib/error.h` was resolving to
+glibc's `<error.h>` in the suites that put `firmware/lib` after the system
+directories (so the freestanding `string.h` cannot shadow libc's), which left
+every `HFS_*`/`HELIKON_*` name undeclared on Linux — 70 includes, six suites.
+`error.h` and `endian.h` are now `helikon_error.h` and `helikon_endian.h`.
+`tests/ui` wrote Mach-O assembler for its HDB blob; the rule now picks the
+section and symbol prefix from `uname -s`. The boot-info parser compared the
+image end against the page's *host* address, which passed on macOS and failed
+with `-no-pie` on Linux; `struct helikon_boot_info_expect` now carries an
+explicit `image_ceiling`. Fixtures need `mutagen`, Pillow and `cryptography`,
+which the macOS runner installs into a venv because Homebrew's python refuses
+`pip install --user`. And the `macos-14` label cancelled the job in one second
+twice; `macos-latest` runs.
+
 ## Evidence
 
 ```
 ./tools/host-tests.sh clang                    9 suites passed
 ./tools/host-tests.sh clang --sanitize         8 suites passed
-./tools/host-tests.sh --macos                  10 suites passed (image 131 s)
+./tools/host-tests.sh --macos                  10 suites passed (image 148 s)
 TOOLCHAIN_PATH="$HOME/.rockbox-toolchain/bin" ./tools/preview-build.sh /tmp/preview-test
                                                both payloads + README + CHANGELOG + SHA256SUMS
-yaml.safe_load('.github/workflows/{tests,preview}.yml')   valid
+PR #89 checks                                  portable pass, sanitizers pass,
+                                               disk-image (macos) pass, firmware builds pass
 ```
 
 ## Open / next
 
-- **No GitHub run yet.** Both workflows are committed, neither has executed. The
-  first push is what proves the runners, the apt packages and the macOS image
-  sizes; do not call them green before then.
-- **Watch the macOS job's disk.** `format-test` creates a 150 GiB sparse image;
-  it wrote little here, but a runner with a smaller volume is the first place it
-  would fail.
+- **The nightly has not fired yet.** `preview.yml` is committed and its gate is
+  the job that now passes, but no `preview-YYYY-MM-DD` release exists. The first
+  scheduled run (04:17 UTC) or a manual dispatch is what proves it end to end.
+- **The macOS job takes ~8 minutes**, mostly `format-test` (a 150 GiB sparse
+  image and `fsck_hfs`) and its queue wait. Fine for now; worth watching.
+- **Firmware image is 80,020 bytes** after the expect-struct change (was 80,008).
 - **Next in the queue:** the soak's open writer bug (seed 3, op 157, `n22`), then
   the fuzzers, the macOS differential read and the Unicode order differential.
 

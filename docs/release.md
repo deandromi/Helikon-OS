@@ -118,7 +118,9 @@ TOOLCHAIN_PATH="$HOME/.rockbox-toolchain/bin" ./tools/preview-build.sh /tmp/prev
 ```
 
 A preview never satisfies a gate in §8, never replaces a validation scorecard row
-and never counts as a device run.
+and never counts as a device run. The workflow is committed and its gate job has
+passed in CI (PR #89), but no `preview-YYYY-MM-DD` release has been published
+yet, so the nightly path itself is unproven end to end.
 
 ## 2. Signed manifests
 

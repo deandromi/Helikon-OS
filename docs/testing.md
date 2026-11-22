@@ -788,6 +788,12 @@ Two workflows, both in `.github/workflows/`, both host-only.
 
 The Linux jobs exist so the code is not only correct on the owner's Mac, and
 `--keep-going` is there so one run shows every red suite rather than the first.
+That is not hypothetical: the first four runs of this workflow found that six
+suites could not compile on glibc at all (`firmware/lib/error.h` was shadowed by
+`<error.h>`), that `tests/ui` emitted Mach-O assembler for its HDB blob, and that
+the boot-info parser compared an image address against a host page address. All
+three were invisible on macOS. A red job uploads `build/host-tests/` as an
+artifact.
 The `build` job uses `arm-none-eabi-` with `-Wno-error`: the pinned Rockbox
 `arm-elf-eabi` 9.5.0 stays the build of record, and a pull request must not fail
 on a warning that toolchain does not emit.
