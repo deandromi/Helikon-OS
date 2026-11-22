@@ -177,6 +177,9 @@ Helikon-OS/
                             every write past a chosen boundary, then the journal
                             is remounted from the medium and the volume must be
                             all-or-nothing, with a wrap variant
+      test_txn_overlay_props.c transaction overlay property test: staging rules,
+                            order of overlapping blocks, boundary slices and a
+                            full 32-block transaction checked against a model
     image/
       Makefile              disposable-image writer test build
       hfs_image_test.c      create/rename/truncate/delete/overflow/overwrite/
