@@ -26,6 +26,15 @@ build_mad/%.o: $(LIBmaddir)/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(LIBMAD_CFLAGS) -c $< -o $@
 
+# Vendored libmad is sanitized for memory safety only. Its fixed-point DSP
+# shifts and multiplies mad_fixed_t values that a corrupt bitstream can drive
+# out of range, so UBSan reports pages of signed-overflow notes on any mutated
+# input - all upstream behaviour the project has decided not to carry patches
+# for (see firmware/codec/libmad/README.md). AddressSanitizer stays on, because
+# a read or write past a buffer inside the decoder is exactly what the mutation
+# sweep is looking for.
+LIBMAD_SANFLAGS := -fsanitize=address -fno-omit-frame-pointer
+
 build_mad_sanitize/%.o: $(LIBmaddir)/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(LIBMAD_CFLAGS) $(SANFLAGS) -c $< -o $@
+	$(CC) $(LIBMAD_CFLAGS) $(LIBMAD_SANFLAGS) -c $< -o $@

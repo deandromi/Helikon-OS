@@ -12,6 +12,57 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (mutation sweeps, and the two seek bugs they found: T-131)
+
+## What happened
+
+- **Two mutation sweeps now drive the read paths with corrupt input.**
+  `tests/hfsplus/test_image_mutation.c` corrupts a valid volume image and runs
+  probe → `hfs_check` → catalog lookup/iterate/`read_file` → extents overflow.
+  `tests/codec/test_codec_mutation.c` does the same to FLAC and MP3 fixtures
+  through probe/open/read/seek and the streaming source path, with truncation
+  passes. Both are deterministic (seed + iteration count on the command line),
+  print every changed byte on a finding, and fail if they stop reaching the deep
+  readers — a sweep that only tests the probe proves nothing.
+- **The codec sweep found two real defects on its first run.**
+  [#106](https://github.com/deandromi/Helikon-OS/issues/106): `mp3_seek` indexed
+  `xing.toc[100]` on a `uint8_t[100]` when seeking to the last frame, because
+  `frame == total_frames` is accepted and `frame * 100 / total` is 100. The
+  multiply also overflowed 32 bits for a huge Xing frame count.
+  [#107](https://github.com/deandromi/Helikon-OS/issues/107): the same TOC anchor
+  lands inside the final frame for the last bucket, so a seek to the end of a
+  VBR file returned `NOT_FOUND`. Both are fixed in `mp3_seek` (64-bit clamped
+  bucket; retreat through earlier anchors) with hand-written regression tests in
+  `tests/codec/test_codec.c` that fail without the fix.
+- **Sanitizer scope got sharper.** `tests/libmad.mk` builds the vendored libmad
+  objects with AddressSanitizer only — its fixed-point DSP overflows by design on
+  corrupt input, while a buffer overrun is exactly what the sweep hunts. With the
+  noise gone, `tests/codec` runs with `UBSAN_OPTIONS=halt_on_error=1`: any
+  remaining UBSan report is project code and fails the suite.
+
+## Evidence
+
+- HFS+ sweep: ~260,000 mutated volumes under ASan/UBSan across seeds, no memory
+  error, no hang, no finding. Last long run printed `40,000 iterations, 15,696
+  probed, 15,246 opened, 28,834 looked up, 14,991 entries, 14,788 overflow trees`.
+- Codec sweep: 62,400 mutated passes (12,000 per fixture per seed) with no memory
+  error and no hang after the two fixes.
+- `make -C tests/hfsplus sanitize` and `make -C tests/codec sanitize` green;
+  the codec suite prints one `PASS codec` line and no sanitizer note at all.
+- Without the fix, the regression test prints
+  `mp3_codec.c:720:49: runtime error: index 100 out of bounds for type
+  'uint8_t[100]'` and `FAIL MP3 vbr seek last frame`.
+
+## Open / next
+
+- The sweeps mutate metadata and bitstreams; they do not model a crash in the
+  middle of a *write*, which stays the crash-injection suite's job.
+- Exact MP3 frame seeking (decode-and-discard to the requested frame) is still
+  not implemented: a TOC seek can land up to one bucket (~1 %) early. Do not
+  claim frame-accurate seeking.
+- `docs/testing.md` §3.2 is the place to record a new sweep; anyone adding a
+  binary format parser should add one there and in `tests/<suite>`.
+
 # Handoff — 2026-11-22 (dead artist bitmaps deleted: T-130)
 
 - `launcher_assets.c/.h` lost the six `helikon_artist_*` assets and 4,569 lines;

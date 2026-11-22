@@ -937,7 +937,37 @@ divisor all produce the encoder's own numbers. That is the point of adding them
 — the family claim is now executed rather than asserted. Layer I stays without a
 fixture because no common encoder emits it.
 
-### 13.6 Remaining for the MP3 codec
+### 13.6 The mutation sweep and two seek defects (2026-11-22)
+
+`tests/codec/test_codec_mutation.c` corrupts a valid FLAC or MP3 fixture 1..8
+fields at a time — half of the hits in the first 256 bytes, widths 1/2/4 aligned
+to their width, half of the values extreme — and drives probe, open, read, seek
+and the streaming source path over the result. 62,400 mutated passes under
+ASan/UBSan produced no memory error and no hang, and two real defects:
+
+- **#106 — the Xing TOC read one byte past its end.** `mp3_seek` computes
+  `bucket = frame * 100 / total_frames` and accepts `frame == total_frames`
+  (a seek to the end is legal), which makes the quotient 100 against a
+  `uint8_t toc[100]`. UBSan named it at `mp3_codec.c:720`; the byte it read
+  belongs to the adjacent `lame` field, so the seek offset was wrong as well as
+  undefined. The bucket is now computed in 64 bits and clamped to 99.
+- **#107 — a seek to the last 1 % of a VBR file failed.** The TOC is a
+  byte-quantised map (256ths of the stream), so its final entries resolve inside
+  the last frame, past its header; `mp3_next_sync` then found nothing and the
+  seek returned `NOT_FOUND`. Seeking to the end is a legal player action, so
+  `mp3_seek` now retreats through the earlier TOC anchors (bounded by the
+  table's 100 entries) and accepts the first that resyncs. The landing point is
+  approximate — it can be one bucket (about 1 %) early — which is the accuracy
+  the TOC offers. Exact frame seeking by decoding and discarding is not
+  implemented and is not claimed.
+
+Both have a hand-written regression test in `tests/codec/test_codec.c` (seek to
+`total_frames` and to `total_frames - 1`, then a read) so the `sanitize` target
+fails without the fix. The vendored libmad objects are now sanitized for memory
+safety only, which let the codec suite turn `UBSAN_OPTIONS=halt_on_error=1` on:
+every remaining UBSan report is project code.
+
+### 13.7 Remaining for the MP3 codec
 
 Streaming source model (bounded callbacks), resume, half-rate decode, the
 ARMv5E synth accelerator, Layer I execution coverage, and the T-100/T-101 device

@@ -43,6 +43,16 @@ Rockbox's assert-free codec builds.
   inside the `D[17][32]` table, so every actual read is in bounds; only the
   intermediate pointer arithmetic is UB by the letter of C. Left verbatim
   to stay close to the pinned upstream.
+- **Sanitizer scope in the host suites:** the vendored objects are built with
+  AddressSanitizer only (`tests/libmad.mk`), not UndefinedBehaviorSanitizer.
+  Decoding a corrupt bitstream drives this fixed-point DSP into signed
+  overflow and negative shifts by design (`synth.c` products, `layer12.c`
+  shifts), and in the mutation sweep those reports arrive by the hundred;
+  none of them is a defect this project patches. Memory safety is different:
+  a read or write past a buffer in the decoder is exactly what the sweep
+  looks for, so ASan stays on. The consequence is useful — every UBSan report
+  left in `tests/codec` belongs to project code, and the suite runs with
+  `UBSAN_OPTIONS=halt_on_error=1`.
 - **Buffer wiring contract:** callers must set `frame.sbsample`,
   `frame.sbsample_prev`, `frame.overlap` and `stream.main_data` BEFORE
   `mad_frame_init` (the init memsets through those pointers), and

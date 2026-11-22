@@ -433,6 +433,25 @@ static int check_mp3_mono_vbr_id3(void)
                        HELIKON_OK && frames > 0u,
                "MP3 vbr seek read"))
         return 1;
+    /*
+     * A seek to the last frame, and to the end of the stream, are legal player
+     * actions (the last one is what "jump to the end" does). Both land in the
+     * TOC bucket 99..100; the sanitize target turns an off-by-one there into a
+     * finding, so this is the regression test for it.
+     */
+    if (expect(info.total_frames > 2u, "MP3 vbr end-seek room"))
+        return 1;
+    if (expect(helikon_codec_seek(&codec, info.total_frames) == HELIKON_OK &&
+                   helikon_codec_read(&codec, pcm, CHUNK_FRAMES, &frames) ==
+                       HELIKON_OK,
+               "MP3 vbr seek end"))
+        return 1;
+    if (expect(helikon_codec_seek(&codec, info.total_frames - 1u) ==
+                   HELIKON_OK &&
+                   helikon_codec_read(&codec, pcm, CHUNK_FRAMES, &frames) ==
+                       HELIKON_OK,
+               "MP3 vbr seek last frame"))
+        return 1;
     helikon_codec_close(&codec);
 
     /* ID3v2 front matter is skipped, then the header probe finds MPEG sync. */
