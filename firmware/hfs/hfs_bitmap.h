@@ -32,4 +32,11 @@ int hfs_bitmap_alloc(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
 int hfs_bitmap_free(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
                     uint32_t start, uint32_t count);
 
+/*
+ * Read the committed bitmap for one block: 1 when it is allocated, 0 when it is
+ * free. Read-only and outside any transaction, which is what a checker or a
+ * host test wants; a staged allocation needs the transaction overlay instead.
+ */
+int hfs_bitmap_block_used(struct hfs_bitmap *bitmap, uint32_t block, int *used);
+
 #endif

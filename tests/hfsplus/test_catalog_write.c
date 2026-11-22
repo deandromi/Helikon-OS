@@ -1457,6 +1457,103 @@ static int test_truncate_to_size(void)
 }
 
 /*
+ * A truncate that stays inside the file's last, partially filled block: the
+ * block survives, only the bytes between the new end and the old one are
+ * zeroed, and no block returns to the bitmap. This is the everyday "shave a few
+ * bytes off the end" case, and asking the fork writer for the whole block tail
+ * instead of the visible bytes made it fail with ARGUMENT when both sizes fell
+ * in the same block.
+ */
+static int test_truncate_inside_last_block(void)
+{
+    struct test_env env;
+    CHECK(setup_env(&env) == 0);
+
+    static const uint8_t name[8] = { 0, 'L', 0, 'O', 0, 'N', 0, 'G' };
+    static uint8_t payload[1200];
+    for (size_t i = 0; i < sizeof(payload); ++i)
+        payload[i] = (uint8_t)(0x30u + (i % 60u));
+
+    struct hfs_txn tx;
+    uint32_t cnid = 0;
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_create_file(&env.catalog, &tx, 2, name, 4, 0644,
+                                  hfs_catalog_key_compare, NULL,
+                                  &cnid) == HFS_OK);
+    apply_txn(&tx);
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_append_file(&env.catalog, &tx, 2, name, 4, 0, payload,
+                                  sizeof(payload), hfs_catalog_key_compare,
+                                  NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    uint8_t key[256];
+    uint8_t record[1024];
+    size_t key_length = build_key(key, 2, name, 4);
+    size_t record_length = 0;
+    start_tx(&env, &tx);
+    CHECK(hfs_btree_find(&env.btree, &tx, key + 2, key_length,
+                         hfs_catalog_key_compare, NULL, record,
+                         sizeof(record), &record_length) == HFS_OK);
+    size_t data_offset = 2u + key_length;
+    uint8_t *fork = record + data_offset + 88u;
+    uint32_t blocks_before = get_be32(fork + 12);
+    CHECK(blocks_before == 3);
+
+    uint32_t free_before = get_be32(test_image + 1024 + 48);
+    start_tx(&env, &tx);
+    CHECK(hfs_catalog_truncate_to(&env.catalog, &tx, 2, name, 4, 1100,
+                                  hfs_catalog_key_compare, NULL) == HFS_OK);
+    apply_txn(&tx);
+
+    /* Nothing returned to the bitmap: 1100 bytes still need all three blocks. */
+    CHECK(get_be32(test_image + 1024 + 48) == free_before);
+
+    struct hfs_entry entry;
+    CHECK(hfs_catalog_lookup_ascii(&env.catalog, 2, "LONG", &entry) == HFS_OK);
+    CHECK(entry.data.size == 1100);
+    CHECK(entry.data.blocks == 3);
+
+    /* The 1100 bytes that survive still read back byte for byte. */
+    uint8_t readback[1200];
+    size_t done = 0;
+    memset(readback, 0xee, sizeof(readback));
+    CHECK(hfs_catalog_read_file(&env.catalog, &entry, 0, readback,
+                                sizeof(readback), &done) == HFS_OK);
+    CHECK(done == 1100);
+    CHECK(memcmp(readback, payload, 1100) == 0);
+
+    /*
+     * 1100..1199 are gone from the image itself. They sit in the block that
+     * holds byte 1100, which is not necessarily beside the first one: the
+     * fixture's free blocks are fragmented, so walk the fork's extents instead
+     * of assuming a contiguous run.
+     */
+    CHECK(get_be32(fork + 12) == 3);
+    const uint32_t target_block = 1100u / TEST_BLOCK_SIZE;
+    uint32_t logical = 0;
+    uint32_t physical = 0;
+    for (unsigned int i = 0; i < HFS_EXTENT_COUNT; ++i) {
+        uint32_t extent_start = get_be32(fork + 16 + i * 8);
+        uint32_t extent_count = get_be32(fork + 20 + i * 8);
+        if (extent_count == 0)
+            break;
+        if (target_block >= logical && target_block < logical + extent_count) {
+            physical = extent_start + (target_block - logical);
+            break;
+        }
+        logical += extent_count;
+    }
+    CHECK(physical != 0);
+    const uint8_t *tail = test_image + physical * TEST_BLOCK_SIZE;
+    for (uint32_t i = 1100u % TEST_BLOCK_SIZE;
+         i < 1200u - target_block * TEST_BLOCK_SIZE; ++i)
+        CHECK(tail[i] == 0);
+
+    return 0;
+}
+
+/*
  * A truncate that lands inside a fork's overflow region: the retained prefix
  * keeps the first inline extents and one overflow block, the second record goes
  * away, and the first is rewritten with the blocks that survived.
@@ -1924,6 +2021,8 @@ int main(void)
         { "write across the end", test_write_across_the_end },
         { "write grows fragmented file", test_write_grows_fragmented_file },
         { "truncate to size", test_truncate_to_size },
+        { "truncate inside the last block",
+          test_truncate_inside_last_block },
         { "truncate across overflow", test_truncate_across_overflow }
     };
     int failures = 0;
