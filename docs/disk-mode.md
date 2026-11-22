@@ -422,9 +422,9 @@ It reuses the firmware's USB stack (`usb.c` over a seam built in
 `bootloader/hardware/helikon_usb_disk_hw.c`), polls the controller instead of
 wiring the donor's VIC, and asks for SELECT before handing the disk over.
 
-Built: `bootloader-ipod6g-usb-disk.ipod`, 108,136 bytes, SHA-256
-`9be0fc65…`; DFU 116,272 bytes, SHA-256 `1fa12508…`; `_moveend 0x2203ae40`
-against `MOVE_AREA` end `0x22040000`, 20,896 bytes of headroom; the image
+Built: `bootloader-ipod6g-usb-disk.ipod`, 108,264 bytes, SHA-256
+`1955a943…`; DFU 116,400 bytes, SHA-256 `13f549b8…`; `_moveend 0x2203ae40`
+against `MOVE_AREA` end `0x22040000`, 20,768 bytes of headroom; the image
 contains `helikon_usb_init`, `helikon_disk_mode_start` and the "Helikon Disk
 Mode" product string. **No device run.** The production bootloader stays
 read-only; this is a separate diagnostic, like the write images.
@@ -478,7 +478,7 @@ optionally a Linux host with `usbmon` for packet capture and fuzzing.
 |---|---|---|---|
 | P0 | T-108 | host evidence runbook and collector | read-only captures from Apple Disk Mode |
 | P1 | T-109 | read-only ATA/LBA48/APM probe image | one 6G run, photo and values |
-| P2 | T-110 | USB device core and enumeration | macOS sees the device. Host half done: core, controller driver and mode machine with host tests; the Disk Mode image builds (`DISKMODE=1`, 40,236 bytes). Device gate open |
+| P2 | T-110 | USB device core and enumeration | macOS sees the device. Host half done: core, controller driver and mode machine with host tests; the Disk Mode image builds (`DISKMODE=1`, 40,500 bytes). Device gate open |
 | P3 | T-111 | MSC read-only data LUN | macOS mounts and reads |
 | P4 | T-112 | MSC writable data LUN with flush/eject | 1 GB write, SHA-256, fsck |
 | P5 | T-109/T-112 | LBA48 boundary and 4K sectors | boundary writes/read-back |

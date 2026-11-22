@@ -288,6 +288,20 @@ make -C tests/usb test
 make -C tests/usb sanitize
 ```
 
+`tests/usb/fuzz_msc` sends malformed CBWs, hostile CDB lengths, a data stage that
+stops halfway, a read-only device and an I/O-fault device through the same
+transport, 50,000 commands per case from a fixed seed:
+
+```sh
+make -C tests/usb fuzz
+make -C tests/usb fuzz-sanitize
+```
+
+It asserts that the window never moves, that no sector outside it is touched,
+that a read-only device takes no writes, that the CSW is always well formed and
+that a device error is never reported as success. The seed is printed, so a
+failure reproduces.
+
 The mode machine also builds into a separate firmware image:
 
 ```sh
@@ -296,7 +310,7 @@ PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g DISKMODE=1
 
 It lands in `build/firmware/6g-diskmode/` — a variant directory, because the
 flag changes `boot/firmware_main.c` and a stale object would produce an image
-that claims to be one thing and behaves as the other. The image is 40,236 bytes
+that claims to be one thing and behaves as the other. The image is 40,500 bytes
 and contains no `hfs_volume_probe` symbol: it cannot mount the volume it hands to
 the host.
 

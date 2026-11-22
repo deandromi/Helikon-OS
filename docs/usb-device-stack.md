@@ -577,6 +577,8 @@ write outside the LUN, never a hang; Bulk-Only Reset returns to `IDLE`.
 
 ### 7.6 Fuzz
 
+`tests/usb/fuzz_msc` implements this section: see `docs/testing.md`.
+
 `fuzz_cbw` (arbitrary 31-byte CBW + fake LUN), `fuzz_scsi` (arbitrary CDB and
 allocation length), `fuzz_control` (arbitrary setup packet). Seed with valid
 CBWs, every opcode, boundary LBAs and the malformed cases. Run ASan/UBSan with
