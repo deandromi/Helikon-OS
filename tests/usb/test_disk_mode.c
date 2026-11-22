@@ -606,6 +606,41 @@ int main(void)
                "the state has a name"))
         return 1;
 
+    /* --- nothing runs after the medium is released ------------------------ */
+    {
+        /*
+         * The host may not have noticed the eject. A stray WRITE(10) after the
+         * release must not reach the block device: the firmware owns the volume
+         * again, and a write there is the one mistake this mode exists to
+         * avoid. The mode counts the packet and stays idle.
+         */
+        unsigned int released_ep1 = transport.ep1_count;
+        unsigned int released_writes = disk.writes;
+        unsigned int released_errors = mode.errors;
+        uint8_t write10[10] = { 0x2au, 0, 0, 0, 0, 0u, 0, 0, 1u, 0 };
+        make_cbw(mode.cbw, 0xfeedfaceu, 512u, 0, write10, 10u);
+        if (expect(helikon_disk_mode_event(&mode, HELIKON_USB_EVENT_EP2_OUT_DONE,
+                                           NULL, HELIKON_USB_CBW_SIZE) ==
+                       HELIKON_OK,
+                   "a stray CBW after release is handled"))
+            return 1;
+        if (expect(mode.state == HELIKON_DISK_MODE_RELEASED,
+                   "the mode stays released"))
+            return 1;
+        if (expect(transport.ep1_count == released_ep1,
+                   "the stray command produced no data and no CSW"))
+            return 1;
+        if (expect(disk.writes == released_writes,
+                   "the stray write never reached the block device"))
+            return 1;
+        if (expect(mode.errors == released_errors + 1u,
+                   "the stray command is counted"))
+            return 1;
+        if (expect(mode.phase == HELIKON_DISK_MODE_BOT_IDLE,
+                   "the phase stays idle"))
+            return 1;
+    }
+
     helikon_disk_mode_stop(&mode);
     if (expect(mode.state == HELIKON_DISK_MODE_OFF, "stop turns the mode off"))
         return 1;

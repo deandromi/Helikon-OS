@@ -311,6 +311,14 @@ that a read-only device takes no writes, that the CSW is always well formed and
 that a device error is never reported as success. The seed is printed, so a
 failure reproduces.
 
+`tests/usb/fuzz_mode` covers the layer above: the phase machine and the
+enumeration state. Random control requests, CBWs of the wrong length, data
+arriving at the wrong moment, completions nobody asked for, resets and
+disconnects, then a liveness check — after any walk, a bus reset and a fresh
+`SET_CONFIGURATION`, a valid INQUIRY must still be answered within a bounded
+number of completions. It also runs T-115's 100 connect/disconnect cycles on the
+mock, which is where a leak between cycles shows up.
+
 The mode machine also builds into a separate firmware image:
 
 ```sh
@@ -319,7 +327,7 @@ PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g DISKMODE=1
 
 It lands in `build/firmware/6g-diskmode/` — a variant directory, because the
 flag changes `boot/firmware_main.c` and a stale object would produce an image
-that claims to be one thing and behaves as the other. The image is 40,500 bytes
+that claims to be one thing and behaves as the other. The image is 40,524 bytes
 and contains no `hfs_volume_probe` symbol: it cannot mount the volume it hands to
 the host.
 
