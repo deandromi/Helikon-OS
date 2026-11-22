@@ -19,6 +19,7 @@
 #include "audio.h"
 #include "helikon_error.h"
 #include "library.h"
+#include "music_source.h"
 #include "player.h"
 #include "read_ahead.h"
 #include "vfs.h"
@@ -461,6 +462,151 @@ static void test_playlist_queue(struct vfs *vfs, const struct hdb *db)
            result.missing, result.refused);
 }
 
+/* What a track sounds like from the volume: pull frames, sum magnitudes. */
+static uint64_t sound_energy(uint32_t frames)
+{
+    if (captured_source == NULL)
+        return 0u;
+    static int16_t pcm[8192];
+    size_t got = pull_frames(captured_source, captured_context, pcm, frames);
+    uint64_t energy = 0u;
+    for (size_t index = 0u; index < got * 2u; ++index)
+        energy += (uint64_t)(pcm[index] < 0 ? -(int32_t)pcm[index]
+                                            : (int32_t)pcm[index]);
+    return energy;
+}
+
+/*
+ * The storage-backed music source: one object owning mount + catalog + index +
+ * queue + player. This is the combination nothing owned before, and the test
+ * walks it the way the Music hub will: open a volume, play a playlist that is a
+ * file on it, then step through the queue.
+ */
+static void test_music_source(struct vfs *vfs, const struct hdb *db)
+{
+    static struct helikon_music_source music;
+    struct helikon_pmu pmu;
+    struct helikon_clock clock;
+    memset(&pmu, 0, sizeof(pmu));
+    memset(&clock, 0, sizeof(clock));
+
+    check(helikon_music_source_open(&music, vfs, db, &pmu, &clock, 2000u) ==
+              HELIKON_OK,
+          "the music source opens on the volume");
+    check(music.index.used == 6u, "it indexed the catalog once");
+    check(music.index.complete == 1u, "the whole fixture catalog is indexed");
+    check(music.playing == 0u, "opening does not start a track");
+
+    struct helikon_playlist_queue_result result;
+    check(helikon_music_source_play_playlist(&music, "/Playlists/first.m3u",
+                                            &result) == HELIKON_OK,
+          "the playlist on the volume plays");
+    check(result.added == 3u && result.missing == 1u && result.refused == 1u,
+          "the importer's counts survive the source");
+
+    uint32_t id = 0xFFFFFFFFu;
+    check(helikon_music_source_current(&music, &id) == HELIKON_OK && id == 5u,
+          "the queue is where the playlist pointed");
+
+    char path[HELIKON_LIBRARY_PATH_MAX];
+    check(helikon_music_source_path(&music, path, sizeof(path)) == HELIKON_OK &&
+              strcmp(path, "/Music/Various Artists/Mixtape/02 Tide.m4a") == 0,
+          "the playing path is the catalog's own path");
+    check(music.playing == 1u, "the first entry is playing");
+    check(captured_source != NULL, "the source started a stream");
+    check(sound_energy(2048u) != 0u, "and it is not silence");
+
+    /* next: the queue moves and the file behind it is reopened. */
+    check(helikon_music_source_next(&music) == HELIKON_OK,
+          "next plays the second queued track");
+    check(music.track == 2u, "which is track 2");
+    check(helikon_music_source_path(&music, path, sizeof(path)) == HELIKON_OK &&
+              strcmp(path, "/Music/Lighthouse/Static Bloom/01 Signal.m4a") == 0,
+          "the path changed with the track");
+    check(music.player.opened != 0, "the player opened the new file");
+    check(sound_energy(2048u) != 0u, "the second track is not silence");
+
+    check(helikon_music_source_next(&music) == HELIKON_OK,
+          "next plays the third queued track");
+    check(music.track == 0u, "which is track 0");
+
+    /* The end of the queue stops playback and says so; it does not wrap. */
+    check(helikon_music_source_next(&music) == HELIKON_ERR_NOT_FOUND,
+          "the end of the queue is NOT_FOUND");
+    check(music.playing == 0u, "and playback stopped");
+    check(helikon_music_source_current(&music, &id) == HELIKON_OK && id == 0u,
+          "the queue position stayed on the last track");
+
+    /* Back one: previous walks the same order in reverse. */
+    check(helikon_music_source_previous(&music) == HELIKON_OK,
+          "previous plays the track before it");
+    check(music.track == 2u, "which is track 2 again");
+
+    /* Repeat one restarts the same id instead of moving. */
+    check(helikon_queue_set_repeat(&music.queue, HELIKON_QUEUE_REPEAT_ONE) ==
+              HELIKON_OK,
+          "repeat one is selectable");
+    check(helikon_music_source_next(&music) == HELIKON_OK && music.track == 2u,
+          "repeat one replays the same track");
+
+    /* Repeat all walks to the end and then wraps to the first entry. */
+    check(helikon_queue_set_repeat(&music.queue, HELIKON_QUEUE_REPEAT_ALL) ==
+              HELIKON_OK,
+          "repeat all is selectable");
+    check(helikon_music_source_next(&music) == HELIKON_OK && music.track == 0u,
+          "repeat all moves to the last queued track");
+    check(helikon_music_source_next(&music) == HELIKON_OK && music.track == 5u,
+          "repeat all wraps to the first queued track");
+    check(helikon_queue_set_repeat(&music.queue, HELIKON_QUEUE_REPEAT_OFF) ==
+              HELIKON_OK,
+          "repeat off again");
+
+    /* A playlist whose entries are all stale resolves to nothing and stops. */
+    check(helikon_music_source_play_playlist(&music, "/Playlists/stale.m3u",
+                                            &result) == HELIKON_ERR_NOT_FOUND,
+          "a playlist with no live entry is NOT_FOUND");
+    check(result.added == 0u && result.missing == 1u,
+          "and it says why nothing played");
+    check(music.playing == 0u, "with playback stopped rather than lying");
+
+    /* A folder is not a playlist, and a missing path is missing. */
+    check(helikon_music_source_play_playlist(&music, "/Playlists", &result) ==
+              HELIKON_ERR_NOT_FOUND,
+          "a folder is not a playlist");
+    check(helikon_music_source_play_playlist(&music, "/Playlists/none.m3u",
+                                            &result) == HELIKON_ERR_NOT_FOUND,
+          "a missing playlist is NOT_FOUND");
+
+    /* A path that does not fit is refused, not truncated. */
+    check(helikon_music_source_play_track(&music, 1u) == HELIKON_OK,
+          "a track can be played directly");
+    char tiny[4];
+    check(helikon_music_source_path(&music, tiny, sizeof(tiny)) ==
+              HELIKON_ERR_BUFFER,
+          "a path that does not fit is BUFFER");
+
+    check(helikon_music_source_play_track(&music, 6u) != HELIKON_OK,
+          "a track id past the catalog is refused");
+    check(music.playing == 0u, "and the failed open left nothing playing");
+
+    helikon_music_source_close(&music);
+    helikon_music_source_close(&music);
+    check(music.track == HELIKON_MUSIC_SOURCE_NO_TRACK && music.playing == 0u,
+          "close is idempotent");
+
+    /* Reopening rebuilds the index and plays again. */
+    check(helikon_music_source_open(&music, vfs, db, &pmu, &clock, 2000u) ==
+              HELIKON_OK &&
+              helikon_music_source_play_track(&music, 4u) == HELIKON_OK,
+          "a reopened source plays a track");
+    check(music.playing == 1u, "and it is playing");
+    helikon_music_source_close(&music);
+
+    printf("%s music source: one object over the volume, 3 queued, walked 5, 2, "
+           "0 and stopped at the end\n",
+           failures == 0u ? "PASS" : "FAIL");
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2) {
@@ -562,6 +708,10 @@ int main(int argc, char **argv)
     /* A playlist on the volume, resolved through the index, played from disk.
      * Runs before the adapter is closed: the catalog reads through it. */
     test_playlist_queue(&vfs, &db);
+
+    /* The same path through the object the hub will own, including next and
+     * previous over the queue. */
+    test_music_source(&vfs, &db);
 
     struct hdb_vfs_io missing;
     check(hdb_vfs_open(&missing, &vfs, "/.helikon/missing.hdb") ==

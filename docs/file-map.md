@@ -67,7 +67,9 @@ Helikon-OS/
     board/6g/             BSP constants, board description, runtime wiring, write gate
     hal/6g/               clock, PMU, backlight, LCD, ATA read/write/flush, buttons, CPU, CS42L55/I2S/DMA
     block/                block device with read-only gate, bounce, APM/MBR/raw scan
-    library/              HDB path index and playlist resolution into the queue
+    library/              HDB path index, playlist resolution into the queue, and
+                          the storage-backed music source (volume + catalog +
+                          index + queue + player, next/previous)
     diag/                 stage machine, RAM trace, crash record, RGB565 screen
     player/               bounded WAV parser, PCM playback state (buffer and
                           pull-source opens), the VFS media adapter
@@ -203,9 +205,10 @@ Helikon-OS/
                             resolution test (plus `macos-sanitize`)
     test_library.c          mounts an image, reads /.helikon/music.hdb, decodes
                             /Music/first.mp3 through the read-ahead window
-                            against a resident decode, then resolves
+                            against a resident decode, resolves
                             /Playlists/first.m3u into a queue and plays each
-                            queued track from its catalog path
+                            queued track from its catalog path, then drives
+                            music_source.c through next/previous/repeat
     run-library-macos.sh    disposable hdiutil image + fsck_hfs runner; copies
                             the audio fixture to every path the catalog names,
                             /Music/first.mp3 and the playlist

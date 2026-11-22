@@ -49,7 +49,7 @@ SOURCES := test_library.c \
            $(DB)/hdb.c $(DB)/hdb_vfs.c \
            $(PLAYER)/player.c $(PLAYER)/wav.c $(PLAYER)/vfs_media.c \
            $(PLAYER)/read_ahead.c $(PLAYER)/playlist.c $(PLAYER)/queue.c \
-           $(LIBRARY)/library.c \
+           $(LIBRARY)/library.c $(LIBRARY)/music_source.c \
            $(CODEC)/codec.c $(CODEC)/flac/flac_codec.c \
            $(CODEC)/flac/flac_decoder.c $(CODEC)/mp3/mp3_codec.c \
            $(CODEC)/tag/id3v2.c $(CODEC)/tag/vorbis.c \

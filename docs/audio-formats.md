@@ -1703,3 +1703,91 @@ Nothing resolves a `FILE` path to a volume path, and nothing turns a cue track
 into a queue entry or a `helikon_player_seek_ms` call: that caller is the same
 storage-backed Music hub the play queue is waiting for (T-058). Cuesheets are also
 still listed in T-093, which wants A-B repeat over them.
+
+## 26. One object that owns the music path — T-058 host half (2026-11-22)
+
+Status: `implemented` as host code over a real HFS+ volume, with tests. No
+firmware mount, no hub caller and no device run.
+
+### 26.1 What it is
+
+Every piece of playing music from the iPod's own storage existed separately: the
+read-only VFS, `hdb_vfs_open`, the library index, the playlist importer, the play
+queue, the VFS media adapter and the player. Nothing owned the combination, and a
+call site that wires seven modules by hand is a call site that gets the order
+wrong once and ships silence.
+
+`firmware/library/music_source.c` is that object:
+
+```text
+helikon_music_source_open(vfs, db, pmu, clock)
+    -> builds the library index once (8 KiB, allocation-free)
+
+helikon_music_source_play_playlist("/Playlists/first.m3u")
+    -> VFS read -> playlist parser -> index -> queue -> HDB track -> path
+    -> VFS open -> codec probe -> player ring -> frames
+
+helikon_music_source_next() / previous()
+    -> queue step -> close the old file -> open the new one -> play
+```
+
+One instance is about 68 KiB of `.bss`: the index, the queue, an 8 KiB playlist
+buffer, the player's 31 KiB codec workspace and its 16 KiB read-ahead window.
+The linker counts it at build time, which is what a device without a heap
+allocator wants.
+
+The rules are the ones a player has to have, and each is a check in the test:
+
+| Rule | Why |
+|---|---|
+| one file open at a time; a failed open leaves nothing playing | a half-open track is worse than a refusal |
+| a missing catalog path is `NOT_FOUND` and the queue does not move | a retry means the same track |
+| the end of the queue stops and reports `NOT_FOUND` | no silent wrap at 3 a.m. |
+| `REPEAT_ONE` replays the same id from the top | that is what the queue's `RESTART` means |
+| a playlist that resolves to nothing stops playback | you asked to play that list |
+| the playlist's folder is the base, with no trailing slash | see below |
+
+That last row was a real bug found by the test: the base was built as
+`/Playlists/` and the parser splits a base into components, so `..` popped the
+empty trailing component instead of `Playlists`. A relative entry resolved under
+the playlist's own folder and the escaping entry `../../escape.m4a` was
+*accepted*. With the base built as `/Playlists`, the four counts came back
+`4 entries -> 3 queued, 1 missing, 1 refused`, exactly as the playlist phase
+expects.
+
+### 26.2 Evidence (host only, no device run)
+
+`tests/library` now walks all three phases over one disposable journaled HFS+
+image and prints three lines:
+
+```text
+PASS playlist: 4 entries -> 3 queued, 1 missing, 1 refused
+PASS music source: one object over the volume, 3 queued, walked 5, 2, 0 and stopped at the end
+PASS library: HFS+ -> VFS -> HDB (6 tracks, 3 albums, CRC OK) and audio decodes from the volume
+```
+
+The music-source phase checks, in order: the index built once and `complete`;
+playlist play starts track 5 with the catalog's own path and non-silent PCM;
+`next` moves to track 2 and reopens the file; `next` again to track 0; `next` at
+the end is `NOT_FOUND` with playback stopped and the queue position unchanged;
+`previous` returns to track 2; repeat-one replays track 2 without moving;
+repeat-all walks to track 0 and then wraps to track 5; repeat-off; a playlist of
+one stale entry is `NOT_FOUND` with `added == 0` and nothing playing; a folder is
+not a playlist and a missing path is `NOT_FOUND`; `play_track` works directly;
+a too-small path buffer is `BUFFER`; a track id past the catalog is refused and
+leaves nothing playing; `close` twice is safe; reopening rebuilds the index and
+plays track 4.
+
+- `make -C tests/library macos` and `macos-sanitize`: the three `PASS` lines
+  above, sanitizer-clean.
+- `./tools/static-analysis.sh`: 78 units, 0 findings.
+- `make -C firmware BOARD=6g image`: 80,020 B, unchanged — nothing calls the
+  object yet, so `--gc-sections` drops it. The music-hub image builds at
+  768,200 B.
+
+### 26.3 Remaining
+
+The firmware mounts no volume at boot (T-056 device half), so the Music hub still
+plays its embedded blob: this object is waiting for the mount, the hub call site
+and a device run. Nothing here is device evidence, and the >128 GiB / Disk Mode
+line is unaffected.
