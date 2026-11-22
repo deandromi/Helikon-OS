@@ -626,6 +626,15 @@ writes or replays.
   truncated, zeroed or ignored.
 - After replay, the journal clean marker is flushed before the first user write.
 
+The last two properties are now checked mechanically, not just asserted.
+`tests/image/hfs_crash_test` gained `replay-twice`, which recovers an image and
+then recovers it again: the second pass must find a clean journal and the same
+tree, which is what idempotency means in bytes. It also gained `replay-cut N`,
+which fails the nth write *of the replay itself*, leaving the image half-replayed
+on purpose; the next replay must land on one of the two legal states and
+`fsck_hfs -fn` must agree. Both run inside `run-crash-macos.sh` at every cut
+point, the double fault on a sampled subset (`DOUBLE_CUTS`, `DOUBLE_SCENARIOS`).
+
 ### 10.6 Failure model and error taxonomy
 
 | Error | Meaning | Required behavior |

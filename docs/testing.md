@@ -141,8 +141,17 @@ the cut precedes the journal commit header and present after replay when the
 commit header was written; every case must be fsck-clean. The
 create/append/truncate/delete/rename/overwrite matrices currently cover 346
 cuts: 152 write cuts (create 25, append 34, truncate 25, delete 25, rename 21,
-overwrite 22), 42 flush cuts and 152 partial-sector cuts. Power-loss timing and
-the remaining operations are T-010.
+overwrite 22), 42 flush cuts and 152 partial-sector cuts.
+
+Two further properties are checked at every cut point. **Replay is idempotent:**
+`replay-twice` recovers the image, opens it again and recovers again, and the
+second pass must find a clean journal and the same tree. **A fault during replay
+still converges:** `replay-cut N` fails the nth write of the replay itself,
+leaving the image half-replayed on purpose; a later replay must land on one of
+the two legal states, not a mixture, and `fsck_hfs -fn` must agree. The
+double-fault pass is sampled (`DOUBLE_CUTS`, `DOUBLE_SCENARIOS`) because each
+point costs an attach, a replay and an fsck. `SCENARIOS="create grow"` narrows a
+run while iterating. Power-loss timing and the remaining operations are T-010.
 
 ### 5.3 Write-diagnostic outer/inner image test
 
