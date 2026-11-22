@@ -349,7 +349,7 @@ itself is complete; the remaining breadth gaps are tracked by T-093–T-107.
 | 7G is a viable port | `unproven` | Board audit and per-target matrix; D-13 |
 | Windows/Linux desktop support | `unproven` | Service-mode transport test; D-09 |
 | Apps/games are safely sandboxed | `unproven` | Adversarial tests; D-08 |
-| Anti-corruption detects injected corruption | `unproven` | Injection test and quarantine report; D-11 |
+| Anti-corruption detects injected corruption | `in progress` | Injection test and quarantine report; D-11. `firmware/hfs/hfs_check.c` is a read-only structural check with 13 host cases and a CLI; it catches a bumped free-block count on a real macOS volume and does not false-alarm on a 140 GiB one (it marks the overflowed bitmap "not checked"). No quarantine, no scrub policy yet |
 | Signed updates reject bad images | `unproven` | Host Ed25519/manifest tests pass; release-key certificate/revocation, a real signed image and device update testing remain; D-16, T-051, T-053 |
 
 Open questions are tracked in [`decisions.md`](decisions.md). Unknown hardware

@@ -180,6 +180,31 @@ This is the host half of "format the iPod above 128 GiB". The volume is not
 mounted afterwards on purpose: macOS writes `.fseventsd` and `.Trashes` on a
 first mount, and the test would then be describing a volume it changed.
 
+### 5.3.2 The read-only structural check
+
+`firmware/hfs/hfs_check.c` answers "does this volume's own metadata agree with
+itself?" without writing anything: block size and count, every fork's extents
+against the volume, fork sizes against their blocks, the allocation file against
+the block count, the header's free-block count against the bitmap (when the whole
+bitmap is inline), and the three metadata B-tree headers through the reader's own
+validation.
+
+```sh
+make -C tests/hfsplus test_check            # 13 cases, one corruption each
+make -C tests/image hfs-check
+./tests/image/hfs-check disk.img            # 0 clean, 1 findings, 2 unusable
+```
+
+Its tests build a 125-block volume by hand and put exactly one thing wrong in
+each case; the clean case must report zero findings, which is the property that
+matters most. Run against real volumes: a 32 MiB macOS `HFS+J` volume reports
+clean; the same volume with `free_blocks` bumped by five reports the mismatch; a
+140 GiB volume formatted by `tools/disk-mode-format.sh` reports clean and says it
+did not count the bitmap, because that one lives in the extents overflow tree and
+the check does not chase overflow records yet. That last part is why "not
+checked" is a separate field from "problems": a large volume must not look
+corrupt.
+
 ### 5.4 Firmware-loader host test
 
 `tests/bootloader/test_ed25519.c` checks the RFC 8032 vectors, a fixed 192-byte

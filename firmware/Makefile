@@ -62,7 +62,7 @@ HFS_ADAPTER_SRC := hfs/hfs_block_adapter.c hfs/hfs_file.c
 HFS_SRC := hfs/hfs_volume.c hfs/hfs_btree.c hfs/hfs_catalog.c \
            hfs/hfs_extents.c hfs/hfs_unicode.c hfs/hfs_unicode_data.c \
            hfs/hfs_catalog_compare.c \
-           hfs/hfs_journal.c hfs/hfs_txn.c hfs/hfs_bitmap.c \
+           hfs/hfs_journal.c hfs/hfs_txn.c hfs/hfs_bitmap.c hfs/hfs_check.c \
            hfs/hfs_fork_io.c hfs/hfs_volume_write.c \
            hfs/hfs_btree_write.c hfs/hfs_btree_tree.c \
            hfs/hfs_extents_write.c hfs/hfs_catalog_write.c
