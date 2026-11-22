@@ -12,6 +12,63 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (a property test, static analysis, and a test that could not fail)
+
+## What happened
+
+- **`tests/firmware/test_bounce_props.c`** — 4000 deterministic ranges over a
+  model disk through `helikon_block_read_bytes`/`write_bytes`: read-back
+  equality, refusal of out-of-range ranges, refusal of an unaligned range with
+  no scratch, a read-only refusal, and after every write a full-disk snapshot
+  comparison so a byte moved outside the range fails. Verified against an
+  injected `chunk + 1` in `write_aligned` (red) and clean code (green): 4000
+  iterations, 856 refused ranges, 3140 refused without scratch, 3142 writes.
+- **The test harness could pass a failing test.** `tests/firmware/test_check.h`
+  counts failures; only `helikon_test_report()` turns the count into an exit
+  status, and the new test returned 0 instead — `make` printed the FAIL lines and
+  `PASS` anyway. The header now installs an `atexit` guard that prints and calls
+  `_Exit(1)` when a process ends with failures counted and no report. A probe
+  binary with one failing `CHECK` and `return 0` now exits 1.
+- **`tools/static-analysis.sh`** — `clang --analyze` over every firmware and
+  bootloader translation unit: firmware freestanding (`-ffreestanding
+  -nostdinc`), bootloader hosted, libmad and the donor-facing glue skipped, an
+  argument filters paths, `--strict` exits 1. **The analyzer exits 0 whether or
+  not it finds something**, so the script counts findings by scanning each log
+  and takes the status from that.
+- **Three findings, all fixed**: a dead store in `firmware/vfs/vfs.c`; the FLAC
+  predictor shift guard (`shift >= 31` for a 5-bit signed field, now
+  `shift < 0 || shift >= 32`); and the `usb_msc.c` division by `msc->sector_size`
+  that the analyzer cannot refine through a struct field — the loop now reads it
+  into a local once. Run: **74 translation units, 0 findings.**
+- **`tests/bootloader/test_loader_error.c`** — `bootloader/loader_error.c` was
+  the only file in the tree with no test at all. 17 distinct non-empty messages,
+  no `%` in any of them, no gap from 0 down to `UNSUPPORTED`, and the fallback
+  for out-of-range values.
+- **CI gained an `analyze` job** running `--strict` on every push and pull
+  request, with the per-unit logs uploaded on failure. `docs/testing.md` §3.1
+  and §12 record it.
+
+## Evidence
+
+- `./tools/static-analysis.sh` → `74 translation unit(s), 0 with findings`.
+- `make -C tests/firmware test` → all groups `PASS`, including
+  `PASS bounce props`.
+- `make -C tests/bootloader test` → `17 loader error messages, all distinct and
+  format-safe`.
+- `make -C tests/usb test` → `PASS usb_hal`, `PASS disk_mode`.
+- Property test mutation check: injecting `chunk + 1` into `write_aligned` turned
+  it red at the outside-the-range comparison; restoring it turned it green.
+
+## Open / next
+
+- The fuzz corpus and the property test are the two nets; the third the plan
+  calls for is **differential** work: the same tree through macOS and through the
+  writer, plus Unicode order against Apple's `FastUnicodeCompare`.
+- A stale object from a mutation experiment made the property test look red once.
+  `tools/host-tests.sh` cleans each suite first for exactly this reason; when a
+  single `make` is used, delete `build/` after touching the firmware sources by
+  hand.
+
 # Handoff — 2026-11-22 (fuzzers with invariants; the corpus is the regression)
 
 ## What happened

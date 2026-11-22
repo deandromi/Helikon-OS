@@ -2,11 +2,14 @@
 #
 # Tests on every push to `main` and every pull request.
 #
-# Four jobs, each one a question worth asking separately:
+# Six jobs, each one a question worth asking separately:
 #
 #   portable   the host suites on Linux, so the code is not only correct on the
 #              owner's Mac;
 #   sanitize   the same code under AddressSanitizer and UndefinedBehaviorSanitizer;
+#   fuzz       the parsers, replayed from the committed corpus and then guided;
+#   analyze    `clang --analyze` over every translation unit, because a branch
+#              no test reaches is still a branch the compiler can reason about;
 #   macos      the disk-image suites: hdiutil, fsck_hfs and the mount, which is
 #              where the write paths meet a real filesystem;
 #   build      both firmware images link for 6G, which the host suites cannot say.
@@ -104,6 +107,32 @@ jobs:
           path: |
             tests/*/fuzz/findings/
             build/fuzz/
+          if-no-files-found: ignore
+
+  analyze:
+    name: static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang
+        # Ubuntu's clang has the static-analyzer checkers; so does Xcode's, which
+        # is why the script also runs locally.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang
+
+      # `--strict` sets the exit status from the log, not from clang: the
+      # analyzer exits 0 whether or not it found something.
+      - name: Analyse every firmware and bootloader translation unit
+        run: ./tools/static-analysis.sh --strict
+
+      - name: Keep the per-unit logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-analysis-logs
+          path: build/static-analysis/
           if-no-files-found: ignore
 
   macos:

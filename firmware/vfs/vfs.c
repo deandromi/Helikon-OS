@@ -234,7 +234,7 @@ int vfs_file_seek(struct vfs *vfs, struct vfs_file_handle handle,
         return HELIKON_ERR_ARGUMENT;
     if (offset < 0)
         return HELIKON_ERR_ARGUMENT;
-    uint64_t target = file->position;
+    uint64_t target;
     if (whence == VFS_SEEK_SET)
         target = (uint64_t)offset;
     else if (whence == VFS_SEEK_CUR || whence == VFS_SEEK_END) {

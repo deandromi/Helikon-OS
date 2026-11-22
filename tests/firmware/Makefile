@@ -31,7 +31,8 @@ FW_OBJS := $(BUILD)/lib/mem.o $(BUILD)/lib/string.o $(BUILD)/lib/crc32.o \
            $(BUILD)/hfs/hfs_block_adapter.o
 
 TESTS := test_lib test_boot_info test_bootstate test_block test_ata_geometry \
-         test_stages test_ring test_pool test_screen test_trace test_hfs_file test_vic
+         test_stages test_ring test_pool test_screen test_trace test_hfs_file \
+         test_vic test_bounce_props
 
 .PHONY: all test sanitize clean
 
@@ -95,6 +96,15 @@ test_vic: test_vic.c test_check.h $(BUILD)/hal/6g/vic.o
 	$(HOSTCC) $(VIC_TEST_CFLAGS) test_vic.c $(BUILD)/hal/6g/vic.o \
 	  $(LDFLAGS) -o $@
 
+# Property test over random byte ranges: 4000 of them, edges included, checked
+# against a model so a write that moves a byte it was not asked to move fails.
+test_bounce_props: test_bounce_props.c ../hfsplus/test_check.h \
+                   $(BUILD)/block/block.o $(BUILD)/block/bounce.o \
+                   $(BUILD)/lib/mem.o
+	$(HOSTCC) $(TEST_CFLAGS) -I../hfsplus test_bounce_props.c \
+	  $(BUILD)/block/block.o $(BUILD)/block/bounce.o $(BUILD)/lib/mem.o \
+	  $(LDFLAGS) -o $@
+
 HFS_TEST_CFLAGS := $(CFLAGS) -I../../firmware/hfs \
                    -idirafter ../../firmware/lib -I../hfsplus
 HFS_TEST_SRC := ../../firmware/hfs/hfs_file.c \
@@ -123,6 +133,7 @@ test: $(TESTS)
 	./test_trace
 	./test_hfs_file
 	./test_vic
+	./test_bounce_props
 
 UNAME_S := $(shell uname -s)
 ifeq ($(UNAME_S),Darwin)

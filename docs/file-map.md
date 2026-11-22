@@ -119,6 +119,11 @@ Helikon-OS/
       test_boot_info.c      D-28 page validation and fallback
       test_bootstate.c      bootstate parse, checksum and TRYING->GOOD promotion
       test_block.c          block adapter, bounce reads/writes and partition scan
+      test_bounce_props.c   4000-range property test over the byte-range layer:
+                            read-back, refusals, and nothing outside a write
+      test_check.h          CHECK/CHECK_EQ counting failures; the report turns
+                            them into the exit status and an atexit guard fails a
+                            test that forgets to report
       test_stages.c         stage order/timeout/failure including WRITE
       test_ring.c           wrap/overwrite
       test_pool.c           alloc/free/exhaustion/double free
@@ -172,6 +177,8 @@ Helikon-OS/
       test_ed25519.c        RFC 8032, 192-byte and key-table tests
       test_certificate.c    certificate/rotation/revocation verification tests
       test_boot_info_page.c D-28 page writer round-trip through the firmware parser
+      test_loader_error.c   every loader error code has a distinct, format-safe
+                            message and there is no gap down to UNSUPPORTED
   tests/musicdb/
     Makefile                HelikonDB fixture and reader test
     test_hdb.c              fixture + optional real-library checks
@@ -388,9 +395,10 @@ is created; do not let it drift.
 | `tools/host-tests.sh` | Run the portable host suites with one compiler; `--sanitize`, `--macos`, `--keep-going`, `--fast`, `HOST_TESTS_IMAGE` | test lead | `docs/testing.md` §2, §12 | one log per suite under `build/host-tests/`, cleans each suite first, stops at the first red suite and prints its tail | Host-only; a green run is not a device claim |
 | `tools/preview-build.sh` | Build both firmware payloads plus `README-PREVIEW.md`, `CHANGELOG.md` and `SHA256SUMS` for a preview | release lead | `docs/release.md` §1.1, `.github/workflows/preview.yml` | copies the two `out/` trees, per-run test key, no install path claimed | Preview only: no device run, no release key, no support claim |
 | `tools/fuzz.sh` | Build and run the libFuzzer harnesses; `--replay` runs the committed corpus with no fuzzer runtime | test lead | `docs/testing.md` §3 | five harnesses, each with a stated invariant; the guided run needs `libclang_rt.fuzzer` | Host-only; a finding is committed as a corpus file, never a device image |
+| `tools/static-analysis.sh` | `clang --analyze` over every firmware and bootloader translation unit; `--strict` exits 1 on a finding, an argument filters paths | test lead | `docs/testing.md` §3.1, `.github/workflows/tests.yml` | 74 units, firmware analysed freestanding and the bootloader hosted, libmad and donor glue skipped; findings come from the log because the analyzer exits 0 either way | Report only outside `--strict`; a clean run is not a correctness proof |
 | `tools/fuzz-replay-main.c` | Standalone driver that feeds corpus files to a harness | test lead | `docs/testing.md` §3 | one process, ASan and UBSan, the same harness source | For hosts whose clang has no fuzzer runtime |
 | `tests/*/fuzz/` | Harness sources, committed corpus and findings per suite | test lead | `docs/testing.md` §3 | `fuzz_<name>.c`, `corpus/<name>/`, `findings/` | Corpus files are small and deterministic; no device or proprietary data |
-| `.github/workflows/tests.yml` | Host suites on Linux, the same under sanitizers, the macOS disk-image suites, and both firmware builds | test lead | `docs/testing.md` §12 | four jobs, `--keep-going`, every push and pull request | CI is not a device run; no power-cut, battery or panel coverage |
+| `.github/workflows/tests.yml` | Host suites on Linux, the same under sanitizers, the fuzzers, static analysis, the macOS disk-image suites, and both firmware builds | test lead | `docs/testing.md` §12 | six jobs, `--keep-going`, strict static analysis, every push and pull request | CI is not a device run; no power-cut, battery or panel coverage |
 | `.github/workflows/preview.yml` | Nightly prerelease from `main` | release lead | `docs/release.md` §1.1, T-117 | host suite gate, build, tag `preview-YYYY-MM-DD`, prerelease | Publishes nothing when the gate is red; images carry a test key |
 | `tools/firmware-size.py` | Print the F1 map/size/headroom and check undefined symbols | firmware lead | ADR-0003, T-054 | `__image_end`, `__bss_end`, raw-size equality, banned hosted symbols | Host check only; not a device measurement |
 | `tools/make-bootloader-splash.py` | Generate the pre-final owner splash PNG variants and 4bpp C data | boot/UI | T-045 | version, label mask, palette, packed base, preview | Requires the owner-provided ITC Benguiat file; font is not committed; historical design only |

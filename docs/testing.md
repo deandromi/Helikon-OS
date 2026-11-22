@@ -31,7 +31,7 @@ Helikon-OS validation.
 | Host unit | Parser, allocator, name, state-machine logic | Host | `in progress` — HFS+ read core, journal and txn | Every module |
 | Fuzzing | Malformed B-trees, extents, names, journal records do not crash/escape bounds | Host | `planned` | Reader, writer, journal |
 | Model-based B-tree | Insert/update/delete, split/merge, key order, free-node map | Host | `planned` | Writer |
-| Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `planned` — journal append/replay has unit tests only | Writer/journal |
+| Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `in progress` — the byte-range block layer has a 4000-range property test; writer/journal properties `planned` | Writer/journal |
 | Differential vs macOS | Same tree/names/metadata/`fsck_hfs` result on both sides | Host + macOS | `planned` | Writer |
 | Bootloader diagnostics | Read-only volume/catalog/file report and splash | Host | `in progress` — 8 tests | Boot screen |
 | Device | Boot, mount, playback, write, USB, sleep, recovery | 6G (then 7G/ports) | `not run` | Any hardware claim |
@@ -78,6 +78,16 @@ The suites stay separate Makefiles, so a single red test is still
 being tested the one way that happens to be green. `--macos` is Darwin-only and
 the disk-image suites create their own images; neither mode touches a device.
 
+**Every check must be able to fail.** `tests/firmware/test_check.h` counts
+failures and `helikon_test_report()` is what turns them into an exit status; the
+Makefile and `tools/host-tests.sh` read nothing else. A firmware test that
+recorded a `CHECK` failure and then returned 0 would leave the suite green, and
+exactly that happened while the block property test was being written — the
+failure lines printed and `make` still said `PASS`. The header now installs an
+`atexit` guard: a process that ends with failures counted and no report prints
+them and calls `_Exit(1)`. Keep the report call at the end of every test; the
+guard is the backstop, not the contract.
+
 ## 3. Fuzzing and sanitizers
 
 `tools/fuzz.sh` builds and runs the libFuzzer harnesses. Five exist, each with
@@ -112,6 +122,40 @@ Anyone adding a parser should add a harness and a handful of seeds in the same
 pull request. A crash, a hang or a violated invariant is a defect, not a "known
 fuzz case", and no corpus file may be a device image, a proprietary sample or
 personal data.
+
+### 3.1 Static analysis
+
+`tools/static-analysis.sh` runs `clang --analyze` — the path-sensitive checker
+that follows a value through branches, not a linter — over every firmware and
+bootloader translation unit:
+
+```sh
+./tools/static-analysis.sh              # report only, exit 0
+./tools/static-analysis.sh --strict     # exit 1 on the first finding
+./tools/static-analysis.sh hfs_journal  # only paths matching the argument
+```
+
+Firmware sources are analysed the way the device builds them (`-ffreestanding
+-nostdinc` and the compiler's own `stddef.h`/`stdint.h`); `bootloader/*` is
+analysed hosted, which is how its tests compile it. Vendored libmad and the
+donor-facing hardware glue are skipped: the first is not ours to change, the
+second pokes registers whose values only a device can confirm. **74 translation
+units currently analyse clean.**
+
+The exit status is not the signal. `clang --analyze` exits 0 whether or not it
+found something, so the script greps each unit's log for ` warning: ` or
+` error: ` and `--strict` sets the status from that count. A compile error counts
+as a finding too: a file the analyzer could not parse is a file nothing checked.
+The `analyze` job in `.github/workflows/tests.yml` runs the strict mode on every
+push and pull request.
+
+It paid for itself on the first run, with three findings in code that already had
+tests: a dead store in `vfs.c` (a local initialised from the file position and
+overwritten before any read), a signed-shift guard in the FLAC predictor that
+only rejected `shift >= 31` for a 5-bit signed field, and a division by
+`msc->sector_size` in `usb_msc.c` that the analyzer could not refine through the
+struct field. The first two are fixed; the third reads the field into a local
+once, which is also the clearer code.
 
 ## 4. Model-based B-tree tests
 
@@ -735,7 +779,10 @@ ignored journal is a stop condition.
 4. Assert the specific error code/output, not just "non-zero".
 5. Add it to the documented test command and `testing.md`.
 6. Run sanitizers/fuzzers if the code parses input.
-7. Record evidence in the PR/log; update `validation.md` if it is a release gate.
+7. Run `./tools/static-analysis.sh` over the file you touched. A finding is
+   either a fix or a sentence in the pull request saying why it is not one.
+8. End the test with its report call, so a failure can fail the build.
+9. Record evidence in the PR/log; update `validation.md` if it is a release gate.
 
 Do not add a test that requires a private device, network or absolute path. Do
 not add a test that "passes" by skipping when a fixture is missing without
@@ -813,6 +860,7 @@ Two workflows, both in `.github/workflows/`, both host-only.
 | `portable` | ubuntu | `tools/host-tests.sh clang --keep-going` — the nine portable suites |
 | `sanitize` | ubuntu | the same suites under ASan and UBSan |
 | `fuzz` | ubuntu | `tools/fuzz.sh --replay`, then 20 guided seconds per harness; a red run uploads the reproducer and the log |
+| `analyze` | ubuntu | `tools/static-analysis.sh --strict` over 74 translation units; a red run uploads `build/static-analysis/` |
 | `macos` | macos-latest | `tools/host-tests.sh clang --macos` — the disk-image suites: `hdiutil`, `fsck_hfs`, the mount. `HOST_TESTS_MACOS_SKIP=format-test`, because a 140 GiB sparse image does not reliably fit a hosted runner |
 | `build` | ubuntu | `make -C firmware BOARD=6g image` and `DISKMODE=1 image` with the distro ARM toolchain |
 
