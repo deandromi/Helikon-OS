@@ -12,6 +12,33 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (the daily preview ran: T-117)
+
+## What happened
+
+- **`preview.yml` had never produced a release.** The first manual dispatch failed
+  in 43 s: the gate installed `clang` alone, and `tests/musicdb` needs Pillow and
+  mutagen to build the HDB fixture. The build job had the same gap one step later —
+  no `cryptography` for the Ed25519 manifest signature in
+  `tools/make-firmware-image.py`. Both are installs; both fixed.
+- **`preview-2026-11-22` is published** as a prerelease from `main`: `payload-6g/`,
+  `payload-6g-diskmode/`, `README-PREVIEW.md`, `CHANGELOG.md` and a tarball.
+  Run [`45071068475`](https://github.com/deandromi/Helikon-OS/actions/runs/45071068475).
+
+## Evidence
+
+- Three jobs green (gate, build, publish); gate = `./tools/host-tests.sh clang`.
+- Downloaded tarball: 6G `firmware.img` 82,860 B, Disk Mode 43,784 B; the 6G image
+  hashes to the `3b842118…` in its own `SHA256SUMS`.
+- No hardware anywhere: a preview is unproven by construction.
+
+## Open / next
+
+- The 04:17 UTC schedule has not been observed; only the dispatch. Watch tomorrow's
+  run before trusting the cron.
+- The preview images are 2,840 B larger than a pinned-toolchain build (distro
+  compiler, `-Wno-error`), as documented in `docs/release.md` §1.1.
+
 # Handoff — 2026-11-22 (Music flow truth and typography: T-128)
 
 ## What happened
