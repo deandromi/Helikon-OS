@@ -3565,7 +3565,11 @@ int helikon_music_run(struct helikon_screen *screen_arg,
         return HELIKON_ERR_ARGUMENT;
     helikon_text_init();
 
-    const struct hdb_io io = { .read = blob_read, .context = NULL };
+    const struct hdb_io io = {
+        .read = blob_read,
+        .context = NULL,
+        .size = (uint32_t)(helikon_hdb_end - helikon_hdb_start)
+    };
     if (hdb_open(&db, &io) != HELIKON_OK) {
         draw_frame(screen, "MUSIC");
         helikon_screen_set_foreground(screen, MUSIC_INK);

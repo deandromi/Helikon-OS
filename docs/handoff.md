@@ -38,6 +38,12 @@ file grows. Do not rely on chat history for current state.
   property that actually matters.
 - **CI gained a `fuzz` job**: replay, then 20 guided seconds per harness, with a
   reproducer uploaded on failure.
+- **It found a real gap on its first guided run**: a 128-byte database whose
+  header claimed six megabytes opened successfully, because `hdb_open` validated
+  offsets against the header's `file_size` and had no way to see the real one.
+  `struct hdb_io` now carries `size`; the blob and the VFS adapter fill it and
+  `hdb_open` refuses a mismatch. The reproducer is a corpus file now, and
+  `make -C tests/library macos` still passes over a real HFS+ volume.
 
 ## Evidence
 

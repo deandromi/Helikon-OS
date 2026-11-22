@@ -88,7 +88,7 @@ worth much less than one that knows what would be wrong:
 |---|---|---|
 | `id3v2` | `firmware/codec/tag/id3v2.c` | a non-zero tag size only comes from a buffer that starts with the header; every text field is terminated inside its array |
 | `vorbis` | `firmware/codec/tag/vorbis.c` | comments stay terminated; the FLAC walker only accepts a buffer that starts with `fLaC` |
-| `hdb` | `firmware/db/hdb.c` | every offset the reader reports is inside the file it was given |
+| `hdb` | `firmware/db/hdb.c` | a database whose header claims more bytes than the file holds is refused, and every offset the reader reports is inside the file it was given |
 | `manifest` | `bootloader/manifest.c`, `bootstate.c` | a short or corrupt page is refused and leaves the output untouched; an accepted image size is inside DRAM |
 | `journal` | `firmware/hfs/hfs_journal.c` | a journal whose checksum does not match is never reported clean (I-04); a hostile but checksum-consistent journal may fail to replay but never writes outside the device |
 

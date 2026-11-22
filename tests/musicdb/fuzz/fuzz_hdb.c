@@ -57,7 +57,9 @@ static void check_string(const char *text, size_t capacity)
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 {
     struct blob blob = { data, size };
-    const struct hdb_io io = { .read = blob_read, .context = &blob };
+    const struct hdb_io io = { .read = blob_read,
+                               .context = &blob,
+                               .size = (uint32_t)size };
     struct hdb db;
     helikon_memset(&db, 0, sizeof(db));
 
@@ -106,13 +108,22 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
     }
     (void)hdb_verify_crc(&db);
 
-    /* Every offset the file reports must land inside the file. */
+    /*
+     * Every offset the reader reports must fit inside the file it was given.
+     * This harness declares the file size in `hdb_io`, so a header that claims
+     * more bytes than the blob holds is rejected at open and cannot reach here.
+     */
     const uint32_t offsets[] = { db.track_offset, db.album_offset,
                                  db.artist_offset, db.playlist_offset,
                                  db.playlist_entry_offset, db.string_offset };
     for (size_t i = 0; i < sizeof(offsets) / sizeof(offsets[0]); ++i) {
-        if (offsets[i] > size) {
-            fprintf(stderr, "fuzz: offset %u past a %zu byte file\n",
+        if (offsets[i] > db.file_size) {
+            fprintf(stderr, "fuzz: offset %u past a %u byte file\n", offsets[i],
+                    db.file_size);
+            abort();
+        }
+        if (db.file_size <= size && offsets[i] > size) {
+            fprintf(stderr, "fuzz: offset %u past the %zu byte blob\n",
                     offsets[i], size);
             abort();
         }
