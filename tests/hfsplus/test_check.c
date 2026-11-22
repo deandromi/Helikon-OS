@@ -267,6 +267,33 @@ static int test_bitmap_padding_ignored(void)
     return 0;
 }
 
+static int test_allocation_two_runs(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    make_clean_volume();
+    /*
+     * A bitmap in two runs: the first eight bytes in one block, the rest in a
+     * block elsewhere. That is what a fragmented — or overflowed — allocation
+     * fork looks like, and the count has to follow it rather than read one run.
+     */
+    uint8_t *bitmap = test_image + (size_t)ALLOCATION_BLOCK * BLOCK_SIZE;
+    uint8_t *second = test_image + 20u * BLOCK_SIZE;
+    memcpy(second, bitmap + 8u, 8u);
+    memset(bitmap + 8u, 0, 8u);
+    make_fork(112u, 16u, 2u, ALLOCATION_BLOCK, 1u);
+    /* The second extent of the allocation fork. */
+    uint8_t *fork = test_image + 1024u + 112u;
+    put_be32(fork + 24u, 20u);
+    put_be32(fork + 28u, 1u);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK(report.problems == 0u);
+    CHECK(report.bitmap_counted == 1);
+    CHECK(report.free_blocks_counted == BLOCKS - USED_BLOCKS);
+    return 0;
+}
+
 static int test_catalog_count(void)
 {
     struct hfs_volume volume;
@@ -372,6 +399,7 @@ int main(void)
         { "allocation too small", test_allocation_too_small },
         { "free count mismatch", test_free_mismatch },
         { "bitmap padding ignored", test_bitmap_padding_ignored },
+        { "allocation in two runs", test_allocation_two_runs },
         { "catalog count mismatch", test_catalog_count },
         { "skipped bitmap", test_skipped_bitmap },
         { "bad tree header", test_bad_tree_header },
