@@ -17,12 +17,14 @@ include ../libmad.mk
 
 .PHONY: test sanitize clean
 
-test: test_wav test_player test_read_ahead test_queue test_playlist
+test: test_wav test_player test_read_ahead test_queue test_playlist \
+      test_cuesheet
 	./test_wav
 	./test_player
 	./test_read_ahead
 	./test_queue
 	./test_playlist
+	./test_cuesheet
 
 # The media path links the codec registry (libmad included), so it runs under
 # the same sanitizers as the codec suite.
@@ -37,6 +39,11 @@ test_wav: test_wav.c ../../firmware/player/wav.c ../../firmware/player/wav.h \
 test_playlist: test_playlist.c ../../firmware/player/playlist.c \
                ../../firmware/player/playlist.h ../../firmware/lib/mem.c
 	$(CC) $(CFLAGS) -o $@ test_playlist.c ../../firmware/player/playlist.c \
+	      ../../firmware/lib/mem.c
+
+test_cuesheet: test_cuesheet.c ../../firmware/player/cuesheet.c \
+               ../../firmware/player/cuesheet.h ../../firmware/lib/mem.c
+	$(CC) $(CFLAGS) -o $@ test_cuesheet.c ../../firmware/player/cuesheet.c \
 	      ../../firmware/lib/mem.c
 
 test_read_ahead: test_read_ahead.c ../../firmware/player/read_ahead.c \

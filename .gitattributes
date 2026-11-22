@@ -4,3 +4,8 @@
 # line endings: `git diff --check` reads those CRs as trailing whitespace and
 # refuses the commit. The file is the test, so the check is off for it.
 tests/player/fuzz/corpus/playlist/m3u-crlf-bom -whitespace
+
+# Same reason, for the cue sheet corpus: one seed is CRLF with a BOM and one
+# holds a NUL byte, and both are the thing under test.
+tests/player/fuzz/corpus/cuesheet/crlf-bom-lowercase -whitespace
+tests/player/fuzz/corpus/cuesheet/nul -whitespace -diff

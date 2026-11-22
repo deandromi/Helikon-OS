@@ -12,6 +12,42 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (one file, twelve tracks: the cue sheet reader, T-124)
+
+## What happened
+
+- **`firmware/player/cuesheet.c/.h`** — reads `FILE`, `TRACK`, `INDEX`, `TITLE`
+  and `PERFORMER` into at most 99 tracks and 16 files, allocation-free: strings
+  point into the caller's buffer. `mm:ss:ff` becomes CD frames (75/s) with every
+  field required; `INDEX 00` is the pregap, `INDEX 01` the start, `INDEX 02`+
+  ignored.
+- **Refusals are counted, not fatal**, and each one is a guess that would start a
+  track in the wrong place: duplicate/backwards/`00`/`100` track numbers, a
+  `TRACK` before any `FILE`, impossible times, a track with no `INDEX 01`, a
+  pregap after its own start (clamped), a start that goes backwards (dropped), a
+  line over `HELIKON_CUESHEET_LINE_MAX`.
+- **`tests/player/test_cuesheet.c`** — nine groups, including 99 tracks on a whole
+  disc and eight times that cannot exist.
+- **`tests/player/fuzz/fuzz_cuesheet.c` + 8 seeds** — asserts the invariants:
+  starts never go backwards, no pregap after its start, every track's file
+  exists, `complete == (refused == 0)`, every string inside the buffer and cap.
+
+## Evidence
+
+- `make -C tests/player test` and `sanitize` → `PASS cuesheet` (6 binaries).
+- `./tools/fuzz.sh --replay cuesheet` → 8 seeds clean.
+- `./tools/static-analysis.sh` → 77 units, 0 findings.
+- `make -C firmware BOARD=6g image` → unchanged 80,020 B; the music-hub image
+  builds at 768,200 B (the parser is collected until something calls it).
+
+## Open / next
+
+- No caller and no path resolution: nothing maps `FILE` to a volume path, and
+  nothing calls `helikon_player_seek_ms` for a cue track. That caller is the
+  storage-backed Music hub (T-058), same as the queue's.
+- A `\"` inside a quoted value stays escaped by design (documented in the header).
+- T-093 still wants A-B repeat over cue markers.
+
 # Handoff — 2026-11-22 (a playlist that is a file: T-123 host proof)
 
 ## What happened

@@ -1635,3 +1635,71 @@ which is exactly the drift it now refuses.
 The Music hub still plays its embedded blob and the firmware still has no mount
 at boot, so nothing calls any of this above the host yet. Next: the hub owning a
 mounted VFS and a queue (T-058), then a device run. Not device evidence.
+
+## 25. Cue sheets: one file, twelve tracks — T-124 (2026-11-22)
+
+Status: `implemented` as host code with host tests and a fuzz harness. No caller
+and no device run.
+
+### 25.1 What it does
+
+A cue sheet is the reason a single FLAC file can be an album: it names the image
+and gives each track's start as `mm:ss:ff` in CD frames, 75 to the second — the
+Red Book's number, not the disk's. The player can seek, so a cue sheet plus one
+image is a playable album with no second copy of the audio.
+
+`firmware/player/cuesheet.c` parses `FILE`, `TRACK`, `INDEX`, `TITLE` and
+`PERFORMER` into at most 99 tracks and 16 files, and allocates nothing: the
+strings it returns point into the caller's buffer, because a caller that already
+has the file in memory already has the strings. `INDEX 00` becomes the pregap,
+`INDEX 01` the start, and `INDEX 02` and up are sub-indexes a player that seeks
+to tracks does not need.
+
+The parser follows the playlist importer's bargain — one broken statement is
+counted and skipped, not fatal — but it refuses rather than guesses wherever a
+guess would start a track in the wrong place:
+
+| Refused | Why not guessed |
+|---|---|
+| `TRACK` duplicated, backwards, `00` or `100` | the number is the identity; two of them is not a disc |
+| `TRACK` before any `FILE` | its offsets are relative to nothing |
+| `00:60:00`, `00:00:75`, two fields, four fields, letters, a minute past 9999 | a time that cannot exist is not a rounding problem |
+| a track that never gets `INDEX 01` | its start is unknown, and playing it from frame zero replays the album |
+| a pregap after its own start | clamped to the start and counted |
+| a start that goes backwards | dropped, counted; the rest of the sheet still plays |
+| a line over `HELIKON_CUESHEET_LINE_MAX` | nobody wrote that on purpose |
+
+Keys are matched case-insensitively (cue sheets are written by a dozen programs
+that disagree about capitals), CRLF and a UTF-8 BOM are accepted, and `CATALOG`,
+`ISRC`, `FLAGS`, `REM` and the rest are ignored because none of them moves a
+track. Two helpers finish the job: `helikon_cuesheet_frame_to_ms` (75 frames is
+1000 ms, one frame rounds down to 13) and `helikon_cuesheet_track_by_number`.
+
+One honest limitation, in the header: a `\"` inside a quoted value stays escaped,
+because unescaping would need a copy per field. Quote marks inside cue titles are
+rare enough that showing them verbatim is the cheaper trade.
+
+### 25.2 Evidence (host only, no device run)
+
+- `make -C tests/player test` and `sanitize` → `PASS cuesheet`, nine groups:
+  a plain three-track album with the frames checked against the arithmetic, the
+  pregap and sub-index rules including the backwards pregap, eight times that
+  cannot exist plus a backwards track, the numbering rules including 99 tracks on
+  a whole disc, one file per track, mixed case with CRLF/BOM/quotes/padding, the
+  refusal paths (NUL, empty, no track, no `INDEX 01`), the helpers, and a line
+  over the cap.
+- `./tools/fuzz.sh --replay cuesheet` → 8 seeds clean. The harness asserts the
+  invariants, not just survival: starts never go backwards, no pregap after its
+  start, every track belongs to a file that exists, `complete` is exactly
+  `refused == 0`, and every returned string points inside the caller's buffer and
+  inside its cap.
+- `./tools/static-analysis.sh` → 77 units, 0 findings.
+- `make -C firmware BOARD=6g image` → 80,020 B (unchanged: nothing calls the
+  parser, `--gc-sections` drops it); the music-hub image builds at 768,200 B.
+
+### 25.3 Remaining
+
+Nothing resolves a `FILE` path to a volume path, and nothing turns a cue track
+into a queue entry or a `helikon_player_seek_ms` call: that caller is the same
+storage-backed Music hub the play queue is waiting for (T-058). Cuesheets are also
+still listed in T-093, which wants A-B repeat over them.

@@ -1,0 +1,10 @@
+REM GENRE Ambient
+PERFORMER "The Ember Set"
+TITLE "Night Harbour"
+FILE "Night Harbour.flac" WAVE
+  TRACK 01 AUDIO
+    TITLE "First Light"
+    INDEX 01 00:00:00
+  TRACK 02 AUDIO
+    TITLE "Second Light"
+    INDEX 01 03:30:00

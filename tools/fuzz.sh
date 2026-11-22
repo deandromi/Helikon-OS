@@ -40,7 +40,7 @@ if ! command -v clang >/dev/null 2>&1; then
     exit 2
 fi
 
-HARNESSES="id3v2 vorbis hdb manifest journal playlist"
+HARNESSES="id3v2 vorbis hdb manifest journal playlist cuesheet"
 
 # One line per harness: suite, sources, include directories, and the invariant
 # in one sentence (printed with the run, because a fuzz target without a stated
@@ -57,6 +57,7 @@ firmware/lib/sha256.c" ;;
     journal) echo "firmware/hfs/hfs_journal.c firmware/lib/crc32.c \
 firmware/lib/mem.c firmware/lib/string.c" ;;
     playlist) echo "firmware/player/playlist.c firmware/lib/mem.c" ;;
+    cuesheet) echo "firmware/player/cuesheet.c firmware/lib/mem.c" ;;
     esac
 }
 
@@ -66,7 +67,7 @@ includes_for() {
     hdb) echo "-Ifirmware/db -Ifirmware/lib" ;;
     manifest) echo "-Ibootloader -Ifirmware/lib -Ifirmware/codec" ;;
     journal) echo "-Ifirmware/hfs -Ifirmware/lib -Itests/hfsplus" ;;
-    playlist) echo "-Ifirmware/player -Ifirmware/lib" ;;
+    playlist | cuesheet) echo "-Ifirmware/player -Ifirmware/lib" ;;
     esac
 }
 
@@ -76,7 +77,7 @@ suite_for() {
     hdb) echo musicdb ;;
     manifest) echo bootloader ;;
     journal) echo hfsplus ;;
-    playlist) echo player ;;
+    playlist | cuesheet) echo player ;;
     esac
 }
 
@@ -88,6 +89,7 @@ invariant_for() {
     manifest) echo "a rejected manifest or bootstate never reports success" ;;
     journal) echo "a journal whose checksum does not match is never reported clean" ;;
     playlist) echo "every entry path is absolute, terminated and free of control characters" ;;
+    cuesheet) echo "starts never go backwards and every returned string stays inside the buffer" ;;
     esac
 }
 

@@ -102,6 +102,7 @@ worth much less than one that knows what would be wrong:
 | `manifest` | `bootloader/manifest.c`, `bootstate.c` | a short or corrupt page is refused and leaves the output untouched; an accepted image size is inside DRAM |
 | `journal` | `firmware/hfs/hfs_journal.c` | a journal whose checksum does not match is never reported clean (I-04); a hostile but checksum-consistent journal may fail to replay but never writes outside the device |
 | `playlist` | `firmware/player/playlist.c` | every entry path is absolute, terminated and free of control characters; `open` refuses a buffer with a NUL instead of stopping at it; the entry count never exceeds the cap and `next` never fails after `open` succeeded |
+| `cuesheet` | `firmware/player/cuesheet.c` | track starts never go backwards and a pregap never follows its own start; every returned string stays inside the caller's buffer and inside its length cap; a refused sheet reports no tracks at all |
 
 ```sh
 ./tools/fuzz.sh                    # every harness, 60 seconds each
@@ -518,12 +519,23 @@ underline/covers/track row, the monogram fallback, the playback progress bar
 and the player chunk/position logic.
 
 The WAV container and player state are host-tested separately, including the
-pull-source open (`helikon_player_open_media`) and the short-read WAV path:
+pull-source open (`helikon_player_open_media`) and the short-read WAV path. The
+same suite holds the text parsers — playlists and cue sheets — because both are
+files from somewhere else whose every line is a claim:
 
 ```sh
 make -C tests/player test
 make -C tests/player sanitize
 ```
+
+`test_cuesheet` covers an album cue (one file, three tracks, frames checked
+against `mm:ss:ff` arithmetic), the pregap and sub-index rules, the times that
+cannot exist (`00:60:00`, `00:00:75`, two fields, four fields, letters, an
+overflowing minute, a negative field), the numbering rules (duplicates,
+`TRACK 00`, `TRACK 100`, a track before any `FILE`), one file per track, mixed
+case with CRLF and a BOM, quoted and unquoted values, the 99-track cap, a line
+over `HELIKON_CUESHEET_LINE_MAX`, and every refusal path including the NUL and
+empty-buffer cases.
 
 The USB stack has two host suites. `tests/usb` drives the device core the way a
 laptop does — descriptors, every control request, CBW/CSW and the SCSI commands
