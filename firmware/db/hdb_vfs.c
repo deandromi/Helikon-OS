@@ -76,6 +76,7 @@ void hdb_vfs_io_init(struct hdb_vfs_io *io, struct hdb_io *out)
         return;
     out->read = hdb_vfs_read;
     out->context = io;
+    out->size = io->size;
 }
 
 void hdb_vfs_close(struct hdb_vfs_io *io)

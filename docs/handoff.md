@@ -12,6 +12,55 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (fuzzers with invariants; the corpus is the regression)
+
+## What happened
+
+- **Five libFuzzer harnesses**, one per parser that reads untrusted bytes:
+  `id3v2`, `vorbis` (including the FLAC metadata walk), `hdb`, `manifest`
+  (manifest + bootstate) and `journal`. Each states its invariant in the harness
+  and in `docs/testing.md` §3 — a target that only proves "does not crash" is
+  worth little.
+- **`tools/fuzz.sh`** builds and runs them; `--replay` builds the same harness
+  against `tools/fuzz-replay-main.c` with ASan and UBSan and walks the committed
+  corpus. That matters because Xcode's clang has no `libclang_rt.fuzzer`: the
+  guided mode is Linux/CI, the replay mode works here.
+- **The corpus is committed** under `tests/<suite>/fuzz/corpus/<harness>/`, with
+  seeds for the formats (a v2.3 tag, a v2.4 UTF-8 tag, a truncated tag, a Vorbis
+  comment block, a FLAC file, an HDB header, four manifest shapes, four journal
+  headers including a bad checksum and a wild block list).
+- **The journal harness carries I-04**: a header whose checksum does not match
+  is never reported clean, and a checksum-consistent but hostile journal may
+  fail to replay but never writes outside the device.
+- **First thing it found was in my seed, not the code**: the "truncated" tag
+  seed encoded 2048, not 16, so `helikon_id3v2_tag_size()` answered 2058 for 14
+  bytes — correct behaviour, wrong assertion. The harness now asserts the
+  property that actually matters.
+- **CI gained a `fuzz` job**: replay, then 20 guided seconds per harness, with a
+  reproducer uploaded on failure.
+- **It found a real gap on its first guided run**: a 128-byte database whose
+  header claimed six megabytes opened successfully, because `hdb_open` validated
+  offsets against the header's `file_size` and had no way to see the real one.
+  `struct hdb_io` now carries `size`; the blob and the VFS adapter fill it and
+  `hdb_open` refuses a mismatch. The reproducer is a corpus file now, and
+  `make -C tests/library macos` still passes over a real HFS+ volume.
+
+## Evidence
+
+```
+./tools/fuzz.sh --replay        id3v2 5, vorbis 4, hdb 3, manifest 4, journal 4 files: clean
+coverage of the corpus          firmware/codec/tag/id3v2.c: 64.2 % regions, 59.9 % lines
+```
+
+## Open / next
+
+- The guided run has not executed on GitHub yet; the `fuzz` job is the first
+  place it will.
+- Next: the macOS differential read and the Unicode order differential, then the
+  bounce/partition property tests and the `loader_error` table test.
+
+---
+
 # Handoff — 2026-11-22 (the soak's lost block: an extent that grew without its count)
 
 ## What happened

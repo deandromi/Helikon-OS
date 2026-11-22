@@ -84,6 +84,10 @@ int hdb_open(struct hdb *db, const struct hdb_io *io)
 
     if (db->file_size < HDB_HEADER_SIZE)
         return HELIKON_ERR_FORMAT;
+    /* A database truncated after its header would open and then fail every
+     * read. The caller that knows the file size answers for it here. */
+    if (io->size != 0u && io->size != db->file_size)
+        return HELIKON_ERR_FORMAT;
     if (!table_fits(db->track_offset, db->track_count, HDB_TRACK_SIZE,
                     db->file_size) ||
         !table_fits(db->album_offset, db->album_count, HDB_ALBUM_SIZE,

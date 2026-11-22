@@ -39,6 +39,14 @@ struct hdb_io {
     /* Read exactly `length` bytes at `offset`; return 0 on success. */
     int (*read)(void *context, uint32_t offset, void *buffer, uint32_t length);
     void *context;
+    /*
+     * The size of the file, when the caller knows it, or 0 for unknown. The
+     * header carries its own `file_size` and every table offset is validated
+     * against that number, but the reader has no other way to see the real file:
+     * a header claiming more bytes than the file holds would otherwise open and
+     * then fail every read. `hdb_open` refuses a file whose size disagrees.
+     */
+    uint32_t size;
 };
 
 struct hdb {
