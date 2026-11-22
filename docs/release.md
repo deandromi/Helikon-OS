@@ -118,9 +118,22 @@ TOOLCHAIN_PATH="$HOME/.rockbox-toolchain/bin" ./tools/preview-build.sh /tmp/prev
 ```
 
 A preview never satisfies a gate in §8, never replaces a validation scorecard row
-and never counts as a device run. The workflow is committed and its gate job has
-passed in CI (PR #89), but no `preview-YYYY-MM-DD` release has been published
-yet, so the nightly path itself is unproven end to end.
+and never counts as a device run.
+
+The nightly path is proven end to end once, by hand: run
+[`45071068475`](https://github.com/deandromi/Helikon-OS/actions/runs/45071068475)
+published [`preview-2026-11-22`](https://github.com/deandromi/Helikon-OS/releases/tag/preview-2026-11-22)
+on 2026-11-22. Its three jobs passed (gate, build, publish), the tarball holds both
+payloads with `firmware.img` 82,860 B and 43,784 B, and the downloaded
+`payload-6g/firmware.img` hashes to the `3b842118…` in that directory's
+`SHA256SUMS`. The images are 2,840 B larger than a local pinned-toolchain build
+(80,020 B) because the preview uses the distro compiler, which is expected.
+
+That first dispatch also found two real defects, both fixed before the release
+in this run: the gate job installed `clang` alone, so `tests/musicdb` failed on
+ubuntu for want of Pillow and mutagen, and the build job had no `cryptography`,
+which `tools/make-firmware-image.py` needs to sign the manifest. The scheduled
+04:17 UTC run has not been observed yet; only the dispatch has.
 
 ## 2. Signed manifests
 
