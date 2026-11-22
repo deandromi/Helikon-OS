@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "block.h"
 
-#include "error.h"
+#include "helikon_error.h"
 
 int helikon_block_init(struct helikon_block_device *device,
                        const struct helikon_block_ops *ops, void *context,

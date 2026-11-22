@@ -2,6 +2,10 @@
 /*
  * Endian helpers for on-disk and register values.
  *
+ * Prefixed for the same reason as `helikon_error.h`: glibc has an `<endian.h>`
+ * with its own htobe16 and le16toh families, and a header named plain
+ * `endian.h` here would be shadowed by it in a hosted build.
+ *
  * These are byte-access readers/writers; they do not assume alignment. HFS+
  * values are big-endian, the manifest, boot-info and ATA identify data are
  * little-endian. Both directions are provided explicitly.

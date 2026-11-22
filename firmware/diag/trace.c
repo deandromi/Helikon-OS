@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "trace.h"
 
-#include "error.h"
+#include "helikon_error.h"
 #include "mem.h"
 
 void helikon_trace_init(struct helikon_trace *trace,

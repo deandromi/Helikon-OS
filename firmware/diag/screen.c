@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#include "error.h"
+#include "helikon_error.h"
 
 #define GLYPH_WIDTH 3u
 #define GLYPH_HEIGHT 5u

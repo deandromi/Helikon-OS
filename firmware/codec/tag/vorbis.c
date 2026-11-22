@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
+#include "helikon_error.h"
 #include "mem.h"
 
 static uint32_t le32(const uint8_t *data)

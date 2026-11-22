@@ -34,7 +34,7 @@
 #include <string.h>
 
 #include "block.h"
-#include "error.h"
+#include "helikon_error.h"
 #include "usb_msc.h"
 
 #define FUZZ_SECTOR_SIZE 512u

@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
+#include "helikon_error.h"
 
 static int hdb_vfs_read(void *context, uint32_t offset, void *buffer,
                         uint32_t length)

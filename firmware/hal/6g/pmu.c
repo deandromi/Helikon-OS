@@ -4,7 +4,7 @@
 #include "pmu.h"
 
 #include "cpu.h"
-#include "error.h"
+#include "helikon_error.h"
 #include "s5l8702_regs.h"
 
 #define PMU_I2C_BUS 0u

@@ -15,7 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "error.h"
+#include "helikon_error.h"
 #include "usb.h"
 #include "usb_hw.h"
 

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "hfs_file.h"
 
-#include "error.h"
+#include "helikon_error.h"
 
 static int fork_inline_complete(const struct hfs_fork *fork)
 {

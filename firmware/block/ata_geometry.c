@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#include "error.h"
+#include "helikon_error.h"
 
 #define ATA_LBA28_MAX 0x0fffffffu
 #define ATA_WORD_83_LBA48 (1u << 10)

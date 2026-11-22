@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
+#include "helikon_error.h"
 
 /*
  * Absolute-offset read over a VFS file. End of file is a clean zero-byte

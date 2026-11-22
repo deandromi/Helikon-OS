@@ -1,0 +1,138 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Tests on every push to `main` and every pull request.
+#
+# Four jobs, each one a question worth asking separately:
+#
+#   portable   the host suites on Linux, so the code is not only correct on the
+#              owner's Mac;
+#   sanitize   the same code under AddressSanitizer and UndefinedBehaviorSanitizer;
+#   macos      the disk-image suites: hdiutil, fsck_hfs and the mount, which is
+#              where the write paths meet a real filesystem;
+#   build      both firmware images link for 6G, which the host suites cannot say.
+#
+# Nothing here runs on a device, and a green run is not a device claim. The
+# release gate is `docs/validation.md`.
+
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portable:
+    name: host suites (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang, Pillow and mutagen
+        # `tests/ui` renders the launcher and the music browser, which needs the
+        # HDB fixture built by `tools/hdb_build.py`; that script imports both.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang python3-pil python3-mutagen
+
+      - name: Run the suites
+        run: ./tools/host-tests.sh clang --keep-going
+
+      # The runner prints only the tail of a red suite. The full log is where
+      # the first error is, so keep it when the job fails.
+      - name: Keep the suite logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-test-logs-portable
+          path: build/host-tests/
+          if-no-files-found: ignore
+
+  sanitize:
+    name: host suites (sanitizers)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang, Pillow and mutagen
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang python3-pil python3-mutagen
+
+      - name: Run the suites under ASan and UBSan
+        run: ./tools/host-tests.sh clang --sanitize --keep-going
+
+      - name: Keep the suite logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-test-logs-sanitize
+          path: build/host-tests/
+          if-no-files-found: ignore
+
+  macos:
+    name: disk-image suites (macos)
+    # `macos-latest` rather than a pinned version: a cancelled-in-one-second job
+    # on `macos-14` is what this label replaced.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python fixtures (mutagen, Pillow, cryptography)
+        # The runner's python3 is Homebrew's and refuses a system install
+        # ("externally-managed-environment"), so the fixtures get a venv and the
+        # venv comes first on PATH: the Makefiles call plain `python3`.
+        # mutagen and Pillow build the HDB fixture for tests/ui and
+        # tests/musicdb; cryptography is what the loader suite links against.
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet --upgrade pip
+          "$RUNNER_TEMP/venv/bin/pip" install --quiet mutagen Pillow cryptography
+          echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
+
+      - name: Run the suites
+        run: ./tools/host-tests.sh clang --macos --keep-going
+
+      - name: Keep the suite logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: host-test-logs-macos
+          path: build/host-tests/
+          if-no-files-found: ignore
+
+  build:
+    name: firmware builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the ARM toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi
+
+      - name: Build the loader-facing image
+        env:
+          CROSS: arm-none-eabi-
+          EXTRA_CFLAGS: -Wno-error
+        run: make -C firmware BOARD=6g image
+
+      - name: Build the Disk Mode image
+        env:
+          CROSS: arm-none-eabi-
+          EXTRA_CFLAGS: -Wno-error
+        run: make -C firmware BOARD=6g DISKMODE=1 image
+
+      - name: Report the sizes
+        run: |
+          make -C firmware BOARD=6g size || true
+          ls -l build/firmware/6g/out build/firmware/6g-diskmode/out

@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "boot_info.h"
 #include "crc32.h"
-#include "endian.h"
-#include "error.h"
+#include "helikon_endian.h"
+#include "helikon_error.h"
 #include "mem.h"
 
 #include "test_check.h"
@@ -56,7 +56,10 @@ int main(void)
         .page_size = HELIKON_BOOT_INFO_PAGE_SIZE,
         .board_id = TEST_BOARD,
         .image_load = TEST_LOAD,
-        .image_size = TEST_SIZE
+        .image_size = TEST_SIZE,
+        /* A host page has no relation to the device's DRAM map; the ceiling is
+         * the device's page address, well above the synthetic image. */
+        .image_ceiling = 0x087ff000u
     };
     struct helikon_boot_info info;
 
@@ -126,7 +129,7 @@ int main(void)
              helikon_boot_info_parse((uintptr_t)page, &expect, &info));
 
     build_page(page, TEST_BOARD, 3u, TEST_LOAD, TEST_SIZE);
-    helikon_put_le32(page + 24, (uint32_t)(expect.page_base - TEST_LOAD + 1u));
+    helikon_put_le32(page + 24, (uint32_t)(expect.image_ceiling - TEST_LOAD + 1u));
     update_crc(page);
     CHECK_EQ(HELIKON_ERR_BOOT_INFO_INVALID,
              helikon_boot_info_parse((uintptr_t)page, &expect, &info));

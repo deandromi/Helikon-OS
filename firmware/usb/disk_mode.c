@@ -14,7 +14,7 @@
 
 #include <stddef.h>
 
-#include "error.h"
+#include "helikon_error.h"
 
 static uint16_t get_le16(const uint8_t *data)
 {

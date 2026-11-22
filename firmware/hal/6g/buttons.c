@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include "buttons.h"
 
-#include "error.h"
+#include "helikon_error.h"
 #include "s5l8702_regs.h"
 
 #define WHEEL_CLICKS_PER_ROTATION 96

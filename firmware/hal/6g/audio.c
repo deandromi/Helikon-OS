@@ -7,7 +7,7 @@
 #include "audio_dma.h"
 #include "audio_stream.h"
 #include "cpu.h"
-#include "error.h"
+#include "helikon_error.h"
 #include "s5l8702_regs.h"
 
 #define CS42L55_ADDRESS 0x94u

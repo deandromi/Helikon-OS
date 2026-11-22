@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "error.h"
+#include "helikon_error.h"
 #include "mem.h"
 
 #define FILE_MAX 65536u

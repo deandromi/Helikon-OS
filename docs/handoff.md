@@ -12,6 +12,78 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (one test command, CI on every push, a preview every night)
+
+## What happened
+
+- **One test command.** `tools/host-tests.sh` runs the nine portable suites
+  (`hfsplus firmware bootloader vfs codec musicdb player ui usb`) with one
+  compiler, one log per suite under `build/host-tests/`, and stops at the first
+  red suite with its tail. `--sanitize` repeats the eight suites that have a
+  `sanitize` target under ASan and UBSan; `--macos` runs `tests/image`'s seven
+  disk-image drivers; `--keep-going` runs everything; `HOST_TESTS_IMAGE` adds
+  `tests/library`. The header says what each mode needs and that none of it
+  touches a device.
+- **A wrong assumption, found by writing it down.** `tests/image`'s `test` target
+  runs `run-macos.sh`, so it is not portable: it is behind `--macos`, not in the
+  Linux list. The first draft of the runner had it in both.
+- **CI.** `.github/workflows/tests.yml`: portable suites on ubuntu, the same
+  under sanitizers, the macOS disk-image suites on `macos-14`, and both firmware
+  images (`BOARD=6g image`, `DISKMODE=1 image`) with `arm-none-eabi-` plus
+  `-Wno-error`. `--keep-going` so one run shows every red suite.
+- **Preview.** `.github/workflows/preview.yml` at 04:17 UTC and on dispatch:
+  host-suite gate, `tools/preview-build.sh` builds `payload-6g/` and
+  `payload-6g-diskmode/`, the run packs them and publishes `preview-YYYY-MM-DD`
+  as a prerelease with `README-PREVIEW.md`, `CHANGELOG.md` and hashes. A re-run
+  replaces the day's release.
+- **Docs.** `testing.md` §2 and §11 tell a reader to run the one command and §12
+  is now the real CI (it was "CI (future)"); `release.md` §1.1 defines the
+  preview channel and its limits; `file-map.md` and `state.md` gained rows;
+  T-116/T-117 are in `tasks.md` with the honest status: local evidence green,
+  no GitHub run yet.
+
+## What the first CI runs found
+
+Four runs on the pull request, each red for a different reason, and none of them
+something a macOS host run could show. `firmware/lib/error.h` was resolving to
+glibc's `<error.h>` in the suites that put `firmware/lib` after the system
+directories (so the freestanding `string.h` cannot shadow libc's), which left
+every `HFS_*`/`HELIKON_*` name undeclared on Linux — 70 includes, six suites.
+`error.h` and `endian.h` are now `helikon_error.h` and `helikon_endian.h`.
+`tests/ui` wrote Mach-O assembler for its HDB blob; the rule now picks the
+section and symbol prefix from `uname -s`. The boot-info parser compared the
+image end against the page's *host* address, which passed on macOS and failed
+with `-no-pie` on Linux; `struct helikon_boot_info_expect` now carries an
+explicit `image_ceiling`. Fixtures need `mutagen`, Pillow and `cryptography`,
+which the macOS runner installs into a venv because Homebrew's python refuses
+`pip install --user`. And the `macos-14` label cancelled the job in one second
+twice; `macos-latest` runs.
+
+## Evidence
+
+```
+./tools/host-tests.sh clang                    9 suites passed
+./tools/host-tests.sh clang --sanitize         8 suites passed
+./tools/host-tests.sh --macos                  10 suites passed (image 148 s)
+TOOLCHAIN_PATH="$HOME/.rockbox-toolchain/bin" ./tools/preview-build.sh /tmp/preview-test
+                                               both payloads + README + CHANGELOG + SHA256SUMS
+PR #89 checks                                  portable pass, sanitizers pass,
+                                               disk-image (macos) pass, firmware builds pass
+```
+
+## Open / next
+
+- **The nightly has not fired yet.** `preview.yml` is committed and its gate is
+  the job that now passes, but no `preview-YYYY-MM-DD` release exists. The first
+  scheduled run (04:17 UTC) or a manual dispatch is what proves it end to end.
+- **The macOS job takes ~8 minutes**, mostly `format-test` (a 150 GiB sparse
+  image and `fsck_hfs`) and its queue wait. Fine for now; worth watching.
+- **Firmware image is 80,020 bytes** after the expect-struct change (was 80,008).
+- **Next in the queue:** the soak's open writer bug (seed 3, op 157, `n22`), then
+  the fuzzers, the macOS differential read and the Unicode order differential.
+
+---
+
 # Handoff — 2026-11-22 (structural check: chains, key order, bodies, index nodes)
 
 ## What happened
@@ -1758,7 +1830,7 @@ changed, so images written by the new code stay readable either way.
   `(data, size, total_size)`: `data/size` is a head of at most
   `HELIKON_CODEC_PROBE_BYTES` (4096) and `total_size` is the true length or 0.
   A probe that cannot decide returns the new `HELIKON_ERR_NEED_MORE`
-  (`firmware/lib/error.h`, `-19`, with a `failure_reason` string); the registry
+  (`firmware/lib/helikon_error.h`, `-19`, with a `failure_reason` string); the registry
   accepts that only from a `streaming` descriptor, lets `open` resolve the head,
   and treats `codec->info` as authoritative afterwards. `helikon_codec_probe()`
   always sees the whole buffer and never returns `NEED_MORE`.
@@ -2664,7 +2736,7 @@ crash matrix:   overwrite covered 22 write cuts + flush + partial modes;
   `make -C firmware BOARD=6g {,size,test,image}` targets. The F1 host groups
   pass with ASan/UBSan. The existing HFS+ (104) and bootloader (31) suites still
   pass with sanitizers; the disposable-image and loader fixtures still pass.
-- Moved the canonical error enum to `firmware/lib/error.h` and kept the
+- Moved the canonical error enum to `firmware/lib/helikon_error.h` and kept the
   `HFS_ERR_*` aliases; added `BOOT_INFO_INVALID`. Updated the HFS and bootloader
   host include paths and the donor build scripts to copy `error.h`.
 - Updated `state.md`, `tasks.md`, `file-map.md`, `failures.md`, `testing.md` and

@@ -6,7 +6,7 @@
 
 #include "audio_dma.h"
 #include "audio_stream.h"
-#include "error.h"
+#include "helikon_error.h"
 #include "s5l8702_regs.h"
 
 static unsigned int start_calls;

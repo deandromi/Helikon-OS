@@ -13,7 +13,7 @@
 #include <string.h>
 
 #include "block.h"
-#include "error.h"
+#include "helikon_error.h"
 #include "usb_control.h"
 #include "usb_descriptors.h"
 #include "usb_msc.h"

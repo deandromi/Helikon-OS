@@ -2,6 +2,14 @@
 /*
  * The single canonical Helikon-OS error enum.
  *
+ * The file name carries the `helikon_` prefix because `<error.h>` already
+ * exists: glibc's GNU extension declares error() and error_at_line(). The host
+ * test suites put `firmware/lib` *after* the system directories on the include
+ * path so that the freestanding `string.h` in this directory cannot shadow
+ * libc's, which meant a header called plain `error.h` resolved to glibc's on
+ * Linux and every HFS_* and HELIKON_* name below came out undeclared. The
+ * firmware build is freestanding and never noticed; the tests did.
+ *
  * `0` is success and every error is negative. Firmware modules, the HFS+ core
  * and the bootloader glue all use this vocabulary; there is no errno and no
  * second taxonomy. The historical `HFS_*` names are aliases so existing HFS+

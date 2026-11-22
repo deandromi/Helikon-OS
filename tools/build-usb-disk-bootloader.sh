@@ -79,7 +79,7 @@ cp "$ROOT"/firmware/usb/usb_descriptors.c "$ROOT"/firmware/usb/usb_descriptors.h
    "$ROOT"/firmware/hal/6g/usb.c "$ROOT"/firmware/hal/6g/usb.h \
    "$ROOT"/firmware/hal/6g/usb_hw.h \
    "$ROOT"/firmware/block/block.c "$ROOT"/firmware/block/block.h \
-   "$ROOT/firmware/lib/error.h" "$HELIKON_DIR/"
+   "$ROOT/firmware/lib/helikon_error.h" "$HELIKON_DIR/"
 
 # The Rockbox bootloader formatter supports %lu but not long-long. The USB disk
 # screen prints no numbers, but keep the guard so a future edit cannot add one.

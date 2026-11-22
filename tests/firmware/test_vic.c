@@ -2,7 +2,7 @@
 #include <stddef.h>
 
 #include "vic.h"
-#include "error.h"
+#include "helikon_error.h"
 
 #include "test_check.h"
 

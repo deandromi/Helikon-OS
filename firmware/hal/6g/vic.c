@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#include "error.h"
+#include "helikon_error.h"
 
 #ifndef HELIKON_HOST_TEST
 #include "s5l8702_regs.h"

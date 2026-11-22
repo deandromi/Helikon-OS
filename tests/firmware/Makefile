@@ -137,6 +137,9 @@ SAN_CFLAGS = -O1 -g -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow \
 SAN_LDFLAGS = -fsanitize=address,undefined -no-pie
 endif
 
+# Leaves instrumented objects in $(BUILD)/ and instrumented test binaries here,
+# so run `make clean` before a plain build again. tools/host-tests.sh cleans by
+# default for exactly this reason.
 sanitize:
 	$(MAKE) clean
 	$(MAKE) CFLAGS='$(SAN_CFLAGS)' FW_CFLAGS='$(SAN_CFLAGS) -ffreestanding -fno-builtin -nostdinc -isystem $(HOST_INCLUDE) -DHELIKON_HOST_TEST -I../../firmware/lib -I../../firmware/boot -I../../firmware/block -I../../firmware/diag -I../../firmware/hfs' LDFLAGS='$(SAN_LDFLAGS)' test

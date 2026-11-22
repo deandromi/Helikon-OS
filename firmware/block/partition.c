@@ -2,8 +2,8 @@
 #include "partition.h"
 
 #include "bounce.h"
-#include "endian.h"
-#include "error.h"
+#include "helikon_endian.h"
+#include "helikon_error.h"
 #include "mem.h"
 
 #define PARTITION_RECORD_SIZE 512u

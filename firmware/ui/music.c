@@ -3,7 +3,7 @@
 
 #include <stddef.h>
 
-#include "error.h"
+#include "helikon_error.h"
 
 #ifdef HELIKON_HDB_EMBEDDED
 

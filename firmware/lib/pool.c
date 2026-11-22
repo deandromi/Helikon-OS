@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "pool.h"
 
-#include "error.h"
+#include "helikon_error.h"
 
 static size_t aligned_size(size_t size)
 {

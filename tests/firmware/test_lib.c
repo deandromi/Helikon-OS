@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "crc32.h"
-#include "endian.h"
+#include "helikon_endian.h"
 #include "fixed.h"
 #include "format.h"
 #include "mem.h"

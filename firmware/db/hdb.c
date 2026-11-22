@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 #include "crc32.h"
-#include "error.h"
+#include "helikon_error.h"
 #include "mem.h"
 
 #define HDB_MAGIC 0x42444C48u /* "HLDB" little-endian */

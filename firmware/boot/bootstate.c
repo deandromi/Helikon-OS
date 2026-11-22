@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "bootstate.h"
 
-#include "error.h"
+#include "helikon_error.h"
 #include "mem.h"
 
 #define SLOT_STATE_OFFSET 60u

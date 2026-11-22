@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
+#include "helikon_error.h"
 
 /* SCSI opcodes used by a bulk-only mass-storage host. */
 #define SCSI_TEST_UNIT_READY 0x00u

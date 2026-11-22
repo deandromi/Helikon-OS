@@ -17,7 +17,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "error.h"
+#include "helikon_error.h"
 #include "hfs_catalog.h"
 #include "hfs_extents.h"
 #include "hfs_volume.h"

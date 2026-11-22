@@ -3,7 +3,7 @@
 **Purpose:** working contract and documentation index.
 **Status:** living document; pre-phase 0 with an Alpha 2.0.0 development release.
 **Owner:** project owner; every agent
-**Last updated:** 2026-11-11
+**Last updated:** 2026-11-22
 **Source:** root `README.md`, `docs/design-paper.md`
 **Entry point:** read this file first, then `docs/README.md`.
 
@@ -161,9 +161,16 @@ unconfirmed due to a currently unfixable bug and is not part of Alpha 2.0.0.
 F3–F5, the production firmware handoff and a release firmware image cannot.**
 The
 read-only diagnostic bootloader and the separate DFU-only loader test image can
-also be built and host-tested:
+also be built and host-tested. One command runs every portable host suite with
+one compiler and stops at the first red one; use it before review, then the
+individual `make` lines when a suite needs isolating:
 
 ```sh
+./tools/host-tests.sh clang                    # nine portable suites, one log each
+./tools/host-tests.sh clang --sanitize         # ASan + UBSan over the same code
+./tools/host-tests.sh --macos                  # disk-image suites (Darwin only)
+HOST_TESTS_IMAGE=/tmp/vol.img ./tools/host-tests.sh clang   # adds tests/library
+
 PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g
 PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g size
 PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g image

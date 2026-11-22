@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 #include "crc32.h"
-#include "error.h"
+#include "helikon_error.h"
 #include "hdb.h"
 #include "string.h"
 

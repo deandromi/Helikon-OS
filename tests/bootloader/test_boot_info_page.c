@@ -17,7 +17,7 @@
 
 #include "boot_info.h"
 #include "boot_info_page.h"
-#include "error.h"
+#include "helikon_error.h"
 
 #define PAGE_ADDR ((uintptr_t)page)
 #define IMAGE_LOAD 0x08000000u
@@ -64,6 +64,11 @@ static struct helikon_boot_info_expect expected(void)
     memset(&expect, 0, sizeof(expect));
     expect.page_base = PAGE_ADDR;
     expect.page_size = HELIKON_BOOT_INFO_PAGE_SIZE;
+    /* The page the loader really writes, above the synthetic image. Using
+     * PAGE_ADDR here made the check depend on where the host linker put the
+     * array: macOS places it high, an ELF -no-pie build places it at 0x40xxxx,
+     * below the 0x08000000 load address, and every field check then failed. */
+    expect.image_ceiling = 0x087ff000u;
     expect.board_id = 6u;
     expect.image_load = IMAGE_LOAD;
     expect.image_size = IMAGE_SIZE;

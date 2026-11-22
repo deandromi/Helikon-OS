@@ -979,7 +979,7 @@ done while there were only three.
   `data/size` is the stream head (at most `HELIKON_CODEC_PROBE_BYTES`, 4096),
   and `total_size` is the true length or 0 when unknown. A probe that cannot
   decide from the head returns the new **`HELIKON_ERR_NEED_MORE`**
-  (`firmware/lib/error.h`, `-19`); the registry accepts that only from a
+  (`firmware/lib/helikon_error.h`, `-19`); the registry accepts that only from a
   `streaming` descriptor and lets `open` resolve the head, after which
   `codec->info` is authoritative. `helikon_codec_probe()` always sees the whole
   buffer, so it never returns `NEED_MORE` to existing callers.

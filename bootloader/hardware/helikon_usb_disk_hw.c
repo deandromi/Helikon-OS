@@ -35,7 +35,7 @@
 
 #include "block.h"
 #include "disk_mode.h"
-#include "error.h"
+#include "helikon_error.h"
 #include "usb.h"
 #include "usb_hw.h"
 

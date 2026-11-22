@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "ring.h"
 
-#include "error.h"
+#include "helikon_error.h"
 
 static uint8_t *slot(const struct helikon_ring *ring, size_t index)
 {

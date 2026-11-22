@@ -14,7 +14,7 @@
 #include <string.h>
 
 #include "audio.h"
-#include "error.h"
+#include "helikon_error.h"
 #include "player.h"
 #include "read_ahead.h"
 #include "vfs.h"
