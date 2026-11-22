@@ -724,6 +724,15 @@ and the read half against one disposable 24 MiB journaled image:
 6. `unicode_order_host read IMAGE /Tree/sub/nested.bin` hashes to the SHA-256
    macOS wrote, which walks the extents path over a real fork.
 7. `fsck_hfs -fn` on the image, no repair, as everywhere else in this directory.
+8. **The writer half.** A second disposable image, and `hfs_image_test IMAGE
+   order NAMES_FILE` creates `/Order` and the same 47 names through our writer
+   (`hfs_catalog_create_folder`, `hfs_catalog_create_file`, one transaction per
+   name). Then `fsck_hfs` has to accept the tree, macOS has to read exactly those
+   names back, and `unicode_order_host list` has to produce the *same order*
+   Apple's image produced for the same names — our B-tree's insertion order
+   against Apple's, not just a set comparison. The names are UTF-8 in the file
+   and go through `hfs_utf8_to_utf16be()`, so the encoder meets a real volume
+   here.
 
 `unicode_order_host` is host tooling in `tests/image/`. It opens the image
 read-only, prints names and records on stdout and diagnostics on stderr, so
@@ -734,7 +743,17 @@ temporary directory; the script never accepts an existing image or a device.
 The first run of the ordering half was made to fail on purpose: inverting the
 comparison in `hfs_fast_unicode_compare` produced a red test with the mismatched
 pairs printed, so the differential is known to be able to fail rather than
-observed to pass.
+observed to pass. The writer half has two oracles of its own — the same
+inversion makes `fsck_hfs` report `Keys out of order` and writes the catalog in
+reverse, so a writer that misplaces a key fails twice over.
+
+`hfs_utf8_to_utf16be()` is the encoder the writer needs for a UTF-8 name; it is
+the exact inverse of `hfs_utf16be_to_utf8()`, refuses overlong forms, surrogate
+halves, NUL, anything past U+10FFFF and names over 255 units, and never
+normalizes (that stays `hfs_unicode_normalize_name()`'s decision). Six tests in
+`tests/hfsplus/test_unicode.c` cover round trips, the surrogate pair, every
+rejection class, both length limits and that a composed and a decomposed name
+reach the same canonical key through it.
 
 ## 6. Device tests
 

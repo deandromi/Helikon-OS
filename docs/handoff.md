@@ -12,6 +12,46 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (the writer's half: our volume, judged by macOS)
+
+## What happened
+
+- **`hfs_utf8_to_utf16be()`** in `firmware/hfs/hfs_unicode.c`: the inverse of the
+  decoder, refusing overlong forms, surrogate halves, NUL, anything past
+  U+10FFFF and names over 255 units, and normalizing nothing. Six tests in
+  `tests/hfsplus/test_unicode.c`. It is what a write path needs to turn a UTF-8
+  name into a catalog key; nothing in the firmware calls it yet, so the image
+  size did not move (80,020 B).
+- **`hfs_image_test IMAGE order NAMES_FILE`** creates `/Order` and one file per
+  name through our writer, one transaction each, using the same names file the
+  macOS corpus comes from.
+- **The writer half of the differential** in `run-unicode-order-macos.sh`: a
+  second disposable image, our writer builds it, and three oracles judge it —
+  `fsck_hfs -fn` accepts the tree, macOS reads all 47 names back as files, and
+  our catalog order equals **the order Apple's image produced for the same
+  names**.
+- **Both oracles were proved able to fail.** Inverting the comparator made our
+  writer build the catalog in reverse and `fsck_hfs` report `Keys out of order`;
+  restored, clean and identical to Apple's order.
+
+## Evidence
+
+- `make -C tests/image unicode-order-test` →
+  `PASS: catalog order, canonical form, tree read, file content and a written
+  volume macOS agrees with`.
+- `make -C tests/hfsplus test` → 30 unicode tests, including the six new ones.
+- `./tools/host-tests.sh clang` 9/9 and `--sanitize` 8/8;
+  `./tools/static-analysis.sh` 74 units, 0 findings;
+  `make -C tests/image test` (existing image modes) still passes.
+
+## Open / next
+
+- The encoder is not called by the firmware, so a write path that takes a UTF-8
+  name (a VFS `create`/`rename`, or the desktop app's transport) is the next
+  consumer; until then it is exercised only from `tests/image`.
+- The writer corpus creates files only. Folders, renames and deletes against
+  Apple's order are the next shapes worth adding to the same script.
+
 # Handoff — 2026-11-22 (macOS is the oracle: catalog order and a read differential)
 
 ## What happened

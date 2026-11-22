@@ -32,6 +32,16 @@ int hfs_utf16be_to_utf8_escaped(const uint8_t *source, size_t units,
 int hfs_fast_unicode_compare(const uint8_t *a, size_t a_units,
                              const uint8_t *b, size_t b_units);
 
+/*
+ * Encode UTF-8 name text into UTF-16BE units for a catalog key: the exact
+ * inverse of hfs_utf16be_to_utf8(). Overlong forms, surrogate halves, NUL,
+ * anything past U+10FFFF and names over 255 units are refused. The result is
+ * not normalized; pass it to hfs_unicode_normalize_name() before storing.
+ * `dest_capacity` is in bytes; `dest_units` receives the unit count.
+ */
+int hfs_utf8_to_utf16be(const char *name, size_t length, uint8_t *dest,
+                        size_t dest_capacity, size_t *dest_units);
+
 /* Generated case-folding table; see tools/gen-hfs-unicode-table.py. */
 extern const uint16_t hfs_unicode_fold_table[];
 

@@ -270,4 +270,65 @@ GOT_HASH=$("$TOOL" read "$IMAGE" "/$READ_PATH" | shasum -a 256 | awk '{print $1}
     fail "$READ_PATH hashes to $GOT_HASH, macOS wrote $EXPECTED_HASH"
 echo "$READ_PATH matches the SHA-256 macOS wrote"
 
-echo "PASS: catalog order, canonical form, tree read and file content match macOS"
+# 6. The writer half. Our writer creates the same corpus on a fresh image and
+#    macOS is asked to read it: names it must see, and a catalog order our B-tree
+#    must have built the way Apple's did for the same names.
+WIMAGE="$TMP/helikon-writer.dmg"
+if ! hdiutil create -size 24m -fs HFS+J -volname HelikonWriter -layout NONE \
+        "$WIMAGE" >"$TMP/wcreate.log" 2>&1; then
+    cat "$TMP/wcreate.log" >&2
+    fail "could not create the writer image"
+fi
+if ! "$HERE/hfs_image_test" "$WIMAGE" order "$TMP/names.txt" \
+        > "$TMP/writer.log" 2>&1; then
+    cat "$TMP/writer.log" >&2
+    fail "our writer could not create the corpus"
+fi
+cat "$TMP/writer.log"
+fsck_image "$WIMAGE"
+
+mkdir -p "$MOUNT"
+if ! hdiutil attach -nobrowse -mountpoint "$MOUNT" "$WIMAGE" \
+        >"$TMP/wmount.log" 2>&1; then
+    cat "$TMP/wmount.log" >&2
+    fail "could not mount the writer image"
+fi
+MOUNTED=1
+python3 - "$MOUNT" "$TMP/names.txt" <<'PY'
+import os
+import sys
+import unicodedata
+
+mount, names_path = sys.argv[1], sys.argv[2]
+with open(names_path, encoding="utf-8") as source:
+    expected = {unicodedata.normalize("NFC", line.rstrip("\n")) for line in source}
+order = os.path.join(mount, "Order")
+if not os.path.isdir(order):
+    raise SystemExit("macOS does not see the /Order folder our writer created")
+actual = {unicodedata.normalize("NFC", name) for name in os.listdir(order)}
+missing = expected - actual
+extra = actual - expected
+if missing or extra:
+    raise SystemExit(f"macOS sees different names: missing={missing!r} extra={extra!r}")
+for name in os.listdir(order):
+    if not os.path.isfile(os.path.join(order, name)):
+        raise SystemExit(f"{name!r} is not a file on the macOS side")
+print(f"macOS reads the {len(actual)} names our writer created")
+PY
+hdiutil detach "$MOUNT" >/dev/null 2>&1
+MOUNTED=""
+
+"$TOOL" list "$WIMAGE" /Order > "$TMP/writer-order.txt" 2>"$TMP/wlist.log" || {
+    cat "$TMP/wlist.log" >&2
+    fail "could not list the writer's own catalog"
+}
+if ! cmp -s "$TMP/catalog-order.txt" "$TMP/writer-order.txt"; then
+    echo "Apple's order vs the order our writer produced:" >&2
+    paste "$TMP/catalog-order.txt" "$TMP/writer-order.txt" |
+        awk -F'\t' '$1 != $2' | head -20 >&2
+    fail "our writer's catalog order differs from Apple's for the same names"
+fi
+echo "our writer's catalog order matches Apple's for $COUNT names"
+
+echo "PASS: catalog order, canonical form, tree read, file content and a written volume macOS agrees with"
+

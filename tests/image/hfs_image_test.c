@@ -13,6 +13,7 @@
 #include "hfs_journal.h"
 #include "hfs_extents.h"
 #include "hfs_txn.h"
+#include "hfs_unicode.h"
 #include "hfs_volume.h"
 
 #include <fcntl.h>
@@ -1165,13 +1166,91 @@ static int create_unicode_files(struct image *image)
     return HFS_OK;
 }
 
+/*
+ * The writer half of the macOS differential.
+ *
+ * The macOS-side corpus is a list of names in a file; this creates a folder
+ * `/Order` on a fresh image and one file per line, through our own writer, so
+ * macOS can then be asked to read what we built. The names are UTF-8 in the file
+ * and go through the same encoder the writer uses for a real name, which also
+ * means this is the only place the encoder meets a genuine volume.
+ */
+static int create_order_files(struct image *image, const char *names_path)
+{
+    FILE *source = fopen(names_path, "r");
+    if (source == NULL) {
+        perror(names_path);
+        return HFS_ERR_IO;
+    }
+
+    static const uint8_t order_name[] = { 0, 'O', 0, 'r', 0, 'd', 0, 'e', 0, 'r' };
+    struct hfs_txn tx;
+    uint32_t folder = 0;
+    int rc = hfs_txn_begin(&tx, &image->journal);
+    if (rc != HFS_OK) {
+        fclose(source);
+        return rc;
+    }
+    rc = hfs_catalog_create_folder(&image->catalog, &tx, 2, order_name, 5u,
+                                   0755, hfs_catalog_key_compare, NULL,
+                                   &folder);
+    rc = commit(&tx, rc);
+    if (rc != HFS_OK) {
+        fclose(source);
+        return rc;
+    }
+
+    char line[4u * HFS_NAME_UTF8_MAX];
+    unsigned created = 0;
+    while (fgets(line, sizeof(line), source) != NULL) {
+        size_t length = strlen(line);
+        while (length > 0u &&
+               (line[length - 1u] == '\n' || line[length - 1u] == '\r'))
+            line[--length] = '\0';
+        if (length == 0u)
+            continue;
+
+        static uint8_t units_bytes[512];
+        size_t units = 0;
+        rc = hfs_utf8_to_utf16be(line, length, units_bytes,
+                                 sizeof(units_bytes), &units);
+        if (rc != HFS_OK) {
+            fprintf(stderr, "name %u: %s\n", created, hfs_strerror(rc));
+            fclose(source);
+            return rc;
+        }
+
+        uint32_t cnid = 0;
+        rc = hfs_txn_begin(&tx, &image->journal);
+        if (rc != HFS_OK) {
+            fclose(source);
+            return rc;
+        }
+        rc = hfs_catalog_create_file(&image->catalog, &tx, folder, units_bytes,
+                                     units, 0644, hfs_catalog_key_compare, NULL,
+                                     &cnid);
+        rc = commit(&tx, rc);
+        if (rc != HFS_OK) {
+            fprintf(stderr, "create %u: %s\n", created, hfs_strerror(rc));
+            fclose(source);
+            return rc;
+        }
+        ++created;
+    }
+    fclose(source);
+    printf("writer created %u names under /Order\n", created);
+    return HFS_OK;
+}
+
 int main(int argc, char **argv)
 {
-    if (argc != 3) {
+    int order = argc == 4 && strcmp(argv[2], "order") == 0;
+    if (argc != 3 && !order) {
         fprintf(stderr,
                 "usage: %s IMAGE create|rename|truncate|delete|overflow|"
-                "overwrite|truncate-size|grow|overflow-cleanup|unicode\n",
-                argv[0]);
+                "overwrite|truncate-size|grow|overflow-cleanup|unicode\n"
+                "       %s IMAGE order NAMES_FILE\n",
+                argv[0], argv[0]);
         return 2;
     }
     struct image image;
@@ -1200,6 +1279,8 @@ int main(int argc, char **argv)
         rc = delete_files(&image);
     } else if (strcmp(argv[2], "unicode") == 0) {
         rc = create_unicode_files(&image);
+    } else if (order) {
+        rc = create_order_files(&image, argv[3]);
     } else {
         fprintf(stderr, "unknown mode: %s\n", argv[2]);
         rc = HFS_ERR_ARGUMENT;
