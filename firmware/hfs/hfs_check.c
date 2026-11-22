@@ -17,6 +17,7 @@
 #include <stddef.h>
 
 #include "hfs_btree.h"
+#include "hfs_extents.h"
 
 static uint32_t be32(const uint8_t *p)
 {
@@ -99,9 +100,54 @@ static void check_header(struct hfs_volume *volume, struct hfs_check_report *rep
 }
 
 /*
- * The allocation bitmap. It is only counted when the whole fork is inline: a
- * large volume keeps most of its bitmap in the extents overflow tree, and
- * claiming a count without chasing those records would be a lie.
+ * Read a fork through a resolved extent map: the inline extents plus whatever
+ * the extents overflow tree supplied, already in logical order. A range no run
+ * covers is a hole, and a hole in the allocation file is a finding, not a
+ * reason to guess.
+ */
+static int read_map(struct hfs_volume *volume, const struct hfs_extent *map,
+                    size_t count, uint64_t offset, void *buffer, size_t length)
+{
+    uint8_t *out = buffer;
+    const uint64_t block_size = volume->block_size;
+    size_t done = 0u;
+    while (done < length) {
+        uint64_t run_start = 0u;
+        int found = 0;
+        for (size_t index = 0u; index < count; ++index) {
+            uint64_t run_bytes = (uint64_t)map[index].count * block_size;
+            if (offset < run_start || offset >= run_start + run_bytes) {
+                run_start += run_bytes;
+                continue;
+            }
+            uint64_t within = offset - run_start;
+            size_t chunk = length - done;
+            if ((uint64_t)chunk > run_bytes - within)
+                chunk = (size_t)(run_bytes - within);
+            if ((uint64_t)chunk > block_size)
+                chunk = (size_t)block_size;
+            uint64_t physical = volume->base +
+                                (uint64_t)map[index].start * block_size + within;
+            if (volume->read == NULL ||
+                volume->read(volume->context, physical, out + done, chunk) != 0)
+                return HFS_ERR_IO;
+            done += chunk;
+            offset += chunk;
+            found = 1;
+            break;
+        }
+        if (found == 0)
+            return HFS_ERR_UNSUPPORTED;
+    }
+    return HFS_OK;
+}
+
+/*
+ * The allocation bitmap. Its fork may spill into the extents overflow tree, so
+ * the map is resolved first: a large volume's bitmap is several megabytes in
+ * dozens of runs, and skipping it would leave the free-block count unverified on
+ * exactly the volumes where it matters most. The pass is I/O-bound by design and
+ * belongs off the boot path.
  */
 static void check_allocation(struct hfs_volume *volume,
                              struct hfs_check_report *report)
@@ -112,16 +158,37 @@ static void check_allocation(struct hfs_volume *volume,
         report->problems |= HFS_CHECK_ALLOCATION_TOO_SMALL;
         return;
     }
-    if (inline_blocks(fork) != fork->blocks) {
-        report->skipped |= HFS_CHECK_SKIPPED_BITMAP;
-        return;
-    }
     if (needed > HFS_CHECK_BITMAP_BYTES) {
         report->skipped |= HFS_CHECK_SKIPPED_BITMAP;
         return;
     }
 
-    uint8_t buffer[512];
+    /* HFS+ gives the allocation file a fixed CNID of 6. */
+    static uint8_t scratch[HFS_MAX_NODE_SIZE + 1u];
+    struct hfs_extents extents;
+    struct hfs_extent map[HFS_OVERFLOW_EXTENT_MAX];
+    size_t map_count = 0u;
+    uint32_t inline_count = inline_blocks(fork);
+    int have_map = 0;
+    if (inline_count == fork->blocks) {
+        for (size_t index = 0u; index < HFS_EXTENT_COUNT; ++index) {
+            map[index] = fork->extents[index];
+        }
+        map_count = HFS_EXTENT_COUNT;
+        have_map = 1;
+    } else if (hfs_extents_open(&extents, volume, scratch, sizeof(scratch)) ==
+                   HFS_OK &&
+               hfs_extents_collect(&extents, 6u, inline_count, fork->blocks, map,
+                                   HFS_OVERFLOW_EXTENT_MAX, &map_count) ==
+                   HFS_OK) {
+        have_map = 1;
+    }
+    if (have_map == 0) {
+        report->skipped |= HFS_CHECK_SKIPPED_BITMAP;
+        return;
+    }
+
+    uint8_t buffer[4096];
     uint32_t counted = 0u;
     uint64_t block = 0u;
     uint64_t byte_offset = 0u;
@@ -129,7 +196,8 @@ static void check_allocation(struct hfs_volume *volume,
         uint32_t chunk = (uint32_t)(needed - byte_offset);
         if (chunk > sizeof(buffer))
             chunk = sizeof(buffer);
-        if (hfs_fork_read(volume, fork, byte_offset, buffer, chunk) != HFS_OK) {
+        if (read_map(volume, map, map_count, byte_offset, buffer, chunk) !=
+            HFS_OK) {
             report->skipped |= HFS_CHECK_SKIPPED_BITMAP;
             return;
         }

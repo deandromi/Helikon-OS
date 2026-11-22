@@ -33,6 +33,8 @@ tests/bootloader/test_certificate
 tests/bootloader/test_splash_color
 tests/bootloader/test_boot_info_page
 tests/hfsplus/test_catalog_index
+tests/hfsplus/test_check
+tests/hfsplus/test_check.dSYM/
 tests/firmware/build/
 tests/firmware/test_lib
 tests/firmware/test_boot_info

@@ -81,10 +81,12 @@ f2-test: f2_host
 
 # Host CLI over the read-only structural check: `./hfs-check image.dmg`.
 hfs-check: ../../tools/hfs-check.c ../../firmware/hfs/hfs_check.c \
-           ../../firmware/hfs/hfs_btree.c ../../firmware/hfs/hfs_volume.c
+           ../../firmware/hfs/hfs_btree.c ../../firmware/hfs/hfs_extents.c \
+           ../../firmware/hfs/hfs_volume.c
 	$(CC) -I../../firmware/hfs -idirafter ../../firmware/lib \
 	  $(CFLAGS) -o $@ ../../tools/hfs-check.c ../../firmware/hfs/hfs_check.c \
-	  ../../firmware/hfs/hfs_btree.c ../../firmware/hfs/hfs_volume.c $(LDFLAGS)
+	  ../../firmware/hfs/hfs_btree.c ../../firmware/hfs/hfs_extents.c \
+	  ../../firmware/hfs/hfs_volume.c $(LDFLAGS)
 
 crash-test: hfs_crash_test
 	./run-crash-macos.sh

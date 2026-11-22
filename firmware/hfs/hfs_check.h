@@ -58,10 +58,13 @@
 #define HFS_CHECK_CATALOG_COUNT 0x00002000u
 #define HFS_CHECK_CATALOG_RECORD 0x00004000u
 
-/* The allocation bitmap is counted this far and no further. 1 MiB of bitmap is
- * 8,388,608 blocks; a volume whose bitmap does not fit inline is skipped whole,
- * so this bound only guards against a pathological small-run layout. */
-#define HFS_CHECK_BITMAP_BYTES 1048576u
+/*
+ * The allocation bitmap is counted up to this size. 8 MiB of bitmap describes
+ * 67 million blocks — 275 GB at 4096-byte blocks — so it covers the whole 6G
+ * range and then some. Beyond it the check says it skipped rather than spending
+ * minutes reading a scratch buffer's worth of bitmap on a device.
+ */
+#define HFS_CHECK_BITMAP_BYTES 8388608u
 
 struct hfs_check_report {
     uint32_t block_size;
