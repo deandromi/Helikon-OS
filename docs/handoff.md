@@ -12,6 +12,17 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (dead artist bitmaps deleted: T-130)
+
+- `launcher_assets.c/.h` lost the six `helikon_artist_*` assets and 4,569 lines;
+  nothing drew them, and the header one carried a second copy of the mockup
+  `12:34`. The generator no longer emits them.
+- Image sizes unchanged (767,960 B hub, 80,020 B plain) because `--gc-sections`
+  was already dropping them. The saving is source, compile and the stale-clock
+  copy — do not claim a flash win for this.
+- Evidence: `make -C tests/ui preview` 3/3 PASS, host suites 9, static analysis
+  80 units / 0 findings.
+
 # Handoff — 2026-11-22 (the daily preview ran: T-117)
 
 ## What happened
