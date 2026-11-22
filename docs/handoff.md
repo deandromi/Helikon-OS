@@ -12,18 +12,19 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
-# Handoff — 2026-11-22 (structural check: leaf chains, key order, record bodies)
+# Handoff — 2026-11-22 (structural check: chains, key order, bodies, index nodes)
 
 ## What happened
 
 - **T-020 keeps growing.** `firmware/hfs/hfs_check.c` now walks each metadata
   tree's leaf chain, checks catalog and extents key order across leaf boundaries,
-  and validates every catalog record body against its type. The allocation file
-  is read through its resolved extent map, so a large volume's bitmap is counted
-  instead of skipped (PR #84).
-- **Host coverage:** `tests/hfsplus/test_check` is 22 cases, including two clean
-  catalogs that must report nothing; `make -C tests/hfsplus test` and `sanitize`
-  green.
+  validates every catalog record body against its type, and checks each index
+  node's child pointer, level and key against the subtree it points at. The
+  allocation file is read through its resolved extent map, so a large volume's
+  bitmap is counted instead of skipped (PRs #84, #85, #86).
+- **Host coverage:** `tests/hfsplus/test_check` is 26 cases, including three
+  clean catalogs (one folder, one file, one depth-2 index tree) that must report
+  nothing; `make -C tests/hfsplus test` and `sanitize` green.
 - **Real volumes:** a 64 MB macOS `HFS+J` volume with nested folders, 16 files
   and non-ASCII names across a 128-node catalog is clean; a 32 MiB image is clean
   and its tampered twin still reports only the free-block mismatch; the 140 GiB
@@ -37,15 +38,15 @@ file grows. Do not rely on chat history for current state.
 ## Evidence
 
 ```
-make -C tests/hfsplus test && make -C tests/hfsplus sanitize   # 22 cases
+make -C tests/hfsplus test && make -C tests/hfsplus sanitize   # 26 cases
 make -C tests/image hfs-check && ./tests/image/hfs-check VOL    # 0/1/2
 make -C tests/image test                                       # F2 promotion PASS
 ```
 
 ## Open / next
 
-- **T-020 next slices:** index nodes (each index key versus its child's first
-  key), the free-node map, then quarantine and the charging/idle scrub policy.
+- **T-020 next slices:** the free-node map and node ownership, the attributes
+  tree's index keys, then quarantine and the charging/idle scrub policy.
 - **Still device-free:** every remaining T-110/T-112/T-115 item needs silicon.
 - **Before any device claim:** nothing here has run on a 6G.
 
