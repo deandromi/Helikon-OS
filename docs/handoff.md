@@ -12,6 +12,60 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (one test command, CI on every push, a preview every night)
+
+## What happened
+
+- **One test command.** `tools/host-tests.sh` runs the nine portable suites
+  (`hfsplus firmware bootloader vfs codec musicdb player ui usb`) with one
+  compiler, one log per suite under `build/host-tests/`, and stops at the first
+  red suite with its tail. `--sanitize` repeats the eight suites that have a
+  `sanitize` target under ASan and UBSan; `--macos` runs `tests/image`'s seven
+  disk-image drivers; `--keep-going` runs everything; `HOST_TESTS_IMAGE` adds
+  `tests/library`. The header says what each mode needs and that none of it
+  touches a device.
+- **A wrong assumption, found by writing it down.** `tests/image`'s `test` target
+  runs `run-macos.sh`, so it is not portable: it is behind `--macos`, not in the
+  Linux list. The first draft of the runner had it in both.
+- **CI.** `.github/workflows/tests.yml`: portable suites on ubuntu, the same
+  under sanitizers, the macOS disk-image suites on `macos-14`, and both firmware
+  images (`BOARD=6g image`, `DISKMODE=1 image`) with `arm-none-eabi-` plus
+  `-Wno-error`. `--keep-going` so one run shows every red suite.
+- **Preview.** `.github/workflows/preview.yml` at 04:17 UTC and on dispatch:
+  host-suite gate, `tools/preview-build.sh` builds `payload-6g/` and
+  `payload-6g-diskmode/`, the run packs them and publishes `preview-YYYY-MM-DD`
+  as a prerelease with `README-PREVIEW.md`, `CHANGELOG.md` and hashes. A re-run
+  replaces the day's release.
+- **Docs.** `testing.md` §2 and §11 tell a reader to run the one command and §12
+  is now the real CI (it was "CI (future)"); `release.md` §1.1 defines the
+  preview channel and its limits; `file-map.md` and `state.md` gained rows;
+  T-116/T-117 are in `tasks.md` with the honest status: local evidence green,
+  no GitHub run yet.
+
+## Evidence
+
+```
+./tools/host-tests.sh clang                    9 suites passed
+./tools/host-tests.sh clang --sanitize         8 suites passed
+./tools/host-tests.sh --macos                  10 suites passed (image 131 s)
+TOOLCHAIN_PATH="$HOME/.rockbox-toolchain/bin" ./tools/preview-build.sh /tmp/preview-test
+                                               both payloads + README + CHANGELOG + SHA256SUMS
+yaml.safe_load('.github/workflows/{tests,preview}.yml')   valid
+```
+
+## Open / next
+
+- **No GitHub run yet.** Both workflows are committed, neither has executed. The
+  first push is what proves the runners, the apt packages and the macOS image
+  sizes; do not call them green before then.
+- **Watch the macOS job's disk.** `format-test` creates a 150 GiB sparse image;
+  it wrote little here, but a runner with a smaller volume is the first place it
+  would fail.
+- **Next in the queue:** the soak's open writer bug (seed 3, op 157, `n22`), then
+  the fuzzers, the macOS differential read and the Unicode order differential.
+
+---
+
 # Handoff — 2026-11-22 (structural check: chains, key order, bodies, index nodes)
 
 ## What happened

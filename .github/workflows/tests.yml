@@ -1,0 +1,101 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# Tests on every push to `main` and every pull request.
+#
+# Four jobs, each one a question worth asking separately:
+#
+#   portable   the host suites on Linux, so the code is not only correct on the
+#              owner's Mac;
+#   sanitize   the same code under AddressSanitizer and UndefinedBehaviorSanitizer;
+#   macos      the disk-image suites: hdiutil, fsck_hfs and the mount, which is
+#              where the write paths meet a real filesystem;
+#   build      both firmware images link for 6G, which the host suites cannot say.
+#
+# Nothing here runs on a device, and a green run is not a device claim. The
+# release gate is `docs/validation.md`.
+
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  portable:
+    name: host suites (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang and Pillow
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang python3-pil
+
+      - name: Run the suites
+        run: ./tools/host-tests.sh clang --keep-going
+
+  sanitize:
+    name: host suites (sanitizers)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang
+
+      - name: Run the suites under ASan and UBSan
+        run: ./tools/host-tests.sh clang --sanitize --keep-going
+
+  macos:
+    name: disk-image suites (macos)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the Ed25519 fixture dependency
+        # The loader suite skips itself when `cryptography` is missing, so a
+        # refused install costs coverage, not the job.
+        run: python3 -m pip install --user cryptography || true
+
+      - name: Run the suites
+        run: ./tools/host-tests.sh clang --macos --keep-going
+
+  build:
+    name: firmware builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the ARM toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-arm-none-eabi
+
+      - name: Build the loader-facing image
+        env:
+          CROSS: arm-none-eabi-
+          EXTRA_CFLAGS: -Wno-error
+        run: make -C firmware BOARD=6g image
+
+      - name: Build the Disk Mode image
+        env:
+          CROSS: arm-none-eabi-
+          EXTRA_CFLAGS: -Wno-error
+        run: make -C firmware BOARD=6g DISKMODE=1 image
+
+      - name: Report the sizes
+        run: |
+          make -C firmware BOARD=6g size || true
+          ls -l build/firmware/6g/out build/firmware/6g-diskmode/out

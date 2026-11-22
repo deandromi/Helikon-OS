@@ -54,6 +54,24 @@ Host tests are the fastest safety net. They must not require a device.
 - Every error code has a test that asserts the code, not just "fails".
 - No test may depend on a private developer machine, absolute path or network.
 
+**One command runs the portable suites.** `tools/host-tests.sh` builds and runs
+`tests/{hfsplus,firmware,bootloader,vfs,codec,musicdb,player,ui,usb}` with one
+compiler, keeps a log per suite under `build/host-tests/`, and stops at the first
+red suite with its last twenty lines:
+
+```sh
+./tools/host-tests.sh clang                     # the nine portable suites
+./tools/host-tests.sh clang --sanitize          # ASan + UBSan over the same code
+./tools/host-tests.sh --macos                   # tests/image: hdiutil and fsck_hfs
+./tools/host-tests.sh clang --keep-going        # every suite, every failure
+HOST_TESTS_IMAGE=/tmp/vol.img ./tools/host-tests.sh clang   # adds tests/library
+```
+
+The suites stay separate Makefiles, so a single red test is still
+`make -C tests/hfsplus test`; the runner exists so a change cannot pass review by
+being tested the one way that happens to be green. `--macos` is Darwin-only and
+the disk-image suites create their own images; neither mode touches a device.
+
 ## 3. Fuzzing and sanitizers
 
 - Fuzz targets: volume header, B-tree node/offset table, catalog records,
@@ -703,6 +721,21 @@ make -C tests/vfs test
 make -C tests/vfs sanitize
 ```
 
+`tools/host-tests.sh` runs the portable suites in one go and is the command to
+quote in a pull request: `./tools/host-tests.sh clang` for the suites,
+`--sanitize` for the same code under ASan and UBSan, `--macos` for the
+disk-image suites. The macOS disk-image runbooks keep their own commands:
+
+```sh
+make -C tests/image test            # disposable image, create/append/rename/truncate
+make -C tests/image crash-test      # write/flush/partial-sector injection
+make -C tests/image format-test     # the >128 GiB APM + HFS+ format path
+make -C tests/image loader-test     # signed manifest through the read core
+make -C tests/image ops-test        # randomized write round-trip
+make -C tests/image write-diag-test # write diagnostic, inner and outer image
+make -C tests/image outer-diag-test # outer-volume diagnostic
+```
+
 The target firmware build is:
 
 ```sh
@@ -734,11 +767,33 @@ python3 tools/hfsplus/tests/check_integration.py
 property tests, device tests and power-loss runs when those trees exist. Do not
 invent them before the files exist.
 
-## 12. CI (future)
+## 12. CI
 
-No CI is configured. When it is, it should run host unit, sanitizer, fuzz smoke,
-model/property tests, size budgets and link checks. Device/power-loss/battery
-gates cannot be replaced by CI; they need recorded hardware runs.
+Two workflows, both in `.github/workflows/`, both host-only.
+
+**`tests.yml`** runs on every push to `main` and every pull request.
+
+| Job | Runner | What it does |
+|---|---|---|
+| `portable` | ubuntu | `tools/host-tests.sh clang --keep-going` — the nine portable suites |
+| `sanitize` | ubuntu | the same suites under ASan and UBSan |
+| `macos` | macos-14 | `tools/host-tests.sh clang --macos` — the disk-image suites: `hdiutil`, `fsck_hfs`, the mount |
+| `build` | ubuntu | `make -C firmware BOARD=6g image` and `DISKMODE=1 image` with the distro ARM toolchain |
+
+The Linux jobs exist so the code is not only correct on the owner's Mac, and
+`--keep-going` is there so one run shows every red suite rather than the first.
+The `build` job uses `arm-none-eabi-` with `-Wno-error`: the pinned Rockbox
+`arm-elf-eabi` 9.5.0 stays the build of record, and a pull request must not fail
+on a warning that toolchain does not emit.
+
+**`preview.yml`** runs nightly and publishes a prerelease; see
+[`release.md`](release.md) §1.1. Its first job is the same portable suite gate,
+so a red tree publishes nothing.
+
+CI cannot replace a device run. Power-cut, `fsck_hfs`-after-cut, battery, panel,
+audio-measurement and USB-enumeration gates all need the hardware rows in
+[`device-matrix.md`](device-matrix.md). A green CI run is evidence that the host
+tests pass, and nothing more.
 
 ## 13. Related
 
