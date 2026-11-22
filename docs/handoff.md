@@ -12,6 +12,52 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (macOS is the oracle: catalog order and a read differential)
+
+## What happened
+
+- **The comparator now has an outside oracle.** HFS+ stores a directory in a
+  B-tree ordered by `FastUnicodeCompare`, so a volume macOS wrote *contains*
+  Apple's ordering. `tests/image/run-unicode-order-macos.sh` creates a disposable
+  24 MiB journaled image, has macOS write 47 names under `/Order` in a shuffled
+  order (digits, case pairs, punctuation, precomposed and decomposed Latin,
+  reordered combining marks, Greek, Cyrillic, Hebrew, Arabic, Devanagari, CJK,
+  Hangul, kana, emoji, fullwidth, `a`×255 and `a`×254+`b`) and a small tree under
+  `/Tree` (0, 1, 4096, 10000 and 70,000-byte files, two folder levels).
+- **`tests/image/unicode_order_host.c`** is the read-only tool: `list` (catalog
+  order), `tree` (`path<TAB>kind<TAB>size`), `read` (file bytes), `sort` (our
+  comparator), `canon` (our normalization). Answer on stdout, diagnostics on
+  stderr, so `cmp` can only see the answer.
+- **Result:** 47 names in Apple's order == our order; canonical forms identical;
+  eight tree entries identical; the 70,000-byte file's SHA-256 matches; `fsck_hfs`
+  clean. Wired in as `make -C tests/image unicode-order-test` and added to
+  `tools/host-tests.sh` `MACOS_TARGETS`, so the macOS CI job runs it.
+- **It was made to fail first.** Inverting the comparison in
+  `hfs_fast_unicode_compare` turned the ordering check red with the mismatched
+  pairs printed; restored, green. A differential that has never failed is not
+  evidence.
+- **A bug in my own tool, caught by the tool**: `walk()` reused the loop's
+  iteration result (1 = an entry) as the recursion error, so `tree` failed on the
+  first folder while `list` was fine. Separate variable now, with a comment.
+
+## Evidence
+
+- `make -C tests/image unicode-order-test` →
+  `PASS: catalog order, canonical form, tree read and file content match macOS`
+  (47 names, 8 tree entries, SHA-256 match, `fsck_hfs` clean).
+- Mutation: inverted comparator → `FAIL: our comparator orders the corpus
+  differently from macOS`, with the differing pairs printed; revert → pass.
+
+## Open / next
+
+- The writer half of the differential is still partial: the ordering corpus is
+  read-only. The same `/Order` listing could be produced by our writer on a
+  disposable image and compared with macOS reading *it* — macOS as a consumer of
+  what we built, rather than as the producer of what we read.
+- `unicode_order_host` prints `other` for anything that is not a folder or a
+  file; if a future corpus includes a symlink, the macOS side has to be extended
+  the same way rather than silently skipped.
+
 # Handoff — 2026-11-22 (a property test, static analysis, and a test that could not fail)
 
 ## What happened

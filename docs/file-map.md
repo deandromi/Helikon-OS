@@ -168,6 +168,12 @@ Helikon-OS/
       run-outer-diag-macos.sh  outer-volume sequence, dirty replay and safety test
       loader_host.c          host HFS+ firmware loader runner
       run-loader-macos.sh    HFS+ manifest/image/bootstate loader fixture
+      unicode_order_host.c   differential tool: `list` (catalog order), `tree`
+                            (paths/kinds/sizes), `read`, `sort` (our comparator),
+                            `canon` (our normalization)
+      run-unicode-order-macos.sh  macOS creates the corpus and the tree, then
+                            order, canonical form, tree read and file hash are
+                            compared against what macOS produced
     bootloader/
       Makefile              bootloader host test target
       test_diag.c           diagnostic core/splash tests
