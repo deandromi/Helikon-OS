@@ -150,50 +150,100 @@ int hfs_bitmap_open(struct hfs_bitmap *bitmap, struct hfs_volume *volume)
     return HFS_OK;
 }
 
+/*
+ * Scans for a run of `count` free blocks whose first block lies in [low, high).
+ * A run never spans two map blocks: the search is per bitmap block, which bounds
+ * one allocation by what a single block of the bitmap describes. On success the
+ * block that holds the run is left in `buffer` with its number and the bit
+ * offset, so the caller can set the bits without reading it twice.
+ */
+static int bitmap_scan(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
+                       uint32_t low, uint32_t high, uint32_t count,
+                       uint32_t *first_block, uint8_t *buffer,
+                       uint32_t *volume_block, uint32_t *bit_out)
+{
+    if (low >= high)
+        return HFS_ERR_NO_SPACE;
+    if (high > bitmap->total_blocks)
+        high = bitmap->total_blocks;
+
+    const uint32_t bits_per_block = bitmap->block_size * 8u;
+    const uint32_t first_bitmap = low / bits_per_block;
+    const uint32_t last_bitmap = (high - 1u) / bits_per_block;
+
+    for (uint32_t index = first_bitmap; index <= last_bitmap; ++index) {
+        const uint32_t block_start = index * bits_per_block;
+        const uint32_t first = index == first_bitmap ? low - block_start : 0u;
+        uint32_t end = bitmap->total_blocks - block_start;
+        if (end > bits_per_block)
+            end = bits_per_block;
+
+        uint32_t block = 0u;
+        int rc = map_bitmap_block(bitmap->volume, block_start, &block);
+        if (rc != HFS_OK)
+            return rc;
+        rc = read_bitmap_block(bitmap->volume, block, buffer, tx);
+        if (rc != HFS_OK)
+            return rc;
+
+        for (uint32_t bit = first; bit + count <= end; ++bit) {
+            uint32_t run = 0u;
+            while (run < count && !bit_is_set(buffer, bit + run))
+                ++run;
+            if (run != count)
+                continue;
+            *first_block = block_start + bit;
+            *volume_block = block;
+            *bit_out = bit;
+            return HFS_OK;
+        }
+    }
+    return HFS_ERR_NO_SPACE;
+}
+
+/*
+ * Searches from the hint to the end of the volume and then wraps to the start.
+ * The from-hint pass comes first so a tree fork that grows next to its own last
+ * extent still prefers the adjacent block; the wrapped pass is what stops a
+ * high hint from turning free space below it into "disk full". A run that
+ * starts below the hint and extends past it is found by the second pass,
+ * because it bounds where a run may start, not where it may end. A hint at or
+ * past the end of the volume starts the search at block 0 instead of failing.
+ */
+static int bitmap_find_run(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
+                           uint32_t start_hint, uint32_t count,
+                           uint32_t *first_block, uint8_t *buffer,
+                           uint32_t *volume_block, uint32_t *bit)
+{
+    if (start_hint >= bitmap->total_blocks)
+        start_hint = 0u;
+
+    int rc = bitmap_scan(bitmap, tx, start_hint, bitmap->total_blocks, count,
+                         first_block, buffer, volume_block, bit);
+    if (rc != HFS_ERR_NO_SPACE)
+        return rc;
+    return bitmap_scan(bitmap, tx, 0u, start_hint, count, first_block, buffer,
+                       volume_block, bit);
+}
+
 int hfs_bitmap_find(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
                     uint32_t start_hint, uint32_t count,
                     uint32_t *first_block)
 {
     if (bitmap == NULL || first_block == NULL || count == 0)
         return HFS_ERR_ARGUMENT;
-    if (start_hint >= bitmap->total_blocks ||
-        count > bitmap->free_blocks || count > bitmap->total_blocks)
+    if (count > bitmap->free_blocks || count > bitmap->total_blocks ||
+        count > bitmap->block_size * 8u)
         return HFS_ERR_NO_SPACE;
 
-    uint32_t bits_per_block = bitmap->block_size * 8u;
-    if (count > bits_per_block)
-        return HFS_ERR_NO_SPACE;
-    uint32_t first_bitmap = start_hint / bits_per_block;
-    uint32_t last_bitmap = (bitmap->total_blocks - 1u) / bits_per_block;
     static uint8_t buffer[32768];
     if (bitmap->block_size > sizeof(buffer))
         return HFS_ERR_UNSUPPORTED;
 
-    for (uint32_t index = first_bitmap; index <= last_bitmap; ++index) {
-        uint32_t block_start = index * bits_per_block;
-        uint32_t first = index == first_bitmap ?
-                         start_hint - block_start : 0u;
-        uint32_t end = bitmap->total_blocks - block_start;
-        if (end > bits_per_block)
-            end = bits_per_block;
-        uint32_t volume_block;
-        int rc = map_bitmap_block(bitmap->volume, block_start, &volume_block);
-        if (rc != HFS_OK)
-            return rc;
-        rc = read_bitmap_block(bitmap->volume, volume_block, buffer, tx);
-        if (rc != HFS_OK)
-            return rc;
-        for (uint32_t bit = first; bit + count <= end; ++bit) {
-            uint32_t run = 0;
-            while (run < count && !bit_is_set(buffer, bit + run))
-                ++run;
-            if (run == count) {
-                *first_block = block_start + bit;
-                return HFS_OK;
-            }
-        }
-    }
-    return HFS_ERR_NO_SPACE;
+    uint32_t volume_block = 0u;
+    uint32_t bit = 0u;
+    return bitmap_find_run(bitmap, tx, start_hint, count, first_block, buffer,
+                           &volume_block, &bit);
 }
 
 int hfs_bitmap_alloc(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
@@ -202,62 +252,36 @@ int hfs_bitmap_alloc(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
 {
     if (bitmap == NULL || tx == NULL || first_block == NULL || count == 0)
         return HFS_ERR_ARGUMENT;
-    if (start_hint >= bitmap->total_blocks ||
-        count > bitmap->free_blocks || count > bitmap->total_blocks)
+    if (count > bitmap->free_blocks || count > bitmap->total_blocks ||
+        count > bitmap->block_size * 8u)
         return HFS_ERR_NO_SPACE;
 
-    uint32_t bits_per_block = bitmap->block_size * 8u;
-    if (count > bits_per_block)
-        return HFS_ERR_NO_SPACE;
-
-    uint32_t first_bitmap = start_hint / bits_per_block;
-    uint32_t last_bitmap = (bitmap->total_blocks - 1u) / bits_per_block;
     static uint8_t buffer[32768];
-
     if (bitmap->block_size > sizeof(buffer))
         return HFS_ERR_UNSUPPORTED;
 
-    for (uint32_t index = first_bitmap; index <= last_bitmap; ++index) {
-        uint32_t block_start = index * bits_per_block;
-        uint32_t first = index == first_bitmap ?
-                         start_hint - block_start : 0u;
-        uint32_t end = bitmap->total_blocks - block_start;
-        if (end > bits_per_block)
-            end = bits_per_block;
+    uint32_t block = 0u;
+    uint32_t volume_block = 0u;
+    uint32_t bit = 0u;
+    int rc = bitmap_find_run(bitmap, tx, start_hint, count, &block, buffer,
+                             &volume_block, &bit);
+    if (rc != HFS_OK)
+        return rc;
 
-        uint32_t volume_block;
-        int rc = map_bitmap_block(bitmap->volume, block_start, &volume_block);
-        if (rc != HFS_OK)
-            return rc;
-        rc = read_bitmap_block(bitmap->volume, volume_block, buffer, tx);
-        if (rc != HFS_OK)
-            return rc;
+    for (uint32_t i = 0u; i < count; ++i)
+        set_bit(buffer, bit + i, 1);
+    rc = stage_bitmap_block(tx, volume_block, bitmap->block_size, buffer);
+    if (rc != HFS_OK)
+        return rc;
 
-        for (uint32_t bit = first; bit + count <= end; ++bit) {
-            uint32_t run = 0;
-            while (run < count && !bit_is_set(buffer, bit + run))
-                ++run;
-            if (run != count)
-                continue;
-
-            for (uint32_t i = 0; i < count; ++i)
-                set_bit(buffer, bit + i, 1);
-            rc = stage_bitmap_block(tx, volume_block, bitmap->block_size,
-                                    buffer);
-            if (rc != HFS_OK)
-                return rc;
-            uint32_t new_free = bitmap->free_blocks - count;
-            rc = stage_header(tx, bitmap->volume, new_free,
-                              bitmap->modify_date);
-            if (rc != HFS_OK)
-                return rc;
-            bitmap->free_blocks = new_free;
-            bitmap->volume->free_blocks = new_free;
-            *first_block = block_start + bit;
-            return HFS_OK;
-        }
-    }
-    return HFS_ERR_NO_SPACE;
+    uint32_t new_free = bitmap->free_blocks - count;
+    rc = stage_header(tx, bitmap->volume, new_free, bitmap->modify_date);
+    if (rc != HFS_OK)
+        return rc;
+    bitmap->free_blocks = new_free;
+    bitmap->volume->free_blocks = new_free;
+    *first_block = block;
+    return HFS_OK;
 }
 
 int hfs_bitmap_block_used(struct hfs_bitmap *bitmap, uint32_t block, int *used)
@@ -298,6 +322,34 @@ int hfs_bitmap_free(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
     static uint8_t buffer[32768];
     if (bitmap->block_size > sizeof(buffer))
         return HFS_ERR_UNSUPPORTED;
+
+    /*
+     * Validate both ends of the range before staging anything. A range can
+     * cross a bitmap block, and the staging of the first block is not undone by
+     * a refusal in the second: the transaction would keep half-cleared bits
+     * that the next commit writes without a matching free-block count. A
+     * refused free must leave the transaction exactly as it was.
+     */
+    for (uint32_t check = start; check < start + count;) {
+        uint32_t index = check / bits_per_block;
+        uint32_t block_start = index * bits_per_block;
+        uint32_t chunk_end = block_start + bits_per_block;
+        if (chunk_end > start + count)
+            chunk_end = start + count;
+
+        uint32_t volume_block;
+        int rc = map_bitmap_block(bitmap->volume, block_start, &volume_block);
+        if (rc != HFS_OK)
+            return rc;
+        rc = read_bitmap_block(bitmap->volume, volume_block, buffer, tx);
+        if (rc != HFS_OK)
+            return rc;
+        for (uint32_t b = check; b < chunk_end; ++b) {
+            if (!bit_is_set(buffer, b - block_start))
+                return HFS_ERR_FORMAT;
+        }
+        check = chunk_end;
+    }
 
     uint32_t block = start;
     uint32_t end_block = start + count;
