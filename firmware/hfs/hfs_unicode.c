@@ -63,6 +63,89 @@ int hfs_utf16be_to_utf8(const uint8_t *source, size_t units, char *dest,
     return HFS_OK;
 }
 
+/*
+ * The inverse of hfs_utf16be_to_utf8(): UTF-8 name text to the UTF-16BE code
+ * units a catalog key holds. Overlong forms, surrogate halves, anything past
+ * U+10FFFF and a NUL are rejected, because none of them is a name HFS+ can
+ * store, and a name over 255 units is refused here rather than at the key
+ * writer. Nothing is normalized: a caller may want to compare the exact text it
+ * was given, and hfs_unicode_normalize_name() is the one place that decides the
+ * canonical form.
+ */
+int hfs_utf8_to_utf16be(const char *name, size_t length, uint8_t *dest,
+                        size_t dest_capacity, size_t *dest_units)
+{
+    if (name == NULL || dest == NULL || dest_units == NULL)
+        return HFS_ERR_ARGUMENT;
+    if (length == 0u)
+        return HFS_ERR_NAME_INVALID;
+    size_t capacity = dest_capacity / 2u;
+    if (capacity == 0u)
+        return HFS_ERR_BUFFER;
+
+    size_t used = 0u;
+    size_t index = 0u;
+    while (index < length) {
+        unsigned char lead = (unsigned char)name[index];
+        uint32_t cp;
+        size_t extra;
+        if (lead < 0x80u) {
+            cp = lead;
+            extra = 0u;
+        } else if ((lead & 0xe0u) == 0xc0u) {
+            cp = lead & 0x1fu;
+            extra = 1u;
+        } else if ((lead & 0xf0u) == 0xe0u) {
+            cp = lead & 0x0fu;
+            extra = 2u;
+        } else if ((lead & 0xf8u) == 0xf0u) {
+            cp = lead & 0x07u;
+            extra = 3u;
+        } else {
+            return HFS_ERR_NAME_INVALID;
+        }
+        if (extra >= length - index)
+            return HFS_ERR_NAME_INVALID;
+        for (size_t k = 1u; k <= extra; ++k) {
+            unsigned char next = (unsigned char)name[index + k];
+            if ((next & 0xc0u) != 0x80u)
+                return HFS_ERR_NAME_INVALID;
+            cp = (cp << 6) | (uint32_t)(next & 0x3fu);
+        }
+        if ((extra == 1u && cp < 0x80u) || (extra == 2u && cp < 0x800u) ||
+            (extra == 3u && cp < 0x10000u))
+            return HFS_ERR_NAME_INVALID;
+        if (cp == 0u || cp > 0x10ffffu || (cp >= 0xd800u && cp <= 0xdfffu))
+            return HFS_ERR_NAME_INVALID;
+        index += extra + 1u;
+
+        if (cp >= 0x10000u) {
+            if (used + 2u > capacity)
+                return HFS_ERR_BUFFER;
+            uint32_t offset = cp - 0x10000u;
+            uint16_t high = (uint16_t)(0xd800u + (offset >> 10));
+            uint16_t low = (uint16_t)(0xdc00u + (offset & 0x3ffu));
+            dest[used * 2u] = (uint8_t)(high >> 8);
+            dest[used * 2u + 1u] = (uint8_t)(high & 0xffu);
+            ++used;
+            dest[used * 2u] = (uint8_t)(low >> 8);
+            dest[used * 2u + 1u] = (uint8_t)(low & 0xffu);
+            ++used;
+        } else {
+            if (used + 1u > capacity)
+                return HFS_ERR_BUFFER;
+            dest[used * 2u] = (uint8_t)(cp >> 8);
+            dest[used * 2u + 1u] = (uint8_t)(cp & 0xffu);
+            ++used;
+        }
+    }
+
+    if (used > 255u)
+        return HFS_ERR_NAME_INVALID;
+    *dest_units = used;
+    return HFS_OK;
+}
+
 static uint16_t fold_unicode(uint16_t value)
 {
     uint16_t offset = hfs_unicode_fold_table[value >> 8];

@@ -358,6 +358,133 @@ struct test_case {
     int (*run)(void);
 };
 
+static int test_utf8_ascii(void)
+{
+    uint8_t out[16];
+    size_t units = 0;
+    int rc = hfs_utf8_to_utf16be("A.bin", 5, out, sizeof(out), &units);
+    CHECK(rc == HFS_OK);
+    CHECK(units == 5);
+    static const uint8_t expected[] = { 0, 'A', 0, '.', 0, 'b', 0, 'i', 0, 'n' };
+    CHECK(memcmp(out, expected, sizeof(expected)) == 0);
+    return 0;
+}
+
+static int test_utf8_round_trip(void)
+{
+    /* One name per length class, plus the boundaries either side of them. */
+    static const char *const names[] = {
+        "Z", "a", "file.txt", "Caf\xc3\xa9", "\xe2\x82\xac", "\xf0\x9f\x98\x80",
+        "\xe4\xb8\xad\xe6\x96\x87", "\xed\x95\x9c\xea\xb8\x80"
+    };
+    for (size_t i = 0; i < sizeof(names) / sizeof(names[0]); ++i) {
+        uint8_t units_bytes[512];
+        size_t units = 0;
+        int rc = hfs_utf8_to_utf16be(names[i], strlen(names[i]), units_bytes,
+                                     sizeof(units_bytes), &units);
+        CHECK(rc == HFS_OK);
+        char back[256];
+        rc = hfs_utf16be_to_utf8(units_bytes, units, back, sizeof(back));
+        CHECK(rc == HFS_OK);
+        CHECK(strcmp(back, names[i]) == 0);
+    }
+    return 0;
+}
+
+static int test_utf8_surrogate_pair(void)
+{
+    uint8_t out[8];
+    size_t units = 0;
+    int rc = hfs_utf8_to_utf16be("\xf0\x9f\x98\x80", 4, out, sizeof(out),
+                                 &units);
+    CHECK(rc == HFS_OK);
+    CHECK(units == 2);
+    CHECK(out[0] == 0xd8 && out[1] == 0x3d);
+    CHECK(out[2] == 0xde && out[3] == 0x00);
+    return 0;
+}
+
+static int test_utf8_rejects_invalid(void)
+{
+    uint8_t out[16];
+    size_t units = 0;
+    /* Overlong '/', a surrogate half, a lone continuation and a truncated
+     * sequence: none of them is a name HFS+ could store. */
+    CHECK(hfs_utf8_to_utf16be("\xc0\xaf", 2, out, sizeof(out), &units) ==
+          HFS_ERR_NAME_INVALID);
+    CHECK(hfs_utf8_to_utf16be("\xed\xa0\x80", 3, out, sizeof(out), &units) ==
+          HFS_ERR_NAME_INVALID);
+    CHECK(hfs_utf8_to_utf16be("\x80", 1, out, sizeof(out), &units) ==
+          HFS_ERR_NAME_INVALID);
+    CHECK(hfs_utf8_to_utf16be("\xe2\x82", 2, out, sizeof(out), &units) ==
+          HFS_ERR_NAME_INVALID);
+    CHECK(hfs_utf8_to_utf16be("\xf4\x90\x80\x80", 4, out, sizeof(out),
+                              &units) == HFS_ERR_NAME_INVALID);
+    CHECK(hfs_utf8_to_utf16be("a", 0, out, sizeof(out), &units) ==
+          HFS_ERR_NAME_INVALID);
+    CHECK(hfs_utf8_to_utf16be(NULL, 1, out, sizeof(out), &units) ==
+          HFS_ERR_ARGUMENT);
+    CHECK(hfs_utf8_to_utf16be("a", 1, NULL, sizeof(out), &units) ==
+          HFS_ERR_ARGUMENT);
+    CHECK(hfs_utf8_to_utf16be("a", 1, out, sizeof(out), NULL) ==
+          HFS_ERR_ARGUMENT);
+    return 0;
+}
+
+static int test_utf8_limits(void)
+{
+    char name[300];
+    uint8_t units_bytes[600];
+    size_t units = 0;
+
+    /* 255 units is the longest HFS+ key; the byte buffer has to be big enough
+     * as well, and either limit reports itself rather than truncating. */
+    memset(name, 'a', 255);
+    CHECK(hfs_utf8_to_utf16be(name, 255, units_bytes, sizeof(units_bytes),
+                              &units) == HFS_OK);
+    CHECK(units == 255);
+
+    memset(name, 'a', 256);
+    CHECK(hfs_utf8_to_utf16be(name, 256, units_bytes, sizeof(units_bytes),
+                              &units) == HFS_ERR_NAME_INVALID);
+
+    CHECK(hfs_utf8_to_utf16be("abc", 3, units_bytes, 4, &units) ==
+          HFS_ERR_BUFFER);
+    CHECK(hfs_utf8_to_utf16be("abc", 3, units_bytes, 0, &units) ==
+          HFS_ERR_BUFFER);
+    return 0;
+}
+
+static int test_utf8_matches_normalizer(void)
+{
+    /*
+     * The encoder's output is what the normalizer takes, so a composed name and
+     * its decomposed form have to end at the same catalog key through both.
+     */
+    static const char composed[] = "Caf\xc3\xa9";
+    static const char decomposed[] = "Cafe\xcc\x81";
+    uint8_t a[512];
+    uint8_t b[512];
+    uint8_t canon_a[512];
+    uint8_t canon_b[512];
+    size_t units_a = 0;
+    size_t units_b = 0;
+    size_t canon_units_a = 0;
+    size_t canon_units_b = 0;
+
+    CHECK(hfs_utf8_to_utf16be(composed, strlen(composed), a, sizeof(a),
+                              &units_a) == HFS_OK);
+    CHECK(hfs_utf8_to_utf16be(decomposed, strlen(decomposed), b, sizeof(b),
+                              &units_b) == HFS_OK);
+    CHECK(hfs_unicode_normalize_name(a, units_a, canon_a, sizeof(canon_a),
+                                     &canon_units_a) == HFS_OK);
+    CHECK(hfs_unicode_normalize_name(b, units_b, canon_b, sizeof(canon_b),
+                                     &canon_units_b) == HFS_OK);
+    CHECK(canon_units_a == canon_units_b);
+    CHECK(memcmp(canon_a, canon_b, canon_units_a * 2) == 0);
+    return 0;
+}
+
 int main(void)
 {
     static const struct test_case tests[] = {
@@ -384,7 +511,13 @@ int main(void)
         {"normalize excluded", test_normalize_excluded},
         {"normalize invalid", test_normalize_invalid},
         {"normalize limits", test_normalize_limits},
-        {"escaped decode", test_escaped_decode}
+        {"escaped decode", test_escaped_decode},
+        {"utf8 ascii", test_utf8_ascii},
+        {"utf8 round trip", test_utf8_round_trip},
+        {"utf8 surrogate pair", test_utf8_surrogate_pair},
+        {"utf8 rejects invalid", test_utf8_rejects_invalid},
+        {"utf8 limits", test_utf8_limits},
+        {"utf8 matches normalizer", test_utf8_matches_normalizer}
     };
 
     int failures = 0;

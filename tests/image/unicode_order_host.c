@@ -231,80 +231,18 @@ struct name {
 static struct name *names;
 static size_t name_count;
 
-/*
- * UTF-8 to UTF-16BE. Rejects overlong forms, surrogate halves and anything past
- * U+10FFFF: a name that does not decode is not a name HFS+ could store.
- */
-static int utf8_to_utf16be(const char *text, size_t length, uint8_t *dest,
-                           size_t capacity, size_t *units)
-{
-    size_t used = 0u;
-    size_t index = 0u;
-    while (index < length) {
-        unsigned char lead = (unsigned char)text[index];
-        uint32_t code;
-        size_t extra;
-        if (lead < 0x80u) {
-            code = lead;
-            extra = 0u;
-        } else if ((lead & 0xe0u) == 0xc0u) {
-            code = lead & 0x1fu;
-            extra = 1u;
-        } else if ((lead & 0xf0u) == 0xe0u) {
-            code = lead & 0x0fu;
-            extra = 2u;
-        } else if ((lead & 0xf8u) == 0xf0u) {
-            code = lead & 0x07u;
-            extra = 3u;
-        } else {
-            return -1;
-        }
-        if (extra > length - index - 1u)
-            return -1;
-        for (size_t k = 1u; k <= extra; ++k) {
-            unsigned char next = (unsigned char)text[index + k];
-            if ((next & 0xc0u) != 0x80u)
-                return -1;
-            code = (code << 6) | (uint32_t)(next & 0x3fu);
-        }
-        if ((extra == 1u && code < 0x80u) || (extra == 2u && code < 0x800u) ||
-            (extra == 3u && code < 0x10000u))
-            return -1;
-        if (code > 0x10ffffu || (code >= 0xd800u && code <= 0xdfffu))
-            return -1;
-        index += extra + 1u;
-
-        if (code >= 0x10000u) {
-            uint32_t offset = code - 0x10000u;
-            uint16_t high = (uint16_t)(0xd800u + (offset >> 10));
-            uint16_t low = (uint16_t)(0xdc00u + (offset & 0x3ffu));
-            if (used + 4u > capacity)
-                return -1;
-            dest[used++] = (uint8_t)(high >> 8);
-            dest[used++] = (uint8_t)(high & 0xffu);
-            dest[used++] = (uint8_t)(low >> 8);
-            dest[used++] = (uint8_t)(low & 0xffu);
-        } else {
-            if (used + 2u > capacity)
-                return -1;
-            dest[used++] = (uint8_t)(code >> 8);
-            dest[used++] = (uint8_t)(code & 0xffu);
-        }
-    }
-    *units = used / 2u;
-    return 0;
-}
-
 static int canonicalize(const char *text, struct name *out)
 {
-    uint8_t raw[UNIT_BYTES];
     size_t raw_units = 0u;
-    if (utf8_to_utf16be(text, strlen(text), raw, sizeof(raw), &raw_units) != 0)
+    uint8_t raw[UNIT_BYTES];
+    int rc = hfs_utf8_to_utf16be(text, strlen(text), raw, sizeof(raw),
+                                 &raw_units);
+    if (rc != HFS_OK)
         return -1;
 
     size_t canon_units = 0u;
-    int rc = hfs_unicode_normalize_name(raw, raw_units, out->units,
-                                        sizeof(out->units), &canon_units);
+    rc = hfs_unicode_normalize_name(raw, raw_units, out->units,
+                                    sizeof(out->units), &canon_units);
     if (rc != HFS_OK)
         return -1;
     out->unit_count = canon_units;
