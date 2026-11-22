@@ -634,7 +634,8 @@ loss; read-only P3 and the backup gate are the controls.
 
 ## 10. What this document does not claim
 
-- No USB stack, VIC, IRQ handler or PHY bring-up exists in Helikon-OS.
+- No USB stack existed when this document was written; one does now
+  (`firmware/usb`), and it has still never run on hardware. See §11.
 - No host has enumerated Helikon-OS, mounted a LUN or written a byte.
 - No LBA48, 4096-byte sector or >128 GiB volume is proven on the 6G.
 - No macOS bare-HFS+ mount is proven.
@@ -642,3 +643,34 @@ loss; read-only P3 and the backup gate are the controls.
 - No support claim beyond one device and one adapter after a recorded run.
 - This document does not change F2/T-055 or the normal read-only USB policy; it
   is the T-111 research input for the P2–P4 line.
+
+## 11. Register-sequence audit against the donor (2026-11-22)
+
+The controller driver was re-read line by line against
+`firmware/target/arm/s5l8702/usb-s5l8702.c` and
+`firmware/target/arm/usb-s3c6400x.c` at the pinned donor commit. What agrees:
+
+| Item | Donor | Helikon-OS |
+|---|---|---|
+| Core base | `OTGBASE 0x38400000` (6G) | `HELIKON_USB_OTG_BASE 0x38400000` |
+| PHY base | `PHYBASE 0x3c400000` | `HELIKON_USB_PHY_BASE 0x3c400000` |
+| Clock gates | `CLOCKGATE_USBOTG 2`, `CLOCKGATE_USBPHY 35` | same numbers |
+| PHY sequence | `OPHYPWR 0`, 10 us, `OPHYUNK1 1`, `OPHYUNK2 0xe3f`, `ORSTCON 1`, 10 us, `ORSTCON 0`, 10 us, `OPHYUNK3 0x600`, `OPHYCLK 0`, 400 us | same order and values |
+| PHY type | `DWC_PHYTYPE_UTMI_16` | `GUSBCFG_PHYIF16` with `TRDT 5` |
+| RX FIFO | `0x360` words | `HELIKON_USB_RX_FIFO_WORDS 0x360` |
+| USB IRQ | `IRQ_USB_FUNC 19` | `HELIKON_VIC_IRQ_USB 19` |
+
+What did not agree, and was fixed: **the clock-gate direction.** PWRCON bits are
+power-*down* gates, so enabling a clock clears its bit — `clock.c`, `pmu.c`,
+`buttons.c` and `ata.c` all do that. The USB target seam set the bit instead,
+which gates the OTG and PHY clocks off during bring-up. A mock register file
+cannot see that inversion, because `tests/usb/test_usb_hal.c` replaces the
+whole seam. Both seams had it: `firmware/hal/6g/usb_target.c` and
+`bootloader/hardware/helikon_usb_disk_hw.c`. Both now clear the bit, and the
+comment in each says why. The bootloader image was rebuilt: 108,136 bytes,
+SHA-256 `9be0fc65…`, 20,896 bytes of headroom.
+
+What is still unverified: the core's own reset/EP configuration against the
+DWC databook, FIFO budget against a real 0x820-word core, the UTMI clock
+frequency, and every behaviour that only the silicon shows. A build, a mock and
+an audit are not a device run.
