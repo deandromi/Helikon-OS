@@ -30,6 +30,13 @@ FUZZ_SAN_BIN := fuzz_msc_sanitize
 FUZZ_SOURCES := fuzz_msc.c $(USB)/usb_msc.c $(BLOCK)/block.c $(BLOCK)/bounce.c \
                 $(LIB)/mem.c $(LIB)/string.c
 
+MODE_FUZZ_BIN := fuzz_mode
+MODE_FUZZ_SAN_BIN := fuzz_mode_sanitize
+MODE_FUZZ_SOURCES := fuzz_mode.c $(USB)/disk_mode.c $(USB)/usb_control.c \
+                    $(USB)/usb_descriptors.c $(USB)/usb_msc.c \
+                    $(BLOCK)/block.c $(BLOCK)/bounce.c $(LIB)/mem.c \
+                    $(LIB)/string.c
+
 MODE_SOURCES := test_disk_mode.c $(USB)/disk_mode.c $(USB)/usb_control.c \
                $(USB)/usb_descriptors.c $(USB)/usb_msc.c \
                $(BLOCK)/block.c $(BLOCK)/bounce.c $(LIB)/mem.c $(LIB)/string.c
@@ -76,8 +83,18 @@ $(MODE_SAN_BIN): $(MODE_SOURCES) $(USB)/disk_mode.h $(USB)/usb_msc.h \
 $(FUZZ_BIN): $(FUZZ_SOURCES) $(USB)/usb_msc.h $(BLOCK)/block.h
 	$(CC) $(CFLAGS) -o $@ $(FUZZ_SOURCES)
 
-fuzz: $(FUZZ_BIN)
+$(MODE_FUZZ_BIN): $(MODE_FUZZ_SOURCES) $(USB)/disk_mode.h $(USB)/usb_msc.h \
+        $(USB)/usb_control.h $(BLOCK)/block.h
+	$(CC) $(CFLAGS) -o $@ $(MODE_FUZZ_SOURCES)
+
+$(MODE_FUZZ_SAN_BIN): $(MODE_FUZZ_SOURCES) $(USB)/disk_mode.h \
+        $(USB)/usb_msc.h $(USB)/usb_control.h $(BLOCK)/block.h
+	$(CC) $(CFLAGS) -O1 -fsanitize=address,undefined -fno-omit-frame-pointer \
+	    -o $@ $(MODE_FUZZ_SOURCES)
+
+fuzz: $(FUZZ_BIN) $(MODE_FUZZ_BIN)
 	./$(FUZZ_BIN)
+	./$(MODE_FUZZ_BIN)
 
 $(FUZZ_SAN_BIN): $(FUZZ_SOURCES) $(USB)/usb_msc.h $(BLOCK)/block.h
 	$(CC) $(CFLAGS) -O1 -fsanitize=address,undefined -fno-omit-frame-pointer \
@@ -86,6 +103,8 @@ $(FUZZ_SAN_BIN): $(FUZZ_SOURCES) $(USB)/usb_msc.h $(BLOCK)/block.h
 fuzz-sanitize:
 	$(MAKE) $(FUZZ_SAN_BIN)
 	./$(FUZZ_SAN_BIN) -n 25000
+	$(MAKE) $(MODE_FUZZ_SAN_BIN)
+	./$(MODE_FUZZ_SAN_BIN) -n 10000
 
 sanitize:
 	$(MAKE) clean
@@ -97,10 +116,12 @@ sanitize:
 	./$(MODE_SAN_BIN)
 	$(MAKE) $(FUZZ_SAN_BIN)
 	./$(FUZZ_SAN_BIN) -n 25000
+	$(MAKE) $(MODE_FUZZ_SAN_BIN)
+	./$(MODE_FUZZ_SAN_BIN) -n 10000
 
 clean:
 	rm -f $(BIN) $(SAN_BIN) $(HAL_BIN) $(HAL_SAN_BIN) $(MODE_BIN) $(MODE_SAN_BIN) \
-	    $(FUZZ_BIN) $(FUZZ_SAN_BIN)
+	    $(FUZZ_BIN) $(FUZZ_SAN_BIN) $(MODE_FUZZ_BIN) $(MODE_FUZZ_SAN_BIN)
 	rm -rf $(BIN).dSYM $(SAN_BIN).dSYM $(HAL_BIN).dSYM $(HAL_SAN_BIN).dSYM \
 	    $(MODE_BIN).dSYM $(MODE_SAN_BIN).dSYM $(FUZZ_BIN).dSYM \
 	    $(FUZZ_SAN_BIN).dSYM

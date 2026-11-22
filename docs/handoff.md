@@ -35,10 +35,10 @@ file grows. Do not rely on chat history for current state.
 
 - `make -C tests/usb test` / `sanitize` PASS, including the new read-only-device
   regression.
-- Firmware Disk Mode image: 40,500 bytes, no mount/player symbols.
-- Bootloader image: 108,264 bytes, sha256 `1955a943…`; DFU 116,400 bytes,
-  sha256 `13f549b8…`; `_moveend 0x2203ae40` vs `MOVE_AREA` end `0x22040000`,
-  20,768 bytes headroom; two runs produced identical hashes.
+- Firmware Disk Mode image: 40,524 bytes, no mount/player symbols.
+- Bootloader image: 108,296 bytes, sha256 `de9b67e3…`; DFU 116,432 bytes,
+  sha256 `e27d3b38…`; `_moveend 0x2203ae40` vs `MOVE_AREA` end `0x22040000`,
+  20,736 bytes headroom; two runs produced identical hashes.
 - Neither image has enumerated, mounted or written anything.
 
 ## Open / next
@@ -113,7 +113,7 @@ file grows. Do not rely on chat history for current state.
 
 ## Evidence (host and build only, no device run)
 
-- `make -C firmware BOARD=6g DISKMODE=1` PASS: raw image 40,500 bytes,
+- `make -C firmware BOARD=6g DISKMODE=1` PASS: raw image 40,524 bytes,
   8,344,980 bytes headroom, `nm` shows `helikon_usb_init`,
   `helikon_disk_mode_start` and `helikon_usb_ep1_send`, and no
   `hfs_volume_probe`.

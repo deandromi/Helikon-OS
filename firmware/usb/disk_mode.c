@@ -208,6 +208,19 @@ static void arm_cbw(struct helikon_disk_mode *mode)
 
 static void handle_cbw(struct helikon_disk_mode *mode)
 {
+    /*
+     * Only a configured device may run a command. Once the medium is released
+     * the firmware owns the volume again, and a stray CBW from a host that has
+     * not noticed the eject must not reach the block device at all: a WRITE
+     * there would touch a volume the rest of the firmware believes it owns.
+     * A disconnected or waiting device ignores the packet the same way.
+     */
+    if (mode->state != HELIKON_DISK_MODE_ENUMERATED) {
+        mode->errors += 1u;
+        mode->phase = HELIKON_DISK_MODE_BOT_IDLE;
+        return;
+    }
+
     struct helikon_usb_msc_result result;
     int rc = helikon_usb_msc_command(&mode->msc, mode->cbw, &result);
     mode->commands += 1u;
