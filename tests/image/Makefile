@@ -23,7 +23,7 @@ HEADERS = $(HFS)/hfs_catalog.h $(HFS)/hfs_catalog_compare.h \
 	  $(HFS)/hfs_extents_write.h $(HFS)/hfs_txn.h \
 	  $(HFS)/hfs_journal.h $(HFS)/hfs_btree.h $(HFS)/hfs_volume.h
 
-.PHONY: all test f2-test crash-test write-diag-test outer-diag-test clean
+.PHONY: all test f2-test crash-test format-test write-diag-test outer-diag-test clean
 
 all: hfs_image_test hfs_crash_test f2_host write_diag_host outer_diag_host loader_host
 
@@ -80,6 +80,11 @@ f2-test: f2_host
 
 crash-test: hfs_crash_test
 	./run-crash-macos.sh
+
+# The >128 GiB format path, on a sparse image: the real runbook, the partition
+# map it writes and fsck_hfs. No iPod involved.
+format-test:
+	./run-format-macos.sh
 
 write-diag-test: write_diag_host
 	./run-write-diag-macos.sh

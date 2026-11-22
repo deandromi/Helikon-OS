@@ -164,6 +164,22 @@ runs `fsck_hfs -fn` on both images. It runs the sequence twice to check that the
 inner image is reusable and leaves no `diag` folder. This is host evidence for
 the separate write diagnostic; it is not a device run.
 
+### 5.3.1 The >128 GiB format path
+
+`tests/image/run-format-macos.sh` (`make -C tests/image format-test`) creates a
+140 GiB sparse image, attaches it, and runs the real
+`tools/disk-mode-format.sh` against it. It checks the guards first — a slice is
+refused as `--device`, a missing or empty backup record is refused, a path that
+is not a block device is refused — then that `--dry-run` prints commands and
+changes nothing. The real run must produce an Apple Partition Map with one
+`Apple_HFS` volume, and the volume must be larger than 137,438,953,472 bytes;
+`fsck_hfs -fn` must call it clean. Measured here: 150,189,596,672 bytes, fsck
+clean.
+
+This is the host half of "format the iPod above 128 GiB". The volume is not
+mounted afterwards on purpose: macOS writes `.fseventsd` and `.Trashes` on a
+first mount, and the test would then be describing a volume it changed.
+
 ### 5.4 Firmware-loader host test
 
 `tests/bootloader/test_ed25519.c` checks the RFC 8032 vectors, a fixed 192-byte

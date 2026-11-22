@@ -414,6 +414,15 @@ MENU: reboot after eject.
 - Entry from the launcher Settings tile; a boot gesture is future work and must
   not conflict with Apple Menu+Play or DFU Menu+Select.
 
+### 11.3.1 The host path above 128 GiB, tested
+
+`make -C tests/image format-test` runs `tools/disk-mode-format.sh` against a
+140 GiB sparse image: the guards (slice, missing backup, empty backup, not a
+block device) must refuse, `--dry-run` must change nothing, and the real run
+must leave an Apple Partition Map with one HFS+ volume larger than 128 GiB that
+`fsck_hfs -fn` calls clean. Measured: 150,189,596,672 bytes, clean. That proves
+the tool and the layout, not the device.
+
 ### 11.4 Commands after the medium is released
 
 A host that has not noticed the eject can send one more CBW. The mode must not

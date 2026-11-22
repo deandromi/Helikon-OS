@@ -186,6 +186,7 @@ make -C tests/image crash-test
 make -C tests/image write-diag-test
 make -C tests/image outer-diag-test
 make -C tests/image loader-test
+make -C tests/image format-test
 make -C tests/usb test
 make -C tests/usb sanitize
 make -C tests/usb fuzz
