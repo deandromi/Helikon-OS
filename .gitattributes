@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# The playlist corpus is text, and one seed exists precisely because it has CRLF
+# line endings: `git diff --check` reads those CRs as trailing whitespace and
+# refuses the commit. The file is the test, so the check is off for it.
+tests/player/fuzz/corpus/playlist/m3u-crlf-bom -whitespace

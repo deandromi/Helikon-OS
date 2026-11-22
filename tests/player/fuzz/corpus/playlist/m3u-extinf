@@ -1,0 +1,5 @@
+#EXTM3U
+#EXTINF:180,Artist - Song
+song.mp3
+#EXTINF:-1,Unknown
+other.mp3
