@@ -12,6 +12,43 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (a playlist that is a file: T-123 host proof)
+
+## What happened
+
+- **`tests/library` stopped pretending.** The image held a catalog naming six
+  paths and one file called `/Music/first.mp3`, so nothing ever checked that the
+  catalog described the volume. `run-library-macos.sh` now copies the audio
+  fixture to all six catalog paths, keeps `/Music/first.mp3` for the differential
+  decode, and writes `/Playlists/first.m3u` with one `..` entry, one absolute
+  entry, one absent entry, one entry that escapes the root and an `#EXTINF` line.
+- **`test_playlist_queue()`** walks the user's path: read the playlist through
+  the VFS, build the library index over the VFS-backed catalog, resolve into the
+  queue, then resolve each queued id back through `hdb_track` to its path and
+  play it from the volume. Expects `entries 4, added 3, missing 1, refused 1`
+  and queue order `5, 2, 0`.
+- **The suite ran nowhere in CI** and now does: `tests/image` gained a
+  `library-test` target (a delegation to `tests/library`) and
+  `tools/host-tests.sh` added it to `MACOS_TARGETS`.
+
+## Evidence
+
+- `make -C tests/image library-test` → `PASS playlist: 4 entries -> 3 queued, 1
+  missing, 1 refused`, then `PASS library: HFS+ -> VFS -> HDB (6 tracks, 3
+  albums, CRC OK) and audio decodes from the volume`.
+- `make -C tests/library macos-sanitize` → the same, under ASan/UBSan.
+- Deliberate break: expected id 5 → 4 prints `FAIL the queue follows the
+  playlist order`, exits 1.
+- `./tools/host-tests.sh clang` → 9 suites pass.
+
+## Open / next
+
+- No firmware call site: the hub still plays its embedded blob and the firmware
+  mounts no VFS. That is T-058's remaining half, and it needs the mount first.
+- No allocation by design: the index is 8 KiB of `.bss` at 1024 slots; a library
+  larger than that sets `complete = 0`, and lookups may then miss.
+- Cuesheet support, playlist export and resume state remain in T-093.
+
 # Handoff — 2026-11-22 (a playlist becomes a queue: T-123)
 
 ## What happened

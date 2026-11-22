@@ -23,7 +23,8 @@ HEADERS = $(HFS)/hfs_catalog.h $(HFS)/hfs_catalog_compare.h \
 	  $(HFS)/hfs_extents_write.h $(HFS)/hfs_txn.h \
 	  $(HFS)/hfs_journal.h $(HFS)/hfs_btree.h $(HFS)/hfs_volume.h
 
-.PHONY: all test f2-test crash-test format-test write-diag-test outer-diag-test clean
+.PHONY: all test f2-test crash-test format-test write-diag-test outer-diag-test \
+        library-test clean
 
 all: hfs_image_test hfs_crash_test hfs_ops_test f2_host write_diag_host \
      outer_diag_host loader_host hfs-check unicode_order_host
@@ -126,6 +127,13 @@ loader-test: loader_host
 # The ordering oracle: macOS builds the catalog, so its order is Apple's answer.
 unicode-order-test: unicode_order_host
 	./run-unicode-order-macos.sh
+
+# The music suite owns its own image and its own Makefile (the catalog, the six
+# files it names and a playlist), so this is a delegation, not a target here.
+# It runs from this Makefile because the CI job that has hdiutil, fsck_hfs and a
+# real HFS+ volume drives the suites through this one.
+library-test:
+	$(MAKE) -C ../library macos
 
 clean:
 	rm -rf hfs_image_test hfs_crash_test hfs_ops_test f2_host write_diag_host \

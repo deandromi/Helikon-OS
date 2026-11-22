@@ -50,7 +50,7 @@ SUITES="hfsplus firmware bootloader vfs codec musicdb player ui usb"
 SANITIZE_SUITES="hfsplus firmware bootloader vfs codec musicdb player usb"
 # The macOS disk-image suites, in one `make` target list.
 MACOS_TARGETS="test crash-test format-test loader-test write-diag-test \
-outer-diag-test ops-test unicode-order-test"
+outer-diag-test ops-test unicode-order-test library-test"
 
 cc=cc
 sanitize=no
