@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 # Host test for HelikonDB and audio read from a real HFS+ volume through the
 # read-only VFS. The image itself comes from `run-library-macos.sh` (hdiutil) or
-# from any journaled HFS+ image that holds `/.helikon/music.hdb` and
-# `/Music/first.mp3` (the script copies `tests/codec/fixtures/mp3_cbr_stereo16.mp3`
-# there); `macos-sanitize` runs the same path under ASan and UBSan.
+# from any journaled HFS+ image that holds `/.helikon/music.hdb`, the files the
+# catalog points at, `/Music/first.mp3` and `/Playlists/first.m3u` (the script
+# copies `tests/codec/fixtures/mp3_cbr_stereo16.mp3` into each of them);
+# `macos-sanitize` runs the same path under ASan and UBSan.
 
 CC ?= cc
 # `-idirafter` keeps the host libc headers for the HFS core (which expects
@@ -12,7 +13,8 @@ CC ?= cc
 CFLAGS := -O2 -g -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow \
           -Wundef -Wpointer-arith -DHELIKON_HOST_TEST \
           -I../../firmware/db -I../../firmware/vfs -I../../firmware/hfs \
-          -I../../firmware/player -I../../firmware/codec \
+          -I../../firmware/player -I../../firmware/library \
+          -I../../firmware/codec \
           -I../../firmware/codec/flac -I../../firmware/codec/mp3 \
           -I../../firmware/codec/libmad -I../../firmware/hal/6g \
           -idirafter ../../firmware/lib
@@ -36,6 +38,7 @@ LIB := ../../firmware/lib
 
 PLAYER := ../../firmware/player
 CODEC := ../../firmware/codec
+LIBRARY := ../../firmware/library
 
 SOURCES := test_library.c \
            $(VFS)/vfs.c \
@@ -45,7 +48,8 @@ SOURCES := test_library.c \
            $(HFS)/hfs_btree.c \
            $(DB)/hdb.c $(DB)/hdb_vfs.c \
            $(PLAYER)/player.c $(PLAYER)/wav.c $(PLAYER)/vfs_media.c \
-           $(PLAYER)/read_ahead.c \
+           $(PLAYER)/read_ahead.c $(PLAYER)/playlist.c $(PLAYER)/queue.c \
+           $(LIBRARY)/library.c \
            $(CODEC)/codec.c $(CODEC)/flac/flac_codec.c \
            $(CODEC)/flac/flac_decoder.c $(CODEC)/mp3/mp3_codec.c \
            $(CODEC)/tag/id3v2.c $(CODEC)/tag/vorbis.c \

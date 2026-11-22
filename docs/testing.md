@@ -583,6 +583,11 @@ A storage-backed decode has its own differential test: `tests/library` mounts a
 real journaled HFS+ image (created by the script), decodes `/Music/first.mp3`
 through the VFS and the read-ahead window, and requires the PCM to match a
 resident-buffer decode of the same bytes byte for byte (`audio-formats.md` §22).
+The same suite then takes the user-facing path (`audio-formats.md` §24): it
+resolves `/Playlists/first.m3u` against the catalog read through the VFS, checks
+the queue order and the four counts, and plays each queued track from its catalog
+path. Every file the fixture catalog names is a real file on that image, so a
+catalog that drifts from the volume fails instead of passing on names alone.
 
 Every host suite that links `firmware/codec/codec.c` also links the vendored
 libmad objects, because the codec registry references the MP3 descriptor even
@@ -609,10 +614,12 @@ make -C tests/library test IMAGE=/path/to/hfs-image
 make -C tests/library sanitize IMAGE=/path/to/hfs-image
 ```
 
-The image must hold `/.helikon/music.hdb` and `/Music/first.mp3`; `macos` and
-`macos-sanitize` create it themselves and copy
-`tests/codec/fixtures/mp3_cbr_stereo16.mp3` there, so a hand-built image has to
-carry both files or the test fails on purpose.
+The image must hold `/.helikon/music.hdb`, the files the catalog names,
+`/Music/first.mp3` and `/Playlists/first.m3u`; `macos` and `macos-sanitize`
+create it themselves and copy `tests/codec/fixtures/mp3_cbr_stereo16.mp3` into
+each of them, so a hand-built image has to carry the same files or the test fails
+on purpose. The CI macOS job runs it as `make -C tests/image library-test`, which
+delegates to this suite; before that target existed the suite ran nowhere.
 
 For reference, the reader suite:
 

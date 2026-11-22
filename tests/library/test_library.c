@@ -2,11 +2,14 @@
 /*
  * Host test: HelikonDB read from a real HFS+ volume through the read-only VFS.
  *
- * The image is created by `run-macos.sh` with `hdiutil` (journaled HFS+, the
- * same on-disk shape as the device) and holds `/.helikon/music.hdb` built by
- * `tools/hdb_build.py fixture`. This proves the storage path end to end on the
- * host: mount -> path lookup -> open -> seek/read -> HDB records. It is not a
- * device run and makes no claim about the 6G.
+ * The image is created by `run-library-macos.sh` with `hdiutil` (journaled HFS+,
+ * the same on-disk shape as the device) and holds `/.helikon/music.hdb` built by
+ * `tools/hdb_build.py fixture`, the six files the fixture's catalog points at,
+ * one `/Music/first.mp3` that only the storage test uses, and a playlist under
+ * `/Playlists`. This proves the storage path end to end on the host: mount ->
+ * path lookup -> open -> seek/read -> HDB records, then a playlist file
+ * resolved against the catalog into a queue, and the first queued track played
+ * from the volume. It is not a device run and makes no claim about the 6G.
  */
 #include "hdb_vfs.h"
 
@@ -15,6 +18,7 @@
 
 #include "audio.h"
 #include "helikon_error.h"
+#include "library.h"
 #include "player.h"
 #include "read_ahead.h"
 #include "vfs.h"
@@ -286,6 +290,177 @@ static void test_storage_playback(struct vfs *vfs)
           "close the audio file");
 }
 
+/* Open a catalog path through the VFS, play it, and return the peak amplitude of
+ * the PCM it produced. Zero means the volume gave us silence or nothing. */
+static uint64_t play_catalog_path(struct vfs *vfs, const char *path)
+{
+    struct vfs_entry entry;
+    if (vfs_stat(vfs, path, &entry) != HELIKON_OK || entry.size == 0u)
+        return 0u;
+
+    struct vfs_file_handle handle;
+    if (vfs_file_open(vfs, path, &handle) != HELIKON_OK)
+        return 0u;
+
+    struct helikon_vfs_media media;
+    struct helikon_codec_source raw_source;
+    if (helikon_vfs_media_init(&media, vfs, handle, entry.size, &raw_source) !=
+        HELIKON_OK) {
+        (void)vfs_file_close(vfs, handle);
+        return 0u;
+    }
+
+    struct helikon_pmu pmu;
+    struct helikon_clock clock;
+    memset(&pmu, 0, sizeof(pmu));
+    memset(&clock, 0, sizeof(clock));
+
+    static struct helikon_player player;
+    uint64_t energy = 0u;
+    static int16_t pcm[8192];
+    captured_source = NULL;
+    if (helikon_player_open_media(&player, &raw_source, &pmu, &clock, 2000u) ==
+            HELIKON_OK &&
+        helikon_player_play_chunk(&player, 2047u) == 0 && captured_source != NULL) {
+        size_t frames = pull_frames(captured_source, captured_context, pcm, 2048u);
+        for (size_t index = 0u; index < frames * 2u; ++index)
+            energy += (uint64_t)(pcm[index] < 0 ? -(int32_t)pcm[index]
+                                                : (int32_t)pcm[index]);
+    }
+    helikon_player_stop(&player);
+    (void)vfs_file_close(vfs, handle);
+    return energy;
+}
+
+/*
+ * The path a user takes, end to end on the host: a playlist file that lives on
+ * the volume, the catalog read through the VFS, the index built from it, a queue
+ * in playlist order, and the first queued track played from the volume.
+ *
+ * The playlist names the catalog's own paths — one of them relative with `..`,
+ * one absolute, one that is not in the catalog and one that escapes the root —
+ * so resolution can only succeed if the index agrees with the catalog byte for
+ * byte, and the playback can only produce audio if that catalog path is also a
+ * real file on the volume.
+ */
+static void test_playlist_queue(struct vfs *vfs, const struct hdb *db)
+{
+    static const char *const playlist = "/Playlists/first.m3u";
+    struct vfs_entry entry;
+    check(vfs_stat(vfs, playlist, &entry) == HELIKON_OK, "stat the playlist");
+    check(entry.kind == VFS_KIND_FILE, "the playlist is a file");
+    if (entry.kind != VFS_KIND_FILE || entry.size == 0u || entry.size >= 4096u) {
+        check(0, "the playlist fits the buffer");
+        return;
+    }
+
+    struct vfs_file_handle handle;
+    check(vfs_file_open(vfs, playlist, &handle) == HELIKON_OK,
+          "open the playlist through the VFS");
+    static char text[4096];
+    size_t loaded = 0u;
+    check(vfs_file_read(vfs, handle, text, (size_t)entry.size, &loaded) ==
+              HELIKON_OK &&
+              loaded == (size_t)entry.size,
+          "read the playlist through the VFS");
+    check(vfs_file_close(vfs, handle) == HELIKON_OK, "close the playlist");
+    text[loaded] = '\0';
+
+    /* 1024 hashes plus the 16 KiB, so it lives in .bss, not on the stack. */
+    static struct helikon_library_index index;
+    check(helikon_library_index_build(&index, db) == HELIKON_OK,
+          "index the catalog read through the VFS");
+    check(index.used == 6u, "the index holds six tracks");
+    check(index.complete == 1u, "every fixture track was indexed");
+
+    /* First principle: a catalog path must find the track it came from. */
+    for (uint32_t track_index = 0u; track_index < db->track_count; ++track_index) {
+        struct hdb_track track;
+        char track_path[HELIKON_LIBRARY_PATH_MAX];
+        uint32_t length = 0u;
+        check(hdb_track(db, track_index, &track) == HELIKON_OK,
+              "a track record reads");
+        check(hdb_string(db, track.path_off, track_path, sizeof(track_path),
+                         &length) == HELIKON_OK,
+              "a track path reads");
+        uint32_t found = 0xFFFFFFFFu;
+        check(helikon_library_index_find(&index, track_path, &found) ==
+                  HELIKON_OK,
+              "a catalog path resolves through the index");
+        check(found == track_index, "and resolves to its own track");
+    }
+
+    /* A path the catalog does not have is NOT_FOUND, not a near miss. */
+    uint32_t nowhere = 0u;
+    check(helikon_library_index_find(&index, "/Music/Nowhere/Gone.m4a",
+                                     &nowhere) == HELIKON_ERR_NOT_FOUND,
+          "an absent path is NOT_FOUND");
+
+    static struct helikon_queue queue;
+    struct helikon_playlist_queue_result result;
+    check(helikon_library_queue_from_playlist(&index, &queue, text, loaded,
+                                              "/Playlists", &result) ==
+              HELIKON_OK,
+          "resolve the playlist into the queue");
+    check(result.entries == 4u, "four entries came out of the parser");
+    check(result.added == 3u, "three entries resolved against the catalog");
+    check(result.missing == 1u, "one entry is not in the catalog");
+    check(result.refused == 1u, "one entry escaped the root and was refused");
+    check(queue.count == 3u, "the queue holds the three resolved tracks");
+
+    /* The playlist order is Tide (5), Signal (2), First Light (0): nothing like
+     * catalog order, so a queue that came out sorted would fail here. */
+    static const uint32_t expected[3] = {5u, 2u, 0u};
+    for (uint32_t position = 0u; position < 3u; ++position) {
+        uint32_t id = 0xFFFFFFFFu;
+        check(helikon_queue_current(&queue, &id) == HELIKON_OK,
+              "the queue has a current track");
+        check(id == expected[position], "the queue follows the playlist order");
+        int moved = helikon_queue_next(&queue);
+        check(position + 1u < 3u ? moved == HELIKON_QUEUE_MOVED
+                                : moved == HELIKON_QUEUE_END,
+              "next walks the queue and then stops");
+    }
+
+    /* Rewind and play the first queued track from the volume. The path comes
+     * from the catalog, so this covers queue id -> track record -> path -> file
+     * -> decoder, which is the whole chain the Music hub will drive. */
+    check(helikon_queue_select(&queue, 0u) == HELIKON_OK, "select the first id");
+    uint32_t id = 0xFFFFFFFFu;
+    check(helikon_queue_current(&queue, &id) == HELIKON_OK && id == 5u,
+          "the first queued track is the one the playlist named");
+
+    struct hdb_track queued;
+    char queued_path[HELIKON_LIBRARY_PATH_MAX];
+    uint32_t length = 0u;
+    check(hdb_track(db, id, &queued) == HELIKON_OK, "the queued track reads");
+    check(hdb_string(db, queued.path_off, queued_path, sizeof(queued_path),
+                     &length) == HELIKON_OK,
+          "the queued track path reads");
+    check(strcmp(queued_path,
+                 "/Music/Various Artists/Mixtape/02 Tide.m4a") == 0,
+          "the queued track is the one the playlist named by path");
+
+    uint64_t energy = play_catalog_path(vfs, queued_path);
+    check(energy != 0u, "the queued track plays from the volume");
+
+    /* The other resolved entries are real files too, so the queue is not one
+     * playable track and two names that merely matched the catalog. */
+    check(play_catalog_path(vfs, "/Music/Lighthouse/Static Bloom/01 Signal.m4a") !=
+              0u,
+          "the second queued track plays from the volume");
+    check(play_catalog_path(vfs,
+                            "/Music/The Ember Set/Night Harbour/01 First "
+                            "Light.m4a") != 0u,
+          "the third queued track plays from the volume");
+
+    /* The counts are the evidence, so they are printed either way; the word in
+     * front is only PASS when every check above held. */
+    printf("%s playlist: %u entries -> %u queued, %u missing, %u refused\n",
+           failures == 0 ? "PASS" : "FAIL", result.entries, result.added,
+           result.missing, result.refused);
+}
+
 int main(int argc, char **argv)
 {
     if (argc < 2) {
@@ -383,6 +558,10 @@ int main(int argc, char **argv)
     /* CRC over the whole catalog read through the VFS: every byte of the file
      * has to arrive correctly, not just the record we happened to look at. */
     check(hdb_verify_crc(&db) == HELIKON_OK, "catalog CRC over the VFS");
+
+    /* A playlist on the volume, resolved through the index, played from disk.
+     * Runs before the adapter is closed: the catalog reads through it. */
+    test_playlist_queue(&vfs, &db);
 
     struct hdb_vfs_io missing;
     check(hdb_vfs_open(&missing, &vfs, "/.helikon/missing.hdb") ==

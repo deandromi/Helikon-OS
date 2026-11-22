@@ -197,13 +197,16 @@ Helikon-OS/
     test_library_index.c    path index over the fixture and playlist resolution
                             into the play queue (order, missing, refused)
   tests/library/
-    Makefile                HFS+ -> VFS -> HDB and audio storage-path test
-                            (plus `macos-sanitize`)
-    test_library.c          mounts an image, reads /.helikon/music.hdb, then
-                            decodes /Music/first.mp3 through the read-ahead
-                            window and compares it with a resident decode
+    Makefile                HFS+ -> VFS -> HDB, audio storage path and playlist
+                            resolution test (plus `macos-sanitize`)
+    test_library.c          mounts an image, reads /.helikon/music.hdb, decodes
+                            /Music/first.mp3 through the read-ahead window
+                            against a resident decode, then resolves
+                            /Playlists/first.m3u into a queue and plays each
+                            queued track from its catalog path
     run-library-macos.sh    disposable hdiutil image + fsck_hfs runner; copies
-                            the audio fixture into the volume
+                            the audio fixture to every path the catalog names,
+                            /Music/first.mp3 and the playlist
   tests/ui/
     Makefile                launcher, Music, artist and audio host previews
     test_launcher.c         launcher render and checks

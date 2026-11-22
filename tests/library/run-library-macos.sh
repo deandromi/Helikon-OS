@@ -70,6 +70,37 @@ cp "$HDB" "$MOUNT/.helikon/music.hdb"
 mkdir -p "$MOUNT/Music"
 cp "$ROOT/tests/codec/fixtures/mp3_cbr_stereo16.mp3" "$MOUNT/Music/first.mp3"
 [ -s "$MOUNT/Music/first.mp3" ] || fail "could not copy the audio fixture"
+
+# The six paths the fixture catalog names, each a real file. A playlist is
+# resolved against the catalog and then played from the volume, so the two have
+# to agree: a catalog entry with no file is exactly the bug this would hide.
+FIXTURE=$ROOT/tests/codec/fixtures/mp3_cbr_stereo16.mp3
+for rel in \
+    "Music/The Ember Set/Night Harbour/01 First Light.m4a" \
+    "Music/The Ember Set/Night Harbour/02 Second Light.m4a" \
+    "Music/Lighthouse/Static Bloom/01 Signal.m4a" \
+    "Music/Lighthouse/Static Bloom/02 Noise.m4a" \
+    "Music/Various Artists/Mixtape/01 Ember.m4a" \
+    "Music/Various Artists/Mixtape/02 Tide.m4a"
+do
+    mkdir -p "$MOUNT/$(dirname "$rel")"
+    cp "$FIXTURE" "$MOUNT/$rel"
+    [ -s "$MOUNT/$rel" ] || fail "could not copy $rel"
+done
+
+# One playlist with every resolution case in it: a `..` entry, an absolute
+# entry, an entry the catalog does not have, and one that escapes the root.
+mkdir -p "$MOUNT/Playlists"
+cat > "$MOUNT/Playlists/first.m3u" <<'PLAYLIST'
+#EXTM3U
+#EXTINF:220,Tide
+../Music/Various Artists/Mixtape/02 Tide.m4a
+/Music/Lighthouse/Static Bloom/01 Signal.m4a
+../Music/The Ember Set/Night Harbour/01 First Light.m4a
+../Music/Nowhere/Gone.m4a
+../../escape.m4a
+PLAYLIST
+[ -s "$MOUNT/Playlists/first.m3u" ] || fail "could not write the playlist"
 sync
 hdiutil detach "$MOUNT" >"$TMP/detach.log" 2>&1 ||
     { cat "$TMP/detach.log" >&2 || true

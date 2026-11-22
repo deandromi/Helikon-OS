@@ -1569,3 +1569,69 @@ and bind next/previous to `helikon_queue_next`/`previous` plus
 `helikon_player_open_media` for the resolved track. That call site is also the
 first place the queue's `END`/`RESTART` answers matter, and it needs a mounted
 VFS, which the firmware does not yet have. Then the device run.
+
+## 24. A playlist file becomes playing audio — T-123 host proof (2026-11-22)
+
+Status: `implemented` as a host proof on a real HFS+ volume. No Music-hub caller
+and no device run.
+
+### 24.1 What it proves
+
+Section 22 proved that a file on a volume decodes. This proves the path a user
+actually takes: a playlist file on the volume, the catalog read through the VFS,
+the library index built from that catalog, a queue in playlist order, and the
+queued tracks played from their catalog paths.
+
+`tests/library` now writes the six files the fixture catalog names, each a real
+file at its own path, and `/Playlists/first.m3u` holding four entries and one
+line the parser refuses:
+
+```text
+#EXTM3U
+#EXTINF:220,Tide
+../Music/Various Artists/Mixtape/02 Tide.m4a        -> track 5, relative with ..
+/Music/Lighthouse/Static Bloom/01 Signal.m4a        -> track 2, absolute
+../Music/The Ember Set/Night Harbour/01 First Light.m4a -> track 0
+../Music/Nowhere/Gone.m4a                           -> missing
+../../escape.m4a                                    -> refused
+```
+
+The expected queue is `5, 2, 0` — deliberately nothing like catalog order, so a
+queue that came out sorted, or one that dropped a `..`, fails.
+
+```text
+HFS+ /Playlists/first.m3u -> VFS read -> playlist parser
+   -> library index over the VFS-backed catalog -> queue (track ids)
+   -> HDB track -> path -> VFS open -> codec -> player -> PCM
+```
+
+Because the playlist names the catalog's own paths, nothing can pass unless the
+index and the catalog agree byte for byte; because each of those paths is also a
+file on the volume, nothing can produce PCM unless the catalog and the volume
+agree as well. Until now the test's catalog described files that were not there,
+which is exactly the drift it now refuses.
+
+### 24.2 Evidence (host only, no device run)
+
+- `make -C tests/image library-test` (or `make -C tests/library macos`) prints
+  `PASS playlist: 4 entries -> 3 queued, 1 missing, 1 refused` and then the
+  section 22 `PASS library: ...`.
+- `make -C tests/library macos-sanitize` runs the same path under ASan and UBSan,
+  also PASS.
+- Checks added: the playlist stats, opens and reads through the VFS; the index
+  holds six tracks and is `complete`; every catalog path resolves to its own
+  track and an absent path is `NOT_FOUND`; the four counts are exactly
+  `entries 4, added 3, missing 1, refused 1`; the queue holds three ids in
+  playlist order and `next` stops at `END`; selecting the first id gives track 5,
+  whose record's path is the one the playlist named; and all three resolved
+  tracks produce non-silent PCM from the volume.
+- The test is known to fail: changing the expected first id to 4 prints
+  `FAIL the queue follows the playlist order` and exits 1.
+- `library-test` is now in `MACOS_TARGETS`, so the CI macOS job runs it; it ran
+  nowhere before.
+
+### 24.3 Remaining
+
+The Music hub still plays its embedded blob and the firmware still has no mount
+at boot, so nothing calls any of this above the host yet. Next: the hub owning a
+mounted VFS and a queue (T-058), then a device run. Not device evidence.
