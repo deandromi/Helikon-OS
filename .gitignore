@@ -90,3 +90,4 @@ tests/hfsplus/test_catalog_header
 # clang coverage profiles (tools/coverage.sh writes them under build/)
 *.profraw
 *.profdata
+tests/image/hfs_ops_test

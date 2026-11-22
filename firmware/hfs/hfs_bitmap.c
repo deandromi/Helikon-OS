@@ -260,6 +260,29 @@ int hfs_bitmap_alloc(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
     return HFS_ERR_NO_SPACE;
 }
 
+int hfs_bitmap_block_used(struct hfs_bitmap *bitmap, uint32_t block, int *used)
+{
+    if (bitmap == NULL || used == NULL || block >= bitmap->total_blocks)
+        return HFS_ERR_ARGUMENT;
+
+    static uint8_t buffer[32768];
+    if (bitmap->block_size == 0 || bitmap->block_size > sizeof(buffer))
+        return HFS_ERR_UNSUPPORTED;
+
+    uint32_t bits_per_block = bitmap->block_size * 8u;
+    uint32_t index = block / bits_per_block;
+    uint32_t volume_block = 0;
+    int rc = map_bitmap_block(bitmap->volume, index * bits_per_block,
+                              &volume_block);
+    if (rc != HFS_OK)
+        return rc;
+    rc = read_bitmap_block(bitmap->volume, volume_block, buffer, NULL);
+    if (rc != HFS_OK)
+        return rc;
+    *used = bit_is_set(buffer, block - index * bits_per_block) ? 1 : 0;
+    return HFS_OK;
+}
+
 int hfs_bitmap_free(struct hfs_bitmap *bitmap, struct hfs_txn *tx,
                     uint32_t start, uint32_t count)
 {

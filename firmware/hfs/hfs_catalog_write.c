@@ -1228,9 +1228,18 @@ int hfs_catalog_truncate_to(struct hfs_catalog *catalog, struct hfs_txn *tx,
     /*
      * Zero the bytes past the new end of the last kept block before they stop
      * being visible: a later grow must not expose what the file used to hold.
+     *
+     * The range stops at the old size. Bytes between it and the end of the block
+     * were never part of the file — a fork's last block is only full when its
+     * size is a block multiple — and staging them would ask the fork writer for
+     * a range past EOF, which it refuses: that turned "shave a few bytes off
+     * the end" into an argument error whenever both sizes fell in the same
+     * block. A later grow fills a gap with zeros anyway.
      */
-    uint32_t tail = (uint32_t)(keep_blocks * block_size - new_size);
-    if (tail != 0) {
+    uint64_t block_end = (uint64_t)keep_blocks * block_size;
+    uint64_t zero_end = fork.size < block_end ? fork.size : block_end;
+    if (zero_end > new_size) {
+        uint32_t tail = (uint32_t)(zero_end - new_size);
         static uint8_t zeros[32768];
         if (tail > sizeof(zeros))
             return HFS_ERR_UNSUPPORTED;

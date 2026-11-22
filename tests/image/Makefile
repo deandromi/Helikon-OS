@@ -25,8 +25,8 @@ HEADERS = $(HFS)/hfs_catalog.h $(HFS)/hfs_catalog_compare.h \
 
 .PHONY: all test f2-test crash-test format-test write-diag-test outer-diag-test clean
 
-all: hfs_image_test hfs_crash_test f2_host write_diag_host outer_diag_host loader_host \
-     hfs-check
+all: hfs_image_test hfs_crash_test hfs_ops_test f2_host write_diag_host \
+     outer_diag_host loader_host hfs-check
 
 hfs_image_test: hfs_image_test.c $(COMMON) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) hfs_image_test.c $(COMMON) $(LDFLAGS) -o $@
@@ -92,6 +92,14 @@ hfs-check: ../../tools/hfs-check.c ../../firmware/hfs/hfs_check.c \
 	  ../../firmware/hfs/hfs_btree.c ../../firmware/hfs/hfs_extents.c \
 	  ../../firmware/hfs/hfs_volume.c $(LDFLAGS)
 
+# Randomized write round-trip: the writer, a model of what it should have done,
+# and the structural check plus fsck_hfs as the outside oracles.
+hfs_ops_test: hfs_ops_test.c $(COMMON) $(HEADERS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) hfs_ops_test.c $(COMMON) $(LDFLAGS) -o $@
+
+ops-test: hfs_ops_test hfs-check
+	./run-ops-macos.sh
+
 crash-test: hfs_crash_test
 	./run-crash-macos.sh
 
@@ -110,5 +118,5 @@ loader-test: loader_host
 	./run-loader-macos.sh
 
 clean:
-	rm -rf hfs_image_test hfs_crash_test f2_host write_diag_host \
-	  outer_diag_host loader_host *.dSYM
+	rm -rf hfs_image_test hfs_crash_test hfs_ops_test f2_host write_diag_host \
+	  outer_diag_host loader_host hfs-check *.dSYM

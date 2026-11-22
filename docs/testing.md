@@ -266,6 +266,46 @@ COVERAGE_IMAGE=/tmp/vol.img ./tools/coverage.sh   # also runs the library suite
 The suites are left instrumented, so run `make -C tests/<suite> clean` before a
 normal build.
 
+### 5.3.4 Random write round-trip
+
+`tests/image/hfs_ops_test.c` drives the catalog writer through a deterministic
+pseudo-random sequence of create, append, truncate, rename and delete operations
+on a disposable image, keeps a model of what the volume should hold, and asks the
+read core after every single operation whether it agrees. On top of that it
+checks that every block a live file claims is marked allocated in the bitmap and
+that no block belongs to two files — the two failures that end in silent data
+loss rather than an error. `tests/image/run-ops-macos.sh` adds the outside
+oracles: `hfs-check` over the whole volume and `fsck_hfs -fn`, after each seed.
+
+```sh
+make -C tests/image ops-test          # 2 seeds x 120 operations, ~10 s
+tests/image/run-ops-macos.sh 8 300    # the soak
+```
+
+The seed and operation index are the whole reproduction: every random draw comes
+from one LCG, so a failure prints the two numbers that rerun it, and
+`hfs_ops_test IMAGE dump NAME` prints a file's inline extents and overflow
+records so the state can be read instead of guessed at.
+
+It found three real bugs on its first runs, two of them now fixed with unit
+regressions:
+
+1. **Shrinking a file inside its last block failed.** `hfs_catalog_truncate_to`
+   asked the fork writer to zero the whole tail of the last kept block, which
+   reached past the old EOF and came back `ARGUMENT` — so `truncate(2)` of a
+   file whose size was not a block multiple did nothing. The zero range now stops
+   at the old size (`test_truncate_inside_last_block`).
+2. **Clearing and rewriting the same overflow record failed.** When a truncate
+   removed a fork's last overflow record and then wrote the smaller one back in
+   the same transaction, the second delete walked a root of zero into the header
+   node and returned `FORMAT`. `hfs_btree_delete` now reads the staged header and
+   answers `NOT_FOUND` for a tree the transaction already emptied.
+3. **Open:** a longer soak (`run-ops-macos.sh 8 300`) still reproduces a fork
+   whose block count outruns its extent records — seed 3, operation 157, file
+   `n22` claims 12 blocks with 11 inline and no overflow record at logical 11.
+   The dump and the operation log (`HFS_OPS_VERBOSE=1`) are in the log entry; the
+   default two-seed run stays green so the target is usable meanwhile.
+
 ### 5.4 Firmware-loader host test
 
 `tests/bootloader/test_ed25519.c` checks the RFC 8032 vectors, a fixed 192-byte

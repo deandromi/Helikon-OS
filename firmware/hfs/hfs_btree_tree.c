@@ -1406,6 +1406,15 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
     int rc = load_header(btree, tx, &header);
     if (rc != HFS_OK)
         return rc;
+    /*
+     * The transaction may have emptied the tree already: a truncate clears the
+     * old extents record and writes the smaller one back in the same commit, and
+     * `btree->empty` still describes the tree as it was opened. Ask the staged
+     * header, so the second delete answers "not there" instead of walking a root
+     * of zero into the header node.
+     */
+    if (header.depth == 0 || header.root_node == 0)
+        return HFS_ERR_NOT_FOUND;
 
     struct insert_path path[HFS_BTREE_MAX_DEPTH];
     uint32_t node_number = header.root_node;
