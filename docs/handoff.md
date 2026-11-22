@@ -12,6 +12,49 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (transaction overlay property test: T-134)
+
+## What happened
+
+- **A property test for the staged-block overlay.**
+  `tests/hfsplus/test_txn_overlay_props.c` stages random blocks of random sizes
+  into a transaction and reads random ranges back through `hfs_txn_overlay`. The
+  expected answer is produced by applying the model's own staged list to a copy of
+  the caller's buffer, so the test states the contract a second way instead of
+  comparing the code with itself: a read returns the image with exactly the
+  staged bytes that intersect it patched in, staging order deciding overlaps, and
+  the function returns 1 when it touched anything and 0 when it did not.
+- **The overlay never reads the disk.** Its signature takes no device and its
+  body only copies out of the staged list, so a range that no staged block covers
+  leaves the caller's buffer untouched and returns 0. The model mirrors that:
+  reading a range outside the image is not clamped, because the overlay does not
+  look at the image at all. Zero-length ranges return 0 before anything else.
+- **The staging rules are checked alongside it**: a duplicate first sector is
+  `BUSY`, replacing a staged sector with a different size is `BUSY`, the 33rd
+  staged block is `NO_SPACE`, and a bad size is `ARGUMENT`. A final case fills
+  every slot and compares a whole-image overlay byte for byte.
+- **No defect found.** 4,000 steps and 2,362 overlay checks in the default sweep,
+  60,000 steps over three further seeds, plain and under ASan/UBSan.
+- **Teeth proven by mutation.** Widening the adjacency test in `hfs_txn_overlay`
+  to `block_end < offset || block_start > end` is caught by the boundary cases
+  (`FAIL rc == expected_overlap`). Reverted; `git diff --stat` clean.
+
+## Evidence
+
+- `tests/hfsplus/test_txn_overlay_props` passes; `make -C tests/hfsplus test` and
+  `make -C tests/hfsplus sanitize` exit 0.
+- `docs/testing.md` §3.5, `docs/tasks.md` T-134, `docs/state.md` transaction row.
+
+## Open / next
+
+- Sweep 10 is the writer path: a mutation sweep over `hfs_btree_tree.c` and
+  `hfs_catalog_write.c` (76.6 % / 87 % statement coverage today). The F2 write
+  path stays host-only and unconfirmed; it is not in Alpha 2.0.0.
+- The B-tree insert/delete model property test is still the largest uncovered
+  invariant in `docs/testing.md` §4.
+
+---
+
 # Handoff — 2026-11-22 (journal crash-atomicity property test: T-133)
 
 ## What happened

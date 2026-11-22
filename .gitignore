@@ -105,3 +105,5 @@ tests/hfsplus/test_bitmap_props
 tests/hfsplus/test_bitmap_props.dSYM/
 tests/hfsplus/test_journal_props
 tests/hfsplus/test_journal_props.dSYM/
+tests/hfsplus/test_txn_overlay_props
+tests/hfsplus/test_txn_overlay_props.dSYM/

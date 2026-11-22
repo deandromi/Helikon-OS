@@ -31,7 +31,7 @@ Helikon-OS validation.
 | Host unit | Parser, allocator, name, state-machine logic | Host | `in progress` — HFS+ read core, journal and txn | Every module |
 | Fuzzing and mutation sweeps | Malformed B-trees, extents, names, journal records and bitstreams do not crash or escape bounds | Host | `in progress` — 7 libFuzzer harnesses with a committed corpus, plus the HFS+ image and codec mutation sweeps (§3, §3.2) | Reader, writer, journal, decoders |
 | Model-based B-tree | Insert/update/delete, split/merge, key order, free-node map | Host | `planned` | Writer |
-| Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `in progress` — the byte-range block layer has a 4000-range property test and the allocation bitmap has a 4,000-step model test (§3.3); B-tree and journal properties `planned` | Writer/journal |
+| Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `in progress` — the byte-range block layer has a 4000-range property test, the allocation bitmap has a 4,000-step model test (§3.3), the transaction overlay has one (§3.5) and the journal commit path is cut at every write (§3.4); B-tree properties `planned` | Writer/journal |
 | Differential vs macOS | Same tree/names/metadata/`fsck_hfs` result on both sides; catalog order matches Apple's | Host + macOS | `in progress` — ordering and read differential run; writer-side tree comparisons partly covered | Writer |
 | Bootloader diagnostics | Read-only volume/catalog/file report and splash | Host | `in progress` — 8 tests | Boot screen |
 | Device | Boot, mount, playback, write, USB, sleep, recovery | 6G (then 7G/ports) | `not run` | Any hardware claim |
@@ -286,6 +286,41 @@ with `FAIL transaction 0: 1 of 2 targets applied at write 6, the rest not`.
 What it cannot prove: that the device honours the barrier. The budget model drops
 whole writes and never reorders them, so a missing `flush()` between payload and
 commit is invisible here — that is the hardware's job and the device matrix's.
+
+### 3.5 Transaction overlay property test
+
+The overlay is why two updaters of the volume header can live in one
+transaction: the second reads through the first one's staged bytes instead of
+the committed ones, so it cannot silently drop the first one's change.
+`tests/hfsplus/test_txn_overlay_props.c` models the contract and hammers it with
+random stages and random ranges:
+
+- `hfs_txn_overlay` patches exactly the staged bytes that intersect a range and
+  leaves the rest of the caller's buffer alone — it never reads the disk, which
+  is `hfs_txn_read`'s job, and the model expresses both that way;
+- it answers 1 when anything intersected, 0 when nothing did, and a zero-length
+  range touches nothing even when the offset sits inside a staged block;
+- staged blocks are applied in the order they were staged, so where two overlap
+  the later one wins (callers stage whole sectors, so an overlap is a caller bug,
+  but the answer must still be the documented one);
+- slices at both ends are copied from the right offset of the block data,
+  including ranges that start one byte before or end one byte after a block;
+- `stage` rules hold: a duplicate sector is `BUSY`, replacing with a different
+  size is `BUSY`, the 33rd block is `NO_SPACE`, a bad size is `ARGUMENT`, and a
+  full transaction's overlay over the whole image still matches the model.
+
+The expected answer is computed by applying the model's own staged list to a
+copy of the caller's buffer, a second expression of the contract rather than a
+call back into the code under test.
+
+```sh
+cd tests/hfsplus && ./test_txn_overlay_props              # 4,000 steps
+cd tests/hfsplus && ./test_txn_overlay_props 7 20000      # another seed, longer
+```
+
+It found no defect. Teeth checked by mutation: widening the adjacency test to
+`block_end < offset || block_start > end` is caught by the boundary cases with
+`FAIL rc == expected_overlap`.
 
 ## 4. Model-based B-tree tests
 
