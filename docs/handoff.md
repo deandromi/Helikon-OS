@@ -12,6 +12,50 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-22 (a playlist becomes a queue: T-123)
+
+## What happened
+
+- **`firmware/library/library.c/.h`** — the glue between the playlist parser, the
+  HDB and the queue. An HDB track carries a *string offset* for its path, so
+  resolving a playlist by scanning the catalog per entry would read it once per
+  pair; instead the index is built once per mount: one pass, one FNV-1a hash per
+  track, a fixed 1024-slot open-addressed table (8 B per slot, load factor one
+  half, no allocation). A probe is a hash plus one path comparison to confirm.
+  `complete` says whether every track was indexed, so `NOT_FOUND` is never read
+  as proof of absence when it is not.
+- **`helikon_library_queue_from_playlist(index, queue, text, length, base,
+  result)`** parses, resolves and replaces the queue with the track indices in
+  playlist order, counting `entries`, `added`, `missing` and `refused`
+  separately — a stale path and a malformed line are different questions.
+  `_Static_assert(HELIKON_QUEUE_CAPACITY >= HELIKON_PLAYLIST_MAX_ENTRIES)`: a
+  whole playlist has to fit, or an entry is dropped for an unexplainable reason.
+- **Byte-exact comparison, documented**: a playlist whose case differs from the
+  file's is reported missing rather than guessed, because folding would import
+  the filesystem's table into the library.
+- **`tests/musicdb/test_library_index.c`** builds its playlist out of the
+  fixture's own track paths, so it checks the index against the catalog instead
+  of against strings someone typed.
+
+## Evidence
+
+- `make -C tests/musicdb test` → `PASS hdb`, `PASS library index (6 tracks, 6
+  slots used)`; `sanitize` green.
+- `./tools/host-tests.sh clang` → 9 suites pass.
+- `./tools/static-analysis.sh` → 76 units, 0 findings (`firmware/library` added
+  to both the source list and the include path).
+- `make -C firmware BOARD=6g image` → unchanged at 80,020 B; `library/library.c`
+  is compiled into every image and garbage-collected until something calls it.
+
+## Open / next
+
+- No firmware call site yet: the Music hub still plays its embedded blob, and the
+  chain that would use this is VFS mount → `hdb_vfs_open` → index → playlist →
+  queue → player, which is the storage-backed player work, not this module.
+- A case-insensitive comparison (HFS+ semantics) would need the HFS+ fold table;
+  that is a deliberate follow-up, not an oversight.
+- Cuesheets, playlist export and `bookmark`/resume state remain in T-093.
+
 # Handoff — 2026-11-22 (playlist import: T-093's first slice)
 
 ## What happened
