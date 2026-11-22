@@ -78,6 +78,34 @@ jobs:
           path: build/host-tests/
           if-no-files-found: ignore
 
+  fuzz:
+    name: fuzzers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang
+        # Ubuntu's clang ships libclang_rt.fuzzer, which Xcode's does not.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang
+
+      - name: Replay the committed corpus
+        run: ./tools/fuzz.sh --replay
+
+      - name: Guided run, one harness at a time
+        run: ./tools/fuzz.sh 20
+
+      - name: Keep a reproducer and its log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-findings
+          path: |
+            tests/*/fuzz/findings/
+            build/fuzz/
+          if-no-files-found: ignore
+
   macos:
     name: disk-image suites (macos)
     # `macos-latest` rather than a pinned version: a cancelled-in-one-second job

@@ -80,13 +80,38 @@ the disk-image suites create their own images; neither mode touches a device.
 
 ## 3. Fuzzing and sanitizers
 
-- Fuzz targets: volume header, B-tree node/offset table, catalog records,
-  extents/overflow, names/Unicode, journal records, manifest.
-- Run ASan/UBSan on every host target.
-- Treat a crash, hang, out-of-bounds read/write or assertion as a defect, not a
-  "known fuzz case".
-- Keep corpus files small and deterministic; do not commit device images,
-  proprietary data or personal data.
+`tools/fuzz.sh` builds and runs the libFuzzer harnesses. Five exist, each with
+a stated invariant, because a fuzz target that only proves "does not crash" is
+worth much less than one that knows what would be wrong:
+
+| Harness | Target | Invariant |
+|---|---|---|
+| `id3v2` | `firmware/codec/tag/id3v2.c` | a non-zero tag size only comes from a buffer that starts with the header; every text field is terminated inside its array |
+| `vorbis` | `firmware/codec/tag/vorbis.c` | comments stay terminated; the FLAC walker only accepts a buffer that starts with `fLaC` |
+| `hdb` | `firmware/db/hdb.c` | every offset the reader reports is inside the file it was given |
+| `manifest` | `bootloader/manifest.c`, `bootstate.c` | a short or corrupt page is refused and leaves the output untouched; an accepted image size is inside DRAM |
+| `journal` | `firmware/hfs/hfs_journal.c` | a journal whose checksum does not match is never reported clean (I-04); a hostile but checksum-consistent journal may fail to replay but never writes outside the device |
+
+```sh
+./tools/fuzz.sh                    # every harness, 60 seconds each
+./tools/fuzz.sh id3v2 300          # one harness, five minutes
+./tools/fuzz.sh --replay           # run the committed corpus, no libFuzzer
+```
+
+The corpus lives in `tests/<suite>/fuzz/corpus/<harness>/` and is committed, so a
+finding becomes a test the moment it is understood: copy the reproducer from
+`tests/<suite>/fuzz/findings/`, add the fix, commit both. `--replay` builds each
+harness against `tools/fuzz-replay-main.c` with ASan and UBSan and runs every
+committed file through it — that works on a Mac whose clang has no
+`libclang_rt.fuzzer`, which is every Mac with only the Command Line Tools. The
+guided run needs the runtime and is what CI does for 20 seconds per harness. The
+corpus alone already reaches 64 % of `id3v2.c`'s regions, so replay is a real
+test, not a formality.
+
+Anyone adding a parser should add a harness and a handful of seeds in the same
+pull request. A crash, a hang or a violated invariant is a defect, not a "known
+fuzz case", and no corpus file may be a device image, a proprietary sample or
+personal data.
 
 ## 4. Model-based B-tree tests
 
@@ -787,6 +812,7 @@ Two workflows, both in `.github/workflows/`, both host-only.
 |---|---|---|
 | `portable` | ubuntu | `tools/host-tests.sh clang --keep-going` — the nine portable suites |
 | `sanitize` | ubuntu | the same suites under ASan and UBSan |
+| `fuzz` | ubuntu | `tools/fuzz.sh --replay`, then 20 guided seconds per harness; a red run uploads the reproducer and the log |
 | `macos` | macos-latest | `tools/host-tests.sh clang --macos` — the disk-image suites: `hdiutil`, `fsck_hfs`, the mount. `HOST_TESTS_MACOS_SKIP=format-test`, because a 140 GiB sparse image does not reliably fit a hosted runner |
 | `build` | ubuntu | `make -C firmware BOARD=6g image` and `DISKMODE=1 image` with the distro ARM toolchain |
 
