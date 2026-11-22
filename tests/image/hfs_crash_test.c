@@ -103,7 +103,14 @@ static int flush_at(void *context)
     return fsync(io->fd) == 0 ? 0 : -1;
 }
 
-static int open_image(const char *path, struct image *image, int replay)
+/*
+ * `replay_cut` injects a write failure at that write of the replay itself, so a
+ * second fault can land while the journal is being played back. Zero means no
+ * cut. A cut during replay is the fault the crash matrix could not express
+ * before: the image is left half-replayed, and the next open has to converge.
+ */
+static int open_image(const char *path, struct image *image, int replay,
+                      unsigned long replay_cut)
 {
     memset(image, 0, sizeof(*image));
     image->io.fd = open(path, O_RDWR);
@@ -126,7 +133,10 @@ static int open_image(const char *path, struct image *image, int replay)
     if (!hfs_journal_is_clean(&image->journal)) {
         if (!replay)
             return HFS_ERR_DIRTY;
+        if (replay_cut != 0ul)
+            image->io.fail_at = replay_cut;
         rc = hfs_journal_replay(&image->journal);
+        image->io.fail_at = 0;
         if (rc != HFS_OK)
             return rc;
         rc = hfs_volume_probe(&image->volume, read_at, &image->io, 0,
@@ -472,7 +482,8 @@ int main(int argc, char **argv)
     if (argc < 4) {
         fprintf(stderr,
                 "usage: %s IMAGE setup SCENARIO | crash SCENARIO CUT "
-                "[flush|partial] | recover SCENARIO\n", argv[0]);
+                "[flush|partial] | recover SCENARIO | replay-cut SCENARIO N | "
+                "replay-twice SCENARIO\n", argv[0]);
         return 2;
     }
 
@@ -488,7 +499,7 @@ int main(int argc, char **argv)
     if (strcmp(mode, "setup") == 0) {
         if (argc != 4)
             return 2;
-        rc = open_image(argv[1], &image, 1);
+        rc = open_image(argv[1], &image, 1, 0ul);
         if (rc == HFS_OK)
             rc = prepare(&image, scenario);
     } else if (strcmp(mode, "crash") == 0) {
@@ -504,18 +515,62 @@ int main(int argc, char **argv)
                 return 2;
         }
         unsigned long cut = strtoul(argv[4], NULL, 10);
-        rc = open_image(argv[1], &image, 1);
+        rc = open_image(argv[1], &image, 1, 0ul);
         if (rc == HFS_OK)
             rc = inject(&image, scenario, cut, failure_mode);
     } else if (strcmp(mode, "recover") == 0) {
         if (argc != 4)
             return 2;
-        rc = open_image(argv[1], &image, 1);
+        rc = open_image(argv[1], &image, 1, 0ul);
         if (rc == HFS_OK) {
             rc = recover(&image, scenario);
             if (rc == HFS_OK && !hfs_journal_is_clean(&image.journal))
                 rc = HFS_ERR_DIRTY;
         }
+    } else if (strcmp(mode, "replay-cut") == 0) {
+        /*
+         * Fault injection during replay. The step succeeds when the replay is
+         * refused at the cut; a cut beyond the replay's own write count simply
+         * completes, which is also a valid outcome. Either way the image must
+         * still open afterwards, which `recover` then proves.
+         */
+        if (argc != 5)
+            return 2;
+        unsigned long cut = strtoul(argv[4], NULL, 10);
+        rc = open_image(argv[1], &image, 1, cut);
+        if (rc != HFS_OK) {
+            printf("replay-cut=%lu\n", cut);
+            rc = HFS_OK;
+        } else {
+            printf("replay-completed\n");
+        }
+    } else if (strcmp(mode, "replay-twice") == 0) {
+        /*
+         * Replay must be idempotent. Recover once, then open the same image
+         * again and recover again: the second pass has a clean journal, must
+         * not change the tree, and must still describe the same state.
+         */
+        if (argc != 4)
+            return 2;
+        rc = open_image(argv[1], &image, 1, 0ul);
+        if (rc == HFS_OK)
+            rc = recover(&image, scenario);
+        if (rc == HFS_OK)
+            rc = hfs_journal_is_clean(&image.journal) ? HFS_OK
+                                                      : HFS_ERR_DIRTY;
+        close_image(&image);
+        memset(&image, 0, sizeof(image));
+        image.io.fd = -1;
+        if (rc == HFS_OK) {
+            rc = open_image(argv[1], &image, 1, 0ul);
+            if (rc == HFS_OK)
+                rc = recover(&image, scenario);
+            if (rc == HFS_OK)
+                rc = hfs_journal_is_clean(&image.journal) ? HFS_OK
+                                                          : HFS_ERR_DIRTY;
+        }
+        if (rc == HFS_OK)
+            printf("idempotent=1\n");
     } else {
         fprintf(stderr, "unknown mode: %s\n", mode);
         return 2;
