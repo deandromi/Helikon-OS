@@ -67,6 +67,7 @@ Helikon-OS/
     board/6g/             BSP constants, board description, runtime wiring, write gate
     hal/6g/               clock, PMU, backlight, LCD, ATA read/write/flush, buttons, CPU, CS42L55/I2S/DMA
     block/                block device with read-only gate, bounce, APM/MBR/raw scan
+    library/              HDB path index and playlist resolution into the queue
     diag/                 stage machine, RAM trace, crash record, RGB565 screen
     player/               bounded WAV parser, PCM playback state (buffer and
                           pull-source opens), the VFS media adapter
@@ -191,8 +192,10 @@ Helikon-OS/
       test_loader_error.c   every loader error code has a distinct, format-safe
                             message and there is no gap down to UNSUPPORTED
   tests/musicdb/
-    Makefile                HelikonDB fixture and reader test
+    Makefile                HelikonDB fixture, reader and library-glue tests
     test_hdb.c              fixture + optional real-library checks
+    test_library_index.c    path index over the fixture and playlist resolution
+                            into the play queue (order, missing, refused)
   tests/library/
     Makefile                HFS+ -> VFS -> HDB and audio storage-path test
                             (plus `macos-sanitize`)

@@ -621,6 +621,12 @@ make -C tests/musicdb test
 make -C tests/musicdb real REAL=/path/to/music.hdb
 ```
 
+It also builds `test_library_index`, which is the library glue: it indexes every
+track path in the fixture, checks that each path resolves to its own track, and
+resolves a playlist built out of real fixture paths plus an absent one and a
+refused one — asserting the queue order and that the two failure kinds are
+counted separately.
+
 The reference builder is:
 `python3 tools/hdb_build.py build MUSIC_DIR --out music.hdb --sample 100`.
 

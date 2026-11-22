@@ -12,15 +12,20 @@ FIXTURE := $(OUT)/fixture.hdb
 
 .PHONY: test real sanitize clean
 
-test: $(TEST) $(FIXTURE)
+LIB_INDEX := $(OUT)/test_library_index
+LIB_INDEX_SAN := $(OUT)/test_library_index_san
+
+test: $(TEST) $(LIB_INDEX) $(FIXTURE)
 	$(TEST) $(FIXTURE)
+	$(LIB_INDEX) $(FIXTURE)
 
 real: $(TEST) $(FIXTURE)
 	@test -n "$(REAL)" || (echo "usage: make real REAL=/path/music.hdb" && exit 2)
 	$(TEST) $(FIXTURE) "$(REAL)"
 
-sanitize: $(SAN) $(FIXTURE)
+sanitize: $(SAN) $(LIB_INDEX_SAN) $(FIXTURE)
 	$(SAN) $(FIXTURE) $(if $(REAL),"$(REAL)",)
+	$(LIB_INDEX_SAN) $(FIXTURE)
 
 $(TEST): test_hdb.c ../../firmware/db/hdb.c ../../firmware/db/hdb.h \
          ../../firmware/lib/crc32.c ../../firmware/lib/mem.c
@@ -37,6 +42,29 @@ $(SAN): test_hdb.c ../../firmware/db/hdb.c ../../firmware/db/hdb.h \
 	      -o $@ test_hdb.c ../../firmware/db/hdb.c \
 	      ../../firmware/lib/crc32.c ../../firmware/lib/mem.c \
 	      ../../firmware/lib/string.c
+
+LIB_INDEX_SRC := test_library_index.c ../../firmware/library/library.c \
+                 ../../firmware/library/library.h ../../firmware/db/hdb.c \
+                 ../../firmware/player/playlist.c ../../firmware/player/queue.c \
+                 ../../firmware/lib/crc32.c ../../firmware/lib/mem.c \
+                 ../../firmware/lib/string.c
+
+$(LIB_INDEX): $(LIB_INDEX_SRC)
+	@mkdir -p $(OUT)
+	$(CC) $(CFLAGS) -I../../firmware/library -I../../firmware/player -o $@ \
+	      test_library_index.c ../../firmware/library/library.c \
+	      ../../firmware/db/hdb.c ../../firmware/player/playlist.c \
+	      ../../firmware/player/queue.c ../../firmware/lib/crc32.c \
+	      ../../firmware/lib/mem.c ../../firmware/lib/string.c
+
+$(LIB_INDEX_SAN): $(LIB_INDEX_SRC)
+	@mkdir -p $(OUT)
+	$(CC) $(CFLAGS) -fsanitize=address,undefined -fno-omit-frame-pointer \
+	      -I../../firmware/library -I../../firmware/player -o $@ \
+	      test_library_index.c ../../firmware/library/library.c \
+	      ../../firmware/db/hdb.c ../../firmware/player/playlist.c \
+	      ../../firmware/player/queue.c ../../firmware/lib/crc32.c \
+	      ../../firmware/lib/mem.c ../../firmware/lib/string.c
 
 $(FIXTURE): ../../tools/hdb_build.py
 	@mkdir -p $(OUT)
