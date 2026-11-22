@@ -414,6 +414,21 @@ MENU: reboot after eject.
 - Entry from the launcher Settings tile; a boot gesture is future work and must
   not conflict with Apple Menu+Play or DFU Menu+Select.
 
+### 12.0 A bootloader-side image (2026-11-21)
+
+`./tools/build-usb-disk-bootloader.sh` builds a separate DFU-only bootloader
+image whose only job is the same LUN, for a player whose firmware cannot boot.
+It reuses the firmware's USB stack (`usb.c` over a seam built in
+`bootloader/hardware/helikon_usb_disk_hw.c`), polls the controller instead of
+wiring the donor's VIC, and asks for SELECT before handing the disk over.
+
+Built: `bootloader-ipod6g-usb-disk.ipod`, 108,104 bytes, SHA-256
+`cef07a56…`; DFU 116,240 bytes, SHA-256 `bbd7b664…`; `_moveend 0x2203ae40`
+against `MOVE_AREA` end `0x22040000`, 20,928 bytes of headroom; the image
+contains `helikon_usb_init`, `helikon_disk_mode_start` and the "Helikon Disk
+Mode" product string. **No device run.** The production bootloader stays
+read-only; this is a separate diagnostic, like the write images.
+
 ### 12.1 The image on 2026-11-21
 
 `make -C firmware BOARD=6g DISKMODE=1` builds a Disk Mode firmware image. It is

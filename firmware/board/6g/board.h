@@ -70,6 +70,19 @@ int helikon_board_storage_init(struct helikon_board_runtime *runtime,
  * second ATA init. The block stays read-only: no write gate is opened.
  */
 int helikon_board_storage_attach(struct helikon_board_runtime *runtime);
+
+/*
+ * The same attach with explicit block flags. Disk Mode passes 0: the whole
+ * point of that mode is that the host may write. Every other caller keeps the
+ * read-only attach above, so a writable block device has exactly one reason to
+ * exist and it is named at the call site.
+ */
+int helikon_board_storage_attach_flags(struct helikon_board_runtime *runtime,
+                                       uint32_t flags);
+
+/* ATA init + a writable block device. Disk Mode only (D-54). */
+int helikon_board_storage_init_writable(struct helikon_board_runtime *runtime,
+                                        uint32_t timeout_ms);
 int helikon_board_input_init(struct helikon_board_runtime *runtime,
                              uint32_t timeout_ms);
 
