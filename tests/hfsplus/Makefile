@@ -63,9 +63,10 @@ test_check: test_check.c test_image.c test_image.h test_check.h \
 
 test_journal: test_journal.c test_check.h \
               $(HFS)/hfs_journal.c $(HFS)/hfs_journal.h \
+              $(HFS)/hfs_txn.c $(HFS)/hfs_txn.h \
               $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_journal.c \
-	  $(HFS)/hfs_journal.c $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
+	  $(HFS)/hfs_journal.c $(HFS)/hfs_txn.c $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
 
 test_txn: test_txn.c test_check.h \
           $(HFS)/hfs_txn.c $(HFS)/hfs_txn.h \
