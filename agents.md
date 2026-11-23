@@ -1,9 +1,9 @@
 # agents.md — working contract for Helikon-OS
 
 **Purpose:** working contract and documentation index.
-**Status:** living document; pre-phase 0 with an Alpha 2.0.0 development release.
+**Status:** living document; pre-phase 0 with an Alpha 2.1.0 development release.
 **Owner:** project owner; every agent
-**Last updated:** 2026-11-22
+**Last updated:** 2026-11-23
 **Source:** root `README.md`, `docs/design-paper.md`
 **Entry point:** read this file first, then `docs/README.md`.
 
@@ -14,23 +14,27 @@ the manual. The design source is `docs/design-paper.md`; current truth is
 ## 1. Project identity and status
 Helikon-OS is a native-HFS+ bootloader and firmware project for the iPod Classic
 6th generation, with the 7th generation as the next named port. It is in
-pre-phase 0 and has an Alpha 2.0.0 development release; it is not a production or
+pre-phase 0 and has an Alpha 2.1.0 development release; it is not a production or
 supported firmware release.
 
-- **Current release:** Alpha 2.0.0 “Launchers and Interfaces” (`alpha-2.0.0`)
-  ships the loader test image, the storage-free launcher and Music-hub firmware
-  sets, and a universal macOS companion shell DMG. It does not include a
-  firmware-owned filesystem write. The firmware uses a build-local test key; the
-  companion is ad-hoc signed and not notarized. The owner reports 6G testing
-  complete for the release set; the per-image evidence was not attached at cut
-  time. This is a development release, not a support claim.
+- **Current release:** Alpha 2.1.0 “Disk Mode” (`alpha-2.1.0`) ships the loader
+  test image, three firmware sets (the storage-free launcher and Music hub, plus
+  a Disk Mode image that hands the whole disk to a host as one writable USB LUN
+  for backup, partition and format above 128 GiB) and a universal macOS
+  companion shell DMG. It does not include a firmware-owned filesystem write in
+  the UI images. The firmware uses a build-local test key; the companion is
+  ad-hoc signed and not notarized. **No 2.1.0 artifact has been run on a
+  device**; the 2.0.0 set has only the owner's report of completed 6G testing,
+  with no per-image evidence attached. This is a development release, not a
+  support claim.
 - **What exists:** a host HFS+ read/write core, an F1 read-only firmware tree,
   the launcher and Music-hub UI images, HelikonDB v1, a read-only diagnostic
   bootloader image, an inner-image write diagnostic and an outer-volume write
   diagnostic. F1 has one owner-reported 6G run. An F2/T-055 firmware write path
   exists and is host-verified (ATA write/flush, bootstate promotion, in-place
   HFS+ overwrite and the `WRITE` stage), but it is unfinished and unconfirmed
-  due to a currently unfixable bug; it is **not** part of Alpha 2.0.0. There is
+  due to a currently unfixable bug; it is **not** part of Alpha 2.0.0 or 2.1.0.
+  There is
   no production firmware-loading bootloader, installer, signed update path or
   working companion. A separate DFU-only loader test image verifies a signed
   manifest/image and loads the development images. The read-only diagnostic
