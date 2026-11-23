@@ -225,6 +225,8 @@ static uint32_t fork_offset(const struct hfs_btree *btree)
         return 272u;
     if (btree->fork == &btree->volume->extents)
         return 192u;
+    if (btree->fork == &btree->volume->attributes_file)
+        return 352u;
     return 0;
 }
 
@@ -257,7 +259,7 @@ static int update_volume_fork(struct hfs_btree *btree, struct hfs_txn *tx,
         }
     }
     if (!placed)
-        return HFS_ERR_UNSUPPORTED;
+        return HFS_ERR_NO_SPACE;
 
     fork->size += btree->node_size;
     ++fork->blocks;
@@ -296,16 +298,56 @@ static int update_volume_fork(struct hfs_btree *btree, struct hfs_txn *tx,
     return HFS_OK;
 }
 
+/*
+ * Widen the header node's free-node map by two bytes so one more node fits.
+ *
+ * The map record is the header node's third record and the node's free space
+ * starts right after it, so the map grows into that free space and the offset
+ * table's last entry (the free-space start) moves two bytes along. A header node
+ * written by macOS spends its whole free area on the map - it is sized for
+ * thousands of nodes at format time - and has no room to widen; a tightly sized
+ * map, which any other formatter can produce, is the case this exists for.
+ */
+static int widen_map(const struct hfs_btree *btree,
+                     struct tree_header *header)
+{
+    uint16_t count = be16(header->node + 10);
+    unsigned int table = btree->node_size - 2u * (count + 1u);
+    uint16_t free_start = be16(header->node + btree->node_size -
+                               2u * (count + 1u));
+    /* A header node holds exactly three records: the header, the user record
+     * and the map this widens. */
+    if (count != 3u)
+        return HFS_ERR_FORMAT;
+    if (free_start > table || table - free_start < 2u)
+        return HFS_ERR_NO_SPACE;
+
+    uint16_t map_start = be16(header->node + btree->node_size - 6u);
+    if (map_start < 14u || (size_t)map_start + header->map_length != free_start)
+        return HFS_ERR_FORMAT;
+
+    header->node[free_start] = 0;
+    header->node[free_start + 1u] = 0;
+    put16(header->node + btree->node_size - 2u * (count + 1u),
+          (uint16_t)(free_start + 2u));
+    header->map_length += 2u;
+    return HFS_OK;
+}
+
 static int grow_locked(struct hfs_btree *btree, struct hfs_txn *tx,
                        struct tree_header *header)
 {
-    if (btree->node_size != btree->volume->block_size ||
-        header->total_nodes >= header->map_length * 8u ||
-        btree->fork == NULL)
+    if (btree->node_size != btree->volume->block_size || btree->fork == NULL)
         return HFS_ERR_UNSUPPORTED;
 
     struct hfs_bitmap bitmap;
-    int rc = hfs_bitmap_open(&bitmap, btree->volume);
+    int rc = HFS_OK;
+    if (header->total_nodes >= header->map_length * 8u) {
+        rc = widen_map(btree, header);
+        if (rc != HFS_OK)
+            return rc;
+    }
+    rc = hfs_bitmap_open(&bitmap, btree->volume);
     if (rc != HFS_OK)
         return rc;
 
@@ -335,7 +377,7 @@ static int grow_locked(struct hfs_btree *btree, struct hfs_txn *tx,
 
     uint32_t node = header->total_nodes;
     if (node / 8u >= header->map_length)
-        return HFS_ERR_UNSUPPORTED;
+        return HFS_ERR_NO_SPACE;
     map_set(header, node, 0);
     ++header->total_nodes;
     ++header->free_nodes;

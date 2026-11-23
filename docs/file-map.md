@@ -160,7 +160,9 @@ Helikon-OS/
       test_fork_io.c        fork full/partial block staging tests, inline and
                             multi-extent map
       test_btree_tree.c     tree insert/delete/rebalance model test
-      test_btree_grow.c     B-tree fork growth test
+      test_btree_grow.c     B-tree fork growth test: a tight node map widens, a
+                            full map or a full extent list answers NO_SPACE, and
+                            the attributes tree grows through its own fork
       test_catalog_compare.c catalog key/FastUnicodeCompare ordering tests
       test_catalog_index.c   two/three-level catalog lookup + mutation fuzz
       test_catalog_write.c  catalog create/delete/append/overwrite/truncate tests
@@ -185,6 +187,11 @@ Helikon-OS/
                             directory model, with every folder's valence, every
                             file's contents and `hfs_check_volume` checked after
                             each operation
+      test_btree_model.c    B-tree-level model test: random inserts, deletes and
+                            in-place updates on the extents tree against a
+                            sorted model of keys and bodies, with `find`, the
+                            leaf chain and `hfs_check_volume` checked after
+                            every operation
     image/
       Makefile              disposable-image writer test build
       hfs_image_test.c      create/rename/truncate/delete/overflow/overwrite/

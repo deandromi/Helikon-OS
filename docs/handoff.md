@@ -12,6 +12,50 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-23 (B-tree model test: T-138; growth fix: T-139)
+
+## What happened
+
+- **A model test for the tree, not the catalog.** `tests/hfsplus/test_btree_model.c`
+  drives the extents-overflow tree with random inserts, deletes and in-place
+  updates on a 1 MiB volume with 512-byte nodes, and after every operation checks
+  `find` against a sorted model, the leaf chain (exactly the model, strictly
+  ascending, right bodies) and `hfs_check_volume` with no findings and no skips. A
+  refusal (`UNSUPPORTED` for an unimplemented merge case, `NO_SPACE` when the tree
+  is full) must leave the image byte-identical.
+- **It found issue #118, fixed as T-139.** `grow_locked()` refused with
+  `HFS_ERR_UNSUPPORTED` when `total_nodes` reached the bits the map record held —
+  a tight map could never grow. The map record now widens by two bytes into the
+  header node's free space (`widen_map()` moves the free-space offset entry with
+  it); a map that cannot widen, and a fork with no free extent slot, answer
+  `HFS_ERR_NO_SPACE`; `fork_offset()` also maps the attributes fork (352).
+- **`test_btree_grow` is 5 cases** now: the original grow, a tight map that
+  widens and is seen by a fresh reader, a map that fills the header node (NO_SPACE,
+  nothing staged), a fork with eight extents (NO_SPACE), and the attributes tree.
+
+## Evidence
+
+`make -C tests/hfsplus test` 163 cases and `sanitize` exit 0; `tests/bootloader`
+44 cases and `sanitize` exit 0; `./tools/host-tests.sh clang` 9 suites;
+`./tools/static-analysis.sh` clean; 6G cross-build 80,840 bytes. The committed
+model sweep is 1,800 operations (861 inserts, 572 deletes, 367 updates, 270 keys,
+depth 3, 64 → 70 nodes); 2,600-operation runs over six seeds reach 513 keys and
+128 nodes, the whole fork. Host-only: no device run, and the F2 write path stays
+unconfirmed.
+
+## Open / next
+
+- **A test bug cost an hour again.** `MAX_ITEMS` was 512 and a long sweep reached
+  513, overwriting the neighbouring model array and producing a phantom "record
+  body differs". Guarded now (`model_count >= MAX_ITEMS` skips the insert) and
+  raised to 1,024. When a model test fails on one record's *body*, suspect the
+  model's own storage before the writer.
+- Queued next: the writer mutation sweep (corrupt a volume, drive the writer,
+  require fail-closed and no new findings), and forced root-change/split-merge
+  cascades driven from the model rather than by chance.
+
+---
+
 # Handoff — 2026-11-23 (node ownership in the structural check: T-137)
 
 ## What happened
