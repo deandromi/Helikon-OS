@@ -12,6 +12,42 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-23 (write-path mutation sweep: T-140; reserved CNID fix: T-141)
+
+## What happened
+
+- **`tests/hfsplus/test_writer_mutations.c`** sweeps the *write* path: a valid
+  volume, one corrupted structural field (33 curated, plus a seeded random tail),
+  then `probe → check → catalog open → create file` in a transaction. The rules
+  are "a refused write changes nothing" (image byte-identical) and "a write never
+  turns a clean volume inconsistent". Fields whose correct answer is a refusal are
+  marked and must be refused.
+- **It found issue #120, fixed as T-141.** A volume header whose `nextCatalogID`
+  is below 3 made `create_object()` insert a record under a reserved CNID — the
+  root's own CNID when the field read 2 — and `hfs_check_volume` never looked at
+  the field. The writer now refuses with `HFS_ERR_FORMAT` (and on a `0xffffffff`
+  volume count, whose increment would wrap); the check reports the new
+  `HFS_CHECK_CATALOG_ID` (0x00200000).
+- `test_check` is 30 cases: the new one sets `nextCatalogID` to 2 and expects the
+  finding; the fixture now leaves 16, what a formatter writes.
+
+## Evidence
+
+`make -C tests/hfsplus test` (164 cases) and `sanitize` exit 0; `test_check` 30/30;
+the committed sweep 33 curated + 400 random, and 3,000-iteration runs over seeds
+12345/7/99/555 — 2,971 commits, every clean-before case still clean. Teeth:
+skipping the file-count update fails the pristine sanity case, accepting a
+reserved CNID fails the curated case, and removing the check's new bit fails
+`test_check`. Host-only: no device run; F2 stays unconfirmed.
+
+## Open / next
+
+- The sweep's committed size is small (0.02 s); longer seeds are worth running
+  when the writer changes. It drives create only — delete, rename and data writes
+  are the next operations to sweep.
+
+---
+
 # Handoff — 2026-11-23 (B-tree model test: T-138; growth fix: T-139)
 
 ## What happened

@@ -43,7 +43,8 @@
  *    wrong - and a node marked free but reachable would be handed out again and
  *    overwrite live records;
  *  - the file and folder counts the volume header claims against the records
- *    actually there.
+ *    actually there, and the next catalog ID against the two CNIDs the format
+ *    reserves and the root's own ID.
  *
  * What it does not check yet: the attributes tree's index keys (its key order is
  * not exercised by any fixture here), the B-tree node's own free-space
@@ -97,6 +98,9 @@
  * out of `problems` for the same reason as the bitmap skip.
  */
 #define HFS_CHECK_SKIPPED_NODES 0x00100000u
+/* A next-catalog-ID that would hand out a reserved CNID. 0 and 1 are reserved
+ * and 2 is the root folder, so the volume header must say 3 or more. */
+#define HFS_CHECK_CATALOG_ID 0x00200000u
 
 /*
  * The allocation bitmap is counted up to this size. 8 MiB of bitmap describes

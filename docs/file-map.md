@@ -192,6 +192,10 @@ Helikon-OS/
                             sorted model of keys and bodies, with `find`, the
                             leaf chain and `hfs_check_volume` checked after
                             every operation
+      test_writer_mutations.c write-path mutation sweep: one corrupted structural
+                            field at a time, then a create, holding the writer to
+                            "a refused call changes nothing" and "a write never
+                            damages a clean volume"
     image/
       Makefile              disposable-image writer test build
       hfs_image_test.c      create/rename/truncate/delete/overflow/overwrite/

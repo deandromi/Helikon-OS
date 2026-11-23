@@ -194,6 +194,15 @@ static int create_object(struct hfs_catalog *catalog, struct hfs_txn *tx,
     rc = read_counts(volume, &file_count, &folder_count, &next_cnid);
     if (rc != HFS_OK)
         return rc;
+    /*
+     * CNIDs 0 and 1 are reserved and 2 is the root folder. A volume header that
+     * says anything below 3 has been corrupted or hand-built, and using it would
+     * write a record under a reserved ID - so refuse instead of guessing.
+     */
+    if (next_cnid < 3u)
+        return HFS_ERR_FORMAT;
+    if (file_count == 0xffffffffu || folder_count == 0xffffffffu)
+        return HFS_ERR_FORMAT;
 
     size_t record_size = kind == CATALOG_FOLDER_TYPE ?
                          CATALOG_FOLDER_RECORD : CATALOG_FILE_RECORD;
