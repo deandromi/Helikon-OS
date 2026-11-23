@@ -45,9 +45,9 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 LOGS="$ROOT/build/host-tests"
 
 # Suites that build and run on any host with a C compiler.
-SUITES="hfsplus firmware bootloader vfs codec musicdb player ui usb"
+SUITES="hfsplus firmware bootloader vfs update codec musicdb player ui usb"
 # Of those, the ones with a `sanitize` target.
-SANITIZE_SUITES="hfsplus firmware bootloader vfs codec musicdb player usb"
+SANITIZE_SUITES="hfsplus firmware bootloader vfs update codec musicdb player usb"
 # The macOS disk-image suites, in one `make` target list.
 MACOS_TARGETS="test crash-test format-test loader-test write-diag-test \
 outer-diag-test ops-test vfs-write-test unicode-order-test library-test"

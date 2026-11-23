@@ -114,3 +114,5 @@ tests/hfsplus/test_btree_index_merge
 tests/hfsplus/test_writer_mutations
 tests/hfsplus/test_catalog_ops_props.dSYM/
 tests/vfs/test_vfs_write
+tests/update/test_update
+tests/update/*.dSYM/

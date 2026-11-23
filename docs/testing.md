@@ -518,6 +518,39 @@ Still not proved by either run: what a device does with a flush, and what
 `fsck_hfs` says after a power cut mid-commit. Those are the crash matrix and the
 device matrix, not host tests.
 
+### 3.8.2 The signed staged-update client
+
+`tests/update/test_update.c` drives `firmware/update/update.c` over the same
+journaled fixture and against *really signed* fixture sets, so the Ed25519 path
+is exercised rather than stubbed. The sets are minted by
+`tests/update/make_update_set.py` from a fixed throwaway seed and committed as
+bytes: signing needs a private key, no private key belongs in this repository,
+and a test that needs Python and `cryptography` to run is a test that does not
+run everywhere. `make -C tests/update fixtures-check` re-derives them and fails
+if a committed byte has drifted.
+
+What the suite requires:
+
+- every refusal writes nothing: the test snapshots all 1 MiB before the call and
+  compares after. A truncated image, an image whose hash is not the one the
+  manifest signs, another board's set, a tampered signature, a development set
+  under a release policy and a manifest naming more bytes than exist are all
+  refused, each with its own error;
+- `park` leaves the installed set alone — the recovery copy and the parked image
+  exist, the live pair does not change, so a power cut at that point boots
+  exactly what booted before;
+- `commit` lands the manifest, the image and the boot state in **one**
+  transaction: afterwards the journal is clean, `hfs_check_volume` reports
+  nothing, the installed image and manifest are the staged bytes, and the boot
+  state carries a TRYING slot for the new facts;
+- the second install demotes the slot that described the replaced image, because
+  the loader validates the selected GOOD slot against the manifest and a stale
+  GOOD slot would turn the next boot into a recovery screen;
+- a downgrade is refused (ARGUMENT) and so is a second commit.
+
+The fixture sets are 8 KiB images with 4 KiB read chunks, so the streaming copy
+loop runs more than once and the short-write path is covered.
+
 ### 4.1 The B-tree layer itself
 
 `tests/hfsplus/test_btree_model.c` drives **one tree** rather than the catalog:
@@ -1033,6 +1066,8 @@ make -C tests/firmware test
 make -C tests/firmware sanitize
 make -C tests/vfs test
 make -C tests/vfs sanitize
+make -C tests/update test
+make -C tests/update sanitize
 ```
 
 The launcher and music browser have host previews and checks:

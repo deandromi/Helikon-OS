@@ -13,15 +13,20 @@
  *   3. A refused call changes no byte of the image. The test snapshots the whole
  *      1 MiB fixture before the call and compares after, which is the only
  *      version of "atomic" that cannot be argued with.
- *   4. The refusals are the documented ones: a non-absolute path, a nested path,
- *      `..`, a trailing slash, a duplicate name, unlinking a folder, removing a
- *      file with rmdir, a non-empty folder, truncating a folder, growing through
- *      truncate, and an unknown parent.
+ *   4. The refusals are the documented ones: a non-absolute path, `..`, `.`, an
+ *      empty component, a trailing slash, a duplicate name, a parent that is not
+ *      a folder, unlinking a folder, removing a file with rmdir, a non-empty
+ *      folder, truncating a folder, growing through truncate, and an unknown
+ *      parent.
  *   5. A successful commit invalidates open handles, so a reader cannot serve a
  *      stale extent list: the handle that worked before the write answers
  *      ARGUMENT after it, and a re-open works.
  *   6. A write longer than VFS_RW_IO_MAX is shortened and counted, and the next
  *      call continues from where it stopped.
+ *   7. A transaction scope (T-064) writes nothing until its commit: a delete, a
+ *      rename and a replace staged together are invisible to readers and absent
+ *      from the medium, an abort leaves the image byte-identical, and after the
+ *      commit all three land at once with a clean journal.
  *
  * The fixture is `writer_fixture_build_journaled()`: the writer fixture plus a
  * 64 KiB in-FS journal, so commits go append -> flush -> replay exactly as they
@@ -218,7 +223,9 @@ static int test_refusals(void)
     } paths[] = {
         { "refuse.txt", HELIKON_ERR_ARGUMENT },      /* not absolute */
         { "/", HELIKON_ERR_ARGUMENT },               /* root, no leaf */
-        { "/a/b/c", HELIKON_ERR_ARGUMENT },          /* nested */
+        { "/a/b/c", HELIKON_ERR_NOT_FOUND },         /* no such parent folder */
+        { "//a", HELIKON_ERR_ARGUMENT },             /* leading '//' */
+        { "/a//b", HELIKON_ERR_ARGUMENT },           /* empty component */
         { "/..", HELIKON_ERR_ARGUMENT },             /* dot-dot is not a name */
         { "/.", HELIKON_ERR_ARGUMENT },              /* ... and neither is dot */
         { "/a/", HELIKON_ERR_ARGUMENT },             /* trailing slash */
@@ -263,6 +270,51 @@ static int test_refusals(void)
     CHECK(expect_refused("rename onto an existing name",
                          vfs_rw_rename(&rw, "/refuse.txt", "/other.txt"),
                          HELIKON_ERR_BUSY) == 0);
+    return 0;
+}
+
+/*
+ * Nested paths are walked component by component: `/.helikon/update/x` is two
+ * lookups, and a parent that is a file is NOT_DIR rather than a silent create.
+ */
+static int test_nested_paths(void)
+{
+    uint32_t id = 0u;
+    CHECK(vfs_rw_mkdir(&rw, "/nested", &id) == HELIKON_OK);
+    CHECK(vfs_rw_mkdir(&rw, "/nested/deeper", &id) == HELIKON_OK);
+    CHECK(vfs_rw_create(&rw, "/nested/deeper/file.txt", &id) == HELIKON_OK);
+    CHECK(check_clean("nested create") == 0);
+    const char *text = "three levels down";
+    size_t written = 0u;
+    CHECK(vfs_rw_write(&rw, "/nested/deeper/file.txt", 0u, text, strlen(text),
+                       &written) == HELIKON_OK);
+    uint64_t size = 0u;
+    CHECK(stat_size("/nested/deeper/file.txt", &size) == 0);
+    CHECK(size == strlen(text));
+    uint8_t readback[64];
+    size_t done = 0u;
+    CHECK(read_back("/nested/deeper/file.txt", readback, sizeof(readback),
+                    &done) == 0);
+    CHECK(done == strlen(text));
+    CHECK(memcmp(readback, text, strlen(text)) == 0);
+
+    /* A move that changes both folder and name, then a nested delete. */
+    CHECK(vfs_rw_rename(&rw, "/nested/deeper/file.txt",
+                        "/nested/file.txt") == HELIKON_OK);
+    CHECK(check_clean("nested rename") == 0);
+    CHECK(expect_missing("/nested/deeper/file.txt") == 0);
+    CHECK(stat_size("/nested/file.txt", &size) == 0);
+    CHECK(vfs_rw_unlink(&rw, "/nested/file.txt") == HELIKON_OK);
+    CHECK(vfs_rw_rmdir(&rw, "/nested/deeper") == HELIKON_OK);
+    CHECK(vfs_rw_rmdir(&rw, "/nested") == HELIKON_OK);
+    CHECK(check_clean("nested delete") == 0);
+
+    /* A file is not a parent. */
+    CHECK(vfs_rw_create(&rw, "/parent.txt", &id) == HELIKON_OK);
+    take_snapshot();
+    CHECK(expect_refused("a file used as a parent",
+                         vfs_rw_create(&rw, "/parent.txt/child", &id),
+                         HELIKON_ERR_NOT_DIR) == 0);
     return 0;
 }
 
@@ -350,6 +402,177 @@ static int test_no_journal_refused(void)
     return 0;
 }
 
+/*
+ * One commit, several operations (T-064): the shape an update needs, where a
+ * stale image and a manifest that disagrees with it must never both be visible.
+ */
+static int test_transaction_scope(void)
+{
+    static uint8_t old_image[3u * 4096u];
+    static uint8_t new_image[3u * 4096u];
+    static uint8_t old_manifest[256];
+    static uint8_t new_manifest[256];
+    for (size_t index = 0u; index < sizeof(old_image); ++index) {
+        old_image[index] = (uint8_t)(index * 3u + 1u);
+        new_image[index] = (uint8_t)(index * 5u + 9u);
+    }
+    for (size_t index = 0u; index < sizeof(old_manifest); ++index) {
+        old_manifest[index] = (uint8_t)(index + 1u);
+        new_manifest[index] = (uint8_t)(0x80u - index);
+    }
+
+    uint32_t id = 0u;
+    CHECK(vfs_rw_create(&rw, "/set.img", &id) == HELIKON_OK);
+    size_t written = 0u;
+    size_t offset = 0u;
+    while (offset < sizeof(old_image)) {
+        CHECK(vfs_rw_write(&rw, "/set.img", offset, old_image + offset,
+                           sizeof(old_image) - offset, &written) == HELIKON_OK);
+        CHECK(written > 0u);
+        offset += written;
+    }
+    CHECK(vfs_rw_create(&rw, "/set.manifest", &id) == HELIKON_OK);
+    CHECK(vfs_rw_write(&rw, "/set.manifest", 0u, old_manifest,
+                       sizeof(old_manifest), &written) == HELIKON_OK);
+
+    /* The staged copy lands beside the installed one, exactly as an update
+     * writes it before the swap. */
+    CHECK(vfs_rw_create(&rw, "/set.img.new", &id) == HELIKON_OK);
+    offset = 0u;
+    while (offset < sizeof(new_image)) {
+        CHECK(vfs_rw_write(&rw, "/set.img.new", offset, new_image + offset,
+                           sizeof(new_image) - offset, &written) == HELIKON_OK);
+        CHECK(written > 0u);
+        offset += written;
+    }
+    CHECK(check_clean("stage the new set") == 0);
+
+    take_snapshot();
+
+    CHECK(vfs_rw_txn_begin(&rw) == HELIKON_OK);
+    /* One transaction at a time: the single-call API and a second scope both
+     * answer BUSY rather than joining or replacing the open one. */
+    CHECK(vfs_rw_create(&rw, "/while.txt", &id) == HELIKON_ERR_BUSY);
+    CHECK(vfs_rw_txn_begin(&rw) == HELIKON_ERR_BUSY);
+
+    CHECK(vfs_rw_txn_delete(&rw, "/set.img") == HELIKON_OK);
+    CHECK(vfs_rw_txn_rename(&rw, "/set.img.new", "/set.img") == HELIKON_OK);
+    CHECK(vfs_rw_txn_replace(&rw, "/set.manifest", new_manifest,
+                             sizeof(new_manifest)) == HELIKON_OK);
+
+    /* Nothing is on the medium and nothing is visible to a reader: the old set
+     * is still the whole truth until the commit. */
+    CHECK(snapshot_unchanged());
+    uint64_t size = 0u;
+    CHECK(stat_size("/set.img", &size) == 0);
+    CHECK(size == sizeof(old_image));
+    static uint8_t readback[3u * 4096u];
+    size_t done = 0u;
+    CHECK(read_back("/set.img", readback, sizeof(readback), &done) == 0);
+    CHECK(done == sizeof(old_image));
+    CHECK(memcmp(readback, old_image, sizeof(old_image)) == 0);
+    CHECK(stat_size("/set.img.new", &size) == 0);
+
+    CHECK(vfs_rw_txn_commit(&rw) == HELIKON_OK);
+    CHECK(check_clean("scope commit") == 0);
+
+    /* One commit later: the new image is installed, the staged name is gone and
+     * the manifest matches. */
+    CHECK(stat_size("/set.img", &size) == 0);
+    CHECK(size == sizeof(new_image));
+    CHECK(read_back("/set.img", readback, sizeof(readback), &done) == 0);
+    CHECK(done == sizeof(new_image));
+    CHECK(memcmp(readback, new_image, sizeof(new_image)) == 0);
+    CHECK(expect_missing("/set.img.new") == 0);
+    CHECK(stat_size("/set.manifest", &size) == 0);
+    CHECK(size == sizeof(new_manifest));
+    CHECK(read_back("/set.manifest", readback, sizeof(readback), &done) == 0);
+    CHECK(done == sizeof(new_manifest));
+    CHECK(memcmp(readback, new_manifest, sizeof(new_manifest)) == 0);
+
+    /* An aborted scope changes no byte, including one that already staged a
+     * real delete. */
+    take_snapshot();
+    CHECK(vfs_rw_txn_begin(&rw) == HELIKON_OK);
+    CHECK(vfs_rw_txn_delete(&rw, "/set.img") == HELIKON_OK);
+    vfs_rw_txn_abort(&rw);
+    CHECK(snapshot_unchanged());
+    CHECK(stat_size("/set.img", &size) == 0);
+    CHECK(size == sizeof(new_image));
+
+    /* A refused operation ends the scope and writes nothing: the caller begins
+     * again rather than reasoning about a half-filled transaction. */
+    CHECK(vfs_rw_txn_begin(&rw) == HELIKON_OK);
+    CHECK(vfs_rw_txn_delete(&rw, "/set.img.new") == HELIKON_ERR_NOT_FOUND);
+    CHECK(rw.txn_scope == 0u);
+    CHECK(vfs_rw_txn_commit(&rw) == HELIKON_ERR_ARGUMENT);
+    CHECK(snapshot_unchanged());
+    CHECK(check_clean("refused scope") == 0);
+
+    /* A parent that does not exist is NOT_FOUND, not a malformed path, and it
+     * ends the scope the same way. */
+    CHECK(vfs_rw_txn_begin(&rw) == HELIKON_OK);
+    CHECK(vfs_rw_txn_rename(&rw, "/set.img", "/nowhere/deep") ==
+          HELIKON_ERR_NOT_FOUND);
+    CHECK(rw.txn_scope == 0u);
+    CHECK(snapshot_unchanged());
+    CHECK(check_clean("refused rename scope") == 0);
+
+    /* Calls outside a scope are ARGUMENT, and commit without one too. */
+    CHECK(vfs_rw_txn_delete(&rw, "/set.img") == HELIKON_ERR_ARGUMENT);
+    CHECK(vfs_rw_txn_commit(&rw) == HELIKON_ERR_ARGUMENT);
+    vfs_rw_txn_abort(&rw); /* safe with no scope open */
+
+    /* replace: it creates, it shrinks, it grows, and the content is exact. */
+    take_snapshot();
+    CHECK(vfs_rw_txn_begin(&rw) == HELIKON_OK);
+    CHECK(vfs_rw_txn_replace(&rw, "/fixed.bin", new_image, 4000u) == HELIKON_OK);
+    CHECK(vfs_rw_txn_commit(&rw) == HELIKON_OK);
+    CHECK(check_clean("replace creates") == 0);
+    CHECK(stat_size("/fixed.bin", &size) == 0);
+    CHECK(size == 4000u);
+
+    CHECK(vfs_rw_txn_begin(&rw) == HELIKON_OK);
+    CHECK(vfs_rw_txn_replace(&rw, "/fixed.bin", old_manifest, 100u) == HELIKON_OK);
+    CHECK(vfs_rw_txn_commit(&rw) == HELIKON_OK);
+    CHECK(check_clean("replace shrinks") == 0);
+    CHECK(stat_size("/fixed.bin", &size) == 0);
+    CHECK(size == 100u);
+    CHECK(read_back("/fixed.bin", readback, sizeof(readback), &done) == 0);
+    CHECK(done == 100u);
+    CHECK(memcmp(readback, old_manifest, 100u) == 0);
+
+    CHECK(vfs_rw_txn_begin(&rw) == HELIKON_OK);
+    CHECK(vfs_rw_txn_replace(&rw, "/fixed.bin", new_image, 5000u) == HELIKON_OK);
+    CHECK(vfs_rw_txn_commit(&rw) == HELIKON_OK);
+    CHECK(check_clean("replace grows") == 0);
+    CHECK(stat_size("/fixed.bin", &size) == 0);
+    CHECK(size == 5000u);
+    CHECK(read_back("/fixed.bin", readback, sizeof(readback), &done) == 0);
+    CHECK(done == 5000u);
+    CHECK(memcmp(readback, new_image, 5000u) == 0);
+
+    /* A replace that would need more than one transaction's data budget is
+     * ARGUMENT, and it refuses before staging anything. */
+    take_snapshot();
+    CHECK(vfs_rw_txn_begin(&rw) == HELIKON_OK);
+    CHECK(vfs_rw_txn_replace(&rw, "/fixed.bin", new_image,
+                             VFS_RW_IO_MAX + 1u) == HELIKON_ERR_ARGUMENT);
+    vfs_rw_txn_abort(&rw);
+    CHECK(snapshot_unchanged());
+
+    /* A folder is not a file, so replace refuses it rather than turning a
+     * directory into bytes. */
+    CHECK(vfs_rw_mkdir(&rw, "/somedir", &id) == HELIKON_OK);
+    take_snapshot();
+    CHECK(vfs_rw_txn_begin(&rw) == HELIKON_OK);
+    CHECK(vfs_rw_txn_replace(&rw, "/somedir", old_manifest, 16u) ==
+          HELIKON_ERR_ARGUMENT);
+    vfs_rw_txn_abort(&rw);
+    CHECK(snapshot_unchanged());
+    return 0;
+}
+
 int main(void)
 {
     struct hfs_volume built;
@@ -372,9 +595,13 @@ int main(void)
         return 1;
     if (test_refusals())
         return 1;
+    if (test_nested_paths())
+        return 1;
     if (test_handles_invalidate())
         return 1;
     if (test_long_write())
+        return 1;
+    if (test_transaction_scope())
         return 1;
 
     vfs_rw_close(&rw);
@@ -384,6 +611,7 @@ int main(void)
         return 1;
 
     printf("PASS vfs_rw: create, write, append, truncate, mkdir, rename, "
-           "unlink, rmdir through the journal; refusals changed no byte\n");
+           "unlink, rmdir through the journal; refusals changed no byte; a "
+           "delete+rename+replace scope is invisible until its commit\n");
     return 0;
 }

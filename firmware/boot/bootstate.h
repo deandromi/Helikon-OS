@@ -70,4 +70,28 @@ int helikon_bootstate_promote(uint8_t *data, size_t length,
                               const uint8_t image_sha256[HELIKON_SHA256_SIZE],
                               uint32_t *promoted_sequence, int *changed);
 
+/*
+ * Stage a TRYING slot for an image that is about to be installed, in the caller's
+ * 512-byte buffer, and demote every other slot that names an image to FAILED.
+ *
+ * The demotion is the part that is easy to get wrong. The loader validates the
+ * selected GOOD slot against the manifest it just verified, so a GOOD slot that
+ * still describes the image we are replacing would turn every boot after the
+ * update into a recovery screen. A TRYING slot for the replaced image is just as
+ * wrong, because after the commit there is one image path and it holds the new
+ * bytes. TRYING cannot be selected, so the next boot uses the verified default
+ * image — the new one — and `helikon_bootstate_promote` turns this slot into GOOD
+ * once the running image passes its self-test.
+ *
+ * A corrupt or absent file is not an error: this call writes the slot over it,
+ * so an update repairs the boot state by replacing it. `sequence` receives the
+ * new slot's sequence, which is higher than every valid slot.
+ */
+int helikon_bootstate_stage_trying(uint8_t *data, size_t length,
+                                   uint32_t expected_board,
+                                   uint32_t image_version,
+                                   uint32_t load_address, uint32_t image_size,
+                                   const uint8_t image_sha256[HELIKON_SHA256_SIZE],
+                                   uint32_t *sequence);
+
 #endif

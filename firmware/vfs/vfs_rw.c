@@ -60,6 +60,31 @@ static int rw_refresh(struct vfs_rw *rw)
     return HELIKON_OK;
 }
 
+/*
+ * Re-reads the volume header and re-opens the trees.
+ *
+ * A transaction stages into memory as well as into the txn: the allocation
+ * bitmap keeps a running free-block count and the B-tree handles keep header
+ * counters and node state. A commit refreshes them from what is now on disk, and
+ * an abort must do the same — otherwise the next write, or the structural check,
+ * compares a counter the medium never saw. This is the abort-side counterpart of
+ * rw_refresh(), and it exists because the transaction-scope test caught exactly
+ * that (HFS_CHECK_FREE_MISMATCH after an aborted delete).
+ */
+static int rw_reload(struct vfs_rw *rw)
+{
+    struct vfs *vfs = rw->vfs;
+    hfs_read_fn read = vfs->volume.read;
+    void *context = vfs->volume.context;
+    uint64_t base = vfs->volume.base;
+    uint64_t length = vfs->volume.length;
+    int rc = hfs_volume_probe_readonly(&vfs->volume, read, context, base,
+                                       length);
+    if (rc != HELIKON_OK)
+        return rc;
+    return rw_refresh(rw);
+}
+
 static int rw_commit(struct vfs_rw *rw)
 {
     if (hfs_txn_commit(&rw->txn) != HELIKON_OK) {
@@ -110,24 +135,69 @@ int vfs_rw_split(struct vfs *vfs, const char *path,
     }
     if (length < 2u || path[length - 1u] == '/')
         return HELIKON_ERR_ARGUMENT;
-    if (path[1] == '/')
-        return HELIKON_ERR_ARGUMENT;
 
-    /* One existing parent component: the path has at most one slash after '/'. */
-    size_t split = 0u;
+    /*
+     * Syntax first, resolution second. Every component is checked before any
+     * lookup, so `/a//b` is ARGUMENT whether or not `/a` exists: an error code
+     * that depends on what is on the volume is an error code a caller cannot
+     * branch on.
+     *
+     * `.` and `..` are refused anywhere, not just as the leaf. A writer that
+     * silently reinterprets "a/../b" writes a file nobody asked for, and this
+     * layer has no notion of a current directory to resolve them against.
+     */
     for (size_t index = 1u; index < length; ++index) {
-        if (path[index] == '/') {
-            if (split != 0u)
-                return HELIKON_ERR_ARGUMENT; /* nested: not this layer's job */
-            split = index;
+        if (path[index] != '/')
+            continue;
+        size_t component_start = 0u;
+        for (size_t back = index; back > 0u; --back) {
+            if (path[back - 1u] == '/') {
+                component_start = back;
+                break;
+            }
         }
+        size_t component_length = index - component_start;
+        const char *component = path + component_start;
+        if (component_length == 0u)
+            return HELIKON_ERR_ARGUMENT; /* "a//b" */
+        if ((component_length == 1u && component[0] == '.') ||
+            (component_length == 2u && component[0] == '.' &&
+             component[1] == '.'))
+            return HELIKON_ERR_ARGUMENT;
+    }
+    {
+        size_t leaf_start = 0u;
+        for (size_t back = length; back > 0u; --back) {
+            if (path[back - 1u] == '/') {
+                leaf_start = back;
+                break;
+            }
+        }
+        size_t leaf_length = length - leaf_start;
+        const char *leaf = path + leaf_start;
+        if (leaf_length == 0u)
+            return HELIKON_ERR_ARGUMENT;
+        if ((leaf_length == 1u && leaf[0] == '.') ||
+            (leaf_length == 2u && leaf[0] == '.' && leaf[1] == '.'))
+            return HELIKON_ERR_ARGUMENT;
     }
 
+    /*
+     * Walk the intermediate components, one catalog lookup each, and hand back
+     * the leaf. The walk is what a player's path actually looks like
+     * (`/Music/Album/Track.mp3`) and what the loader's own layout needs
+     * (`/.helikon/update/firmware.img`); refusing nested paths was a limit of
+     * the first slice, not a rule of the format. Every intermediate component
+     * must exist and must be a folder: this layer creates nothing implicitly.
+     */
     const char *leaf = path + 1;
     uint32_t parent = VFS_RW_ROOT_CNID;
-    if (split != 0u) {
+    for (size_t index = 1u; index < length; ++index) {
+        if (path[index] != '/')
+            continue;
+
         char parent_path[VFS_PATH_MAX];
-        size_t parent_length = split; /* includes the leading '/' */
+        size_t parent_length = index; /* includes the leading '/' */
         if (parent_length + 1u >= sizeof(parent_path))
             return HELIKON_ERR_NAME_INVALID;
         helikon_memcpy(parent_path, path, parent_length);
@@ -138,18 +208,12 @@ int vfs_rw_split(struct vfs *vfs, const char *path,
         if (rc != HELIKON_OK)
             return rc;
         if (entry.kind != VFS_KIND_DIR)
-            return HELIKON_ERR_ARGUMENT;
+            return HELIKON_ERR_NOT_DIR;
         parent = entry.id;
-        leaf = path + split + 1u;
+        leaf = path + index + 1u;
     }
 
     size_t leaf_length = length - (size_t)(leaf - path);
-    if (leaf_length == 0u)
-        return HELIKON_ERR_ARGUMENT;
-    /* "." and ".." are directory entries every filesystem already has. */
-    if ((leaf_length == 1u && leaf[0] == '.') ||
-        (leaf_length == 2u && leaf[0] == '.' && leaf[1] == '.'))
-        return HELIKON_ERR_ARGUMENT;
     size_t units = 0u;
     int rc = hfs_utf8_to_utf16be(leaf, leaf_length, out->name,
                                  sizeof(out->name), &units);
@@ -254,6 +318,8 @@ int vfs_rw_create(struct vfs_rw *rw, const char *path, uint32_t *id)
 {
     if (rw == NULL || rw->vfs == NULL)
         return HELIKON_ERR_ARGUMENT;
+    if (rw->txn_scope != 0u)
+        return HELIKON_ERR_BUSY;
     return rw_create(rw, path, 0, id);
 }
 
@@ -261,6 +327,8 @@ int vfs_rw_mkdir(struct vfs_rw *rw, const char *path, uint32_t *id)
 {
     if (rw == NULL || rw->vfs == NULL)
         return HELIKON_ERR_ARGUMENT;
+    if (rw->txn_scope != 0u)
+        return HELIKON_ERR_BUSY;
     return rw_create(rw, path, 1, id);
 }
 
@@ -304,6 +372,8 @@ int vfs_rw_unlink(struct vfs_rw *rw, const char *path)
 {
     if (rw == NULL || rw->vfs == NULL)
         return HELIKON_ERR_ARGUMENT;
+    if (rw->txn_scope != 0u)
+        return HELIKON_ERR_BUSY;
     return rw_delete(rw, path, 0);
 }
 
@@ -311,6 +381,8 @@ int vfs_rw_rmdir(struct vfs_rw *rw, const char *path)
 {
     if (rw == NULL || rw->vfs == NULL)
         return HELIKON_ERR_ARGUMENT;
+    if (rw->txn_scope != 0u)
+        return HELIKON_ERR_BUSY;
     return rw_delete(rw, path, 1);
 }
 
@@ -322,6 +394,8 @@ int vfs_rw_rename(struct vfs_rw *rw, const char *from, const char *to)
 {
     if (rw == NULL || rw->vfs == NULL)
         return HELIKON_ERR_ARGUMENT;
+    if (rw->txn_scope != 0u)
+        return HELIKON_ERR_BUSY;
 
     struct vfs_rw_path source;
     struct vfs_rw_path destination;
@@ -389,6 +463,8 @@ int vfs_rw_truncate(struct vfs_rw *rw, const char *path, uint64_t size)
 {
     if (rw == NULL || rw->vfs == NULL)
         return HELIKON_ERR_ARGUMENT;
+    if (rw->txn_scope != 0u)
+        return HELIKON_ERR_BUSY;
 
     struct vfs_rw_path target;
     int rc = vfs_rw_split(rw->vfs, path, &target);
@@ -411,4 +487,179 @@ int vfs_rw_truncate(struct vfs_rw *rw, const char *path, uint64_t size)
     if (rc != HELIKON_OK)
         return rw_abort(rw, rc);
     return rw_commit(rw);
+}
+
+/* ------------------------------------------------------------------------- */
+/* One commit, several operations (T-064)                                    */
+/* ------------------------------------------------------------------------- */
+
+int vfs_rw_txn_begin(struct vfs_rw *rw)
+{
+    if (rw == NULL || rw->vfs == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    if (rw->writable == 0u)
+        return HELIKON_ERR_READ_ONLY;
+    if (rw->txn_scope != 0u)
+        return HELIKON_ERR_BUSY;
+
+    int rc = hfs_txn_begin(&rw->txn, &rw->journal);
+    if (rc != HELIKON_OK)
+        return rc;
+    rw->txn_scope = 1u;
+    return HELIKON_OK;
+}
+
+int vfs_rw_txn_commit(struct vfs_rw *rw)
+{
+    if (rw == NULL || rw->vfs == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    if (rw->txn_scope == 0u)
+        return HELIKON_ERR_ARGUMENT;
+
+    rw->txn_scope = 0u;
+    return rw_commit(rw);
+}
+
+void vfs_rw_txn_abort(struct vfs_rw *rw)
+{
+    if (rw == NULL || rw->txn_scope == 0u)
+        return;
+    hfs_txn_abort(&rw->txn);
+    rw->txn_scope = 0u;
+    /* The staged operations had already touched in-memory counters. */
+    (void)rw_reload(rw);
+}
+
+/* A refused operation ends the scope: the caller begins a fresh one. */
+static int rw_scope_fail(struct vfs_rw *rw, int error)
+{
+    hfs_txn_abort(&rw->txn);
+    rw->txn_scope = 0u;
+    (void)rw_reload(rw);
+    return error;
+}
+
+int vfs_rw_txn_delete(struct vfs_rw *rw, const char *path)
+{
+    if (rw == NULL || rw->vfs == NULL || path == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    if (rw->txn_scope == 0u)
+        return HELIKON_ERR_ARGUMENT;
+
+    struct vfs_rw_path target;
+    int rc = vfs_rw_split(rw->vfs, path, &target);
+    if (rc != HELIKON_OK)
+        return rw_scope_fail(rw, rc);
+
+    struct hfs_entry entry;
+    rc = hfs_catalog_lookup(&rw->vfs->catalog, path, &entry);
+    if (rc != HELIKON_OK)
+        return rw_scope_fail(rw, rc);
+
+    if (entry.kind == VFS_KIND_DIR) {
+        rc = hfs_catalog_delete_folder(&rw->vfs->catalog, &rw->txn,
+                                       target.parent, target.name,
+                                       target.units, entry.id,
+                                       hfs_catalog_key_compare, NULL);
+    } else {
+        rc = hfs_catalog_delete_file(&rw->vfs->catalog, &rw->txn,
+                                     target.parent, target.name, target.units,
+                                     entry.id, hfs_catalog_key_compare, NULL);
+    }
+    if (rc != HELIKON_OK)
+        return rw_scope_fail(rw, rc);
+    return HELIKON_OK;
+}
+
+int vfs_rw_txn_rename(struct vfs_rw *rw, const char *from, const char *to)
+{
+    if (rw == NULL || rw->vfs == NULL || from == NULL || to == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    if (rw->txn_scope == 0u)
+        return HELIKON_ERR_ARGUMENT;
+
+    struct vfs_rw_path source;
+    struct vfs_rw_path destination;
+    int rc = vfs_rw_split(rw->vfs, from, &source);
+    if (rc != HELIKON_OK)
+        return rw_scope_fail(rw, rc);
+    rc = vfs_rw_split(rw->vfs, to, &destination);
+    if (rc != HELIKON_OK)
+        return rw_scope_fail(rw, rc);
+
+    struct hfs_entry entry;
+    rc = hfs_catalog_lookup(&rw->vfs->catalog, from, &entry);
+    if (rc != HELIKON_OK)
+        return rw_scope_fail(rw, rc);
+
+    rc = hfs_catalog_rename(&rw->vfs->catalog, &rw->txn, source.parent,
+                            source.name, source.units, entry.id,
+                            destination.parent, destination.name,
+                            destination.units, hfs_catalog_key_compare, NULL);
+    if (rc != HELIKON_OK)
+        return rw_scope_fail(rw, rc);
+    return HELIKON_OK;
+}
+
+int vfs_rw_txn_replace(struct vfs_rw *rw, const char *path, const void *data,
+                       size_t length)
+{
+    if (rw == NULL || rw->vfs == NULL || path == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    if (rw->txn_scope == 0u)
+        return HELIKON_ERR_ARGUMENT;
+    if (data == NULL || length == 0u || length > VFS_RW_IO_MAX)
+        return rw_scope_fail(rw, HELIKON_ERR_ARGUMENT);
+
+    struct vfs_rw_path target;
+    int rc = vfs_rw_split(rw->vfs, path, &target);
+    if (rc != HELIKON_OK)
+        return rw_scope_fail(rw, rc);
+
+    /*
+     * The size before the write is read here, on the medium: `hfs_catalog_lookup`
+     * has no transaction parameter, so it does not see what this scope has
+     * already staged. That is also why this function looks each path up exactly
+     * once, at the point where the on-disk record is still the whole truth.
+     */
+    struct hfs_entry entry;
+    uint64_t previous = 0u;
+    int existed = 0;
+    rc = hfs_catalog_lookup(&rw->vfs->catalog, path, &entry);
+    if (rc == HELIKON_ERR_NOT_FOUND) {
+        uint32_t cnid = 0u;
+        rc = hfs_catalog_create_file(&rw->vfs->catalog, &rw->txn,
+                                     target.parent, target.name, target.units,
+                                     VFS_RW_FILE_MODE, hfs_catalog_key_compare,
+                                     NULL, &cnid);
+        if (rc != HELIKON_OK)
+            return rw_scope_fail(rw, rc);
+    } else if (rc != HELIKON_OK) {
+        return rw_scope_fail(rw, rc);
+    } else if (entry.kind != VFS_KIND_FILE) {
+        return rw_scope_fail(rw, HELIKON_ERR_ARGUMENT);
+    } else {
+        existed = 1;
+        previous = entry.data.size;
+    }
+
+    /*
+     * Write first, then shrink: the writer grows a short file and a long one
+     * keeps its stale tail until the truncate below returns those blocks.
+     */
+    rc = hfs_catalog_write_file(&rw->vfs->catalog, &rw->txn, target.parent,
+                                target.name, target.units, 0u, data, length,
+                                hfs_catalog_key_compare, NULL);
+    if (rc != HELIKON_OK)
+        return rw_scope_fail(rw, rc);
+
+    if (existed != 0 && previous > (uint64_t)length) {
+        rc = hfs_catalog_truncate_to(&rw->vfs->catalog, &rw->txn,
+                                     target.parent, target.name, target.units,
+                                     (uint64_t)length, hfs_catalog_key_compare,
+                                     NULL);
+        if (rc != HELIKON_OK)
+            return rw_scope_fail(rw, rc);
+    }
+    return HELIKON_OK;
 }
