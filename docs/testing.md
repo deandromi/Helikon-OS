@@ -343,7 +343,9 @@ asks the image after every operation:
   folder, as `newfs_hfs` leaves a fresh volume at 0 and 0);
 - `hfs_check_volume`, which independently re-walks the catalog and the extents
   tree, checks key order across leaf boundaries, the leaf chain, every fork
-  against the allocation bitmap, and the free-block count.
+  against the allocation bitmap, the free-block count, and node ownership: every
+  node reachable from the root must be marked used in the free-node map, every
+  unreachable node free, and the header's free count must match the map.
 
 The model is written from the documentation, not from the code: names are unique
 per parent, a folder's valence is its child count, deleting a folder with
@@ -377,10 +379,10 @@ macOS-differential work.
 Status: `in progress`. §3.6 covers the catalog layer — creates, deletes,
 renames, writes and truncates against a directory model, with `hfs_check_volume`
 after every operation, which re-walks the tree and checks key order, the leaf
-chain, every fork against the allocation bitmap and the free-block count. Node
-splits and merges are reached (the fixture holds several file records per leaf
-and the sweep creates and deletes enough to split and merge), but the free-node
-map and node ownership are still unchecked by `hfs_check_volume`, and the
+chain, every fork against the allocation bitmap, the free-block count and node
+ownership (T-137: a leaked node or a reachable node marked free is a finding).
+Node splits and merges are reached (the fixture holds several file records per
+leaf and the sweep creates and deletes enough to split and merge), but the
 following are still `planned`:
 
 - a B-tree-level model: random insert/delete/update keys applied to a model of
@@ -507,6 +509,9 @@ chain (it ends at the header's last leaf and holds the number of records the
 header claims), the key order of the catalog and the extents tree across leaf
 boundaries, every catalog record body against the structure its type promises,
 each index node's child pointer, level and key against the subtree it points at,
+each tree's free-node map against the nodes it can actually reach (a node marked
+used but unreachable is a leaked block, a node marked free but reachable would be
+handed out over live records, and the header's free count must match the map),
 and the file and folder counts the volume header claims against the records
 actually present. The root
 folder is excluded from the folder count because the format excludes it, and the
@@ -520,7 +525,7 @@ counted rather than skipped: the 140 GiB volume reads 36,594,065 free blocks bot
 ways in about 0.2 s. The pass is I/O-bound and belongs off the boot path.
 
 ```sh
-make -C tests/hfsplus test_check            # 26 cases, one corruption each
+make -C tests/hfsplus test_check            # 29 cases, one corruption each
 make -C tests/image hfs-check
 ./tests/image/hfs-check disk.img            # 0 clean, 1 findings, 2 unusable
 ```
@@ -532,7 +537,10 @@ than its leaf holds, two extents records swapped, an index key that sorts after
 the subtree it points at, a child pointer past the last node, a leaf that claims
 to be an index node, and three clean catalogs — one folder, one file, and a real
 depth-2 tree with an index node over two leaves — that must report nothing at
-all. The clean cases matter most: a checker that cries wolf is worse than none.
+all. `test_check` also covers node ownership, one case each: a node marked used
+that the tree cannot reach, a reachable node left marked free, and a header free
+count that disagrees with the map. The clean cases matter most: a checker that
+cries wolf is worse than none.
 
 Run against real volumes: a 64 MB macOS `HFS+J` volume holding nested folders,
 16 files and names such as `£ euro.txt` and `日本.txt` across a 128-node catalog

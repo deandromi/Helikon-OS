@@ -3,12 +3,53 @@
 > Purpose: the latest session handoff and the reusable template.
 > Status: living document
 > Owner: session author; next agent reads this first
-> Last updated: 2026-11-22
+> Last updated: 2026-11-23
 > Source: `docs/state.md`, `docs/tasks.md`, repository history; D-54;
 > [`disk-mode.md`](disk-mode.md)
 
 Keep the newest handoff at the top. Move older entries to `docs/log/` when this
 file grows. Do not rely on chat history for current state.
+
+---
+
+# Handoff — 2026-11-23 (node ownership in the structural check: T-137)
+
+## What happened
+
+- **`hfs_check_volume` now checks the free-node map.** It walked each tree's leaf
+  chain, key order, index nodes and record bodies but never the map, so a leaked
+  node (used, unreachable) or a reachable node marked free was invisible. The new
+  pass reads node 0 through `hfs_fork_read` (the tree reader refuses an `empty`
+  tree), copies the map record, marks the header used, walks everything reachable
+  from the root through the index child pointers, and compares that against the
+  map for `total_nodes`, plus the map's clear-bit count against the header's
+  `freeNodes`. Catalog, extents and attributes trees each get it. Bounded: past
+  16,384 nodes or a 512-deep walk it records `HFS_CHECK_SKIPPED_NODES` instead of
+  guessing.
+- **New flags:** `HFS_CHECK_BTREE_NODES 0x00080000` (finding),
+  `HFS_CHECK_SKIPPED_NODES 0x00100000` (skip, kept out of `problems`).
+- **`test_check` 29 cases** (three new: leaked node, reachable node marked free,
+  free count disagreeing with the map), all passing.
+- **Teeth:** dropping `map_set(header, node, 0)` from `hfs_btree_free_node` makes
+  the catalog model test stop at step 95 with `problems 0x00080000`.
+
+## Evidence
+
+`make -C tests/hfsplus test` and `sanitize` exit 0 (`test_check` 29/29; catalog
+model 600 steps default seed, 700 steps over seeds 1/2/3/7/11/424242, no
+sanitizer report); the 6G cross-build and bootloader suites are recorded below.
+Host-only: no device run, and the F2 write path stays unconfirmed.
+
+## Open / next
+
+- **A stale test binary cost an hour.** After restoring a mutated
+  `hfs_btree_tree.c`, `tests/hfsplus/test_catalog_ops_props` kept failing at step
+  95 with `0x80000`; `make clean` and a rebuild pass. Rule: when a suite fails
+  only sometimes, `rm` the binary before believing it.
+- Queued next: a B-tree-level model test (random insert/delete/update against a
+  tree model, forced root changes, `FastUnicodeCompare` names, `fsck_hfs` on the
+  result), then a writer mutation sweep (corrupt the volume, drive the writer,
+  require fail-closed and no new findings).
 
 ---
 

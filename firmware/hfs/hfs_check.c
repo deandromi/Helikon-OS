@@ -260,6 +260,145 @@ static uint32_t check_tree(struct hfs_volume *volume, const struct hfs_fork *for
 }
 
 /*
+ * Node ownership: which nodes the tree can reach, and what its free-node map says
+ * about them. A B-tree hands a node out from that map, so the two must agree
+ * exactly. A node marked used that no path reaches is a leak - its block is gone
+ * forever and `fsck_hfs` reports the free count as wrong - and a node marked free
+ * that a path does reach will be handed out again over live records, which is
+ * the second kind of damage.
+ *
+ * The reachable set is found from the root: an index node's records point at
+ * their children, and with depth one the root is itself a leaf. The walk is
+ * breadth-first with a bounded stack, and a tree too large for the marks is
+ * skipped rather than guessed - the pass must stay bounded on a real volume.
+ */
+#define HFS_CHECK_NODE_BITS 16384u
+#define HFS_CHECK_NODE_BYTES (HFS_CHECK_NODE_BITS / 8u)
+#define HFS_CHECK_NODE_STACK 512u
+
+static int node_marked(const uint8_t *map, uint32_t node)
+{
+    return (map[node / 8u] & (uint8_t)(0x80u >> (node % 8u))) != 0;
+}
+
+static void check_tree_nodes(struct hfs_volume *volume,
+                             const struct hfs_fork *fork,
+                             struct hfs_check_report *report)
+{
+    static uint8_t scratch[HFS_MAX_NODE_SIZE + 1u];
+    struct hfs_btree btree;
+    if (hfs_btree_open(&btree, volume, fork, scratch, sizeof(scratch)) != HFS_OK)
+        return; /* check_tree already reported the header */
+    if (btree.total_nodes == 0u || btree.total_nodes > HFS_CHECK_NODE_BITS) {
+        report->skipped |= HFS_CHECK_SKIPPED_NODES;
+        return;
+    }
+
+    /*
+     * Read the header node through the fork, not `hfs_btree_read_node`: that one
+     * refuses an empty tree, and an empty tree still has a map and a count to
+     * check.
+     */
+    static uint8_t header_node[HFS_MAX_NODE_SIZE];
+    if (btree.node_size > sizeof(header_node) ||
+        hfs_fork_read(volume, fork, 0u, header_node, btree.node_size) != HFS_OK) {
+        report->problems |= HFS_CHECK_BTREE_HEADER;
+        return;
+    }
+    const uint8_t *node = header_node;
+    const uint8_t *map = NULL;
+    size_t map_length = 0u;
+    if (hfs_btree_node_record(node, btree.node_size, 2u, &map,
+                              &map_length) != HFS_OK) {
+        report->problems |= HFS_CHECK_BTREE_HEADER;
+        return;
+    }
+    if (map_length == 0u || map_length > HFS_CHECK_NODE_BYTES) {
+        /* The map record is part of the header: a tree without one cannot say
+         * which nodes are free, so this pass cannot either. */
+        report->skipped |= HFS_CHECK_SKIPPED_NODES;
+        return;
+    }
+
+    /* The node buffer is reused by the walk, so keep the map. */
+    static uint8_t map_copy[HFS_CHECK_NODE_BYTES];
+    memset(map_copy, 0, sizeof(map_copy));
+    memcpy(map_copy, map, map_length);
+
+    static uint8_t visited[HFS_CHECK_NODE_BYTES];
+    memset(visited, 0, sizeof(visited));
+    visited[0] = 0x80u; /* the header node is always in use */
+
+    static uint32_t stack[HFS_CHECK_NODE_STACK];
+    size_t pending = 0u;
+    if (btree.empty == 0u) {
+        if (btree.root_node >= btree.total_nodes) {
+            report->problems |= HFS_CHECK_BTREE_INDEX;
+            return;
+        }
+        stack[pending++] = btree.root_node;
+    }
+
+    while (pending > 0u) {
+        const uint32_t number = stack[--pending];
+        if (number >= btree.total_nodes) {
+            report->problems |= HFS_CHECK_BTREE_INDEX;
+            continue;
+        }
+        if (node_marked(visited, number))
+            continue; /* a cycle: check_index_tree names it */
+        visited[number / 8u] |= (uint8_t)(0x80u >> (number % 8u));
+        if (hfs_btree_read_node(&btree, number, &node) != HFS_OK) {
+            report->problems |= HFS_CHECK_BTREE_CHAIN;
+            continue;
+        }
+        if (node[8] != 0)
+            continue; /* leaf, or a kind the header checks already report */
+        const uint16_t count = be16(node + 10);
+        for (uint16_t index = 0u; index < count; ++index) {
+            const uint8_t *record = NULL;
+            size_t length = 0u;
+            if (hfs_btree_node_record(node, btree.node_size, index, &record,
+                                      &length) != HFS_OK)
+                continue;
+            if (length < 2u)
+                continue;
+            const uint16_t key_length = be16(record);
+            if ((size_t)key_length + 2u + 4u > length)
+                continue;
+            const uint32_t child =
+                ((uint32_t)record[2u + key_length] << 24) |
+                ((uint32_t)record[3u + key_length] << 16) |
+                ((uint32_t)record[4u + key_length] << 8) |
+                record[5u + key_length];
+            if (pending == HFS_CHECK_NODE_STACK) {
+                report->skipped |= HFS_CHECK_SKIPPED_NODES;
+                return;
+            }
+            stack[pending++] = child;
+        }
+    }
+
+    uint32_t free_claimed = 0u;
+    for (uint32_t node_number = 0u; node_number < btree.total_nodes;
+         ++node_number) {
+        const int used = node_marked(map_copy, node_number);
+        const int reachable = node_marked(visited, node_number);
+        if (used == reachable)
+            continue;
+        report->problems |= HFS_CHECK_BTREE_NODES;
+        break;
+    }
+    for (uint32_t node_number = 0u; node_number < btree.total_nodes;
+         ++node_number) {
+        if (!node_marked(map_copy, node_number))
+            ++free_claimed;
+    }
+    if (free_claimed != btree.free_nodes)
+        report->problems |= HFS_CHECK_BTREE_NODES;
+}
+
+/*
  * The longest key either metadata tree can hold: a catalog key is six bytes of
  * parent ID and name length plus at most 255 UTF-16 units. The previous key is
  * kept whole so ordering across a leaf boundary is checked the same way as
@@ -699,6 +838,13 @@ int hfs_check_volume(struct hfs_volume *volume, struct hfs_check_report *report)
     report->problems |= check_tree(volume, &volume->attributes_file,
                                    &report->attributes_depth,
                                    &report->attributes_nodes);
+
+    if (report->catalog_nodes != 0u)
+        check_tree_nodes(volume, &volume->catalog, report);
+    if (report->extents_nodes != 0u)
+        check_tree_nodes(volume, &volume->extents, report);
+    if (report->attributes_nodes != 0u)
+        check_tree_nodes(volume, &volume->attributes_file, report);
 
     if (report->extents_nodes != 0u) {
         check_extents_keys(volume, report);

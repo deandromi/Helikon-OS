@@ -36,13 +36,20 @@
  *    at a subtree is not greater than that subtree's first key - the rule a
  *    search depends on. A stale ancestor key is allowed, because HFS+ leaves one
  *    behind after a delete;
+ *  - node ownership: every node the tree can reach from its root is marked used
+ *    in the free-node map, every node it cannot reach is marked free, and the
+ *    header's free count matches the map. A node marked used but unreachable is
+ *    a leak - the block is gone forever and `fsck_hfs` reports the free count as
+ *    wrong - and a node marked free but reachable would be handed out again and
+ *    overwrite live records;
  *  - the file and folder counts the volume header claims against the records
  *    actually there.
  *
- * What it does not check yet: the free-node map and node ownership, the
- * attributes tree's index keys (its key order is not exercised by any fixture
- * here), quarantine, and the charging/idle scrub policy. Those are the next
- * slices.
+ * What it does not check yet: the attributes tree's index keys (its key order is
+ * not exercised by any fixture here), the B-tree node's own free-space
+ * accounting, quarantine, and the charging/idle scrub policy. Those are the next
+ * slices. A tree with more nodes than the node-ownership pass can mark is
+ * skipped (`HFS_CHECK_SKIPPED_NODES`), not guessed.
  */
 #ifndef HELIKON_HFS_HFS_CHECK_H
 #define HELIKON_HFS_HFS_CHECK_H
@@ -82,6 +89,14 @@
 #define HFS_CHECK_CATALOG_BODY 0x00020000u
 /* Extents keys that do not strictly increase, or that do not fit their record. */
 #define HFS_CHECK_EXTENTS_ORDER 0x00040000u
+/* A free-node map that disagrees with what the tree reaches, or a free count
+ * that disagrees with the map. */
+#define HFS_CHECK_BTREE_NODES 0x00080000u
+/*
+ * Not a finding: the tree has more nodes than the ownership pass can mark. Kept
+ * out of `problems` for the same reason as the bitmap skip.
+ */
+#define HFS_CHECK_SKIPPED_NODES 0x00100000u
 
 /*
  * The allocation bitmap is counted up to this size. 8 MiB of bitmap describes

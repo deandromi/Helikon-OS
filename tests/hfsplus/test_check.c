@@ -76,7 +76,10 @@ static void make_tree(uint32_t block, uint32_t blocks, uint16_t node_size,
     test_image_put_be16(record + 18, node_size);   /* nodeSize */
     test_image_put_be16(record + 20, (uint16_t)(node_size + 4u));
     put_be32(record + 22, total_nodes);            /* totalNodes */
-    put_be32(record + 26, total_nodes);            /* freeNodes */
+    /* The header node is in use, so one fewer is free: the free-node map and the
+     * count have to agree with the tree's shape, and the ownership check reads
+     * both. */
+    put_be32(record + 26, total_nodes - 1u);       /* freeNodes */
     record[36] = 0;                                /* btreeType */
     record[37] = 0;                                /* keyCompareType */
 
@@ -85,8 +88,10 @@ static void make_tree(uint32_t block, uint32_t blocks, uint16_t node_size,
     size_t table = node_size;
     test_image_put_be16(node + table - 2u, 14u);   /* record 0 begins */
     test_image_put_be16(node + table - 4u, 120u);  /* record 0 ends */
-    test_image_put_be16(node + table - 6u, 122u);  /* empty user record */
-    test_image_put_be16(node + table - 8u, 124u);  /* empty user record */
+    test_image_put_be16(node + table - 6u, 122u);  /* the user record */
+    test_image_put_be16(node + table - 8u, 124u);  /* the free-node map */
+    /* Map record at 122..124: two bytes, sixteen nodes, header node in use. */
+    node[122] = 0x80u;
 }
 
 static void make_bitmap(void)
@@ -138,6 +143,9 @@ static int test_clean_volume(void)
     make_clean_volume();
 
     CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    if (report.problems != 0u)
+        fprintf(stderr, "  note: clean volume problems 0x%08x skipped 0x%08x\n",
+                (unsigned)report.problems, (unsigned)report.skipped);
     CHECK(report.problems == 0u);
     CHECK(report.bitmap_counted == 1);
     CHECK(report.free_blocks_claimed == BLOCKS - USED_BLOCKS);
@@ -369,6 +377,35 @@ static void node_write(uint32_t block, uint32_t node)
     memcpy(target, leaf_data, 512u);
 }
 
+/* Marks a node used in the header node's free-node map (record 2, at 122). */
+static void tree_map_used(uint32_t block, uint32_t node)
+{
+    uint8_t *header = test_image + (size_t)block * BLOCK_SIZE;
+    header[122u + node / 8u] |= (uint8_t)(0x80u >> (node % 8u));
+}
+
+static uint32_t tree_total(uint32_t block)
+{
+    const uint8_t *record =
+        test_image + (size_t)block * BLOCK_SIZE + 14u;
+    return ((uint32_t)record[22] << 24) | ((uint32_t)record[23] << 16) |
+           ((uint32_t)record[24] << 8) | record[25];
+}
+
+/* The free count the map implies, so the two can never disagree by accident. */
+static void tree_free_from_map(uint32_t block)
+{
+    uint8_t *header = test_image + (size_t)block * BLOCK_SIZE;
+    const uint32_t total = tree_total(block);
+    uint32_t used = 0u;
+    for (uint32_t node = 0u; node < total; ++node) {
+        if ((header[122u + node / 8u] &
+             (uint8_t)(0x80u >> (node % 8u))) != 0u)
+            ++used;
+    }
+    put_be32(header + 14u + 26u, total - used);
+}
+
 /* The tree's header record: where the walk starts and what it promises. */
 static void tree_header(uint32_t block, uint16_t depth, uint32_t root,
                         uint32_t records, uint32_t first, uint32_t last)
@@ -379,7 +416,11 @@ static void tree_header(uint32_t block, uint16_t depth, uint32_t root,
     put_be32(record + 6u, records);
     put_be32(record + 10u, first);
     put_be32(record + 14u, last);
-    put_be32(record + 26u, 0u);
+    /* The header node always exists; the root exists once the tree has one. */
+    tree_map_used(block, 0u);
+    if (root != 0u)
+        tree_map_used(block, root);
+    tree_free_from_map(block);
 }
 
 static void leaf_add(const uint8_t *record, size_t length)
@@ -498,6 +539,9 @@ static void make_two_level_catalog(void)
     index_add(2u, "one.txt", 3u);
     node_write(CATALOG_BLOCK, 1u);
 
+    /* The two leaves are in use: the free-node map has to say so. */
+    tree_map_used(CATALOG_BLOCK, 2u);
+    tree_map_used(CATALOG_BLOCK, 3u);
     tree_header(CATALOG_BLOCK, 2u, 1u, 2u, 2u, 3u);
 }
 
@@ -654,6 +698,56 @@ static int test_extents_order(void)
     return 0;
 }
 
+/*
+ * A node the tree never reaches but the map calls used is a leak: that block can
+ * never be handed out again. The one direction that is worse - a node the tree
+ * does reach but the map calls free - is the next case.
+ */
+static int test_leaked_node(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    make_clean_volume();
+    /* An empty tree owns only its header node; node 2 is inside the tree, marked
+     * used, and nothing can reach it. */
+    tree_map_used(CATALOG_BLOCK, 2u);
+    tree_free_from_map(CATALOG_BLOCK);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK((report.problems & HFS_CHECK_BTREE_NODES) != 0u);
+    return 0;
+}
+
+static int test_reachable_node_marked_free(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    make_two_level_catalog();
+    /* Leaf 3 is reachable through the index; the map says it is free, so the
+     * next insert would hand the node out and overwrite its records. */
+    uint8_t *header = test_image + (size_t)CATALOG_BLOCK * BLOCK_SIZE;
+    header[122u + 3u / 8u] &= (uint8_t)~(0x80u >> (3u % 8u));
+    tree_free_from_map(CATALOG_BLOCK);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK((report.problems & HFS_CHECK_BTREE_NODES) != 0u);
+    return 0;
+}
+
+/* The map is right and the count is wrong: also the same finding. */
+static int test_free_count_disagrees(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    make_two_level_catalog();
+    uint8_t *record = test_image + (size_t)CATALOG_BLOCK * BLOCK_SIZE + 14u;
+    put_be32(record + 26, 1u); /* the map says zero */
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK((report.problems & HFS_CHECK_BTREE_NODES) != 0u);
+    return 0;
+}
+
 /* The depth-2 catalog above is valid and must report nothing. */
 static int test_index_clean(void)
 {
@@ -798,6 +892,9 @@ int main(void)
         { "file body cut short", test_catalog_short_body },
         { "extents keys out of order", test_extents_order },
         { "clean index node", test_index_clean },
+        { "leaked node", test_leaked_node },
+        { "reachable node marked free", test_reachable_node_marked_free },
+        { "free count disagrees", test_free_count_disagrees },
         { "index key above its child", test_index_key_above_child },
         { "index child out of range", test_index_child_range },
         { "index child at the wrong level", test_index_child_level }
