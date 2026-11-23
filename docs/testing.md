@@ -441,9 +441,10 @@ model test stop at step 54 with `problems 0x00080000` from `hfs_check_volume`.
 not: when the volume is already wrong, does the writer **fail closed**? It starts
 from a valid 1 MiB volume with a seeded root, corrupts one structural field, and
 then drives `hfs_volume_probe` → `hfs_check_volume` → `hfs_catalog_open`, and
-then three write calls in the order a caller would make them — create a file,
-rename it, delete it — each in its own transaction. Two rules hold for every
-iteration, and each of the three calls is held to them:
+then five write calls in the order a caller would make them — create a file,
+rename it, write 1,500 bytes into it, truncate it back to zero, delete it — each
+in its own transaction. Two rules hold for every iteration, and each of the five
+calls is held to them:
 
 - **a refused write changes nothing** — the image must be byte-identical to the
   mutated one, so nothing staged can reach the medium;
@@ -457,6 +458,12 @@ The curated set covers both volume-header copies, every fork record, and the
 catalog's header node and first leaf — the fields a writer trusts. Fields whose
 correct answer is a refusal (`nextCatalogID` 0, 1, 2 or `0xffffffff`; a full file count) are
 marked as such and must be refused, not guessed.
+
+The data half is what makes a mutation in the allocation bitmap, a fork record or
+the extents-overflow tree reachable: the create only takes a catalog node, while
+the 1,500-byte write allocates blocks, stages the bitmap and the volume header, and
+the truncate has to give every block back. Both run before the delete so the
+blocks the write took are freed by the file being removed.
 
 ```sh
 cd tests/hfsplus && ./test_writer_mutations              # 34 curated + 400 random
