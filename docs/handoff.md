@@ -12,6 +12,45 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-23 (write VFS on a real volume, signed staged-update client)
+
+## What happened
+
+- **The write VFS now has a transaction scope and nested paths** (T-065, PR
+  #144). `vfs_rw_txn_begin`/`_delete`/`_rename`/`_replace`/`_commit`/`_abort`
+  fill one transaction and commit it once, which is the only way to swap an image
+  and its manifest atomically. Abort or refusal re-reads the volume header and
+  re-opens the trees, because staged operations move in-memory counters before
+  the commit (`HFS_CHECK_FREE_MISMATCH` was the symptom the new test found).
+  Paths nest: syntax is checked before any lookup, then one catalog lookup per
+  component.
+- **`tests/image/vfs_write_host.c`** runs that layer on a volume `hdiutil`
+  formatted and requires `hfs-check` clean, `fsck_hfs -fn` "appears to be OK"
+  with no repair, and a read-only macOS mount showing the same tree. First
+  end-to-end evidence that this writer produces a volume Apple accepts.
+- **`firmware/update/update.c` is the signed staged-update client** (T-064):
+  verify (loader's own manifest/Ed25519, streamed SHA-256), park (recovery copy
+  plus a parked image, both read back), commit (image + manifest + `TRYING`
+  boot-state slot in one transaction, all three read back). `tests/update` is the
+  tenth host suite, with really signed fixtures from a fixed throwaway seed.
+- **Two defects fixed on the way:** `read_counts` reading the volume header from
+  the medium (two creates in one transaction collided on `nextCatalogID`), and
+  `vfs_rw_split` refusing nested paths.
+
+## Evidence
+
+`make -C tests/vfs test` + `sanitize`, `make -C tests/update test` + `sanitize`,
+`make -C tests/hfsplus test`, `./tools/host-tests.sh clang` (10 suites), the
+macOS `vfs-write-test`, and a 6G cross-build that still links to 80,840 bytes.
+
+## Next
+
+A firmware call site for the update client (the VFS mount exists but nothing
+mounts at boot yet), then the UI around it. ALAC and AAC still do not exist. The
+Disk Mode images have no device run.
+
+---
+
 # Handoff — 2026-11-23 (Alpha 2.1.0 published: Disk Mode)
 
 ## What happened
