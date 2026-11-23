@@ -55,6 +55,54 @@ file grows. Do not rely on chat history for current state.
   steal path deliberately (small node, few records per node).
 - Everything else on the queue is unchanged: the catalog writer's remaining
   macOS-differential work, `fsck_hfs` on generated trees, and T-056's device half.
+# Handoff — 2026-11-23 (a writer fuzzer, and names that are not ASCII)
+
+## What happened
+
+- **T-148 — a fuzz harness for the writer.** `tests/hfsplus/writer_fixture.c` lifts
+  the mutation sweep's volume builder out into one place (a valid 1 MiB image with
+  the root folder seeded through the real writer). `tests/hfsplus/fuzz/fuzz_writer.c`
+  mutates up to seven bytes of it and runs the ladder a caller would: probe →
+  structural check → catalog open → one call (create, create folder, rename, write,
+  truncate, delete). Two rules are the oracle, and both come from the fail-closed
+  contract rather than from a model of the code: a refused call leaves the image
+  byte-identical, and a commit never adds a finding to a volume the check called
+  clean. A violation aborts with a message so libFuzzer saves the input. Nine seeds
+  are committed; `./tools/fuzz.sh --replay` covers eight harnesses. The guided run is
+  CI-only because Xcode's clang has no `libclang_rt.fuzzer` — do not "fix" that by
+  vendoring one.
+- **T-149 — composed and decomposed names in the catalog model.** HFS+ stores
+  canonical names (`é` → `e` + U+0301) and every write entry point normalizes what it
+  is given. The sweep only generated ASCII, so a path that skipped the step was
+  invisible. Each item now keeps both spellings, twelve Latin-1 precomposed letters
+  are in the alphabet, children are read back through the reader's path lookup, and
+  `composition_probe` requires the decomposed spelling of an existing name to answer
+  `BUSY` — which only holds if the writer normalizes, since FastUnicodeCompare does
+  not decompose.
+
+## Evidence
+
+- `make -C tests/hfsplus test` and `sanitize`: green, the committed 600-step sweep
+  plus seeds 2, 3, 5, 9, 17 at 1,200–1,500 steps, each with 1 case and 1 composition
+  collision, the drain still ending at `depth 1, 62 of 64 nodes free`.
+- `./tools/host-tests.sh clang`: 9 suites. `./tools/static-analysis.sh`: 80 units,
+  0 findings.
+- Teeth, three mutations, one per normalization site: `create_object` fails at step
+  0, `delete_object` answers `NOT_FOUND` for the accented name, and the new name in
+  `hfs_catalog_rename` fails at step 17. All three were reverted and the suite re-run
+  green.
+- Host-only. No device run, no `fsck_hfs` on the model test's own hand-built fixture
+  (its header is not one `newfs_hfs` would write) — the macOS differential in §5 is
+  what covers that.
+
+## Open, next
+
+- **Index-node merging** in `firmware/hfs/hfs_btree_tree.c` is now the last reason a
+  drained tree keeps one-child index nodes; `test_btree_model`'s 512-byte nodes are
+  the proving ground (merge two sparse sibling index nodes, fix the parent key,
+  delete the sibling's record from the grandparent, propagate upward).
+- The writer fuzzer's corpus grows from CI findings; a reproducer becomes a corpus
+  file and a fix in the same PR.
 
 ---
 

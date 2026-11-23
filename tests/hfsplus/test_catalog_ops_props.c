@@ -33,6 +33,20 @@
  * probe after the sweep takes a name that exists, flips its case, and requires
  * both a create and a rename onto it to answer BUSY with the image untouched.
  *
+ * Names carry accented letters as well, and every call passes the composed
+ * spelling - `é` as one character - while HFS+ stores the decomposed form, `e`
+ * followed by U+0301. The model holds both spellings for every item: the one it
+ * typed, which is what the next delete, write, truncate or rename hands back to
+ * the writer, and the canonical one, which is what the catalog has to hold. So
+ * each of those entry points is asked to normalize the name before it looks the
+ * key up, and the children check compares the stored bytes with the decomposed
+ * form. A second probe asks the other direction: the decomposed spelling of a
+ * name that exists must be refused as BUSY, because FastUnicodeCompare does not
+ * decompose and only the writer's normalization can make the two spellings one
+ * key. (That the decomposition itself is the right one is the Unicode unit
+ * vectors' job; what this file catches is a write path that skips it, or applies
+ * it in one place and not another.)
+ *
  * The model is written from the documentation, not from the code: names are
  * unique per parent, a folder's valence is its child count, deleting a folder
  * that has children must be refused with HFS_ERR_NOT_EMPTY, moving a folder
@@ -67,6 +81,7 @@
 #include "hfs_check.h"
 #include "hfs_journal.h"
 #include "hfs_txn.h"
+#include "hfs_unicode.h"
 #include "test_check.h"
 
 #include <stdint.h>
@@ -99,7 +114,10 @@
 #define ROOT_CNID 2u
 
 #define MAX_ITEMS 24u
+/* Characters typed; an accented letter is one character and up to two units. */
 #define MAX_NAME 8u
+#define MAX_NAME_UNITS (MAX_NAME * 2u)
+#define MAX_NAME_BYTES 32u
 #define MAX_FILE_BYTES 4096u
 
 enum item_kind {
@@ -112,7 +130,10 @@ struct item {
     int kind;
     uint32_t cnid;
     uint32_t parent;
-    char name[MAX_NAME + 1u];
+    /* The bytes the catalog stores: HFS+ canonical, fully decomposed. */
+    char name[MAX_NAME_BYTES];
+    /* The bytes the last call passed in, which may be the composed spelling. */
+    char typed[MAX_NAME_BYTES];
     size_t size;
     uint8_t content[MAX_FILE_BYTES];
 };
@@ -307,13 +328,39 @@ static size_t build_key(uint8_t *buffer, uint32_t parent, const uint8_t *name,
     return 6u + units * 2u;
 }
 
-/* UTF-16BE for an ASCII name. */
+/* The form the catalog stores for `typed`: HFS+ canonical, fully decomposed. */
+static void canonicalize(const char *typed, char *out)
+{
+    uint8_t utf16[2u * MAX_NAME_UNITS];
+    size_t units = 0;
+    int rc = hfs_utf8_to_utf16be(typed, strlen(typed), utf16, sizeof(utf16),
+                                 &units);
+    if (rc == HFS_OK) {
+        uint8_t normalized[2u * MAX_NAME_UNITS];
+        size_t normalized_units = 0;
+        rc = hfs_unicode_normalize_name(utf16, units, normalized,
+                                        sizeof(normalized), &normalized_units);
+        if (rc == HFS_OK)
+            rc = hfs_utf16be_to_utf8(normalized, normalized_units, out,
+                                     MAX_NAME_BYTES);
+    }
+    if (rc != HFS_OK) {
+        fprintf(stderr, "  FAIL normalizing %s: %d (%s)\n", typed, rc,
+                hfs_strerror(rc));
+        exit(1);
+    }
+}
+
+/* UTF-16BE for a UTF-8 name, the form every write call takes. */
 static size_t name_units(const char *name, uint8_t *out)
 {
-    size_t units = strlen(name);
-    for (size_t i = 0; i < units; ++i) {
-        out[i * 2] = 0;
-        out[i * 2 + 1] = (uint8_t)name[i];
+    size_t units = 0;
+    int rc = hfs_utf8_to_utf16be(name, strlen(name), out,
+                                 2u * MAX_NAME_UNITS, &units);
+    if (rc != HFS_OK) {
+        fprintf(stderr, "  FAIL encoding %s: %d (%s)\n", name, rc,
+                hfs_strerror(rc));
+        exit(1);
     }
     return units;
 }
@@ -418,6 +465,16 @@ static int model_find(uint32_t cnid)
     return -1;
 }
 
+/*
+ * HFS+ name equality is FastUnicodeCompare's: case-folded, so "abc" and "ABC"
+ * are the same name and a second create under either has to be refused. The
+ * model needs the same rule to know which names are taken; the fold here is the
+ * documented ASCII one, written from the format, not taken from the comparator
+ * under test. It only ever sees canonical names, and every canonical name starts
+ * each character with an ASCII base letter or digit followed by at most its
+ * combining marks, so folding the base letter is the whole of the rule for this
+ * alphabet.
+ */
 static int names_same(const char *a, const char *b)
 {
     size_t i = 0;
@@ -434,11 +491,18 @@ static int names_same(const char *a, const char *b)
     return a[i] == '\0' && b[i] == '\0';
 }
 
-static int model_find_name(uint32_t parent, const char *name)
+/*
+ * Which item already holds `name` under `parent`, whatever spelling the caller
+ * typed. The catalog keys on the canonical form, so two spellings of one name
+ * are one name and the model has to compare the same form the tree does.
+ */
+static int model_find_name(uint32_t parent, const char *typed)
 {
+    char canonical[MAX_NAME_BYTES];
+    canonicalize(typed, canonical);
     for (size_t i = 0; i < MAX_ITEMS; ++i) {
         if (items[i].kind != ITEM_FREE && items[i].parent == parent &&
-            names_same(items[i].name, name))
+            names_same(items[i].name, canonical))
             return (int)i;
     }
     return -1;
@@ -520,25 +584,63 @@ static int snapshot_same(void)
     return memcmp(snapshot, image, IMAGE_SIZE) == 0;
 }
 
-static const char name_letters[] =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+/*
+ * The name alphabet, one UTF-8 piece per entry. The accented letters are the
+ * Latin-1 precomposed forms: each one has a canonical decomposition into an ASCII
+ * base letter and one combining mark, so typing `é` stores two units where the
+ * caller wrote one character. Three consequences are what this file is after:
+ *
+ *  - the writer has to normalize on every entry point, or a create would store
+ *    the composed bytes and the next lookup with the decomposed spelling would
+ *    miss the record it just made;
+ *  - the catalog orders keys by FastUnicodeCompare over the stored units, so
+ *    accented and plain names interleave in the tree and splits have to keep an
+ *    order the structural check accepts;
+ *  - the case fold and the decomposition have to compose: `É` and `é` are one
+ *    name, which the pair `case_probe` and `composition_probe` ask for.
+ */
+static const char name_alphabet[][3] = {
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+    "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m",
+    "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    "\xc3\xa9",     /* é: e + U+0301 */
+    "\xc3\xa8",     /* è: e + U+0300 */
+    "\xc3\xa4",     /* ä: a + U+0308 */
+    "\xc3\xa5",     /* å: a + U+030A */
+    "\xc3\xa7",     /* ç: c + U+0327 */
+    "\xc3\xb1",     /* ñ: n + U+0303 */
+    "\xc3\xb4",     /* ô: o + U+0302 */
+    "\xc3\xb6",     /* ö: o + U+0308 */
+    "\xc3\xbc",     /* ü: u + U+0308 */
+    "\xc3\xba",     /* ú: u + U+0301 */
+    "\xc3\x89",     /* É: E + U+0301 */
+    "\xc3\x96",     /* Ö: O + U+0308 */
+};
+
+#define NAME_ALPHABET_COUNT (sizeof(name_alphabet) / sizeof(name_alphabet[0]))
 
 /*
- * HFS+ name equality is FastUnicodeCompare's: case-folded, so "abc" and "ABC"
- * are the same name and a second create under either has to be refused. The
- * model needs the same rule to know which names are taken; the fold here is the
- * documented ASCII one, written from the format, not taken from the comparator
- * under test.
+ * A name the model does not hold under `parent` yet, in both spellings: `typed`
+ * is what the next call passes in (composed where it can be), `canonical` is
+ * what the catalog is expected to store.
  */
-
-static int make_unique_name(uint32_t parent, char *out)
+static int make_unique_name(uint32_t parent, char *typed, char *canonical)
 {
     for (int attempt = 0; attempt < 60; ++attempt) {
         size_t length = 1u + next_random() % MAX_NAME;
-        for (size_t i = 0; i < length; ++i)
-            out[i] = name_letters[next_random() % 36u];
-        out[length] = '\0';
-        if (model_find_name(parent, out) < 0)
+        size_t used = 0;
+        for (size_t i = 0; i < length; ++i) {
+            const char *piece =
+                name_alphabet[next_random() % NAME_ALPHABET_COUNT];
+            size_t bytes = strlen(piece);
+            memcpy(typed + used, piece, bytes);
+            used += bytes;
+        }
+        typed[used] = '\0';
+        canonicalize(typed, canonical);
+        if (model_find_name(parent, typed) < 0)
             return 0;
     }
     return 1;
@@ -551,7 +653,7 @@ static int make_unique_name(uint32_t parent, char *out)
 static int read_folder_valence(struct env *env, uint32_t parent,
                                const char *name, uint32_t *valence)
 {
-    uint8_t utf16[2u * MAX_NAME];
+    uint8_t utf16[2u * MAX_NAME_UNITS];
     size_t units = name_units(name, utf16);
     uint8_t key[64];
     size_t key_length = build_key(key, parent, utf16, units);
@@ -687,15 +789,60 @@ static void debug_dump_tree(struct env *env)
     }
 }
 
+static int path_component(char *out, size_t size, size_t *used,
+                          const char *part)
+{
+    size_t bytes = strlen(part);
+    if (*used + 1u + bytes + 1u > size)
+        return 1;
+    out[(*used)++] = '/';
+    memcpy(out + *used, part, bytes);
+    *used += bytes;
+    out[*used] = '\0';
+    return 0;
+}
+
+/*
+ * "/.../<name>" for the item, starting inside the root folder: the reader's path
+ * lookup opens the root and takes the first component from there. It compares
+ * each component as a key, so a file three levels down costs three comparisons
+ * with accented names before the record it returns.
+ */
+static int build_model_path(size_t index, char *out, size_t size)
+{
+    const char *chain[MAX_ITEMS];
+    size_t depth = 0;
+    uint32_t cnid = items[index].parent;
+    while (cnid != ROOT_CNID) {
+        int at = model_find(cnid);
+        if (at < 0 || depth >= MAX_ITEMS)
+            return 1;                  /* the model has no chain to the root */
+        chain[depth++] = items[at].name;
+        cnid = items[at].parent;
+    }
+
+    size_t used = 0;
+    while (depth > 0u) {
+        if (path_component(out, size, &used, chain[--depth]) != 0)
+            return 1;
+    }
+    return path_component(out, size, &used, items[index].name);
+}
+
 static int check_contents(struct env *env, size_t index)
 {
+    char path[1024];
+    if (build_model_path(index, path, sizeof(path)) != 0) {
+        fprintf(stderr, "  FAIL no path from the root to %s (id %u)\n",
+                items[index].name, (unsigned)items[index].cnid);
+        return 1;
+    }
+
     struct hfs_entry entry;
-    int rc = hfs_catalog_lookup_ascii(&env->catalog, items[index].parent,
-                                      items[index].name, &entry);
+    int rc = hfs_catalog_lookup(&env->catalog, path, &entry);
     if (rc != HFS_OK) {
         fprintf(stderr,
-                "  note: lookup %s under %u (id %u, size %zu) rc=%d\n",
-                items[index].name, (unsigned)items[index].parent,
+                "  note: lookup %s (id %u, size %zu) rc=%d\n", path,
                 (unsigned)items[index].cnid, items[index].size, rc);
         if (getenv("OPS_TRACE") != NULL)
             debug_dump_tree(env);
@@ -799,6 +946,7 @@ struct counters {
     uint32_t cycles;
     uint32_t not_empty;
     uint32_t case_collisions;
+    uint32_t composition_collisions;
 };
 
 static int do_create(struct env *env, int kind, struct counters *count)
@@ -808,16 +956,18 @@ static int do_create(struct env *env, int kind, struct counters *count)
     pick_folder(folders, &folder_count);
     uint32_t parent = folders[next_random() % folder_count];
 
-    char name[MAX_NAME + 1u];
-    if (make_unique_name(parent, name) != 0)
+    char typed[MAX_NAME_BYTES];
+    char canonical[MAX_NAME_BYTES];
+    if (make_unique_name(parent, typed, canonical) != 0)
         return 0;
 
     int slot = model_slot();
     if (slot < 0)
         return 0;
 
-    uint8_t utf16[2u * MAX_NAME];
-    size_t units = name_units(name, utf16);
+    /* The composed spelling goes in; the catalog stores the decomposed form. */
+    uint8_t utf16[2u * MAX_NAME_UNITS];
+    size_t units = name_units(typed, utf16);
     uint32_t next_cnid = get_be32(image + 1024 + 64);
     uint32_t cnid = 0;
     struct hfs_txn tx;
@@ -842,8 +992,8 @@ static int do_create(struct env *env, int kind, struct counters *count)
         return 0;
     }
     if (rc != HFS_OK) {
-        fprintf(stderr, "  FAIL create kind=%d parent=%u rc=%d\n", kind,
-                (unsigned)parent, rc);
+        fprintf(stderr, "  FAIL create %s kind=%d parent=%u rc=%d\n", typed,
+                kind, (unsigned)parent, rc);
         return 1;
     }
     if (cnid != next_cnid) {
@@ -859,7 +1009,8 @@ static int do_create(struct env *env, int kind, struct counters *count)
     items[slot].kind = kind;
     items[slot].cnid = cnid;
     items[slot].parent = parent;
-    memcpy(items[slot].name, name, strlen(name) + 1u);
+    memcpy(items[slot].name, canonical, strlen(canonical) + 1u);
+    memcpy(items[slot].typed, typed, strlen(typed) + 1u);
     ++count->creates;
     return 0;
 }
@@ -871,8 +1022,9 @@ static int delete_at(struct env *env, size_t index, struct counters *count)
     if (item->kind == ITEM_FREE)
         return 0;
 
-    uint8_t utf16[2u * MAX_NAME];
-    size_t units = name_units(item->name, utf16);
+    /* The name as it was typed: the writer normalizes it back to the key. */
+    uint8_t utf16[2u * MAX_NAME_UNITS];
+    size_t units = name_units(item->typed, utf16);
     struct hfs_txn tx;
     start_tx(env, &tx);
     snapshot_take();
@@ -944,14 +1096,15 @@ static int do_rename(struct env *env, struct counters *count)
     pick_folder(folders, &folder_count);
     uint32_t new_parent = folders[next_random() % folder_count];
 
-    char new_name[MAX_NAME + 1u];
-    if (make_unique_name(new_parent, new_name) != 0)
+    char new_typed[MAX_NAME_BYTES];
+    char new_canonical[MAX_NAME_BYTES];
+    if (make_unique_name(new_parent, new_typed, new_canonical) != 0)
         return 0;
 
-    uint8_t old_utf16[2u * MAX_NAME];
-    uint8_t new_utf16[2u * MAX_NAME];
-    size_t old_units = name_units(item->name, old_utf16);
-    size_t new_units = name_units(new_name, new_utf16);
+    uint8_t old_utf16[2u * MAX_NAME_UNITS];
+    uint8_t new_utf16[2u * MAX_NAME_UNITS];
+    size_t old_units = name_units(item->typed, old_utf16);
+    size_t new_units = name_units(new_typed, new_utf16);
 
     struct hfs_txn tx;
     start_tx(env, &tx);
@@ -982,13 +1135,14 @@ static int do_rename(struct env *env, struct counters *count)
         fprintf(stderr,
                 "  FAIL rename %s (id %u, kind %d) from %u to %u as %s rc=%d\n",
                 item->name, (unsigned)item->cnid, item->kind,
-                (unsigned)item->parent, (unsigned)new_parent, new_name, rc);
+                (unsigned)item->parent, (unsigned)new_parent, new_typed, rc);
         return 1;
     }
     apply_txn(&tx);
     CHECK(mount_env(env) == 0);
     item->parent = new_parent;
-    memcpy(item->name, new_name, strlen(new_name) + 1u);
+    memcpy(item->name, new_canonical, strlen(new_canonical) + 1u);
+    memcpy(item->typed, new_typed, strlen(new_typed) + 1u);
     ++count->renames;
     return 0;
 }
@@ -1022,8 +1176,8 @@ static int do_write(struct env *env, struct counters *count)
     for (size_t i = 0; i < length; ++i)
         data[i] = (uint8_t)(pattern + (uint8_t)i);
 
-    uint8_t utf16[2u * MAX_NAME];
-    size_t units = name_units(item->name, utf16);
+    uint8_t utf16[2u * MAX_NAME_UNITS];
+    size_t units = name_units(item->typed, utf16);
     struct hfs_txn tx;
     start_tx(env, &tx);
     snapshot_take();
@@ -1064,8 +1218,8 @@ static int do_truncate(struct env *env, struct counters *count)
         return 0;
     struct item *item = &items[files[next_random() % file_count]];
 
-    uint8_t utf16[2u * MAX_NAME];
-    size_t units = name_units(item->name, utf16);
+    uint8_t utf16[2u * MAX_NAME_UNITS];
+    size_t units = name_units(item->typed, utf16);
     struct hfs_txn tx;
 
     /* Growing through this call is a caller error: ARGUMENT, nothing staged. */
@@ -1120,6 +1274,10 @@ static int do_truncate(struct env *env, struct counters *count)
  * If the writer inserted with a folded comparison and searched with a raw one,
  * this is the pair of calls that would put two records under one key, so the
  * check is worth doing even though the sweep generates unique names.
+ *
+ * The name it flips is the one the caller typed, so an accented letter is folded
+ * in its composed spelling and the writer has to normalize before it compares:
+ * `É` and `é` are one name only if both steps run, in that order.
  */
 static int case_probe(struct env *env, struct counters *count)
 {
@@ -1127,7 +1285,7 @@ static int case_probe(struct env *env, struct counters *count)
     for (size_t i = 0; i < MAX_ITEMS && anchor < 0; ++i) {
         if (items[i].kind != ITEM_FILE)
             continue;
-        for (const char *c = items[i].name; *c != '\0'; ++c) {
+        for (const char *c = items[i].typed; *c != '\0'; ++c) {
             if (*c >= 'A' && *c <= 'Z') {
                 anchor = (int)i;
                 break;
@@ -1137,10 +1295,10 @@ static int case_probe(struct env *env, struct counters *count)
     if (anchor < 0)
         return 0;      /* nothing with a letter to flip: nothing to prove */
 
-    char flipped[MAX_NAME + 1u];
-    size_t length = strlen(items[anchor].name);
+    char flipped[MAX_NAME_BYTES];
+    size_t length = strlen(items[anchor].typed);
     for (size_t i = 0; i <= length; ++i) {
-        char c = items[anchor].name[i];
+        char c = items[anchor].typed[i];
         if (c >= 'A' && c <= 'Z')
             c = (char)(c - 'A' + 'a');
         else if (c >= 'a' && c <= 'z')
@@ -1148,7 +1306,7 @@ static int case_probe(struct env *env, struct counters *count)
         flipped[i] = c;
     }
 
-    uint8_t utf16[2u * MAX_NAME];
+    uint8_t utf16[2u * MAX_NAME_UNITS];
     size_t units = name_units(flipped, utf16);
     struct hfs_txn tx;
     start_tx(env, &tx);
@@ -1182,8 +1340,8 @@ static int case_probe(struct env *env, struct counters *count)
         }
     }
     if (mover >= 0) {
-        uint8_t old_utf16[2u * MAX_NAME];
-        size_t old_units = name_units(items[mover].name, old_utf16);
+        uint8_t old_utf16[2u * MAX_NAME_UNITS];
+        size_t old_units = name_units(items[mover].typed, old_utf16);
         start_tx(env, &tx);
         snapshot_take();
         rc = hfs_catalog_rename(&env->catalog, &tx, items[mover].parent,
@@ -1202,6 +1360,90 @@ static int case_probe(struct env *env, struct counters *count)
         }
         ++count->refusals;
         ++count->case_collisions;
+    }
+    return 0;
+}
+
+
+/*
+ * A name has one stored spelling whatever the caller wrote. The sweep always
+ * creates with the composed form and always checks the disk against the
+ * decomposed one, so storage is already proven; what is left is the other
+ * direction - a caller passing the decomposed spelling of a name that already
+ * exists must be refused, not given a second record next to it.
+ *
+ * This is where the two implementations part company: with normalization at the
+ * writer, both spellings fold to one key and the search finds the record; without
+ * it, the decomposed bytes are a different name under FastUnicodeCompare (which
+ * does not decompose), the create succeeds, and the folder holds one file under
+ * two names.
+ */
+static int composition_probe(struct env *env, struct counters *count)
+{
+    int anchor = -1;
+    for (size_t i = 0; i < MAX_ITEMS && anchor < 0; ++i) {
+        if (items[i].kind == ITEM_FILE &&
+            strcmp(items[i].name, items[i].typed) != 0)
+            anchor = (int)i;
+    }
+    if (anchor < 0)
+        return 0;      /* no accented name survived: nothing to prove */
+
+    uint8_t utf16[2u * MAX_NAME_UNITS];
+    size_t units = name_units(items[anchor].name, utf16);
+    struct hfs_txn tx;
+    start_tx(env, &tx);
+    snapshot_take();
+    uint32_t cnid = 0;
+    int rc = hfs_catalog_create_file(&env->catalog, &tx,
+                                     items[anchor].parent, utf16, units, 0644,
+                                     hfs_catalog_key_compare, NULL, &cnid);
+    if (rc != HFS_ERR_BUSY) {
+        fprintf(stderr,
+                "  FAIL create %s under %u: rc=%d, expected BUSY (the catalog "
+                "already holds it as %s)\n",
+                items[anchor].name, (unsigned)items[anchor].parent, rc,
+                items[anchor].typed);
+        return 1;
+    }
+    if (!snapshot_same()) {
+        fprintf(stderr, "  FAIL refused create %s changed the image\n",
+                items[anchor].name);
+        return 1;
+    }
+    ++count->refusals;
+    ++count->composition_collisions;
+
+    /* A file: a folder moved into its own subtree is a cycle, not a collision. */
+    int mover = -1;
+    for (size_t i = 0; i < MAX_ITEMS; ++i) {
+        if ((int)i != anchor && items[i].kind == ITEM_FILE &&
+            items[i].parent == items[anchor].parent) {
+            mover = (int)i;
+            break;
+        }
+    }
+    if (mover >= 0) {
+        uint8_t old_utf16[2u * MAX_NAME_UNITS];
+        size_t old_units = name_units(items[mover].typed, old_utf16);
+        start_tx(env, &tx);
+        snapshot_take();
+        rc = hfs_catalog_rename(&env->catalog, &tx, items[mover].parent,
+                                old_utf16, old_units, items[mover].cnid,
+                                items[anchor].parent, utf16, units,
+                                hfs_catalog_key_compare, NULL);
+        if (rc != HFS_ERR_BUSY) {
+            fprintf(stderr, "  FAIL rename %s -> %s: rc=%d, expected BUSY\n",
+                    items[mover].name, items[anchor].name, rc);
+            return 1;
+        }
+        if (!snapshot_same()) {
+            fprintf(stderr, "  FAIL refused rename to %s changed the image\n",
+                    items[anchor].name);
+            return 1;
+        }
+        ++count->refusals;
+        ++count->composition_collisions;
     }
     return 0;
 }
@@ -1382,17 +1624,20 @@ int main(int argc, char **argv)
     }
 
     CHECK(case_probe(&env, &count) == 0);
+    CHECK(composition_probe(&env, &count) == 0);
     CHECK(check_world(&env) == 0);
     CHECK(drain_catalog(&env, &count) == 0);
 
     printf("  catalog operations: %u steps, %u creates, %u deletes, "
            "%u renames, %u writes, %u truncates, %u refusals "
-           "(%u cycle, %u not-empty), %u case collisions\n",
+           "(%u cycle, %u not-empty), %u case and %u composition "
+           "collisions\n",
            (unsigned)steps, (unsigned)count.creates, (unsigned)count.deletes,
            (unsigned)count.renames, (unsigned)count.writes,
            (unsigned)count.truncates, (unsigned)count.refusals,
            (unsigned)count.cycles, (unsigned)count.not_empty,
-           (unsigned)count.case_collisions);
+           (unsigned)count.case_collisions,
+           (unsigned)count.composition_collisions);
     CHECK(count.creates > steps / 20u);
     CHECK(count.deletes > steps / 50u);
     return 0;
