@@ -109,5 +109,6 @@ tests/hfsplus/test_txn_overlay_props
 tests/hfsplus/test_txn_overlay_props.dSYM/
 tests/hfsplus/test_catalog_ops_props
 tests/hfsplus/test_btree_model
+tests/hfsplus/test_btree_index_merge
 tests/hfsplus/test_writer_mutations
 tests/hfsplus/test_catalog_ops_props.dSYM/
