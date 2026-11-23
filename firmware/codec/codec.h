@@ -164,6 +164,7 @@ int helikon_codec_seek(struct helikon_codec *codec, uint32_t frame);
 void helikon_codec_close(struct helikon_codec *codec);
 
 extern const struct helikon_codec_ops helikon_wav_codec_ops;
+extern const struct helikon_codec_ops helikon_aiff_codec_ops;
 extern const struct helikon_codec_ops helikon_flac_codec_ops;
 extern const struct helikon_codec_ops helikon_mp3_codec_ops;
 

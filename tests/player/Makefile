@@ -63,6 +63,7 @@ test_player: test_player.c ../../firmware/player/player.c \
              ../../firmware/hal/6g/audio_dma.h \
              ../../firmware/hal/6g/audio_stream.h \
              ../../firmware/codec/codec.c ../../firmware/codec/codec.h \
+             ../../firmware/codec/aiff/aiff_codec.c \
              ../../firmware/codec/flac/flac_codec.c \
              ../../firmware/codec/flac/flac_decoder.c \
              ../../firmware/codec/flac/flac_decoder.h \
@@ -71,6 +72,7 @@ test_player: test_player.c ../../firmware/player/player.c \
 	$(CC) $(CFLAGS) -o $@ test_player.c ../../firmware/player/player.c \
 	      ../../firmware/player/wav.c ../../firmware/player/read_ahead.c \
 	      ../../firmware/codec/codec.c \
+	      ../../firmware/codec/aiff/aiff_codec.c \
 	      ../../firmware/codec/flac/flac_codec.c \
 	      ../../firmware/codec/flac/flac_decoder.c \
 	      ../../firmware/codec/mp3/mp3_codec.c \
