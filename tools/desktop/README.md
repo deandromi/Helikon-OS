@@ -33,7 +33,8 @@ cd tools/desktop
 open "dist/Helikon Companion.app" --args --skip-splash
 ```
 
-The DMG is written to `dist/Helikon-Companion-0.1.0-alpha2.dmg`; the script
+The DMG is written to `dist/Helikon-Companion-0.1.0-<tag>.dmg` (`--tag`
+selects the release name, default `alpha2.1`); the script
 verifies the ad-hoc signature, checks both architectures, verifies the DMG and
 prints its SHA-256. It is not notarized.
 
