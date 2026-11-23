@@ -497,6 +497,36 @@ turning either `NO_SPACE` back into `UNSUPPORTED`.
 Teeth: dropping `map_set(header, node, 0)` from the free-node path makes the
 model test stop at step 54 with `problems 0x00080000` from `hfs_check_volume`.
 
+Index nodes merge as well (T-150). Something was missing there: a delete merged
+two leaves and collapsed an emptied leaf through its ancestors, but nothing ever
+paired two *index* nodes, so a deep tree that lost records kept a level per
+surviving child. A one-child index node is not corrupt — every key below it is
+reachable, key order holds, node ownership is right, and `hfs_check_volume` passes
+— which is exactly why it went unnoticed for so long; it is a node that buys
+nothing and can never be reused. `settle_index_nodes` runs whenever an operation
+takes a record out of an index node: it merges the node with its next sibling (or
+with its previous one when it is the last child) in key order when the combined
+records fit, drops the absorbed node's record from the parent, returns the node to
+the free-node map, and repeats one level up, because the parent's record count
+just changed. When the two do not fit it moves a single child across from the
+sibling, rewrites the one parent key that changed, and stops. `collapse_root` then
+takes a level off a root left with one child.
+
+The model test asks for that shape directly: `check_occupancy` walks the index
+nodes from the root after every operation and rejects any with fewer than two
+records. It failed on the first run of the existing sweep — `step 1000063, index
+node 3 at level 1 holds 1 record(s)` — which is the evidence that the gap was
+real and not a tidy-up. Teeth: disabling the merge fails the same step with the
+same message, and disabling only the root collapse fails at `step 1000207` with
+`index node 31 at level 0 holds 1 record(s)`.
+
+What that does not prove: the steal fallback. After a split a node is at most half
+full, so a one-child node plus its sibling always fits and the fallback is never
+reached by these seeds; it exists because a node that *can* be full (an index node
+that took records in from a sibling earlier) would otherwise leave the invariant
+broken. The merge path is what the test proves, and the fallback is written down
+here as unexercised rather than implied to be covered.
+
 ### 4.2 The write path under a corrupted volume
 
 `tests/hfsplus/test_writer_mutations.c` asks the question the read-path sweep does
@@ -553,8 +583,6 @@ Still `planned`:
 
 - names with composed and decomposed forms in the *same* model, so the writer's
   normalization is exercised across splits and not only by the unit tests;
-- merging two sparse index nodes, which is the remaining reason a drained tree
-  keeps one-child index nodes;
 - `fsck_hfs` on the result (macOS differential, §5) — the writer already runs
   against real `newfs_hfs` volumes in `run-ops-macos.sh`, but the model test's own
   fixture is hand-built and would not survive `fsck_hfs` for reasons unrelated to

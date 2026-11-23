@@ -26,6 +26,11 @@
  *  - Nothing ever answers `HFS_ERR_FORMAT`, and `hfs_check_volume` never finds
  *    anything: a tree that its own structural check rejects is corrupt whatever
  *    the search results say.
+ *  - No index node holds fewer than two records. That is a shape rule, not a
+ *    consistency rule - a one-child index node passes the structural check - and
+ *    it is the one thing a delete used to leave behind: a level of the tree that
+ *    holds one child, never freed and never merged, so a drained tree kept chains
+ *    of them (T-150).
  *
  * After the random sweep an ordered pass runs, because random deletes rarely
  * empty a leaf in the order that forces the cascades. It drains the tree one
@@ -551,11 +556,96 @@ static int verify_volume(size_t step)
     return 0;
 }
 
+/*
+ * No index node holds fewer than two records.
+ *
+ * A one-child index node is not corrupt: every key below it is reachable, key
+ * order holds, and `hfs_check_volume` passes. It is a level of the tree that buys
+ * nothing - a whole node, and one more node read on every descent - and a drain
+ * leaves a chain of them behind if nothing merges index nodes, so the nodes never
+ * come back for reuse. The model asks for the tighter shape because that is the
+ * shape a B-tree is supposed to have; a failure here means the tree is correct
+ * but wasteful, not that a key moved.
+ */
+static int check_occupancy(uint32_t node, unsigned level, size_t step)
+{
+    if (level > 8u) {
+        fprintf(stderr, "  node %u at level %u\n", (unsigned)node, level);
+        fail_report("index descent", step,
+                    "deeper than any tree this test builds");
+        return 1;
+    }
+    const uint8_t *data = NULL;
+    int rc = hfs_btree_read_node(&extents, node, &data);
+    if (rc != HFS_OK) {
+        fprintf(stderr, "  read node %u: rc=%d\n", (unsigned)node, rc);
+        fail_report("index read failed", step, "the tree rejected a node");
+        return 1;
+    }
+    /* One buffer per handle: a copy is what survives the descent into a child. */
+    uint8_t copy[NODE_SIZE];
+    memcpy(copy, data, NODE_SIZE);
+
+    if (copy[8] == 0xff)
+        return 0;
+    if (copy[8] != 0) {
+        fprintf(stderr, "  node %u kind %u at level %u\n", (unsigned)node,
+                (unsigned)copy[8], level);
+        fail_report("node kind", step, "neither an index node nor a leaf");
+        return 1;
+    }
+
+    uint16_t count = (uint16_t)((copy[10] << 8) | copy[11]);
+    if (count < 2) {
+        fprintf(stderr, "  index node %u at level %u holds %u record(s)\n",
+                (unsigned)node, level, (unsigned)count);
+        fail_report("index occupancy", step,
+                    "an index node does not hold at least two children");
+        return 1;
+    }
+
+    for (uint16_t i = 0; i < count; ++i) {
+        const uint8_t *record = NULL;
+        size_t length = 0;
+        rc = hfs_btree_node_record(copy, NODE_SIZE, i, &record, &length);
+        if (rc != HFS_OK || length < 6u) {
+            fprintf(stderr, "  node %u record %u: rc=%d length %zu\n",
+                    (unsigned)node, (unsigned)i, rc, length);
+            fail_report("index record", step, "an index record is malformed");
+            return 1;
+        }
+        uint16_t key_length = (uint16_t)((record[0] << 8) | record[1]);
+        if ((size_t)key_length + 6u > length) {
+            fprintf(stderr, "  node %u record %u: key %u, length %zu\n",
+                    (unsigned)node, (unsigned)i, (unsigned)key_length, length);
+            fail_report("index record", step, "an index record is truncated");
+            return 1;
+        }
+        uint32_t child = ((uint32_t)record[2u + key_length] << 24) |
+                         ((uint32_t)record[3u + key_length] << 16) |
+                         ((uint32_t)record[4u + key_length] << 8) |
+                         record[5u + key_length];
+        if (check_occupancy(child, level + 1u, step) != 0)
+            return 1;
+    }
+    return 0;
+}
+
+static int verify_occupancy(size_t step)
+{
+    /* A tree with no root has no index node to look at. */
+    if (extents.depth == 0u || extents.root_node == 0u)
+        return 0;
+    return check_occupancy(extents.root_node, 0u, step);
+}
+
 static int verify_all(size_t step)
 {
     if (verify_find(step) != 0)
         return 1;
     if (verify_chain(step) != 0)
+        return 1;
+    if (verify_occupancy(step) != 0)
         return 1;
     return verify_volume(step);
 }
