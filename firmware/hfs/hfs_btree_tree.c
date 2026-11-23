@@ -1435,6 +1435,98 @@ static int update_parent_key(struct hfs_btree *btree,
     return HFS_OK;
 }
 
+/*
+ * The leaf at depth `level` just lost its last record. The tree has no empty
+ * nodes: the leaf leaves the leaf chain, and every ancestor that is left without
+ * a child goes with it, up to a root that either keeps records or - when the
+ * whole tree emptied - returns to the canonical depth-0 state.
+ *
+ * This is the collapse the writer used to refuse with HFS_ERR_UNSUPPORTED when a
+ * leaf emptied under an index node that was its only parent and that parent sat
+ * more than one level below the root, which is what a long drain of a deep tree
+ * produces. Refusing was safe (nothing was written) but it left a tree that could
+ * not be emptied from the top.
+ */
+static int collapse_empty_leaf(struct hfs_btree *btree,
+                               struct tree_header *header, struct hfs_txn *tx,
+                               const struct insert_path *path,
+                               unsigned int level, uint32_t node_number,
+                               const uint8_t *node)
+{
+    static uint8_t ancestor[HFS_MAX_NODE_SIZE];
+    static uint8_t key_copy[HFS_MAX_NODE_SIZE];
+
+    int rc = unlink_leaf(btree, header, tx, node_number, node);
+    if (rc != HFS_OK)
+        return rc;
+    rc = free_node(btree, tx, header, node_number);
+    if (rc != HFS_OK)
+        return rc;
+
+    /* `depth` is the depth of the child that is gone; its parent is one above. */
+    for (unsigned int depth = level; depth > 0; --depth) {
+        uint32_t parent_node = path[depth - 1u].node;
+        uint16_t child = path[depth - 1u].child;
+
+        rc = read_node(btree, tx, parent_node, ancestor);
+        if (rc != HFS_OK)
+            return rc;
+        uint16_t count = be16(ancestor + 10);
+        if (count == 0)
+            return HFS_ERR_FORMAT;
+
+        if (count > 1) {
+            /*
+             * The parent still has children. Drop the record for the one that
+             * went, and if it was the first record, the parent's key in *its*
+             * parent has to become the parent's new first key.
+             */
+            rc = hfs_btree_node_delete(ancestor, btree->node_size, child);
+            if (rc != HFS_OK)
+                return rc;
+            rc = stage_node(btree, tx, parent_node, ancestor);
+            if (rc != HFS_OK)
+                return rc;
+            if (child != 0 || depth == 1)
+                return store_header(btree, tx, header);
+            const uint8_t *key;
+            size_t key_length;
+            rc = first_key(ancestor, btree->node_size, &key, &key_length);
+            if (rc != HFS_OK)
+                return rc;
+            /* update_parent_key stages through the same static buffer. */
+            if (key_length > sizeof(key_copy))
+                return HFS_ERR_FORMAT;
+            memcpy(key_copy, key, key_length);
+            rc = update_parent_key(btree, header, tx, path, depth - 1u,
+                                   key_copy, key_length);
+            if (rc != HFS_OK)
+                return rc;
+            return store_header(btree, tx, header);
+        }
+
+        /* The parent's only child is gone, so the parent goes too. */
+        rc = free_node(btree, tx, header, parent_node);
+        if (rc != HFS_OK)
+            return rc;
+        if (depth > 1)
+            continue;
+
+        /* That parent was the root, and the whole tree has emptied. */
+        header->depth = 0;
+        header->root_node = 0;
+        header->first_leaf = 0;
+        header->last_leaf = 0;
+        header->leaf_records = 0;
+        rc = store_header(btree, tx, header);
+        if (rc != HFS_OK)
+            return rc;
+        btree->empty = 1;
+        return HFS_OK;
+    }
+    return HFS_ERR_FORMAT;
+}
+
 int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
                      const uint8_t *key, size_t key_length,
                      hfs_btree_key_compare_fn compare, void *compare_context)
@@ -1630,92 +1722,8 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
         return HFS_OK;
     }
 
-    uint16_t child = path[level - 1u].child;
-
-    static uint8_t parent[HFS_MAX_NODE_SIZE];
-    rc = read_node(btree, tx, path[level - 1u].node, parent);
-    if (rc != HFS_OK)
-        return rc;
-    uint16_t parent_count = be16(parent + 10);
-
-    if (parent_count == 1) {
-        if (level == 1)
-            return HFS_ERR_UNSUPPORTED;
-        static uint8_t grandparent[HFS_MAX_NODE_SIZE];
-        uint32_t grandparent_node = path[level - 2u].node;
-        uint16_t grandparent_child = path[level - 2u].child;
-        rc = read_node(btree, tx, grandparent_node, grandparent);
-        if (rc != HFS_OK)
-            return rc;
-        if (be16(grandparent + 10) <= 1)
-            return HFS_ERR_UNSUPPORTED;
-
-        rc = unlink_leaf(btree, &header, tx, node_number, node);
-        if (rc != HFS_OK)
-            return rc;
-        rc = free_node(btree, tx, &header, node_number);
-        if (rc != HFS_OK)
-            return rc;
-        rc = free_node(btree, tx, &header, path[level - 1u].node);
-        if (rc != HFS_OK)
-            return rc;
-
-        rc = hfs_btree_node_delete(grandparent, btree->node_size,
-                                   grandparent_child);
-        if (rc != HFS_OK)
-            return rc;
-        if (be16(grandparent + 10) == 0)
-            return HFS_ERR_UNSUPPORTED;
-        rc = stage_node(btree, tx, grandparent_node, grandparent);
-        if (rc != HFS_OK)
-            return rc;
-        if (grandparent_child == 0 && level > 2) {
-            const uint8_t *grandparent_key;
-            size_t grandparent_key_length;
-            rc = first_key(grandparent, btree->node_size, &grandparent_key,
-                           &grandparent_key_length);
-            if (rc != HFS_OK)
-                return rc;
-            rc = update_parent_key(btree, &header, tx, path, level - 2u,
-                                   grandparent_key, grandparent_key_length);
-            if (rc != HFS_OK)
-                return rc;
-        }
-        return store_header(btree, tx, &header);
-    }
-
-    if (parent_count == 0)
-        return HFS_ERR_UNSUPPORTED;
-
-    rc = unlink_leaf(btree, &header, tx, node_number, node);
-    if (rc != HFS_OK)
-        return rc;
-
-    rc = hfs_btree_node_delete(parent, btree->node_size, child);
-    if (rc != HFS_OK)
-        return rc;
-    if (be16(parent + 10) == 0)
-        return HFS_ERR_UNSUPPORTED;
-    rc = stage_node(btree, tx, path[level - 1u].node, parent);
-    if (rc != HFS_OK)
-        return rc;
-    if (child == 0 && level > 1) {
-        const uint8_t *parent_key;
-        size_t parent_key_length;
-        rc = first_key(parent, btree->node_size, &parent_key,
-                       &parent_key_length);
-        if (rc != HFS_OK)
-            return rc;
-        rc = update_parent_key(btree, &header, tx, path, level - 1u,
-                               parent_key, parent_key_length);
-        if (rc != HFS_OK)
-            return rc;
-    }
-
-    rc = free_node(btree, tx, &header, node_number);
-    if (rc != HFS_OK)
-        return rc;
-    return store_header(btree, tx, &header);
+    return collapse_empty_leaf(btree, &header, tx, path, level, node_number,
+                               node);
 }
 
 int hfs_btree_find(struct hfs_btree *btree, struct hfs_txn *tx,
