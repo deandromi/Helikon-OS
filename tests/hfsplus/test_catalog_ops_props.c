@@ -26,6 +26,13 @@
  * truncate that keeps a block allocated passes here when the free count stops
  * matching the bitmap.
  *
+ * Names are mixed case on purpose. The catalog orders keys with the case-folded
+ * FastUnicodeCompare while storing the case the caller passed, so a writer that
+ * searched with one comparison and inserted with another would put a record where
+ * the search never looks. The model therefore folds case too, and a deliberate
+ * probe after the sweep takes a name that exists, flips its case, and requires
+ * both a create and a rename onto it to answer BUSY with the image untouched.
+ *
  * The model is written from the documentation, not from the code: names are
  * unique per parent, a folder's valence is its child count, deleting a folder
  * that has children must be refused with HFS_ERR_NOT_EMPTY, moving a folder
@@ -400,11 +407,27 @@ static int model_find(uint32_t cnid)
     return -1;
 }
 
+static int names_same(const char *a, const char *b)
+{
+    size_t i = 0;
+    for (; a[i] != '\0' && b[i] != '\0'; ++i) {
+        char left = a[i];
+        char right = b[i];
+        if (left >= 'A' && left <= 'Z')
+            left = (char)(left - 'A' + 'a');
+        if (right >= 'A' && right <= 'Z')
+            right = (char)(right - 'A' + 'a');
+        if (left != right)
+            return 0;
+    }
+    return a[i] == '\0' && b[i] == '\0';
+}
+
 static int model_find_name(uint32_t parent, const char *name)
 {
     for (size_t i = 0; i < MAX_ITEMS; ++i) {
         if (items[i].kind != ITEM_FREE && items[i].parent == parent &&
-            strcmp(items[i].name, name) == 0)
+            names_same(items[i].name, name))
             return (int)i;
     }
     return -1;
@@ -486,7 +509,16 @@ static int snapshot_same(void)
     return memcmp(snapshot, image, IMAGE_SIZE) == 0;
 }
 
-static const char name_letters[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+static const char name_letters[] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
+/*
+ * HFS+ name equality is FastUnicodeCompare's: case-folded, so "abc" and "ABC"
+ * are the same name and a second create under either has to be refused. The
+ * model needs the same rule to know which names are taken; the fold here is the
+ * documented ASCII one, written from the format, not taken from the comparator
+ * under test.
+ */
 
 static int make_unique_name(uint32_t parent, char *out)
 {
@@ -755,6 +787,7 @@ struct counters {
     uint32_t refusals;
     uint32_t cycles;
     uint32_t not_empty;
+    uint32_t case_collisions;
 };
 
 static int do_create(struct env *env, int kind, struct counters *count)
@@ -1057,6 +1090,103 @@ static int do_truncate(struct env *env, struct counters *count)
     return 0;
 }
 
+
+/*
+ * Names are unique case-insensitively, so a create or a rename onto a name that
+ * differs only in case has to be refused with HFS_ERR_BUSY and leave the image
+ * byte-identical - and the refusal has to come from the tree search, because
+ * that is what decides where a record would go. The random sweep cannot reach
+ * this on its own: it only ever asks for names the model says are free.
+ *
+ * If the writer inserted with a folded comparison and searched with a raw one,
+ * this is the pair of calls that would put two records under one key, so the
+ * check is worth doing even though the sweep generates unique names.
+ */
+static int case_probe(struct env *env, struct counters *count)
+{
+    int anchor = -1;
+    for (size_t i = 0; i < MAX_ITEMS && anchor < 0; ++i) {
+        if (items[i].kind != ITEM_FILE)
+            continue;
+        for (const char *c = items[i].name; *c != '\0'; ++c) {
+            if (*c >= 'A' && *c <= 'Z') {
+                anchor = (int)i;
+                break;
+            }
+        }
+    }
+    if (anchor < 0)
+        return 0;      /* nothing with a letter to flip: nothing to prove */
+
+    char flipped[MAX_NAME + 1u];
+    size_t length = strlen(items[anchor].name);
+    for (size_t i = 0; i <= length; ++i) {
+        char c = items[anchor].name[i];
+        if (c >= 'A' && c <= 'Z')
+            c = (char)(c - 'A' + 'a');
+        else if (c >= 'a' && c <= 'z')
+            c = (char)(c - 'a' + 'A');
+        flipped[i] = c;
+    }
+
+    uint8_t utf16[2u * MAX_NAME];
+    size_t units = name_units(flipped, utf16);
+    struct hfs_txn tx;
+    start_tx(env, &tx);
+    snapshot_take();
+    uint32_t cnid = 0;
+    int rc = hfs_catalog_create_file(&env->catalog, &tx,
+                                     items[anchor].parent, utf16, units, 0644,
+                                     hfs_catalog_key_compare, NULL, &cnid);
+    if (rc != HFS_ERR_BUSY) {
+        fprintf(stderr, "  FAIL create %s under %u: rc=%d, expected BUSY "
+                        "(the catalog already holds %s)\n",
+                flipped, (unsigned)items[anchor].parent, rc,
+                items[anchor].name);
+        return 1;
+    }
+    if (!snapshot_same()) {
+        fprintf(stderr, "  FAIL refused create %s changed the image\n",
+                flipped);
+        return 1;
+    }
+    ++count->refusals;
+    ++count->case_collisions;
+
+    /* The same name reached by a rename, from another file in the folder. */
+    int mover = -1;
+    for (size_t i = 0; i < MAX_ITEMS; ++i) {
+        if ((int)i != anchor && items[i].kind == ITEM_FILE &&
+            items[i].parent == items[anchor].parent) {
+            mover = (int)i;
+            break;
+        }
+    }
+    if (mover >= 0) {
+        uint8_t old_utf16[2u * MAX_NAME];
+        size_t old_units = name_units(items[mover].name, old_utf16);
+        start_tx(env, &tx);
+        snapshot_take();
+        rc = hfs_catalog_rename(&env->catalog, &tx, items[mover].parent,
+                                old_utf16, old_units, items[mover].cnid,
+                                items[anchor].parent, utf16, units,
+                                hfs_catalog_key_compare, NULL);
+        if (rc != HFS_ERR_BUSY) {
+            fprintf(stderr, "  FAIL rename %s -> %s: rc=%d, expected BUSY\n",
+                    items[mover].name, flipped, rc);
+            return 1;
+        }
+        if (!snapshot_same()) {
+            fprintf(stderr, "  FAIL refused rename to %s changed the image\n",
+                    flipped);
+            return 1;
+        }
+        ++count->refusals;
+        ++count->case_collisions;
+    }
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     uint32_t steps = DEFAULT_STEPS;
@@ -1136,13 +1266,17 @@ int main(int argc, char **argv)
         }
     }
 
+    CHECK(case_probe(&env, &count) == 0);
+    CHECK(check_world(&env) == 0);
+
     printf("  catalog operations: %u steps, %u creates, %u deletes, "
            "%u renames, %u writes, %u truncates, %u refusals "
-           "(%u cycle, %u not-empty)\n",
+           "(%u cycle, %u not-empty), %u case collisions\n",
            (unsigned)steps, (unsigned)count.creates, (unsigned)count.deletes,
            (unsigned)count.renames, (unsigned)count.writes,
            (unsigned)count.truncates, (unsigned)count.refusals,
-           (unsigned)count.cycles, (unsigned)count.not_empty);
+           (unsigned)count.cycles, (unsigned)count.not_empty,
+           (unsigned)count.case_collisions);
     CHECK(count.creates > steps / 20u);
     CHECK(count.deletes > steps / 50u);
     return 0;
