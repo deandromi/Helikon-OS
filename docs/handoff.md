@@ -12,6 +12,59 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-23 (Alpha 2.1.0 published: Disk Mode)
+
+## What happened
+
+- **Alpha 2.1.0 "Disk Mode" is published as a normal GitHub release** (tag
+  `alpha-2.1.0` on `a2bb583`, 13 assets). It is not marked pre-release. The notes
+  and quick start are archived in
+  [`releases/alpha-2.1.0/`](releases/alpha-2.1.0/RELEASE_NOTES.md).
+- Three firmware sets, all built for this cut:
+  - launcher v21 `8a2a18c2…` (84,744 bytes) — built with `UI=1
+    EXTRA_CFLAGS=-DHELIKON_DIAG_LAUNCHER`. The first attempt omitted the flag, and
+    the image linked to 80,840 bytes with `ui/launcher_run.o` garbage-collected:
+    the launcher entry is behind `HELIKON_DIAG_LAUNCHER`, so a `UI=1` build alone
+    produces the plain boot image. `nm | grep helikon_launcher_run` is the check.
+  - Music hub v22 `036911d2…` (658,604 bytes) — same flags plus
+    `HDB=../build/helikondb/first100/music.hdb`; verify with `nm | grep
+    helikon_hdb_start`, because without it the 208,620-byte blob is dropped and
+    the image is byte-for-byte the launcher size.
+  - Disk Mode v23 `e73f32f3…` (40,556 bytes) — `DISKMODE=1`, whole disk as one
+    writable LUN, `DISK MODE` confirm then `WAITING FOR THE HOST` /
+    `HOST CONNECTED` / `EJECTED - SAFE`.
+- Loader `79a1c02b…` (107,560 bytes) rebuilt from the pinned donor commit; the
+  uninstall DFU is unchanged (`203e8364…`). Companion rebuilt with
+  `scripts/build-dmg.sh --universal --tag alpha2.1`; the script now takes
+  `--tag` so the DMG name and its bundled Read Me cannot claim the wrong alpha.
+- Every set passed `tools/check-loader-artifact.sh` (image, manifest and
+  bootstate through the host HFS+ core), and the uploaded assets verify:
+  `gh release download alpha-2.1.0` then `shasum -a 256 -c SHA256SUMS` is clean.
+- Verification for the cut: `./tools/host-tests.sh clang` 9 suites,
+  `--sanitize` 8 suites, `./tools/fuzz.sh --replay` 8 harnesses / 47 corpus
+  files, `./tools/static-analysis.sh` 80 units 0 findings, and
+  `./tools/host-tests.sh --macos` 10 suites including the 162 s image suite.
+- One false alarm worth remembering: running `--sanitize` and `--macos`
+  concurrently makes the firmware suite fail with `Rename failed ...
+  build/lib/mem-0.o`, because both clean the same `tests/firmware/build`. The
+  suites are not parallel-safe; run them one at a time.
+- **No 2.1.0 artifact has been on a device.** The notes, the quick start, the
+  device matrix and `docs/state.md` all say so. Nothing here relaxes the rule
+  that a support claim needs a recorded run.
+
+## Open, next
+
+- The physical test round the owner is planning: launcher, Music hub, Disk Mode
+  and the loader on the 6G, in that order, with `fsck_hfs -fn` after each. The
+  Disk Mode run is the one that matters for the 128 GiB goal: boot it, confirm
+  the host enumerates, format or partition from the host, then eject and check
+  `fsck_hfs`.
+- The ~20 s artist-open stall from the 2026-11-08 image is still in the Music
+  hub and still untested on the current build.
+- F2 (firmware-owned write) remains blocked; nothing in 2.1.0 depends on it.
+
+---
+
 # Handoff — 2026-11-23 (the merge that could not fit)
 
 - **T-152 — the steal fallback of index merging now has a test.** T-150 merged two
