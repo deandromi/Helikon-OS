@@ -428,8 +428,10 @@ model test stop at step 54 with `problems 0x00080000` from `hfs_check_volume`.
 `tests/hfsplus/test_writer_mutations.c` asks the question the read-path sweep does
 not: when the volume is already wrong, does the writer **fail closed**? It starts
 from a valid 1 MiB volume with a seeded root, corrupts one structural field, and
-then drives `hfs_volume_probe` → `hfs_check_volume` → `hfs_catalog_open` →
-`hfs_catalog_create_file` in a transaction. Two rules hold for every iteration:
+then drives `hfs_volume_probe` → `hfs_check_volume` → `hfs_catalog_open`, and
+then three write calls in the order a caller would make them — create a file,
+rename it, delete it — each in its own transaction. Two rules hold for every
+iteration, and each of the three calls is held to them:
 
 - **a refused write changes nothing** — the image must be byte-identical to the
   mutated one, so nothing staged can reach the medium;
@@ -448,6 +450,10 @@ marked as such and must be refused, not guessed.
 cd tests/hfsplus && ./test_writer_mutations              # 34 curated + 400 random
 cd tests/hfsplus && ./test_writer_mutations 12345 3000   # another seed, longer
 ```
+
+The fixture's catalog has room to spare, so a create inserts into an existing
+leaf and the delete leaves no node behind: node freeing is the B-tree model
+test's coverage (§4.1), not this sweep's.
 
 It found issue #120: a volume header whose `nextCatalogID` is below 3 made the
 writer insert a record under a reserved CNID — the root's own ID when the field
