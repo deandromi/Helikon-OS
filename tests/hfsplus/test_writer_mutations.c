@@ -47,38 +47,41 @@
 #include "hfs_txn.h"
 #include "hfs_volume.h"
 #include "test_check.h"
+#include "writer_fixture.h"
 
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#define BLOCK_SIZE 512u
-#define NODE_SIZE 4096u
-#define IMAGE_SIZE (1024u * 1024u)
-#define BLOCKS (IMAGE_SIZE / BLOCK_SIZE)
+/* The volume geometry and its builder live in writer_fixture.c, shared with the
+ * writer fuzzer; these names keep the sweep's offsets readable. */
+#define BLOCK_SIZE WRITER_BLOCK_SIZE
+#define NODE_SIZE WRITER_NODE_SIZE
+#define IMAGE_SIZE WRITER_IMAGE_SIZE
+#define BLOCKS WRITER_BLOCKS
 
-#define BITMAP_BLOCK 3u
-#define CATALOG_BLOCK 16u
-#define CATALOG_NODES 64u
-#define EXTENTS_BLOCK 528u
-#define EXTENTS_NODES 16u
-#define ATTRIBUTES_BLOCK 656u
-#define ATTRIBUTES_NODES 8u
+#define BITMAP_BLOCK WRITER_BITMAP_BLOCK
+#define CATALOG_BLOCK WRITER_CATALOG_BLOCK
+#define CATALOG_NODES WRITER_CATALOG_NODES
+#define EXTENTS_BLOCK WRITER_EXTENTS_BLOCK
+#define EXTENTS_NODES WRITER_EXTENTS_NODES
+#define ATTRIBUTES_BLOCK WRITER_ATTRIBUTES_BLOCK
+#define ATTRIBUTES_NODES WRITER_ATTRIBUTES_NODES
 
-#define VOLUME_HEADER 1024u
-#define ALT_VOLUME_HEADER (IMAGE_SIZE - 1024u)
-#define CATALOG_HEADER_NODE (CATALOG_BLOCK * BLOCK_SIZE)
-#define CATALOG_FIRST_LEAF (CATALOG_HEADER_NODE + NODE_SIZE)
+#define VOLUME_HEADER WRITER_VOLUME_HEADER
+#define ALT_VOLUME_HEADER WRITER_ALT_VOLUME_HEADER
+#define CATALOG_HEADER_NODE WRITER_CATALOG_HEADER_NODE
+#define CATALOG_FIRST_LEAF WRITER_CATALOG_FIRST_LEAF
 #define CATALOG_SCRATCH 8192u
 
 #define DEFAULT_SEED 0x57524954u /* "WRIT" */
 #define DEFAULT_ITERATIONS 400u
 
 /* Root folder: the fixture creates it with CNID 2. */
-#define ROOT_CNID 2u
+#define ROOT_CNID WRITER_ROOT_CNID
 
-static uint8_t image[IMAGE_SIZE];
+static uint8_t *image;
 static uint8_t snapshot[IMAGE_SIZE];
 static uint32_t rng_state;
 
@@ -181,223 +184,8 @@ static uint32_t next_random(void)
     return value;
 }
 
-static void put_be16(uint8_t *p, uint16_t v)
-{
-    p[0] = (uint8_t)(v >> 8);
-    p[1] = (uint8_t)v;
-}
 
-static void put_be32(uint8_t *p, uint32_t v)
-{
-    p[0] = (uint8_t)(v >> 24);
-    p[1] = (uint8_t)(v >> 16);
-    p[2] = (uint8_t)(v >> 8);
-    p[3] = (uint8_t)v;
-}
 
-static void put_be64(uint8_t *p, uint64_t v)
-{
-    put_be32(p, (uint32_t)(v >> 32));
-    put_be32(p + 4, (uint32_t)v);
-}
-
-static int image_read(void *context, uint64_t offset, void *buffer,
-                      size_t length)
-{
-    (void)context;
-    if (offset > IMAGE_SIZE || length > IMAGE_SIZE - (size_t)offset)
-        return -1;
-    memcpy(buffer, image + (size_t)offset, length);
-    return 0;
-}
-
-#define MAP_RECORD_OFFSET 248u
-#define MAP_RECORD_BYTES (((CATALOG_NODES + 7u) / 8u + 1u) & ~1u)
-#define HEADER_FREE_OFFSET (MAP_RECORD_OFFSET + MAP_RECORD_BYTES)
-
-static void make_tree(uint32_t block, uint32_t nodes, uint16_t max_key_length,
-                      int with_root)
-{
-    uint8_t *node = image + block * BLOCK_SIZE;
-    memset(node, 0, (size_t)nodes * NODE_SIZE);
-
-    node[8] = 1;                     /* kind: header node */
-    put_be16(node + 10, 3);          /* three records */
-    uint8_t *record = node + 14;     /* BTHeaderRec */
-    put_be16(record + 0, with_root ? 1 : 0);
-    put_be32(record + 2, with_root ? 1u : 0u);
-    put_be32(record + 6, 0);
-    put_be32(record + 10, with_root ? 1u : 0u);
-    put_be32(record + 14, with_root ? 1u : 0u);
-    put_be16(record + 18, NODE_SIZE);
-    put_be16(record + 20, max_key_length);
-    put_be32(record + 22, nodes);
-    put_be32(record + 26, with_root ? nodes - 2u : nodes - 1u);
-    record[32] = 1;                  /* btreeType: user data */
-    record[33] = 0;                  /* keyCompareType */
-
-    put_be16(node + NODE_SIZE - 2, 14);
-    put_be16(node + NODE_SIZE - 4, 120);
-    put_be16(node + NODE_SIZE - 6, MAP_RECORD_OFFSET);
-    put_be16(node + NODE_SIZE - 8, (uint16_t)HEADER_FREE_OFFSET);
-    node[MAP_RECORD_OFFSET] = with_root ? 0xc0 : 0x80;
-
-    if (with_root) {
-        uint8_t *leaf = node + NODE_SIZE;
-        leaf[8] = 0xff;
-        leaf[9] = 1;
-        put_be16(leaf + 10, 0);
-        put_be16(leaf + NODE_SIZE - 2, 14);
-        put_be16(leaf + NODE_SIZE - 4, 14);
-    }
-}
-
-static void make_image(void)
-{
-    memset(image, 0, sizeof(image));
-
-    uint8_t *header = image + VOLUME_HEADER;
-    put_be16(header, 0x482bu);
-    put_be16(header + 2, 4);
-    put_be32(header + 4, 1u << 8);   /* kHFSVolumeUnmountedBit */
-    put_be32(header + 32, 0);        /* fileCount */
-    put_be32(header + 36, 0);        /* folderCount: the root is not counted */
-    put_be32(header + 40, BLOCK_SIZE);
-    put_be32(header + 44, BLOCKS);
-    put_be32(header + 64, 16);       /* nextCatalogID */
-
-    uint32_t bitmap_bytes = BLOCKS / 8u;
-    uint8_t *allocation = header + 112;
-    put_be64(allocation, bitmap_bytes);
-    put_be32(allocation + 12, 1);
-    put_be32(allocation + 16, BITMAP_BLOCK);
-    put_be32(allocation + 20, 1);
-
-    uint8_t *catalog = header + 272;
-    put_be64(catalog, (uint64_t)CATALOG_NODES * NODE_SIZE);
-    put_be32(catalog + 12, CATALOG_NODES * NODE_SIZE / BLOCK_SIZE);
-    put_be32(catalog + 16, CATALOG_BLOCK);
-    put_be32(catalog + 20, CATALOG_NODES * NODE_SIZE / BLOCK_SIZE);
-
-    uint8_t *extents = header + 192;
-    put_be64(extents, (uint64_t)EXTENTS_NODES * NODE_SIZE);
-    put_be32(extents + 12, EXTENTS_NODES * NODE_SIZE / BLOCK_SIZE);
-    put_be32(extents + 16, EXTENTS_BLOCK);
-    put_be32(extents + 20, EXTENTS_NODES * NODE_SIZE / BLOCK_SIZE);
-
-    uint8_t *attributes = header + 352;
-    put_be64(attributes, (uint64_t)ATTRIBUTES_NODES * NODE_SIZE);
-    put_be32(attributes + 12, ATTRIBUTES_NODES * NODE_SIZE / BLOCK_SIZE);
-    put_be32(attributes + 16, ATTRIBUTES_BLOCK);
-    put_be32(attributes + 20, ATTRIBUTES_NODES * NODE_SIZE / BLOCK_SIZE);
-
-    make_tree(CATALOG_BLOCK, CATALOG_NODES, 516, 1);
-    make_tree(EXTENTS_BLOCK, EXTENTS_NODES, 10, 0);
-    make_tree(ATTRIBUTES_BLOCK, ATTRIBUTES_NODES, 262, 0);
-
-    uint8_t *bitmap = image + BITMAP_BLOCK * BLOCK_SIZE;
-    for (uint32_t block = 0; block < BLOCKS; ++block) {
-        int used = block <= BITMAP_BLOCK || block >= BLOCKS - 2u ||
-                   (block >= CATALOG_BLOCK &&
-                    block < CATALOG_BLOCK +
-                                CATALOG_NODES * NODE_SIZE / BLOCK_SIZE) ||
-                   (block >= EXTENTS_BLOCK &&
-                    block < EXTENTS_BLOCK +
-                                EXTENTS_NODES * NODE_SIZE / BLOCK_SIZE) ||
-                   (block >= ATTRIBUTES_BLOCK &&
-                    block < ATTRIBUTES_BLOCK +
-                                ATTRIBUTES_NODES * NODE_SIZE / BLOCK_SIZE);
-        if (used)
-            bitmap[block / 8u] |= (uint8_t)(0x80u >> (block % 8u));
-    }
-    uint32_t used_blocks = 0;
-    for (uint32_t block = 0; block < BLOCKS; ++block) {
-        if ((bitmap[block / 8u] & (uint8_t)(0x80u >> (block % 8u))) != 0u)
-            ++used_blocks;
-    }
-    put_be32(header + 48, BLOCKS - used_blocks);
-
-    memcpy(image + ALT_VOLUME_HEADER, header, 512);
-}
-
-static void apply_txn(const struct hfs_txn *tx)
-{
-    for (size_t i = 0; i < tx->count; ++i) {
-        memcpy(image + tx->blocks[i].sector * BLOCK_SIZE,
-               tx->blocks[i].data, tx->blocks[i].size);
-    }
-}
-
-static size_t build_catalog_key(uint8_t *buffer, uint32_t parent,
-                                const uint8_t *name, size_t units)
-{
-    put_be16(buffer, (uint16_t)(6u + units * 2u));
-    put_be32(buffer + 2, parent);
-    put_be16(buffer + 6, (uint16_t)units);
-    if (units != 0)
-        memcpy(buffer + 8, name, units * 2u);
-    return 6u + units * 2u;
-}
-
-/* The root folder and its thread, through a hand-built tree description. */
-static int seed_root(struct hfs_volume *volume)
-{
-    struct hfs_btree catalog;
-    memset(&catalog, 0, sizeof(catalog));
-    catalog.volume = volume;
-    catalog.fork = &volume->catalog;
-    catalog.node_size = NODE_SIZE;
-    catalog.total_nodes = CATALOG_NODES;
-    catalog.free_nodes = CATALOG_NODES - 2u;
-    catalog.depth = 1;
-    catalog.root_node = 1;
-    catalog.first_leaf = 1;
-    catalog.last_leaf = 1;
-    catalog.leaf_records = 0;
-
-    struct hfs_journal journal;
-    struct hfs_txn tx;
-    memset(&journal, 0, sizeof(journal));
-    journal.sector_size = BLOCK_SIZE;
-    memset(&tx, 0, sizeof(tx));
-    tx.journal = &journal;
-    tx.active = 1;
-
-    static const uint8_t root_name[8] = { 0, 'T', 0, 'E', 0, 'S', 0, 'T' };
-    uint8_t record[1024];
-    size_t key_length = build_catalog_key(record, 1, root_name, 4);
-    size_t data_offset = 2u + key_length;
-    memset(record + data_offset, 0, 88);
-    put_be16(record + data_offset, 1);          /* folder record */
-    put_be32(record + data_offset + 8, ROOT_CNID);
-    int rc = hfs_btree_insert(&catalog, &tx, record, data_offset + 88,
-                              hfs_catalog_key_compare, NULL);
-    if (rc != HFS_OK)
-        return 1;
-
-    key_length = build_catalog_key(record, ROOT_CNID, NULL, 0);
-    data_offset = 2u + key_length;
-    memset(record + data_offset, 0, 18);
-    put_be16(record + data_offset, 3);          /* folder thread */
-    put_be32(record + data_offset + 4, 1);      /* parent of the root */
-    put_be16(record + data_offset + 8, 4);
-    memcpy(record + data_offset + 10, root_name, 8);
-    rc = hfs_btree_insert(&catalog, &tx, record, data_offset + 18,
-                          hfs_catalog_key_compare, NULL);
-    if (rc != HFS_OK)
-        return 1;
-    apply_txn(&tx);
-    return 0;
-}
-
-/* A whole volume with a seeded root, ready for the writer. */
-static int make_volume(struct hfs_volume *volume)
-{
-    make_image();
-    if (hfs_volume_probe(volume, image_read, NULL, 0, IMAGE_SIZE) != HFS_OK)
-        return 1;
-    return seed_root(volume);
-}
 
 /* ------------------------------------------------------------------------- */
 /* The sweep.                                                                */
@@ -464,7 +252,7 @@ static int exercise(uint32_t seed, uint32_t iteration,
                     const struct mutation *mutation, struct counters *counters)
 {
     struct hfs_volume volume;
-    if (hfs_volume_probe(&volume, image_read, NULL, 0, IMAGE_SIZE) != HFS_OK) {
+    if (hfs_volume_probe(&volume, writer_fixture_read, NULL, 0, IMAGE_SIZE) != HFS_OK) {
         ++counters->probe_refused;
         return 0;
     }
@@ -517,7 +305,7 @@ static int exercise(uint32_t seed, uint32_t iteration,
         fprintf(stderr, "  the write should have been refused\n");
         return 1;
     }
-    apply_txn(&tx);
+    writer_fixture_apply(&tx);
     ++counters->write_committed;
 
     /* The rename goes through the same catalogs records the create just wrote,
@@ -531,7 +319,7 @@ static int exercise(uint32_t seed, uint32_t iteration,
     outcome = refused(rc, seed, iteration, mutation, "rename", counters);
     if (outcome != 0)
         return outcome == 2 ? 1 : 0;
-    apply_txn(&tx);
+    writer_fixture_apply(&tx);
 
     /*
      * Data next: a 1,500-byte append allocates blocks, writes the allocation
@@ -552,7 +340,7 @@ static int exercise(uint32_t seed, uint32_t iteration,
     outcome = refused(rc, seed, iteration, mutation, "data write", counters);
     if (outcome != 0)
         return outcome == 2 ? 1 : 0;
-    apply_txn(&tx);
+    writer_fixture_apply(&tx);
     ++counters->data_committed;
 
     /* Truncate to zero: the blocks and any overflow record have to come back. */
@@ -565,7 +353,7 @@ static int exercise(uint32_t seed, uint32_t iteration,
     outcome = refused(rc, seed, iteration, mutation, "truncate", counters);
     if (outcome != 0)
         return outcome == 2 ? 1 : 0;
-    apply_txn(&tx);
+    writer_fixture_apply(&tx);
     ++counters->truncate_committed;
 
     /* And the delete frees the node the create took. */
@@ -578,7 +366,7 @@ static int exercise(uint32_t seed, uint32_t iteration,
     outcome = refused(rc, seed, iteration, mutation, "delete", counters);
     if (outcome != 0)
         return outcome == 2 ? 1 : 0;
-    apply_txn(&tx);
+    writer_fixture_apply(&tx);
     ++counters->delete_committed;
 
     struct hfs_check_report after;
@@ -612,7 +400,7 @@ static int exercise(uint32_t seed, uint32_t iteration,
 static int sanity(void)
 {
     struct hfs_volume volume;
-    CHECK(make_volume(&volume) == 0);
+    CHECK(writer_fixture_build(&volume) == 0);
     struct hfs_check_report report;
     CHECK(hfs_check_volume(&volume, &report) == HFS_OK);
     CHECK(report.problems == 0u);
@@ -636,7 +424,7 @@ static int sanity(void)
     CHECK(hfs_catalog_create_file(&catalog, &tx, ROOT_CNID, name, 3, 0644,
                                   hfs_catalog_key_compare, NULL, &cnid) ==
           HFS_OK);
-    apply_txn(&tx);
+    writer_fixture_apply(&tx);
 
     CHECK(hfs_check_volume(&volume, &report) == HFS_OK);
     CHECK(report.problems == 0u);
@@ -656,6 +444,7 @@ int main(int argc, char **argv)
     if (argc > 2)
         iterations = (uint32_t)strtoul(argv[2], NULL, 0);
     rng_state = seed;
+    image = writer_fixture_image();
 
     CHECK(sanity() == 0);
 
@@ -664,7 +453,7 @@ int main(int argc, char **argv)
 
     for (size_t i = 0; curated[i].what != NULL; ++i) {
         struct hfs_volume volume;
-        CHECK(make_volume(&volume) == 0);
+        CHECK(writer_fixture_build(&volume) == 0);
         apply_mutation(&curated[i]);
         if (exercise(seed, (uint32_t)i, &curated[i], &counters) != 0)
             return 1;
@@ -672,7 +461,7 @@ int main(int argc, char **argv)
 
     for (uint32_t iteration = 0; iteration < iterations; ++iteration) {
         struct hfs_volume volume;
-        CHECK(make_volume(&volume) == 0);
+        CHECK(writer_fixture_build(&volume) == 0);
         struct mutation mutation;
         mutation.offset = random_offset();
         static const uint32_t widths[] = { 1u, 2u, 4u };
