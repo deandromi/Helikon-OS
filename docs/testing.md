@@ -287,6 +287,18 @@ What it cannot prove: that the device honours the barrier. The budget model drop
 whole writes and never reorders them, so a missing `flush()` between payload and
 commit is invisible here — that is the hardware's job and the device matrix's.
 
+The gate the sweep assumes is tested directly. Every write in this engine starts
+from `hfs_txn_begin`, so that is where I-04 has to hold, and
+`tests/hfsplus/test_journal.c` pins it: a journal header whose `start` and `end`
+do not meet (committed, not replayed) and a volume header carrying the dirty flag
+both have to answer `HFS_ERR_DIRTY` with the transaction left inactive, while a
+clean journal still opens one. The last check is the one that matters: without it
+a gate that refuses everything would pass.
+
+```sh
+cd tests/hfsplus && ./test_journal               # 10 cases
+```
+
 ### 3.5 Transaction overlay property test
 
 The overlay is why two updaters of the volume header can live in one
