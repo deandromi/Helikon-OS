@@ -24,10 +24,10 @@ HEADERS = $(HFS)/hfs_catalog.h $(HFS)/hfs_catalog_compare.h \
 	  $(HFS)/hfs_journal.h $(HFS)/hfs_btree.h $(HFS)/hfs_volume.h
 
 .PHONY: all test f2-test crash-test format-test write-diag-test outer-diag-test \
-        library-test clean
+        vfs-write-test library-test clean
 
 all: hfs_image_test hfs_crash_test hfs_ops_test f2_host write_diag_host \
-     outer_diag_host loader_host hfs-check unicode_order_host
+     outer_diag_host loader_host hfs-check unicode_order_host vfs_write_host
 
 hfs_image_test: hfs_image_test.c $(COMMON) $(HEADERS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) hfs_image_test.c $(COMMON) $(LDFLAGS) -o $@
@@ -70,6 +70,20 @@ loader_host: loader_host.c ../../bootloader/firmware_loader.c \
 	  ../../bootloader/sha256.c ../../bootloader/loader_error.c \
 	  ../../bootloader/ed25519.c ../../bootloader/keys.c \
 	  $(COMMON) $(LDFLAGS) -o $@
+
+# The write VFS against a macOS-created journaled volume: the operations the
+# player will actually call, then the structural check and fsck_hfs from the
+# driver. It writes only to the image it is handed.
+VFS = ../../firmware/vfs
+vfs_write_host: vfs_write_host.c $(VFS)/vfs.c $(VFS)/vfs.h $(VFS)/vfs_rw.c \
+                $(VFS)/vfs_rw.h $(HFS)/hfs_check.c $(HFS)/hfs_check.h \
+                $(COMMON) $(HEADERS) ../../firmware/lib/mem.c
+	$(CC) -DHELIKON_HOST_TEST -I$(VFS) $(CPPFLAGS) $(CFLAGS) \
+	  vfs_write_host.c $(VFS)/vfs.c $(VFS)/vfs_rw.c $(HFS)/hfs_check.c \
+	  ../../firmware/lib/mem.c $(COMMON) $(LDFLAGS) -o $@
+
+vfs-write-test: vfs_write_host hfs-check
+	./run-vfs-write-macos.sh
 
 # The shell drivers create their own disposable images. Never point them at a
 # library or a mounted device.
@@ -137,4 +151,5 @@ library-test:
 
 clean:
 	rm -rf hfs_image_test hfs_crash_test hfs_ops_test f2_host write_diag_host \
-	  outer_diag_host loader_host hfs-check unicode_order_host *.dSYM
+	  outer_diag_host loader_host hfs-check unicode_order_host vfs_write_host \
+	  *.dSYM

@@ -69,6 +69,14 @@ struct vfs {
     uint8_t extents_ready;    /* the extents B-tree was opened (or would fail) */
     uint8_t extents_failed;   /* a lazily opened extents B-tree refuses */
     uint8_t journal_dirty;    /* recorded at mount; never replayed here */
+    /*
+     * Both scratches are kept, not just the extents one, because a write
+     * transaction changes the trees underneath the open catalog: after a commit
+     * the catalog and extents handles must be re-opened against the bytes that
+     * are now on disk, and re-opening needs the buffers they were built with.
+     */
+    void *catalog_scratch;
+    size_t catalog_scratch_size;
     void *extent_scratch;
     size_t extent_scratch_size;
     struct vfs_file files[VFS_MAX_FILES];
