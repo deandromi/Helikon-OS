@@ -30,7 +30,7 @@ Helikon-OS validation.
 |---|---|---|---|---|
 | Host unit | Parser, allocator, name, state-machine logic | Host | `in progress` — HFS+ read core, journal and txn | Every module |
 | Fuzzing and mutation sweeps | Malformed B-trees, extents, names, journal records and bitstreams do not crash or escape bounds | Host | `in progress` — 7 libFuzzer harnesses with a committed corpus, plus the HFS+ image and codec mutation sweeps (§3, §3.2) | Reader, writer, journal, decoders |
-| Model-based B-tree | Insert/update/delete, split/merge, key order, free-node map | Host | `planned` | Writer |
+| Model-based B-tree | Insert/update/delete, split/merge, key order, free-node map | Host | `in progress` — a 1,800-operation random sweep over the extents tree at 512-byte nodes, plus an ordered cascade that drains to the canonical empty tree, refills it from depth 0 and reuses it through a reopened handle (§4.1); index nodes are never merged, so a drained tree keeps one-child index nodes | Writer |
 | Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `in progress` — the byte-range block layer has a 4000-range property test, the allocation bitmap has a 4,000-step model test (§3.3), the transaction overlay has one (§3.5), the journal commit path is cut at every write (§3.4), and the catalog runs random operations against a directory model plus `hfs_check_volume` (§3.6); a B-tree insert/delete model and the macOS differential remain `planned` | Writer/journal |
 | Differential vs macOS | Same tree/names/metadata/`fsck_hfs` result on both sides; catalog order matches Apple's | Host + macOS | `in progress` — ordering and read differential run; writer-side tree comparisons partly covered | Writer |
 | Bootloader diagnostics | Read-only volume/catalog/file report and splash | Host | `in progress` — 8 tests | Boot screen |
@@ -531,13 +531,21 @@ called clean until the first create. T-141 adds the writer guard and
 the sweep's pristine sanity case at once, and accepting a reserved CNID fails the
 curated case.
 
+Landed since this section was written: forced root changes and split/merge
+cascades (T-143's ordered phase), mixed-case names whose folding decides both
+order and uniqueness (T-144), and the catalog drained to root-only and refilled
+(T-146).
+
 Still `planned`:
 
-- forced root changes and split/merge cascades at node boundaries driven from
-  the model rather than by chance;
-- names with Apple `FastUnicodeCompare` and composed/decomposed forms in the
-  same model;
-- `fsck_hfs` on the result (macOS differential, §5).
+- names with composed and decomposed forms in the *same* model, so the writer's
+  normalization is exercised across splits and not only by the unit tests;
+- merging two sparse index nodes, which is the remaining reason a drained tree
+  keeps one-child index nodes;
+- `fsck_hfs` on the result (macOS differential, §5) — the writer already runs
+  against real `newfs_hfs` volumes in `run-ops-macos.sh`, but the model test's own
+  fixture is hand-built and would not survive `fsck_hfs` for reasons unrelated to
+  the tree.
 
 A model test that only checks "the file is there" is not enough; it must check
 the tree structure and `fsck_hfs` compatibility.
