@@ -185,3 +185,114 @@ int helikon_bootstate_promote(uint8_t *data, size_t length,
     *changed = 1;
     return HELIKON_OK;
 }
+
+/* Builds one slot: magic, version, sequence, facts, state and checksum. */
+static void put_slot(uint8_t *raw, uint32_t sequence, uint32_t board,
+                     uint32_t image_version, uint32_t load_address,
+                     uint32_t image_size,
+                     const uint8_t image_sha256[HELIKON_SHA256_SIZE],
+                     uint8_t state)
+{
+    helikon_memset(raw, 0, HELIKON_BOOTSTATE_SLOT_SIZE);
+    helikon_memcpy(raw, HELIKON_BOOTSTATE_MAGIC, 4u);
+    put32(raw + 4u, HELIKON_BOOTSTATE_VERSION);
+    put32(raw + 8u, sequence);
+    put32(raw + 12u, board);
+    put32(raw + 16u, image_version);
+    put32(raw + 20u, load_address);
+    put32(raw + 24u, image_size);
+    helikon_memcpy(raw + 28u, image_sha256, HELIKON_SHA256_SIZE);
+    raw[SLOT_STATE_OFFSET] = state;
+    helikon_sha256(raw, SLOT_CHECKSUM_OFFSET, raw + SLOT_CHECKSUM_OFFSET);
+}
+
+int helikon_bootstate_stage_trying(uint8_t *data, size_t length,
+                                   uint32_t expected_board,
+                                   uint32_t image_version,
+                                   uint32_t load_address,
+                                   uint32_t image_size,
+                                   const uint8_t image_sha256[HELIKON_SHA256_SIZE],
+                                   uint32_t *sequence)
+{
+    if (data == NULL || image_sha256 == NULL || sequence == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    if (length != HELIKON_BOOTSTATE_SIZE)
+        return HELIKON_ERR_ARGUMENT;
+    if (expected_board == 0u || image_version == 0u ||
+        !valid_range(load_address, image_size))
+        return HELIKON_ERR_ARGUMENT;
+
+    /*
+     * The existing file is read for its slots, never trusted for them: a slot
+     * that fails its checksum is simply not a slot, and this call overwrites it,
+     * so a corrupt file is repaired by being replaced rather than by a repair
+     * pass.
+     */
+    struct helikon_bootstate bootstate;
+    int rc = helikon_bootstate_parse(data, length, expected_board, &bootstate);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    uint32_t max_sequence = 0u;
+    int have_sequence = 0;
+    unsigned int target = 0u;
+    int have_target = 0;
+    for (unsigned int i = 0; i < HELIKON_BOOTSTATE_SLOTS; ++i) {
+        const struct helikon_bootstate_slot *slot = &bootstate.slots[i];
+        if (slot->valid) {
+            if (!have_sequence || slot->sequence > max_sequence) {
+                max_sequence = slot->sequence;
+                have_sequence = 1;
+            }
+        }
+        if (!slot->valid && !have_target) {
+            target = i;
+            have_target = 1;
+        }
+    }
+    if (!have_target) {
+        /* Both slots valid: the free one is whichever is not the selected
+         * GOOD slot; with no GOOD slot, the older of the two. */
+        if (bootstate.selected >= 0) {
+            target = bootstate.selected == 0 ? 1u : 0u;
+        } else {
+            target = bootstate.slots[0].sequence <= bootstate.slots[1].sequence
+                         ? 0u
+                         : 1u;
+        }
+    }
+    if (have_sequence && max_sequence == UINT32_MAX)
+        return HELIKON_ERR_BOOTSTATE;
+
+    uint32_t next = have_sequence ? max_sequence + 1u : 1u;
+
+    /*
+     * Every other slot names an image that is about to stop existing, so every
+     * other slot becomes FAILED — GOOD or TRYING alike. A GOOD one cannot stay:
+     * the loader validates the selected GOOD slot against the manifest it
+     * verified, so a slot describing the previous image would turn the next boot
+     * into a recovery screen. A TRYING one must go too: it claims the image
+     * waiting for self-test is the old one, and after this commit there is one
+     * image path and it holds the new bytes. TRYING is not selectable, so the
+     * next boot uses the verified default image, and
+     * `helikon_bootstate_promote` turns this slot into GOOD once the new image
+     * passes its self-test.
+     */
+    for (unsigned int i = 0; i < HELIKON_BOOTSTATE_SLOTS; ++i) {
+        if (i == target)
+            continue;
+        if (!bootstate.slots[i].valid)
+            continue;
+        if (bootstate.slots[i].state == HELIKON_BOOTSTATE_FAILED)
+            continue;
+        uint8_t *raw = data + (size_t)i * HELIKON_BOOTSTATE_SLOT_SIZE;
+        raw[SLOT_STATE_OFFSET] = HELIKON_BOOTSTATE_FAILED;
+        helikon_sha256(raw, SLOT_CHECKSUM_OFFSET, raw + SLOT_CHECKSUM_OFFSET);
+    }
+
+    put_slot(data + (size_t)target * HELIKON_BOOTSTATE_SLOT_SIZE, next,
+             expected_board, image_version, load_address, image_size,
+             image_sha256, HELIKON_BOOTSTATE_TRYING);
+    *sequence = next;
+    return HELIKON_OK;
+}
