@@ -199,7 +199,7 @@ static int create_object(struct hfs_catalog *catalog, struct hfs_txn *tx,
      * says anything below 3 has been corrupted or hand-built, and using it would
      * write a record under a reserved ID - so refuse instead of guessing.
      */
-    if (next_cnid < 3u)
+    if (next_cnid < 3u || next_cnid == 0xffffffffu)
         return HFS_ERR_FORMAT;
     if (file_count == 0xffffffffu || folder_count == 0xffffffffu)
         return HFS_ERR_FORMAT;

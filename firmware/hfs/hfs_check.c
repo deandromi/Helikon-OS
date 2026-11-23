@@ -112,7 +112,9 @@ static void check_header(struct hfs_volume *volume, struct hfs_check_report *rep
         uint32_t next_id = ((uint32_t)header[64] << 24) |
                            ((uint32_t)header[65] << 16) |
                            ((uint32_t)header[66] << 8) | header[67];
-        if (next_id < 3u)
+        /* Below 3 is a reserved CNID; 0xffffffff is the one value a create
+         * cannot follow, because the increment wraps to zero. */
+        if (next_id < 3u || next_id == 0xffffffffu)
             report->problems |= HFS_CHECK_CATALOG_ID;
     }
 }

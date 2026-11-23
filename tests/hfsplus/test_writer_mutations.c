@@ -101,6 +101,7 @@ static const struct mutation curated[] = {
     { VOLUME_HEADER + 64u, 4u, 0u, "next catalog id zero", 1 },
     { VOLUME_HEADER + 64u, 4u, 1u, "next catalog id one", 1 },
     { VOLUME_HEADER + 64u, 4u, 2u, "next catalog id is the root", 1 },
+    { VOLUME_HEADER + 64u, 4u, 0xffffffffu, "next catalog id max", 1 },
     { VOLUME_HEADER + 32u, 4u, 0xffffffffu, "file count max", 1 },
     { VOLUME_HEADER + 112u, 8u, 0u, "allocation fork size zero", 0 },
     { VOLUME_HEADER + 112u + 16u, 4u, 0xffffffffu, "allocation extent start max", 0 },

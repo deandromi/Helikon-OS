@@ -25,9 +25,9 @@ file grows. Do not rely on chat history for current state.
 - **It found issue #120, fixed as T-141.** A volume header whose `nextCatalogID`
   is below 3 made `create_object()` insert a record under a reserved CNID — the
   root's own CNID when the field read 2 — and `hfs_check_volume` never looked at
-  the field. The writer now refuses with `HFS_ERR_FORMAT` (and on a `0xffffffff`
-  volume count, whose increment would wrap); the check reports the new
-  `HFS_CHECK_CATALOG_ID` (0x00200000).
+  the field. The writer now refuses with `HFS_ERR_FORMAT` below 3, at
+  `0xffffffff` (the increment wraps to zero) and on a `0xffffffff` volume count;
+  the check reports the new `HFS_CHECK_CATALOG_ID` (0x00200000) for both bad IDs.
 - `test_check` is 30 cases: the new one sets `nextCatalogID` to 2 and expects the
   finding; the fixture now leaves 16, what a formatter writes.
 

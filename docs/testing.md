@@ -441,7 +441,7 @@ then drives `hfs_volume_probe` → `hfs_check_volume` → `hfs_catalog_open` →
 
 The curated set covers both volume-header copies, every fork record, and the
 catalog's header node and first leaf — the fields a writer trusts. Fields whose
-correct answer is a refusal (`nextCatalogID` 0, 1 or 2; a full file count) are
+correct answer is a refusal (`nextCatalogID` 0, 1, 2 or `0xffffffff`; a full file count) are
 marked as such and must be refused, not guessed.
 
 ```sh
@@ -585,9 +585,10 @@ each tree's free-node map against the nodes it can actually reach (a node marked
 used but unreachable is a leaked block, a node marked free but reachable would be
 handed out over live records, and the header's free count must match the map),
 the file and folder counts the volume header claims against the records actually
-present, and the next catalog ID against the reserved CNIDs (`HFS_CHECK_CATALOG_ID`
-when it is below 3, because a writer would then create a record under a reserved
-ID). The root
+present, and the next catalog ID against the values a writer cannot use
+(`HFS_CHECK_CATALOG_ID` when it is below 3, which would create a record under a
+reserved ID, or `0xffffffff`, which cannot be followed because the increment
+wraps to zero). The root
 folder is excluded from the folder count because the format excludes it, and the
 padding bits of the bitmap's last byte are ignored because macOS leaves them
 zero — both rules came from running the check against real volumes, where the

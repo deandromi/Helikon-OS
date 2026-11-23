@@ -98,8 +98,8 @@
  * out of `problems` for the same reason as the bitmap skip.
  */
 #define HFS_CHECK_SKIPPED_NODES 0x00100000u
-/* A next-catalog-ID that would hand out a reserved CNID. 0 and 1 are reserved
- * and 2 is the root folder, so the volume header must say 3 or more. */
+/* A next-catalog-ID a writer cannot use: 0 and 1 are reserved, 2 is the root
+ * folder, and 0xffffffff cannot be followed because the increment wraps. */
 #define HFS_CHECK_CATALOG_ID 0x00200000u
 
 /*
