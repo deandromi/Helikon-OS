@@ -231,19 +231,34 @@ static void read_capacity_16(struct helikon_usb_msc *msc)
     msc->in_length = 32u;
 }
 
+/*
+ * READ FORMAT CAPACITIES parameter data (SBC-3): three reserved bytes, the
+ * Capacity List Length in bytes, the descriptor list, then the current media's
+ * block length. One descriptor is eight bytes: a four-byte block count, the
+ * descriptor code, three reserved bytes. Sixteen bytes in total, so a host that
+ * reads only the list length still gets a well-formed answer: the length says
+ * eight, and the block length is simply past its allocation length.
+ *
+ * A window past 2^32 blocks cannot be stated in a 32-bit count, so the count
+ * saturates exactly as READ CAPACITY(10) does above 2^32 blocks.
+ */
+#define FORMAT_CAPACITY_DATA_LENGTH 16u
+#define FORMAT_CAPACITY_DESCRIPTOR_LENGTH 8u
+#define FORMAT_CAPACITY_CODE_FORMATTED 0x02u
+
 static void read_format_capacities(struct helikon_usb_msc *msc)
 {
     uint8_t *data = msc->in_buffer;
-    for (size_t index = 0u; index < 12u; ++index)
+    for (size_t index = 0u; index < FORMAT_CAPACITY_DATA_LENGTH; ++index)
         data[index] = 0u;
-    /* One descriptor: current capacity, formatted medium. */
     uint32_t blocks = last_lba(msc) + 1u > 0xffffffffull
                           ? 0xffffffffu
                           : (uint32_t)(last_lba(msc) + 1u);
+    data[3] = (uint8_t)FORMAT_CAPACITY_DESCRIPTOR_LENGTH;
     put_be32(data + 4, blocks);
-    data[4 + 3] = 0x02u; /* descriptor type: formatted media */
-    put_be32(data + 8, msc->sector_size);
-    msc->in_length = 12u;
+    data[8] = FORMAT_CAPACITY_CODE_FORMATTED;
+    put_be32(data + 12, msc->sector_size);
+    msc->in_length = FORMAT_CAPACITY_DATA_LENGTH;
 }
 
 static void mode_sense_6(struct helikon_usb_msc *msc)
@@ -262,6 +277,8 @@ static void mode_sense_10(struct helikon_usb_msc *msc)
     uint8_t *data = msc->in_buffer;
     for (size_t index = 0u; index < 8u; ++index)
         data[index] = 0u;
+    /* Mode data length is everything after this field: eight minus two. */
+    data[1] = 6u;
     data[3] = writable(msc) ? 0x00u : 0x80u;
     msc->in_length = 8u;
 }

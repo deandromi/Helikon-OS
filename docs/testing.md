@@ -1133,6 +1133,16 @@ make -C tests/usb test
 make -C tests/usb sanitize
 ```
 
+The fixed SCSI answers are checked field by field on that 4 TB disk, because a
+4 TB window is what forces the 32-bit cases: `READ CAPACITY(10)` must saturate
+at `0xffffffff` and `READ CAPACITY(16)` must state the true last LBA;
+`READ FORMAT CAPACITIES` must report a capacity list length of eight, a padded
+descriptor, the formatted-media code and the block length at byte twelve, and
+still answer coherently when the host allocates only twelve bytes; `MODE
+SENSE(6)` and `MODE SENSE(10)` must carry the write-protect bit and a mode data
+length that counts their own tail. These are the answers no host on the common
+enumeration path reads, which is exactly why they rot unnoticed.
+
 `tests/usb/fuzz_msc` sends malformed CBWs, hostile CDB lengths, a data stage that
 stops halfway, a read-only device and an I/O-fault device through the same
 transport, 50,000 commands per case from a fixed seed:
