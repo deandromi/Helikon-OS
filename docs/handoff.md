@@ -12,6 +12,37 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-23 (CI: missed nightly and an unbounded job)
+
+## What happened
+
+- **The nightly never ran.** `preview.yml`'s `cron: '17 4 * * *'` has produced no
+  `schedule` run at all; the only two runs are manual dispatches, and the first of
+  those failed because the gate lacked Pillow and mutagen (fixed in #103). GitHub's
+  scheduler is dropping or hours-delaying `schedule` events for public repos
+  through November 2026, so the workflow now also runs on a push to `main` and its
+  new `check` job skips the build when `preview-<today>` already exists: one
+  prerelease per day, from whichever trigger is first.
+- **A job sat 65 minutes in `apt-get install gcc-arm-none-eabi`** during the
+  T-140 pull request. Cancel + re-run finished in 2m17s. Both workflows now set
+  `timeout-minutes` on every job and pass `-o Acquire::Retries=3` to every
+  `apt-get`.
+
+## Evidence
+
+`preview-2026-11-22` published from a manual dispatch; `gh run list
+--workflow=preview --event=schedule` is empty, which is the finding. Both workflow
+files parse (`yaml.safe_load`), and the first push to `main` after this merge runs
+the new top-up path end to end.
+
+## Open / next
+
+- Watch the first scheduled window after this merge. If the cron stays silent,
+  the push top-up still publishes the day's preview, and the absence of
+  `schedule` runs is the platform's, not the workflow's.
+
+---
+
 # Handoff — 2026-11-23 (write-path mutation sweep: T-140; reserved CNID fix: T-141)
 
 ## What happened

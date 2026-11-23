@@ -1288,6 +1288,20 @@ on a warning that toolchain does not emit.
 [`release.md`](release.md) §1.1. Its first job is the same portable suite gate,
 so a red tree publishes nothing.
 
+GitHub's scheduler is not a promise, and through November 2026 `schedule` events
+have been dropped or arrived seven to eight hours late across public
+repositories — this repository's nightly was scheduled for 04:17 UTC every day
+and had never run. The workflow therefore also triggers on a push to `main`, and
+its first job, `check`, skips the build when `preview-<today>` already exists.
+The result is one prerelease per calendar day, from whichever trigger arrives
+first, instead of none when the cron is silent.
+
+Every job in both workflows carries a `timeout-minutes` and every `apt-get`
+carries `-o Acquire::Retries=3`. A wedged toolchain download once held the
+firmware job for sixty-five minutes with the whole pull request waiting on it;
+a stuck install must fail in minutes, not in the six hours a job gets by
+default.
+
 CI cannot replace a device run. Power-cut, `fsck_hfs`-after-cut, battery, panel,
 audio-measurement and USB-enumeration gates all need the hardware rows in
 [`device-matrix.md`](device-matrix.md). A green CI run is evidence that the host

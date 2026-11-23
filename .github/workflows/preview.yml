@@ -22,7 +22,17 @@ name: preview
 on:
   schedule:
     # 04:17 UTC daily: after most days' merges, before a European morning.
+    #
+    # GitHub's scheduler is not a promise. Through November 2026 `schedule`
+    # events have been dropped or arrive hours late across public repositories,
+    # and this workflow's first two runs were manual for exactly that reason. So
+    # a push to `main` also runs it: the `check` job skips the build when the
+    # day's prerelease already exists, which makes the push a top-up rather than
+    # a second build. One preview per calendar day, whichever trigger gets there
+    # first.
     - cron: '17 4 * * *'
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -33,9 +43,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  check:
+    name: is today's preview already out?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      skip: ${{ steps.lookup.outputs.skip }}
+    steps:
+      - name: Look for the day's prerelease
+        id: lookup
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          skip=0
+          tag="preview-$(date -u +%Y-%m-%d)"
+          # `gh api` takes the repository explicitly because this job does not
+          # check the repository out; `gh release view` would have no remote to
+          # read it from.
+          if [ "${{ github.event_name }}" = "push" ] &&
+             gh api "repos/$GITHUB_REPOSITORY/releases/tags/$tag" >/dev/null 2>&1; then
+            echo "$tag is already published; nothing to top up"
+            skip=1
+          else
+            echo "$tag is missing; building it"
+          fi
+          echo "skip=$skip" >> "$GITHUB_OUTPUT"
+
   host-tests:
     name: host suites (gate)
+    needs: check
+    if: needs.check.outputs.skip == '0'
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -44,8 +84,8 @@ jobs:
         # tests/ui need; without them the gate fails on ubuntu before it ever
         # reaches the build. tests.yml installs the same pair.
         run: |
-          sudo apt-get update
-          sudo apt-get install -y clang python3-pil python3-mutagen
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y clang python3-pil python3-mutagen
 
       - name: Run the host suites
         run: ./tools/host-tests.sh clang
@@ -54,6 +94,7 @@ jobs:
     name: build the payload
     needs: host-tests
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -61,8 +102,8 @@ jobs:
         # tools/make-firmware-image.py signs the manifest with Ed25519 from
         # `cryptography`; without it the build gets as far as signing and stops.
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-arm-none-eabi python3 \
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y gcc-arm-none-eabi python3 \
             python3-cryptography
 
       - name: Build
@@ -89,6 +130,7 @@ jobs:
     name: publish the prerelease
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
