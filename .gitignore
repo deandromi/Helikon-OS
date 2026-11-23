@@ -119,3 +119,5 @@ tests/update/*.dSYM/
 tests/player/test_bookmark
 tests/vfs/test_vfs_bookmark
 tests/vfs/test_vfs_playlist
+tests/codec/test_codec_matrix
+tests/codec/test_codec_matrix_sanitize

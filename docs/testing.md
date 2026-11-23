@@ -172,6 +172,23 @@ only rejected `shift >= 31` for a 5-bit signed field, and a division by
 struct field. The first two are fixed; the third reads the field into a local
 once, which is also the clearer code.
 
+### 3.1a The seek, resume and end-of-stream matrix
+
+One table, one row per codec, and the decoded stream as the oracle:
+`tests/codec/test_codec_matrix.c` seeks to seven probe frames (0, 1, a quarter,
+a half, three quarters, the last frame and the last window), reads 97 frames and
+requires them to be byte-identical to what a sequential decode produces there;
+then it checks that a seek to `total_frames` is legal and reads nothing, that a
+seek past it is `ARGUMENT` and leaves the decoder seekable, that `duration_ms`
+agrees with `total_frames` and `sample_rate`, and that a partial read followed
+by a seek to 0 then a read returns the first frames again. FLAC (16- and 24-bit)
+and AIFF are the rows today.
+
+MP3 is not a row yet, and that is the point of the harness: it found that an MP3
+seek does not return the samples a sequential decode would (issue #150), at
+frame 0 and mid-file. A row that fails is not a gate, so the MP3 rows come back
+with the fix.
+
 ### 3.2 Mutation sweeps
 
 The fuzzers above run on parsers that were given a harness. Two more layers get
