@@ -379,6 +379,17 @@ B-tree node cost one transaction slot per sector, so a root split needed 34 slot
 and the catalog could never grow past depth 1. The fix is the staging coalescing
 described in §3.5.
 
+Names are mixed case, so the keys the tree holds are ordered by a folded
+comparison while the bytes on disk keep their case: the model's own equality is
+therefore case-insensitive too, written from the format rather than taken from the
+comparator under test. After the random sweep a deliberate probe takes a name the
+catalog holds, flips every letter's case, and requires both `hfs_catalog_create_file`
+and `hfs_catalog_rename` to answer `HFS_ERR_BUSY` with the image byte-identical.
+The sweep itself cannot reach that: it only ever asks for names the model says are
+free. Teeth: replacing `hfs_catalog_name_compare`'s `hfs_fast_unicode_compare` with
+a raw byte comparison makes the probe fail at once with `create fIjmjoaC: rc=0,
+expected BUSY`, and passes again when the fold comes back.
+
 ### 3.7 What the property tests do not prove
 
 They compare the writer against a model of the same host code, so they cannot
