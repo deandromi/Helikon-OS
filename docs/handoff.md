@@ -12,6 +12,24 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-23 (the merge that could not fit)
+
+- **T-152 — the steal fallback of index merging now has a test.** T-150 merged two
+  index nodes when their records fit and moved one child across when they did not,
+  and recorded the second branch as unexercised because after a split a node is at
+  most half full. `tests/hfsplus/test_btree_index_merge.c` makes the shape reachable
+  instead of hoping for it: 236-byte keys mean a 512-byte node holds two index
+  records and no more, and nine hand-built nodes hold a full sibling beside a node
+  down to one child. Deleting the leftmost leaf's only record forces the choice, and
+  the test pins the aftermath — staged but not written until commit, six keys find,
+  chain 5 -> 6 -> 7, left node `[k2 -> LA2] [k4 -> LB1]`, right `[k5 -> LB2]`, root
+  keys k2 and k5, emptied leaf erased and free, header 5 records / 5 of 12 free.
+- Teeth: replacing the steal with `return HFS_OK` fails at `node 2 holds 1 records,
+  expected 2`. Suite green plain and under ASan/UBSan.
+- Host-only, hand-built fixture. No device run.
+
+---
+
 # Handoff — 2026-11-23 (a VFS call with no mount)
 
 Short one after T-150, from reading rather than from a failing test: `vfs_stat`,

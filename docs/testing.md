@@ -541,12 +541,16 @@ real and not a tidy-up. Teeth: disabling the merge fails the same step with the
 same message, and disabling only the root collapse fails at `step 1000207` with
 `index node 31 at level 0 holds 1 record(s)`.
 
-What that does not prove: the steal fallback. After a split a node is at most half
-full, so a one-child node plus its sibling always fits and the fallback is never
-reached by these seeds; it exists because a node that *can* be full (an index node
-that took records in from a sibling earlier) would otherwise leave the invariant
-broken. The merge path is what the test proves, and the fallback is written down
-here as unexercised rather than implied to be covered.
+The steal fallback is not reachable from this sweep — after a split a node is at
+most half full, so a one-child node plus its sibling always fits — so it has a test
+of its own (T-152). `tests/hfsplus/test_btree_index_merge.c` makes the shape
+reachable by making the keys 236 bytes: a 512-byte node then holds two index
+records and no more, and nine hand-built nodes can hold a full sibling next to a
+node that is down to one child. Deleting the single record of the leftmost leaf
+empties it, leaves the left index node with one child, and pairs it with the full
+sibling: three records do not fit, so the sibling gives up its first child, the
+parent key for it is rewritten, and both nodes stay. Teeth: replacing the steal
+with `return HFS_OK` fails the test at `node 2 holds 1 records, expected 2`.
 
 ### 4.2 The write path under a corrupted volume
 
