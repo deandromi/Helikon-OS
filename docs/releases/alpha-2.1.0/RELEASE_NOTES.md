@@ -214,7 +214,7 @@ so you can copy it back.
 - The Music hub demonstrates a catalog; it does not play audio.
 - The companion is an empty shell with no tests.
 - The DMG is not notarized and the firmware uses a build-local test key.
-- The tree is not reproducible; the hashes below are the release set.
+- Cross-host reproducibility is not claimed; see the addendum below.
 
 ## Validation
 
@@ -294,3 +294,12 @@ certified release-key policy. The companion is an ad-hoc signed, non-notarized
 development build. The Music-hub image embeds an owner-supplied demonstration
 catalog and artwork; the owner has approved its use for this alpha. No private
 key, device backup or disk image is included.
+
+## Addendum — 2026-11-23
+
+`tools/build-release-sets.sh` rebuilt the three firmware images from this tree on
+the same host with the same pinned toolchain and reproduced all three
+`firmware.img` hashes byte-for-byte: launcher `8a2a18c2…`, Music hub
+`036911d2…`, Disk Mode `e73f32f3…`. That is a same-host rebuild check, not a
+reproducible-build claim: the loader and the companion DMG are not covered, and
+a different host or toolchain is untested.
