@@ -426,8 +426,30 @@ struct counters {
     uint32_t write_refused;
     uint32_t write_committed;
     uint32_t write_committed_dirty;
+    uint32_t delete_committed;
     uint32_t clean_before;
 };
+
+/*
+ * A call answered an error: the image must be untouched since the snapshot the
+ * caller took, and the iteration ends. 0 = the call committed, 1 = refused
+ * cleanly, 2 = refused but changed the image, which is the failure this test
+ * exists to catch.
+ */
+static int refused(int rc, uint32_t seed, uint32_t iteration,
+                   const struct mutation *mutation, const char *what,
+                   struct counters *counters)
+{
+    if (rc == HFS_OK)
+        return 0;
+    ++counters->write_refused;
+    if (memcmp(snapshot, image, sizeof(snapshot)) != 0) {
+        report_mutation(seed, iteration, mutation);
+        fprintf(stderr, "  %s refused (%d) but the image changed\n", what, rc);
+        return 2;
+    }
+    return 1;
+}
 
 static int exercise(uint32_t seed, uint32_t iteration,
                     const struct mutation *mutation, struct counters *counters)
@@ -466,28 +488,54 @@ static int exercise(uint32_t seed, uint32_t iteration,
     tx.journal = &journal;
     tx.active = 1;
 
+    /*
+     * Three write calls, in the order a caller would make them: create a file,
+     * rename it, delete it. Each one is held to the same rule, so a mutation
+     * that only trips the delete path is still caught; a call that answers an
+     * error ends the iteration, because the ones after it operate on state that
+     * was never committed.
+     */
     static const uint8_t name[6] = { 0, 'N', 0, 'E', 0, 'W' };
+    static const uint8_t renamed[6] = { 0, 'W', 0, 'R', 0, 'M' };
     uint32_t cnid = 0;
     int rc = hfs_catalog_create_file(&catalog, &tx, ROOT_CNID, name, 3, 0644,
                                      hfs_catalog_key_compare, NULL, &cnid);
-    if (rc != HFS_OK) {
-        ++counters->write_refused;
-        if (memcmp(snapshot, image, sizeof(snapshot)) != 0) {
-            report_mutation(seed, iteration, mutation);
-            fprintf(stderr, "  refused (%d) but the image changed\n", rc);
-            return 1;
-        }
-        return 0;
-    }
-
+    int outcome = refused(rc, seed, iteration, mutation, "create", counters);
+    if (outcome != 0)
+        return outcome == 2 ? 1 : 0;
     if (mutation->must_refuse) {
         report_mutation(seed, iteration, mutation);
         fprintf(stderr, "  the write should have been refused\n");
         return 1;
     }
-
     apply_txn(&tx);
     ++counters->write_committed;
+
+    /* The rename goes through the same catalogs records the create just wrote,
+     * which is where a stale key or a broken thread record shows up. */
+    memcpy(snapshot, image, sizeof(snapshot));
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    rc = hfs_catalog_rename(&catalog, &tx, ROOT_CNID, name, 3, cnid, ROOT_CNID,
+                            renamed, 3, hfs_catalog_key_compare, NULL);
+    outcome = refused(rc, seed, iteration, mutation, "rename", counters);
+    if (outcome != 0)
+        return outcome == 2 ? 1 : 0;
+    apply_txn(&tx);
+
+    /* And the delete frees the node the create took. */
+    memcpy(snapshot, image, sizeof(snapshot));
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    rc = hfs_catalog_delete_file(&catalog, &tx, ROOT_CNID, renamed, 3, cnid,
+                                 hfs_catalog_key_compare, NULL);
+    outcome = refused(rc, seed, iteration, mutation, "delete", counters);
+    if (outcome != 0)
+        return outcome == 2 ? 1 : 0;
+    apply_txn(&tx);
+    ++counters->delete_committed;
 
     struct hfs_check_report after;
     if (hfs_check_volume(&volume, &after) != HFS_OK) {
@@ -598,12 +646,13 @@ int main(int argc, char **argv)
     }
 
     printf("  writer mutations: %zu curated + %u random, %u refused at probe, "
-           "%u at mount, %u at the write, %u committed (%u of them on a volume "
-           "the check already called inconsistent), %u were clean before the "
-           "write\n",
+           "%u at mount, %u at a write call, %u created, %u deleted (%u created "
+           "on a volume the check already called inconsistent), %u were clean "
+           "before the write\n",
            sizeof(curated) / sizeof(curated[0]) - 1u, iterations,
            counters.probe_refused, counters.mount_refused,
            counters.write_refused, counters.write_committed,
-           counters.write_committed_dirty, counters.clean_before);
+           counters.delete_committed, counters.write_committed_dirty,
+           counters.clean_before);
     return 0;
 }
