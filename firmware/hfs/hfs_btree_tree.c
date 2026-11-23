@@ -1175,6 +1175,283 @@ static int set_parent_key(uint8_t *parent, uint16_t node_size,
                                  index_length);
 }
 
+/* ------------------------------------------------------------------------- */
+/* Index-node occupancy.                                                     */
+/* ------------------------------------------------------------------------- */
+
+static int node_child_count(const uint8_t *node)
+{
+    return (int)(((unsigned int)node[10] << 8) | node[11]);
+}
+
+/* The child node number of one record of an index node. */
+static int index_child(const uint8_t *node, uint16_t node_size, uint16_t index,
+                       uint32_t *child)
+{
+    const uint8_t *record;
+    size_t length;
+    int rc = hfs_btree_node_record(node, node_size, index, &record, &length);
+    if (rc != HFS_OK)
+        return rc;
+    if (length < HFS_BTREE_KEY_LENGTH)
+        return HFS_ERR_FORMAT;
+    uint16_t key_length = be16(record);
+    if ((size_t)key_length + HFS_BTREE_KEY_LENGTH + HFS_BTREE_CHILD_SIZE >
+        length)
+        return HFS_ERR_FORMAT;
+    *child = be32(record + HFS_BTREE_KEY_LENGTH + key_length);
+    return HFS_OK;
+}
+
+/* Append every record of `from` to `into`: 1 for all of them, 0 for no room. */
+static int absorb_records(uint8_t *into, const uint8_t *from,
+                          uint16_t node_size)
+{
+    int count = node_child_count(from);
+    for (int i = 0; i < count; ++i) {
+        const uint8_t *record;
+        size_t length;
+        int rc = hfs_btree_node_record(from, node_size, (uint16_t)i, &record,
+                                       &length);
+        if (rc != HFS_OK)
+            return rc;
+        rc = hfs_btree_node_insert(into, node_size, be16(into + 10), record,
+                                   length);
+        if (rc == HFS_ERR_NO_SPACE)
+            return 0;
+        if (rc != HFS_OK)
+            return rc;
+    }
+    return 1;
+}
+
+/*
+ * A root index node with a single child is a level that buys nothing: the child
+ * becomes the root. Repeated, so a chain of one-child roots collapses in one
+ * go,
+ * and the empty-tree state (depth 0, no root) is never entered from here - that
+ * is the delete path's own job.
+ */
+static int collapse_root(struct hfs_btree *btree, struct tree_header *header,
+                         struct hfs_txn *tx)
+{
+    static uint8_t root[HFS_MAX_NODE_SIZE];
+    while (header->depth > 0 && header->root_node != 0) {
+        int rc = read_node(btree, tx, header->root_node, root);
+        if (rc != HFS_OK)
+            return rc;
+        if (root[8] == 0xff)
+            break;              /* a depth-1 root is a leaf, by definition */
+        if (root[8] != 0)
+            return HFS_ERR_FORMAT;
+        if (node_child_count(root) != 1)
+            break;
+        uint32_t child = 0;
+        rc = index_child(root, btree->node_size, 0, &child);
+        if (rc != HFS_OK)
+            return rc;
+        rc = free_node(btree, tx, header, header->root_node);
+        if (rc != HFS_OK)
+            return rc;
+        header->root_node = child;
+        /* At depth 1 the only child is a leaf, and a leaf root is depth 1. */
+        if (header->depth > 1)
+            --header->depth;
+    }
+    return HFS_OK;
+}
+
+/*
+ * Keep every index node holding at least two children.
+ *
+ * A one-child index node is legal: every key below it is still reachable, key
+ * order holds and `hfs_check_volume` accepts it, which is why the writer could
+ * leave them behind. It is a level that buys nothing - a whole node that is
+ * never
+ * freed, so it can never be reused, plus one node read on every descent - and a
+ * drain leaves a chain of them. This is the index-node counterpart of
+ * `merge_leaf_next` and `rebalance_leaf_prev`, and it runs after an operation
+ * removed a record from the index node at depth `level`.
+ *
+ * Two moves, in this order:
+ *
+ *  - merge the node with its next sibling when the combined records fit in one
+ *    node: the sibling's record leaves the parent and the absorbed node goes
+ *    back
+ *    on the free-node map. Merging removes a record from the parent, so the
+ *    parent is settled in turn, all the way up.
+ *  - otherwise move one child across from a sibling that has at least two. A
+ *    merge that did not fit is proof the sibling holds two or more records (a
+ *    single record always fits), so this cannot fail, and the walk stops
+ *    because
+ *    the parent's record count did not change.
+ *
+ * The pair is always taken in key order, so the lower-keyed node is the
+ * survivor:
+ * its first key is still its first key, and the record that leaves the parent
+ * is
+ * the one that pointed at the absorbed node. The only key that has to be
+ * rewritten is the parent's record for a node that took a record across its
+ * left edge.
+ */
+static int settle_index_nodes(struct hfs_btree *btree,
+                              struct tree_header *header, struct hfs_txn *tx,
+                              const struct insert_path *path,
+                              unsigned int level)
+{
+    static uint8_t parent[HFS_MAX_NODE_SIZE];
+    static uint8_t node[HFS_MAX_NODE_SIZE];
+    static uint8_t sibling[HFS_MAX_NODE_SIZE];
+    static uint8_t combined[HFS_MAX_NODE_SIZE];
+
+    while (level >= 1u) {
+        uint32_t parent_node = path[level - 1u].node;
+        uint16_t child = path[level - 1u].child;
+
+        int rc = read_node(btree, tx, parent_node, parent);
+        if (rc != HFS_OK)
+            return rc;
+        int parent_count = node_child_count(parent);
+        if (parent_count < 2 || child >= (uint16_t)parent_count)
+            return HFS_OK;
+
+        uint32_t node_number = 0;
+        rc = index_child(parent, btree->node_size, child, &node_number);
+        if (rc != HFS_OK)
+            return rc;
+        rc = read_node(btree, tx, node_number, node);
+        if (rc != HFS_OK)
+            return rc;
+        if (node[8] != 0 || node_child_count(node) != 1)
+            return HFS_OK;
+
+        /* This node and its next sibling, or - when it is the last child - its
+         * previous sibling and this node. */
+        uint16_t lower_index = child;
+        uint16_t upper_index = (uint16_t)(child + 1u);
+        if (upper_index >= (uint16_t)parent_count) {
+            if (child == 0)
+                return HFS_OK;      /* an only child: nothing to pair with */
+            lower_index = (uint16_t)(child - 1u);
+            upper_index = child;
+        }
+
+        uint32_t lower_number = 0;
+        uint32_t upper_number = 0;
+        rc = index_child(parent, btree->node_size, lower_index, &lower_number);
+        if (rc != HFS_OK)
+            return rc;
+        rc = index_child(parent, btree->node_size, upper_index, &upper_number);
+        if (rc != HFS_OK)
+            return rc;
+
+        uint32_t sibling_number = lower_number == node_number ? upper_number
+                                                             : lower_number;
+        rc = read_node(btree, tx, sibling_number, sibling);
+        if (rc != HFS_OK)
+            return rc;
+        if (sibling[8] != 0)
+            return HFS_OK;          /* a leaf: the leaf path merges those */
+
+        const uint8_t *lower = lower_number == node_number ? node : sibling;
+        const uint8_t *upper = upper_number == node_number ? node : sibling;
+
+        memcpy(combined, lower, btree->node_size);
+        rc = absorb_records(combined, upper, btree->node_size);
+        if (rc < 0)
+            return rc;
+        if (rc == 1) {
+            rc = hfs_btree_node_delete(parent, btree->node_size, upper_index);
+            if (rc != HFS_OK)
+                return rc;
+            rc = stage_node(btree, tx, parent_node, parent);
+            if (rc != HFS_OK)
+                return rc;
+            rc = stage_node(btree, tx, lower_number, combined);
+            if (rc != HFS_OK)
+                return rc;
+            rc = free_node(btree, tx, header, upper_number);
+            if (rc != HFS_OK)
+                return rc;
+            --level;                /* the parent lost a record too */
+            continue;
+        }
+
+        int sibling_count = node_child_count(sibling);
+        if (sibling_count < 2)
+            return HFS_OK;          /* nothing to move: leave the shape */
+
+        const uint8_t *record;
+        size_t length;
+        if (lower_number == sibling_number) {
+            /* The previous sibling gives its last record: it becomes this
+             * node's first, so this node's key in the parent changes. */
+            rc = hfs_btree_node_record(sibling, btree->node_size,
+                                       (uint16_t)(sibling_count - 1), &record,
+                                       &length);
+            if (rc != HFS_OK)
+                return rc;
+            rc = hfs_btree_node_insert(node, btree->node_size, 0, record,
+                                       length);
+            if (rc != HFS_OK)
+                return rc;
+            rc = hfs_btree_node_delete(sibling, btree->node_size,
+                                       (uint16_t)(sibling_count - 1));
+            if (rc != HFS_OK)
+                return rc;
+            const uint8_t *key;
+            size_t key_length;
+            rc = first_key(node, btree->node_size, &key, &key_length);
+            if (rc != HFS_OK)
+                return rc;
+            rc = set_parent_key(parent, btree->node_size, child, key,
+                                key_length);
+            if (rc != HFS_OK)
+                return rc;
+            rc = stage_node(btree, tx, sibling_number, sibling);
+            if (rc != HFS_OK)
+                return rc;
+            rc = stage_node(btree, tx, node_number, node);
+            if (rc != HFS_OK)
+                return rc;
+        } else {
+            /* The next sibling gives its first record: it becomes this node's
+             * last, so the sibling's key in the parent changes. */
+            rc = hfs_btree_node_record(sibling, btree->node_size, 0, &record,
+                                       &length);
+            if (rc != HFS_OK)
+                return rc;
+            rc = hfs_btree_node_insert(node, btree->node_size,
+                                       be16(node + 10), record, length);
+            if (rc != HFS_OK)
+                return rc;
+            rc = hfs_btree_node_delete(sibling, btree->node_size, 0);
+            if (rc != HFS_OK)
+                return rc;
+            const uint8_t *key;
+            size_t key_length;
+            rc = first_key(sibling, btree->node_size, &key, &key_length);
+            if (rc != HFS_OK)
+                return rc;
+            rc = set_parent_key(parent, btree->node_size,
+                                (uint16_t)(child + 1u), key, key_length);
+            if (rc != HFS_OK)
+                return rc;
+            rc = stage_node(btree, tx, sibling_number, sibling);
+            if (rc != HFS_OK)
+                return rc;
+            rc = stage_node(btree, tx, node_number, node);
+            if (rc != HFS_OK)
+                return rc;
+        }
+        rc = stage_node(btree, tx, parent_node, parent);
+        if (rc != HFS_OK)
+            return rc;
+        return HFS_OK;              /* the parent kept its records: done */
+    }
+    return collapse_root(btree, header, tx);
+}
+
 static int merge_leaf_next(struct hfs_btree *btree,
                            struct tree_header *header, struct hfs_txn *tx,
                            const struct insert_path *path, unsigned int level,
@@ -1487,19 +1764,27 @@ static int collapse_empty_leaf(struct hfs_btree *btree,
             rc = stage_node(btree, tx, parent_node, ancestor);
             if (rc != HFS_OK)
                 return rc;
-            if (child != 0 || depth == 1)
-                return store_header(btree, tx, header);
-            const uint8_t *key;
-            size_t key_length;
-            rc = first_key(ancestor, btree->node_size, &key, &key_length);
-            if (rc != HFS_OK)
-                return rc;
-            /* update_parent_key stages through the same static buffer. */
-            if (key_length > sizeof(key_copy))
-                return HFS_ERR_FORMAT;
-            memcpy(key_copy, key, key_length);
-            rc = update_parent_key(btree, header, tx, path, depth - 1u,
-                                   key_copy, key_length);
+            if (child == 0 && depth > 1) {
+                const uint8_t *key;
+                size_t key_length;
+                rc = first_key(ancestor, btree->node_size, &key, &key_length);
+                if (rc != HFS_OK)
+                    return rc;
+                /* update_parent_key stages through the same static buffer. */
+                if (key_length > sizeof(key_copy))
+                    return HFS_ERR_FORMAT;
+                memcpy(key_copy, key, key_length);
+                rc = update_parent_key(btree, header, tx, path, depth - 1u,
+                                       key_copy, key_length);
+                if (rc != HFS_OK)
+                    return rc;
+            }
+            /*
+             * The parent may now hold a single child, which is a level of the
+             * tree that buys nothing. Pair it with a sibling and carry on
+             * upward; that also collapses a root left with one child.
+             */
+            rc = settle_index_nodes(btree, header, tx, path, depth - 1u);
             if (rc != HFS_OK)
                 return rc;
             return store_header(btree, tx, header);
@@ -1681,8 +1966,18 @@ int hfs_btree_delete(struct hfs_btree *btree, struct hfs_txn *tx,
             if (merged < 0)
                 return merged;
         }
-        if (merged > 0)
+        if (merged > 0) {
+            /*
+             * A leaf merge dropped this leaf's record from its parent, so the
+             * parent can be down to one child; so can anything above it.
+             */
+            if (merged == 1 && level > 0) {
+                rc = settle_index_nodes(btree, &header, tx, path, level - 1u);
+                if (rc != HFS_OK)
+                    return rc;
+            }
             return store_header(btree, tx, &header);
+        }
         if (first_changed) {
             const uint8_t *new_key;
             size_t new_key_length;

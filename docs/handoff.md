@@ -12,6 +12,49 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-23 (index nodes that finally merge)
+
+## What happened
+
+- **T-150 — the B-tree merges index nodes.** A delete merged leaves, moved a record
+  between leaves, and collapsed an emptied leaf through its ancestors, but nothing
+  ever paired two index nodes, so a tree that lost records kept a one-child index
+  node per surviving child. That shape is legal — the keys are reachable, key order
+  holds, `hfs_check_volume` passes — which is why it survived: correct and wasteful,
+  with nodes that can never be reused.
+- `settle_index_nodes` runs whenever an operation takes a record out of an index
+  node: merge with the next sibling (or the previous one, when the node is the last
+  child) in key order when the combined records fit, drop the absorbed node's record
+  from the parent, free the node, repeat one level up; otherwise move one child
+  across from the sibling, rewrite the one key that changed, and stop. `collapse_root`
+  takes a level off a root left with one child.
+- `test_btree_model` grew the invariant: `check_occupancy` walks index nodes from the
+  root after every operation and rejects any with fewer than two records.
+
+## Evidence
+
+- The new invariant failed on the existing sweep before the fix: `step 1000063,
+  index node 3 at level 1 holds 1 record(s)`.
+- After the fix: the committed 1,800-step sweep, seeds 2, 5, 9, 21, 33 and 77 at
+  2,600 steps, the cascade still ending at `depth 1, 68 of 70 nodes free`;
+  `make -C tests/hfsplus test` and `sanitize` green; `test_writer_mutations`
+  unchanged (`34 curated + 400 random`, same counts).
+- Teeth: disabling the merge fails at the same step with the same message;
+  disabling only the root collapse fails at `step 1000207` with `index node 31 at
+  level 0 holds 1 record(s)`.
+- **Not covered:** the steal fallback. After a split a node is at most half full, so
+  one child plus a half-full sibling always fits and no seed reaches it. It exists
+  for the shape where a sibling *is* full; it is unexercised, and that is written in
+  `testing.md` §4.1 rather than implied.
+- Host-only: hand-built fixture, no device run.
+
+## Open, next
+
+- The unit half of the writer is still thin at the *insert* end of index merging: a
+  targeted fixture that starts from a full sibling would be the way to exercise the
+  steal path deliberately (small node, few records per node).
+- Everything else on the queue is unchanged: the catalog writer's remaining
+  macOS-differential work, `fsck_hfs` on generated trees, and T-056's device half.
 # Handoff — 2026-11-23 (a writer fuzzer, and names that are not ASCII)
 
 ## What happened
