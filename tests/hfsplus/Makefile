@@ -279,7 +279,8 @@ test_btree_model: test_btree_model.c test_image.c test_image.h \
 	  $(HFS)/hfs_txn.c $(HFS)/hfs_journal.c \
 	  $(HFS)/hfs_btree.c $(HFS)/hfs_volume.c $(LDFLAGS) -o $@
 
-test_writer_mutations: test_writer_mutations.c test_image.c test_image.h \
+test_writer_mutations: test_writer_mutations.c writer_fixture.c \
+                        writer_fixture.h test_image.c test_image.h \
                         test_check.h \
                         $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog.h \
                         $(HFS)/hfs_catalog_write.c $(HFS)/hfs_catalog_write.h \
@@ -298,7 +299,8 @@ test_writer_mutations: test_writer_mutations.c test_image.c test_image.h \
                         $(HFS)/hfs_journal.c $(HFS)/hfs_journal.h \
                         $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h \
                         $(HFS)/hfs_volume.c $(HFS)/hfs_volume.h
-	$(CC) $(CPPFLAGS) $(CFLAGS) test_writer_mutations.c test_image.c \
+	$(CC) $(CPPFLAGS) $(CFLAGS) test_writer_mutations.c writer_fixture.c \
+	  test_image.c \
 	  $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog_write.c \
 	  $(HFS)/hfs_catalog_compare.c $(HFS)/hfs_check.c \
 	  $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c \

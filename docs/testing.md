@@ -29,7 +29,7 @@ Helikon-OS validation.
 | Layer | What it proves | Runs on | Current status | Required for |
 |---|---|---|---|---|
 | Host unit | Parser, allocator, name, state-machine logic | Host | `in progress` — HFS+ read core, journal and txn | Every module |
-| Fuzzing and mutation sweeps | Malformed B-trees, extents, names, journal records and bitstreams do not crash or escape bounds | Host | `in progress` — 7 libFuzzer harnesses with a committed corpus, plus the HFS+ image and codec mutation sweeps (§3, §3.2) | Reader, writer, journal, decoders |
+| Fuzzing and mutation sweeps | Malformed B-trees, extents, names, journal records and bitstreams do not crash or escape bounds; the writer fails closed | Host | `in progress` — 8 libFuzzer harnesses with a committed corpus, including a writer harness that mutates a whole volume and holds the writer to its two rules (§3), plus the HFS+ image and codec mutation sweeps (§3.2) | Reader, writer, journal, decoders |
 | Model-based B-tree | Insert/update/delete, split/merge, key order, free-node map | Host | `in progress` — a 1,800-operation random sweep over the extents tree at 512-byte nodes, plus an ordered cascade that drains to the canonical empty tree, refills it from depth 0 and reuses it through a reopened handle (§4.1); index nodes are never merged, so a drained tree keeps one-child index nodes | Writer |
 | Property tests | Allocation, ordering, commit atomicity, no lost/duplicate blocks | Host | `in progress` — the byte-range block layer has a 4000-range property test, the allocation bitmap has a 4,000-step model test (§3.3), the transaction overlay has one (§3.5), the journal commit path is cut at every write (§3.4), and the catalog runs random operations against a directory model plus `hfs_check_volume` (§3.6); a B-tree insert/delete model and the macOS differential remain `planned` | Writer/journal |
 | Differential vs macOS | Same tree/names/metadata/`fsck_hfs` result on both sides; catalog order matches Apple's | Host + macOS | `in progress` — ordering and read differential run; writer-side tree comparisons partly covered | Writer |
@@ -90,7 +90,7 @@ guard is the backstop, not the contract.
 
 ## 3. Fuzzing and sanitizers
 
-`tools/fuzz.sh` builds and runs the libFuzzer harnesses. Six exist, each with
+`tools/fuzz.sh` builds and runs the libFuzzer harnesses. Eight exist, each with
 a stated invariant, because a fuzz target that only proves "does not crash" is
 worth much less than one that knows what would be wrong:
 
@@ -103,6 +103,7 @@ worth much less than one that knows what would be wrong:
 | `journal` | `firmware/hfs/hfs_journal.c` | a journal whose checksum does not match is never reported clean (I-04); a hostile but checksum-consistent journal may fail to replay but never writes outside the device |
 | `playlist` | `firmware/player/playlist.c` | every entry path is absolute, terminated and free of control characters; `open` refuses a buffer with a NUL instead of stopping at it; the entry count never exceeds the cap and `next` never fails after `open` succeeded |
 | `cuesheet` | `firmware/player/cuesheet.c` | track starts never go backwards and a pregap never follows its own start; every returned string stays inside the caller's buffer and inside its length cap; a refused sheet reports no tracks at all |
+| `writer` | `firmware/hfs/hfs_catalog_write.c` over the shared writer fixture | a refused write changes nothing, and a commit never turns a volume the structural check called clean into an inconsistent one |
 
 ```sh
 ./tools/fuzz.sh                    # every harness, 60 seconds each
@@ -120,8 +121,20 @@ guided run needs the runtime and is what CI does for 20 seconds per harness. The
 corpus alone already reaches 64 % of `id3v2.c`'s regions, so replay is a real
 test, not a formality.
 
-Anyone adding a parser should add a harness and a handful of seeds in the same
-pull request. A crash, a hang or a violated invariant is a defect, not a "known
+The `writer` harness is the one that fuzzes *writes* rather than a parser, and it
+is the only one whose input is a whole volume: `tests/hfsplus/writer_fixture.c`
+builds a valid 1 MiB image with the root folder seeded through the real writer,
+and the harness applies fuzzer-chosen mutations - offset, width and value, up to
+seven of them - before it probes, checks, opens the catalog and makes one call:
+create, create folder, rename, write 1,500 bytes, truncate or delete. A refusal
+must leave the image byte-identical; a commit must not add a finding to a volume
+the check called clean. That is the same pair of rules `test_writer_mutations`
+enforces, but the fields and values come from coverage rather than from a curated
+list, which is what lets it reach combinations nobody wrote down. The fixture and
+its geometry live in one place so the sweep and the harness cannot drift apart.
+
+Anyone adding a parser - or a writer - should add a harness and a handful of seeds
+in the same pull request. A crash, a hang or a violated invariant is a defect, not a "known
 fuzz case", and no corpus file may be a device image, a proprietary sample or
 personal data.
 

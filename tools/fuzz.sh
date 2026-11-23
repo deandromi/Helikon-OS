@@ -40,7 +40,7 @@ if ! command -v clang >/dev/null 2>&1; then
     exit 2
 fi
 
-HARNESSES="id3v2 vorbis hdb manifest journal playlist cuesheet"
+HARNESSES="id3v2 vorbis hdb manifest journal playlist cuesheet writer"
 
 # One line per harness: suite, sources, include directories, and the invariant
 # in one sentence (printed with the run, because a fuzz target without a stated
@@ -58,6 +58,17 @@ firmware/lib/sha256.c" ;;
 firmware/lib/mem.c firmware/lib/string.c" ;;
     playlist) echo "firmware/player/playlist.c firmware/lib/mem.c" ;;
     cuesheet) echo "firmware/player/cuesheet.c firmware/lib/mem.c" ;;
+    writer) echo "tests/hfsplus/writer_fixture.c \
+firmware/hfs/hfs_catalog.c firmware/hfs/hfs_catalog_write.c \
+firmware/hfs/hfs_catalog_compare.c firmware/hfs/hfs_check.c \
+firmware/hfs/hfs_unicode.c firmware/hfs/hfs_unicode_data.c \
+firmware/hfs/hfs_btree.c firmware/hfs/hfs_btree_tree.c \
+firmware/hfs/hfs_btree_write.c firmware/hfs/hfs_fork_io.c \
+firmware/hfs/hfs_volume.c firmware/hfs/hfs_volume_write.c \
+firmware/hfs/hfs_bitmap.c firmware/hfs/hfs_extents.c \
+firmware/hfs/hfs_extents_write.c firmware/hfs/hfs_txn.c \
+firmware/hfs/hfs_journal.c firmware/lib/mem.c firmware/lib/string.c \
+firmware/lib/crc32.c" ;;
     esac
 }
 
@@ -68,6 +79,7 @@ includes_for() {
     manifest) echo "-Ibootloader -Ifirmware/lib -Ifirmware/codec" ;;
     journal) echo "-Ifirmware/hfs -Ifirmware/lib -Itests/hfsplus" ;;
     playlist | cuesheet) echo "-Ifirmware/player -Ifirmware/lib" ;;
+    writer) echo "-Ifirmware/hfs -Ifirmware/lib -Itests/hfsplus" ;;
     esac
 }
 
@@ -78,6 +90,7 @@ suite_for() {
     manifest) echo bootloader ;;
     journal) echo hfsplus ;;
     playlist | cuesheet) echo player ;;
+    writer) echo hfsplus ;;
     esac
 }
 
@@ -90,6 +103,7 @@ invariant_for() {
     journal) echo "a journal whose checksum does not match is never reported clean" ;;
     playlist) echo "every entry path is absolute, terminated and free of control characters" ;;
     cuesheet) echo "starts never go backwards and every returned string stays inside the buffer" ;;
+    writer) echo "a refused write changes nothing, and a commit never makes a clean volume inconsistent" ;;
     esac
 }
 
