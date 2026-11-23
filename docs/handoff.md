@@ -12,6 +12,56 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-23 (an empty-able B-tree, the journal gate, folded names, the data sweep)
+
+## What happened
+
+- **T-143, issue #125 — the writer could not empty a deep tree.** `hfs_btree_delete`
+  answered `HFS_ERR_UNSUPPORTED` when an emptied leaf's parent was a one-child index
+  node below the root, which a long drain leaves behind because index nodes are never
+  merged. `collapse_empty_leaf` replaces that path: unlink the leaf, free every
+  ancestor left without a child, rewrite the parent key when the first record went,
+  and end at either a root that keeps records or the canonical depth-0 tree. Every
+  success path stores the header (the first cut did not, and the new test caught it
+  as `leaf_next returned -3`).
+- **T-143 — the ordered cascade phase of `test_btree_model`.** Drain in ascending key
+  order, canonical empty tree in memory and from the reopened medium, fill 120
+  ascending keys from empty (root grows out of depth 0, depth ≥ 2 required), drain
+  again, insert three keys through the reopened handle.
+- **T-142 — the dirty-journal gate.** `test_journal` now drives both kinds of dirt at
+  `hfs_txn_begin` — a header whose `start` and `end` do not meet, and a volume header
+  with the dirty flag — and requires `HFS_ERR_DIRTY` with the transaction inactive,
+  plus a clean journal that still opens one.
+- **T-144 — mixed-case names in the catalog model.** Names come from a mixed-case
+  alphabet, the model's uniqueness rule folds case, and a probe flips an existing
+  name's case and requires `HFS_ERR_BUSY` from both create and rename.
+- **T-145 — the write-path sweep drives the data path.** Five calls per iteration:
+  create, rename, write 1,500 bytes, truncate to zero, delete. Only the last three
+  allocate blocks, so this is what makes a mutated bitmap or fork record reachable.
+
+## Evidence
+
+`make -C tests/hfsplus test` — 164 cases — and `sanitize` exit 0; `test_btree_model`
+1,800 random steps + 513 cascade steps and 2,200-step runs over six seeds; the
+mutation sweep 34 curated + 400 random and 1,500-iteration runs over seeds 1/2/3
+(4,478 data writes and truncates); `./tools/static-analysis.sh` 80 units, 0 findings.
+Teeth are recorded per task row in `docs/tasks.md`. Host-only: no device run, F2
+stays unconfirmed, and none of this is a device claim.
+
+## Open / next
+
+- The catalog tree can now be drained too: a `delete every item` phase in
+  `test_catalog_ops_props` would exercise the same collapse with 4 KiB nodes and
+  variable-length records, and would end at "only the root folder is left".
+- Index nodes are never merged, so a drained tree keeps one-child index nodes until
+  the leaf under them goes. Emptiness now collapses them; merging two sparse index
+  nodes is still unwritten and is the remaining depth-1-to-depth-2 gap.
+- The macOS differential (`fsck_hfs` on an image the writer produced) is still
+  `planned`: it needs a host tool that runs the writer against a real `newfs_hfs`
+  volume, not the hand-built fixture.
+
+---
+
 # Handoff — 2026-11-23 (CI: missed nightly and an unbounded job)
 
 ## What happened
