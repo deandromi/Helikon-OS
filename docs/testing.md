@@ -381,14 +381,52 @@ renames, writes and truncates against a directory model, with `hfs_check_volume`
 after every operation, which re-walks the tree and checks key order, the leaf
 chain, every fork against the allocation bitmap, the free-block count and node
 ownership (T-137: a leaked node or a reachable node marked free is a finding).
-Node splits and merges are reached (the fixture holds several file records per
-leaf and the sweep creates and deletes enough to split and merge), but the
-following are still `planned`:
 
-- a B-tree-level model: random insert/delete/update keys applied to a model of
-  the tree and to the on-disk nodes, comparing key order, leaf links, node
-  heights and lookup results at every step;
-- forced root changes and split/merge cascades at node boundaries;
+### 4.1 The B-tree layer itself
+
+`tests/hfsplus/test_btree_model.c` drives **one tree** rather than the catalog:
+random inserts, deletes and in-place updates on the extents-overflow tree, whose
+records are a 10-byte key and 64 bytes of data with no per-type body to keep
+valid. The fixture is a 1 MiB volume with 512-byte nodes — about six records per
+leaf — so a few hundred keys force splits, index growth, depth changes, leaf
+merges and freed nodes. After every operation the test checks:
+
+- `hfs_btree_find` returns every present key's record, byte for byte, and a
+  missing or wrong body is a failure;
+- the leaf chain holds exactly the model's keys, strictly ascending, with the
+  right bodies — a split or merge that dropped, duplicated or reordered a record
+  is caught here and nowhere else;
+- a refused call leaves the image byte-identical. Two refusals are legitimate:
+  `HFS_ERR_UNSUPPORTED` when a merge or rebalance would need a case the writer
+  does not implement, and `HFS_ERR_NO_SPACE` when the tree is genuinely full;
+- `hfs_check_volume` reports nothing and skips nothing: key order, the leaf
+  chain, forks against the bitmap, the free-block count and node ownership.
+
+```sh
+cd tests/hfsplus && ./test_btree_model                # 1,800 operations
+cd tests/hfsplus && ./test_btree_model 2 2600         # another seed, longer
+```
+
+The committed sweep is 1,800 operations: about 860 inserts, 570 deletes and 370
+updates, reaching 270 keys at depth 3, with the tree growing from 64 to 70 nodes.
+Longer sweeps over six seeds (2,600 operations, up to 513 keys and 128 nodes,
+the whole fork) pass, plain and under ASan/UBSan.
+
+It found issue #118: a tree whose free-node map covers exactly the nodes it has
+could never grow, and both "the map is full" and "the fork has no extent slot"
+were reported as `HFS_ERR_UNSUPPORTED` rather than `HFS_ERR_NO_SPACE`. The fix is
+T-139: the map record widens into the header node's free space, the two capacity
+outcomes answer `NO_SPACE`, and the attributes tree's fork is addressable too.
+`test_btree_grow` pins each case; dropping the widening makes it fail, as does
+turning either `NO_SPACE` back into `UNSUPPORTED`.
+
+Teeth: dropping `map_set(header, node, 0)` from the free-node path makes the
+model test stop at step 54 with `problems 0x00080000` from `hfs_check_volume`.
+
+Still `planned`:
+
+- forced root changes and split/merge cascades at node boundaries driven from
+  the model rather than by chance;
 - names with Apple `FastUnicodeCompare` and composed/decomposed forms in the
   same model;
 - `fsck_hfs` on the result (macOS differential, §5).
