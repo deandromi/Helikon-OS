@@ -25,6 +25,30 @@ claim a release signature, notarization, A/B rollback, audio playback, a working
 companion or a device support matrix. The full notes are archived in
 [`releases/alpha-2.0.0/RELEASE_NOTES.md`](releases/alpha-2.0.0/RELEASE_NOTES.md).
 
+## 0. Alpha 2.1.0 — Disk Mode
+
+| Field | Value |
+|---|---|
+| Release | `Alpha 2.1.0 — Disk Mode` |
+| Tag | `alpha-2.1.0` |
+| Date | 2026-11-23 |
+| Type | Normal GitHub release; development alpha |
+| Update type | Firmware + bootloader + companion preview; manual copy and DFU |
+| Firmware | Launcher v21 `8a2a18c2…`; Music hub v22 `036911d2…`; Disk Mode v23 `e73f32f3…` |
+| Bootloader | `79a1c02b…` (107,560 bytes); last device-tested remains `6bc6927c…` |
+| Companion | `Helikon-Companion-0.1.0-alpha2.1.dmg`; universal, ad-hoc signed, not notarized |
+| Signing | Build-local Ed25519 test key `0x48454c01`; no release key |
+| Device evidence | **None for this set.** No artifact in 2.1.0 has been on a device; older recorded runs are in the release notes |
+| Not included | Firmware-owned filesystem write in the UI images, audio playback, storage-backed library, working companion, release signing, notarization |
+| Open evidence | Every 2.1.0 artifact on a 6G, the Disk Mode LUN from a host, `fsck_hfs` after a host format, release key |
+
+The assets are one matched set: loader, DFU installer, uninstaller, three
+firmware zips, companion DMG, test public key, quick start, release notes,
+license, notice and `SHA256SUMS`. Disk Mode is the restore/format window: it
+hands the whole disk to the host as one writable LUN and must be treated as
+destructive. Full hashes and install steps are in
+[`releases/alpha-2.1.0/RELEASE_NOTES.md`](releases/alpha-2.1.0/RELEASE_NOTES.md).
+
 ## 0. Alpha 2.0.0 — Launchers and Interfaces
 
 | Field | Value |
@@ -36,7 +60,7 @@ companion or a device support matrix. The full notes are archived in
 | Update type | Firmware + bootloader + companion preview; manual copy and DFU |
 | Firmware | Launcher v10 `b3218ccd…`; Music hub v12 `de6491a9…` |
 | Bootloader | `7f13e7e5…` (106,184 bytes); last device-tested remains `6bc6927c…` |
-| Companion | `Helikon-Companion-0.1.0-alpha2.dmg`; universal, ad-hoc signed, not notarized |
+| Companion | `Helikon-Companion-0.1.0-alpha2.dmg`; universal, ad-hoc signed, not notarized (2.1.0 uses `-alpha2.1.dmg`) |
 | Signing | Build-local Ed25519 test key `0x48454c01`; no release key |
 | Device evidence | Owner reports 6G testing complete; per-image details not attached; older 6G/iFlash SD runs recorded |
 | Not included | Firmware-owned filesystem write, audio playback, VFS, storage-backed library, settings, USB, update client, installer, app runtime, working companion |

@@ -4,7 +4,7 @@
 > GitHub releases.
 > Status: living
 > Owner: release lead
-> Last updated: 2026-11-06
+> Last updated: 2026-11-23
 
 The canonical release process is [`../release.md`](../release.md). This folder
 holds the notes that were attached to each GitHub release so the text remains
@@ -13,6 +13,7 @@ limits in each note.
 
 | Release | Tag | Date | Type | Notes |
 |---|---|---|---|---|
+| Alpha 2.1.0 — Disk Mode | `alpha-2.1.0` | 2026-11-23 | Firmware + bootloader + companion preview | [`alpha-2.1.0/RELEASE_NOTES.md`](alpha-2.1.0/RELEASE_NOTES.md) · [`QUICKSTART.md`](alpha-2.1.0/QUICKSTART.md) |
 | Alpha 2.0.0 — Launchers and Interfaces | `alpha-2.0.0` | 2026-11-06 | Firmware + bootloader + companion preview | [`alpha-2.0.0/RELEASE_NOTES.md`](alpha-2.0.0/RELEASE_NOTES.md) · [`QUICKSTART.md`](alpha-2.0.0/QUICKSTART.md) |
 | Alpha 1.0.1 — Bootloader Only — A Quick Start | `alpha-1.0.1` | 2026-11-04 | Bootloader only | GitHub release; notes not archived here |
 

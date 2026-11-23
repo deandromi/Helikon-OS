@@ -94,7 +94,8 @@ cd tools/desktop
 ./scripts/build-dmg.sh --universal
 ```
 
-The result is `dist/Helikon-Companion-0.1.0-alpha2.dmg`; the script also verifies
+The result is `dist/Helikon-Companion-0.1.0-<tag>.dmg` (`scripts/build-dmg.sh
+--tag alpha2.1`, the default); the script also verifies
 the ad-hoc signature, checks the universal arm64/x86_64 binary, verifies the DMG
 and prints its SHA-256. The image contains the app, an `Applications` link,
 `LICENSE`, `NOTICE` and a `Read Me.txt` with the Gatekeeper and scope notes.

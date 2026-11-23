@@ -2,7 +2,10 @@
 set -eu
 
 # Build a drag-to-Applications DMG for the Helikon Companion shell.
-# Usage: scripts/build-dmg.sh [--universal] [--debug]
+# Usage: scripts/build-dmg.sh [--universal] [--debug] [--tag NAME]
+# The tag names the release the DMG belongs to; it sets the file name
+# (Helikon-Companion-<version>-<tag>.dmg) and the release line in the
+# bundled Read Me, so a DMG can never be labelled with the wrong alpha.
 # The app is ad-hoc signed; this script does not notarize it.
 
 ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
@@ -11,14 +14,26 @@ APP="$ROOT/dist/Helikon Companion.app"
 STAGE="$ROOT/dist/dmg"
 CONFIG=release
 UNIVERSAL=0
+TAG=alpha2.1
+WANT_TAG=0
 
 for arg in "$@"; do
+    if [ "$WANT_TAG" -eq 1 ]; then
+        TAG=$arg
+        WANT_TAG=0
+        continue
+    fi
     case "$arg" in
         --debug) CONFIG=debug ;;
         --universal) UNIVERSAL=1 ;;
-        *) echo "usage: $0 [--debug] [--universal]" >&2; exit 2 ;;
+        --tag) WANT_TAG=1 ;;
+        *) echo "usage: $0 [--debug] [--universal] [--tag NAME]" >&2; exit 2 ;;
     esac
 done
+if [ "$WANT_TAG" -eq 1 ] || [ -z "$TAG" ]; then
+    echo "error: --tag needs a name" >&2
+    exit 2
+fi
 
 BUILD_ARGS=""
 if [ "$CONFIG" = "debug" ]; then
@@ -32,7 +47,7 @@ fi
 
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
     "$ROOT/Resources/Info.plist" 2>/dev/null || echo "0.1.0")
-DMG="$ROOT/dist/Helikon-Companion-$VERSION-alpha2.dmg"
+DMG="$ROOT/dist/Helikon-Companion-$VERSION-$TAG.dmg"
 
 test -d "$APP" || {
     echo "missing app bundle: $APP" >&2
@@ -45,9 +60,9 @@ ditto "$APP" "$STAGE/Helikon Companion.app"
 ln -s /Applications "$STAGE/Applications"
 cp "$REPO/LICENSE" "$REPO/NOTICE" "$STAGE/"
 
-cat > "$STAGE/Read Me.txt" <<'README'
-Helikon Companion 0.1.0
-Alpha 2.0.0 — shell preview
+cat > "$STAGE/Read Me.txt" <<README
+Helikon Companion $VERSION
+Helikon-OS $TAG — shell preview
 
 This is a development preview of the macOS companion. It contains the owner
 welcome banner and an empty shell only. It does not read or write an iPod
