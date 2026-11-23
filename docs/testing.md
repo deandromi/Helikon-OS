@@ -1086,6 +1086,15 @@ and the player chunk/position logic.
 
 The WAV container and player state are host-tested separately, including the
 pull-source open (`helikon_player_open_media`) and the short-read WAV path. The
+resume bookmark is tested in two halves for the same reason a playlist is: the
+text in `tests/player/test_bookmark.c` (the exact record, the round trip, and
+every refusal — a missing magic, a wrong version, an unknown or duplicate key,
+a CR, a missing final newline, a relative path, a signed or overflowing number,
+a control byte, a path at the length limit) and the file in
+`tests/vfs/test_vfs_bookmark.c`, which saves through the journaled write VFS on
+the fixture volume, replaces a longer record with a shorter one, reads every
+field back through the read VFS, and requires the journal and
+`hfs_check_volume` to be clean after each call. The
 same suite holds the text parsers — playlists and cue sheets — because both are
 files from somewhere else whose every line is a claim:
 

@@ -73,7 +73,7 @@ PLAYER_SRC :=
 ifneq ($(AUDIO),)
 PLAYER_SRC := player/player.c player/wav.c player/vfs_media.c \
               player/read_ahead.c player/queue.c player/playlist.c \
-              player/cuesheet.c \
+              player/cuesheet.c player/bookmark.c \
               codec/codec.c codec/aiff/aiff_codec.c \
               codec/flac/flac_codec.c \
               codec/flac/flac_decoder.c \
@@ -86,7 +86,7 @@ PLAYER_SRC := player/player.c player/wav.c player/vfs_media.c \
 endif
 # Compiled always so it cannot rot; without a caller the linker drops it.
 LIBRARY_SRC := db/hdb.c library/library.c library/music_source.c
-VFS_SRC := vfs/vfs.c vfs/vfs_rw.c
+VFS_SRC := vfs/vfs.c vfs/vfs_rw.c player/vfs_bookmark.c
 # Mounting the volume at boot: block device -> partition -> HFS+ -> VFS ->
 # catalog (T-126). Nothing calls it yet, so the linker drops it; the host test
 # `tests/library` drives this exact path over a real image.
