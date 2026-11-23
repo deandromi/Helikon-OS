@@ -65,6 +65,36 @@ static int test_mount_stat(void)
     return 0;
 }
 
+/*
+ * A handle with no mount behind it is a caller mistake, and the answer is
+ * ARGUMENT like every other entry point in the layer - not a dereference of a
+ * NULL struct. The mount, the open, the read and the directory walk all take the
+ * same path.
+ */
+static int test_unmounted_handle_is_argument(void)
+{
+    struct vfs_entry entry;
+    struct vfs_file_handle file = { 0u, 0u };
+    struct vfs_dir_handle dir = { 0u, 0u };
+    uint8_t data[16];
+    size_t done = 0;
+
+    CHECK(vfs_stat(NULL, "/", &entry) == HELIKON_ERR_ARGUMENT);
+    CHECK(vfs_stat(NULL, "/.firmware/current.img", &entry) ==
+          HELIKON_ERR_ARGUMENT);
+    CHECK(vfs_file_open(NULL, "/.firmware/current.img", &file) ==
+          HELIKON_ERR_ARGUMENT);
+    CHECK(vfs_file_read(NULL, file, data, sizeof(data), &done) ==
+          HELIKON_ERR_ARGUMENT);
+    CHECK(vfs_file_seek(NULL, file, VFS_SEEK_SET, 0, NULL) ==
+          HELIKON_ERR_ARGUMENT);
+    CHECK(vfs_file_close(NULL, file) == HELIKON_ERR_ARGUMENT);
+    CHECK(vfs_dir_open(NULL, "/", &dir) == HELIKON_ERR_ARGUMENT);
+    CHECK(vfs_dir_next(NULL, dir, &entry) == HELIKON_ERR_ARGUMENT);
+    CHECK(vfs_dir_close(NULL, dir) == HELIKON_ERR_ARGUMENT);
+    return 0;
+}
+
 static int test_mount_rejects_non_hfs(void)
 {
     struct vfs vfs;
@@ -405,6 +435,7 @@ int main(void)
     int failures = 0;
     failures += test_mount_stat();
     failures += test_mount_rejects_non_hfs();
+    failures += test_unmounted_handle_is_argument();
     failures += test_open_read_eof();
     failures += test_seek_semantics();
     failures += test_handle_generation();

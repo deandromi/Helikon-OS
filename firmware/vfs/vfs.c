@@ -136,7 +136,9 @@ int vfs_mount(struct vfs *vfs, hfs_read_fn read, void *context,
 
 int vfs_stat(struct vfs *vfs, const char *path, struct vfs_entry *entry)
 {
-    if (entry == NULL || !path_valid(path))
+    if (vfs == NULL || entry == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    if (!path_valid(path))
         return HELIKON_ERR_NAME_INVALID;
     struct hfs_entry hfs;
     int rc = hfs_catalog_lookup(&vfs->catalog, path, &hfs);
@@ -148,7 +150,9 @@ int vfs_stat(struct vfs *vfs, const char *path, struct vfs_entry *entry)
 int vfs_file_open(struct vfs *vfs, const char *path,
                   struct vfs_file_handle *out)
 {
-    if (out == NULL || !path_valid(path))
+    if (vfs == NULL || out == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    if (!path_valid(path))
         return HELIKON_ERR_NAME_INVALID;
     struct hfs_entry hfs;
     int rc = hfs_catalog_lookup(&vfs->catalog, path, &hfs);
@@ -284,7 +288,9 @@ int vfs_file_close(struct vfs *vfs, struct vfs_file_handle handle)
 int vfs_dir_open(struct vfs *vfs, const char *path,
                  struct vfs_dir_handle *out)
 {
-    if (out == NULL || !path_valid(path))
+    if (vfs == NULL || out == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    if (!path_valid(path))
         return HELIKON_ERR_NAME_INVALID;
     uint32_t parent = 2u; /* the kHFSRootParentID folder thread root */
     if (path[1] != '\0') {
