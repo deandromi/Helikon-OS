@@ -61,7 +61,11 @@ file grows. Do not rely on chat history for current state.
   `fsck_hfs`.
 - The ~20 s artist-open stall from the 2026-11-08 image is still in the Music
   hub and still untested on the current build.
-- F2 (firmware-owned write) remains blocked; nothing in 2.1.0 depends on it.
+- F2 (firmware-owned write) remains blocked; nothing in 2.0.0 or 2.1.0 depends
+  on it.
+- **Owner question:** the root `README.md` still advertises Alpha 2.0.0. That file
+  is owner-authored and off-limits to agents, so 2.1.0 is described in `agents.md`,
+  `docs/state.md` and the release instead. The README needs an owner edit.
 
 ---
 
