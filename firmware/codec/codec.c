@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "aiff/aiff_codec.h"
 #include "helikon_error.h"
 #include "mem.h"
 #include "mp3/mp3.h"
@@ -187,6 +188,7 @@ const struct helikon_codec_ops helikon_wav_codec_ops = {
 
 static const struct helikon_codec_ops *const codec_registry[] = {
     &helikon_wav_codec_ops,
+    &helikon_aiff_codec_ops,
     &helikon_flac_codec_ops,
     &helikon_mp3_codec_ops,
 };

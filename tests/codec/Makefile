@@ -4,7 +4,8 @@
 
 CC ?= cc
 CFLAGS := -O2 -g -std=c99 -Wall -Wextra -Werror -Wconversion -Wshadow \
-          -Wundef -Wpointer-arith -DHELIKON_HOST_TEST -I../../firmware/codec -I../../firmware/codec/tag \
+          -Wundef -Wpointer-arith -DHELIKON_HOST_TEST -I../../firmware/codec -I../../firmware/codec/aiff \
+          -I../../firmware/codec/tag \
           -I../../firmware/codec/flac -I../../firmware/codec/mp3 \
           -I../../firmware/codec/libmad -I../../firmware/lib \
           -I../../firmware/player
@@ -31,6 +32,7 @@ sanitize: test_codec_sanitize test_codec_mutation_sanitize
 SANFLAGS := -fsanitize=address,undefined -fno-omit-frame-pointer
 
 codec_src = ../../firmware/codec/codec.c \
+            ../../firmware/codec/aiff/aiff_codec.c \
             ../../firmware/codec/flac/flac_codec.c \
             ../../firmware/codec/flac/flac_decoder.c \
             ../../firmware/codec/mp3/mp3_codec.c \
@@ -42,6 +44,7 @@ test_src = test_codec.c $(codec_src)
 mutation_src = test_codec_mutation.c $(codec_src)
 
 test_deps = $(test_src) ../../firmware/codec/codec.h \
+            ../../firmware/codec/aiff/aiff_codec.h \
             ../../firmware/codec/flac/flac_decoder.h \
             ../../firmware/codec/mp3/mp3.h \
             ../../firmware/codec/tag/id3v2.h \

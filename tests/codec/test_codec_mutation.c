@@ -22,8 +22,9 @@
  *   ./test_codec_mutation             # the committed sweep
  *   ./test_codec_mutation 7 20000     # another seed, more iterations
  *
- * FLAC and MP3 are both swept, because they fail differently: FLAC parses its
- * own bitstream, MP3 runs through libmad's fixed-point synthesis.
+ * FLAC, MP3 and AIFF are swept, because they fail differently: FLAC parses its
+ * own bitstream, MP3 runs through libmad's fixed-point synthesis, and AIFF is a
+ * chunk walk that has to survive a size field that says 4 GB.
  */
 #include "codec.h"
 
@@ -330,6 +331,10 @@ int main(int argc, char **argv)
         "fixtures/mp3_cbr_stereo16.mp3",
         "fixtures/mp3_vbr_stereo16.mp3",
         "fixtures/mp3_id3_stereo16.mp3",
+        "fixtures/aiff_stereo16.aiff",
+        "fixtures/aiff_stereo24.aiff",
+        "fixtures/aiff_sowt16.aifc",
+        "fixtures/aiff_fl32.aifc",
     };
 
     rng_state = seed;

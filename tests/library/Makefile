@@ -55,7 +55,8 @@ SOURCES := test_library.c \
            $(LIBRARY)/library.c $(LIBRARY)/music_source.c \
            $(STORAGE)/mount.c $(BLOCK)/block.c $(BLOCK)/bounce.c \
            $(BLOCK)/partition.c $(HFS)/hfs_block_adapter.c \
-           $(CODEC)/codec.c $(CODEC)/flac/flac_codec.c \
+           $(CODEC)/codec.c $(CODEC)/aiff/aiff_codec.c \
+           $(CODEC)/flac/flac_codec.c \
            $(CODEC)/flac/flac_decoder.c $(CODEC)/mp3/mp3_codec.c \
            $(CODEC)/tag/id3v2.c $(CODEC)/tag/vorbis.c \
            $(LIB)/crc32.c $(LIB)/mem.c $(LIB)/string.c $(LIBMAD_OBJ)

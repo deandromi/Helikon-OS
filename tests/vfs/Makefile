@@ -36,6 +36,7 @@ test_vfs: test_vfs.c $(TH)/test_check.h \
           $(HFS)/hfs_btree.c $(HFS)/hfs_btree.h \
           $(PLAYER)/vfs_media.c $(PLAYER)/vfs_media.h \
           $(CODEC)/codec.c $(CODEC)/codec.h \
+          $(CODEC)/aiff/aiff_codec.c $(CODEC)/aiff/aiff_codec.h \
           $(CODEC)/flac/flac_codec.c $(CODEC)/flac/flac_decoder.c \
           $(CODEC)/mp3/mp3_codec.c $(CODEC)/mp3/mp3.h $(CODEC)/tag/id3v2.c \
           $(CODEC)/tag/id3v2.h $(PLAYER)/wav.c $(PLAYER)/wav.h $(LIBMAD_OBJ)
@@ -46,7 +47,7 @@ test_vfs: test_vfs.c $(TH)/test_check.h \
 	  $(HFS)/hfs_extents.c $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c \
 	  $(HFS)/hfs_btree.c \
 	  $(PLAYER)/vfs_media.c \
-	  $(CODEC)/codec.c $(CODEC)/flac/flac_codec.c \
+	  $(CODEC)/codec.c $(CODEC)/aiff/aiff_codec.c $(CODEC)/flac/flac_codec.c \
 	  $(CODEC)/flac/flac_decoder.c $(CODEC)/mp3/mp3_codec.c \
 	  $(CODEC)/tag/id3v2.c \
 	  $(PLAYER)/wav.c $(LIB)/mem.c $(LIBMAD_OBJ) $(LDFLAGS) -o $@

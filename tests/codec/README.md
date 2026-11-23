@@ -29,6 +29,33 @@ Coverage:
 the Vorbis-comment reader is exercised against a real encoder file as well as
 the synthetic blocks built inside `test_codec.c`.
 
+## AIFF fixtures
+
+`make_aiff_fixtures.py` writes the containers itself — no encoder needed — and
+asserts the 80-bit sample-rate encoding against known values before writing
+anything. Each `.aiff`/`.aifc` is paired with a `.pcm` holding interleaved
+stereo 16-bit little-endian, which is exactly what the decoder promises.
+
+```sh
+python3 tests/codec/make_aiff_fixtures.py
+```
+
+| Fixture | What it covers |
+|---|---|
+| `aiff_stereo16` | big-endian PCM, odd-length `NAME` chunk before `COMM` |
+| `aiff_mono16` | mono duplicated to both channels |
+| `aiff_stereo24` | 24-bit truncation to the top 16 bits, 48 kHz |
+| `aiff_sowt16` | AIFF-C with `FVER`, little-endian samples |
+| `aiff_fl32` | AIFF-C 32-bit float |
+| `aiff_8bit` | signed 8-bit |
+| `aiff_ssnd_first` | `SSND` before `COMM` |
+| `aiff_short_data` | `COMM` overstates the frames; the sound chunk wins |
+| `aiff_alaw` | recognized container, unsupported codec → `UNSUPPORTED` |
+
+`afconvert -f WAVE -d LEI16` on the 16-bit, 24-bit, `sowt` and short-data
+fixtures produced byte-identical reference PCM, so the references are the
+platform's answer and not just this repository's.
+
 ## MP3 fixtures
 
 `make_mp3_fixtures.py` recreates the MP3 set. LAME writes the Xing/Info frame

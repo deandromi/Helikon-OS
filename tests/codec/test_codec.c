@@ -196,6 +196,126 @@ static int check_flac(const char *name, uint16_t channels, uint16_t bits,
     return 0;
 }
 
+/*
+ * AIFF/AIFF-C. The reference `.pcm` is interleaved stereo 16-bit little-endian,
+ * whatever the source width was, so one comparison covers the byte swap, the
+ * mono duplication and the 24/32-bit truncation.
+ */
+static int check_aiff(const char *name, const char *extension, uint32_t rate,
+                      uint16_t source_channels, uint16_t source_bits,
+                      uint32_t total_frames)
+{
+    char path[256];
+    (void)snprintf(path, sizeof(path), "fixtures/%s.%s", name, extension);
+    size_t size = load_file(path, file_data, sizeof(file_data));
+    if (expect(size > 0u, "AIFF fixture load"))
+        return 1;
+    (void)snprintf(path, sizeof(path), "fixtures/%s.pcm", name);
+    size_t expected_size = load_file(path, expected_data,
+                                     sizeof(expected_data));
+    if (expect(expected_size > 0u, "AIFF PCM fixture load"))
+        return 1;
+
+    const struct helikon_codec_ops *ops = NULL;
+    struct helikon_codec_info info;
+    if (expect(helikon_codec_probe(file_data, size, &ops, &info) ==
+                   HELIKON_OK,
+               "AIFF probe"))
+        return 1;
+    if (expect(ops == &helikon_aiff_codec_ops, "AIFF descriptor"))
+        return 1;
+    if (expect(info.sample_rate == rate &&
+                   info.source_channels == source_channels &&
+                   info.source_bits == source_bits &&
+                   info.output_channels == 2u && info.output_bits == 16u &&
+                   info.total_frames == total_frames &&
+                   info.workspace_bytes <= sizeof(workspace) &&
+                   (info.flags & HELIKON_CODEC_FLAG_SEEK) != 0u,
+               "AIFF stream info"))
+        return 1;
+
+    struct helikon_codec codec;
+    if (expect(helikon_codec_open(&codec, ops, file_data, size, workspace,
+                                  sizeof(workspace)) == HELIKON_OK,
+               "AIFF open"))
+        return 1;
+
+    size_t frames = 0u;
+    if (expect(read_all(&codec, total_frames, &frames) == HELIKON_OK &&
+                   frames == total_frames,
+               "AIFF read length"))
+        return 1;
+
+    size_t expected_frames = expected_size / (2u * sizeof(int16_t));
+    if (expect(expected_frames == total_frames, "AIFF PCM fixture length"))
+        return 1;
+    for (size_t frame = 0u; frame < total_frames; ++frame) {
+        int16_t left = expected_sample(expected_data, frame, 2u, 16u, 0u);
+        int16_t right = expected_sample(expected_data, frame, 2u, 16u, 1u);
+        if (expect(pcm[frame * 2u] == left &&
+                       pcm[frame * 2u + 1u] == right,
+                   "AIFF sample data"))
+            return 1;
+    }
+
+    if (expect(helikon_codec_read(&codec, pcm, CHUNK_FRAMES, &frames) ==
+                   HELIKON_OK &&
+                   frames == 0u,
+               "AIFF end of stream"))
+        return 1;
+
+    size_t seek_frame = total_frames / 2u;
+    size_t seek_count = total_frames - seek_frame;
+    if (seek_count > 100u)
+        seek_count = 100u;
+    if (expect(helikon_codec_seek(&codec, (uint32_t)seek_frame) == HELIKON_OK,
+               "AIFF seek"))
+        return 1;
+    if (expect(helikon_codec_read(&codec, pcm, seek_count, &frames) ==
+                   HELIKON_OK &&
+                   frames == seek_count,
+               "AIFF seek read"))
+        return 1;
+    for (size_t index = 0u; index < seek_count; ++index) {
+        size_t frame = seek_frame + index;
+        int16_t left = expected_sample(expected_data, frame, 2u, 16u, 0u);
+        int16_t right = expected_sample(expected_data, frame, 2u, 16u, 1u);
+        if (expect(pcm[index * 2u] == left &&
+                       pcm[index * 2u + 1u] == right,
+                   "AIFF seek data"))
+            return 1;
+    }
+    if (expect(helikon_codec_seek(&codec, total_frames) == HELIKON_OK &&
+                   helikon_codec_read(&codec, pcm, 1u, &frames) ==
+                       HELIKON_OK &&
+                   frames == 0u,
+               "AIFF seek to end"))
+        return 1;
+    if (expect(helikon_codec_seek(&codec, total_frames + 1u) ==
+                   HELIKON_ERR_ARGUMENT,
+               "AIFF seek beyond end"))
+        return 1;
+
+    helikon_codec_close(&codec);
+    return 0;
+}
+
+/* A compression type Helikon does not decode is UNSUPPORTED, not NOT_FOUND. */
+static int check_aiff_unsupported(void)
+{
+    size_t size = load_file("fixtures/aiff_alaw.aifc", file_data,
+                            sizeof(file_data));
+    if (expect(size > 0u, "AIFC alaw fixture load"))
+        return 1;
+    const struct helikon_codec_ops *ops = NULL;
+    struct helikon_codec_info info;
+    if (expect(helikon_codec_probe(file_data, size, &ops, &info) ==
+                   HELIKON_ERR_UNSUPPORTED,
+               "AIFC alaw is unsupported"))
+        return 1;
+    return 0;
+}
+
 static size_t make_wav(uint8_t *data, size_t frames)
 {
     size_t data_bytes = frames * 4u;
@@ -1523,27 +1643,83 @@ static int check_source_contract(void)
     return 0;
 }
 
+/* Same file through a source that answers short reads, like the VFS media. */
+static int check_aiff_source(void)
+{
+    size_t size = load_file("fixtures/aiff_stereo16.aiff", file_data,
+                            sizeof(file_data));
+    if (expect(size > 0u, "AIFF source fixture load"))
+        return 1;
+    size_t expected_size = load_file("fixtures/aiff_stereo16.pcm",
+                                     expected_data, sizeof(expected_data));
+    if (expect(expected_size > 0u, "AIFF source PCM load"))
+        return 1;
+
+    struct fake_media media;
+    fake_media_init(&media, file_data, size);
+    struct helikon_codec_source source;
+    source.read_at = fake_read_at;
+    source.size = media.reported;
+    source.context = &media;
+
+    const struct helikon_codec_ops *ops = NULL;
+    struct helikon_codec_info info;
+    if (expect(helikon_codec_probe_source(&source, &ops, &info) ==
+                       HELIKON_OK &&
+                   ops == &helikon_aiff_codec_ops,
+               "AIFF source probe"))
+        return 1;
+
+    struct helikon_codec codec;
+    if (expect(helikon_codec_open_source(&codec, ops, &source, workspace,
+                                         sizeof(workspace)) == HELIKON_OK,
+               "AIFF source open"))
+        return 1;
+    size_t frames = 0u;
+    size_t total = codec.info.total_frames;
+    if (expect(total == 1024u, "AIFF source frame count"))
+        return 1;
+    if (expect(read_all(&codec, total, &frames) == HELIKON_OK &&
+                   frames == total,
+               "AIFF source decode"))
+        return 1;
+    for (size_t frame = 0u; frame < total; ++frame) {
+        int16_t left = expected_sample(expected_data, frame, 2u, 16u, 0u);
+        int16_t right = expected_sample(expected_data, frame, 2u, 16u, 1u);
+        if (expect(pcm[frame * 2u] == left &&
+                       pcm[frame * 2u + 1u] == right,
+                   "AIFF source sample data"))
+            return 1;
+    }
+    helikon_codec_close(&codec);
+    return 0;
+}
+
 static int check_registry(void)
 {
     const struct helikon_codec_ops *entries[8];
     unsigned int count = helikon_codec_registry(entries, 8u);
-    if (expect(count == 3u, "registry count"))
+    if (expect(count == 4u, "registry count"))
         return 1;
     if (expect(entries[0] == &helikon_wav_codec_ops &&
-                   entries[1] == &helikon_flac_codec_ops &&
-                   entries[2] == &helikon_mp3_codec_ops,
+                   entries[1] == &helikon_aiff_codec_ops &&
+                   entries[2] == &helikon_flac_codec_ops &&
+                   entries[3] == &helikon_mp3_codec_ops,
                "registry order"))
         return 1;
 
     if (expect(helikon_codec_matches_extension(entries[0], "a/B.WAV") &&
                    helikon_codec_matches_extension(entries[0], "a.wav") &&
-                   helikon_codec_matches_extension(entries[1], "x/y.FLAC") &&
-                   helikon_codec_matches_extension(entries[2], "song.mp3"),
+                   helikon_codec_matches_extension(entries[1], "x/y.aiff") &&
+                   helikon_codec_matches_extension(entries[1], "take.AIFC") &&
+                   helikon_codec_matches_extension(entries[2], "x/y.FLAC") &&
+                   helikon_codec_matches_extension(entries[3], "song.mp3"),
                "extension matches"))
         return 1;
-    if (expect(!helikon_codec_matches_extension(entries[2], "song.mp4") &&
-                   !helikon_codec_matches_extension(entries[2], "mp3") &&
-                   !helikon_codec_matches_extension(entries[1], "flac.fl"),
+    if (expect(!helikon_codec_matches_extension(entries[3], "song.mp4") &&
+                   !helikon_codec_matches_extension(entries[3], "mp3") &&
+                   !helikon_codec_matches_extension(entries[2], "flac.fl") &&
+                   !helikon_codec_matches_extension(entries[1], "song.aif "),
                "extension rejects"))
         return 1;
 
@@ -1645,6 +1821,30 @@ int main(void)
     if (check_flac("stereo16_48", 2u, 16u, 48000u, 1024u))
         return 1;
     if (check_flac("left_side16", 2u, 16u, 44100u, 1024u))
+        return 1;
+    if (check_aiff("aiff_stereo16", "aiff", 44100u, 2u, 16u, 1024u))
+        return 1;
+    if (check_aiff("aiff_mono16", "aiff", 44100u, 1u, 16u, 512u))
+        return 1;
+    if (check_aiff("aiff_stereo24", "aiff", 48000u, 2u, 24u, 512u))
+        return 1;
+    if (check_aiff("aiff_sowt16", "aifc", 44100u, 2u, 16u, 1024u))
+        return 1;
+    if (check_aiff("aiff_fl32", "aifc", 44100u, 2u, 32u, 256u))
+        return 1;
+    if (check_aiff("aiff_8bit", "aiff", 22050u, 1u, 8u, 256u))
+        return 1;
+    if (check_aiff("aiff_ssnd_first", "aiff", 44100u, 2u, 16u, 256u))
+        return 1;
+    /* COMM claims 1024 frames; the sound chunk carries 512. */
+    if (check_aiff("aiff_short_data", "aiff", 44100u, 2u, 16u, 512u))
+        return 1;
+    /* NaN, both infinities and values past full scale: clamped, not UB. */
+    if (check_aiff("aiff_fl32_range", "aifc", 44100u, 2u, 32u, 4u))
+        return 1;
+    if (check_aiff_unsupported())
+        return 1;
+    if (check_aiff_source())
         return 1;
     if (check_wav())
         return 1;

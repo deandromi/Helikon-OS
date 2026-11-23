@@ -180,7 +180,7 @@ page does not list that family; it is not a claim that it is fast or slow.
 
 | # | Format | Extensions | Rockbox notes | 6G decode cost (Rockbox) | Tier |
 |---:|---|---|---|---|---|
-| 15 | Audio Interchange File Format (AIFF) | `.aif`, `.aiff` | PCM 8/16/24/32, float 32/64, a-law/µ-law, QuickTime IMA ADPCM | not measured; low | T1 |
+| 15 | Audio Interchange File Format (AIFF) | `.aif`, `.aiff` | PCM 8/16/24/32, float 32/64, a-law/µ-law, QuickTime IMA ADPCM. **Helikon: 8/16/24/32-bit BE, `sowt`, `23ni`, `in24`, `in32`, `fl32`, `raw ` (§14)** | not measured; low | T1 |
 | 16 | Monkey’s Audio (APE) | `.ape`, `.mac` | Only `-c1000` decodes fast enough to be useful | `-c1000` 40 MHz; `-c2000` 57 MHz; `-c3000` 86 MHz; `-c4000` 220 MHz; `-c5000` 932 MHz | T2 (`-c1000` required; higher best-effort) |
 | 17 | Sun Audio | `.au`, `.snd` | PCM 8/16/24/32, float 32/64, a-law/µ-law | not measured; low | T2 |
 | 18 | Free Lossless Audio (FLAC) | `.flac` | Multichannel/high-res downmixed to 16-bit stereo | 7.5–8.1 MHz | T1 |
@@ -1915,3 +1915,98 @@ driver, out-of-range reads answering `ARGUMENT` before the driver, and that
 `helikon_block_read` really delegates to `helikon_ata_read`. `make -C
 tests/firmware test` and `sanitize` pass; static analysis 80 units, 0 findings;
 the 6G image is unchanged at 80,020 B because nothing calls the bridge yet.
+
+---
+
+## 14. AIFF and AIFF-C — host implementation (2026-11-23)
+
+Status: `implemented` as host code with host tests; `unproven` on a device. No
+6G run, and the firmware-owned audio path is still T-058's device half.
+
+### 14.1 What AIFF is, and why it is its own decoder
+
+AIFF is the Apple sibling of WAV: `FORM` instead of `RIFF`, `AIFF`/`AIFC`
+instead of `WAVE`, **big-endian** everything, and a sample rate encoded as an
+80-bit IEEE extended float rather than an integer. AIFF-C adds a compression
+type, which is what makes `sowt` (byte-swapped, little-endian PCM) and `fl32`
+(32-bit float) files look like AIFF until you read it.
+
+It is a Tier 1 format in §3.2 (#15), and it is the cheapest real format to add:
+a chunk walk and a byte-order conversion, no entropy coding. Adding it also
+gives the browser a second `Mac PCM exchange` answer, which matters because a
+library exported from an older Mac is full of `.aiff`.
+
+`firmware/codec/aiff/aiff_codec.c` is self-contained behind the codec
+descriptor: probe, open, read, seek, close. It walks the chunk list through the
+source (`read_at`), so it streams like WAV and MP3 rather than needing the whole
+file in memory.
+
+### 14.2 Supported encodings and the rules
+
+| Container | Compression | Bits | Output |
+|---|---|---|---|
+| AIFF | signed PCM, big-endian | 8, 16, 24, 32 | stereo 16-bit PCM |
+| AIFC | `NONE`, `twos` | 8, 16, 24, 32 | stereo 16-bit PCM |
+| AIFC | `sowt` (little-endian) | 16, 24, 32 | stereo 16-bit PCM |
+| AIFC | `23ni` (little-endian 24) | 24 | stereo 16-bit PCM |
+| AIFC | `in24`, `in32` | 24, 32 | stereo 16-bit PCM |
+| AIFC | `fl32` / `FL32` (float) | 32 | stereo 16-bit PCM |
+| AIFC | `raw ` (unsigned 8-bit) | 8 | stereo 16-bit PCM |
+
+Rules, all written from the format rather than inherited from a specific file:
+
+- **The frame count comes from `COMM`, not from `SSND`.** A file may carry a
+  shorter sound chunk than it claims; the reported total is the smaller of the
+  two, so a truncated file plays what it has and its duration says so, and the
+  decoder never reads past the data.
+- **`sowt` means little-endian, not "CPU order".** The decoder does the swap, so
+  a big-endian or little-endian host produces the same PCM.
+- **24- and 32-bit keep the top 16 bits** (truncation), the same rule the FLAC
+  decoder uses for 24-bit output. The fixtures carry 16-bit values shifted left
+  by eight so "truncate" and "round to nearest" agree, and macOS `afconvert`
+  produces byte-identical reference PCM for them — the rule matches what the
+  platform does, not just what the code says.
+- **Mono is duplicated to both channels** at read time, like WAV: the ring and
+  the player are stereo.
+- **More than two channels is `UNSUPPORTED`**, not a downmix: a downmix nobody
+  can hear-test is a wrong answer with extra arithmetic.
+- **An AIFC compression outside the table is `UNSUPPORTED` at probe**, a
+  different answer from "not AIFF": the browser can say "AIFF, codec not
+  supported" instead of hiding the file.
+
+### 14.3 Fixtures and the evidence
+
+`tests/codec/make_aiff_fixtures.py` writes the containers itself (no encoder
+needed at test time) and asserts the 80-bit rate encoding against known
+encodings for 44100, 48000 and 22050 before writing anything. Fixtures:
+
+| Fixture | What it proves |
+|---|---|
+| `aiff_stereo16.aiff` | the plain case, with an odd-length `NAME` chunk before `COMM` so the walker skips a padded chunk |
+| `aiff_mono16.aiff` | channel duplication |
+| `aiff_stereo24.aiff` | 24-bit truncation and a 48 kHz rate |
+| `aiff_sowt16.aifc` | AIFF-C, `FVER`, little-endian samples |
+| `aiff_fl32.aifc` | float samples converted by multiply, not by reinterpreting bits |
+| `aiff_8bit.aiff` | signed 8-bit scaling |
+| `aiff_ssnd_first.aiff` | `SSND` before `COMM`: chunk order is not an assumption |
+| `aiff_short_data.aiff` | `COMM` claims 1024 frames, `SSND` carries 512; the decoder reports 512 |
+| `aiff_alaw.aifc` | a recognized container with an unsupported codec → `UNSUPPORTED` |
+
+The reference `.pcm` files are interleaved stereo 16-bit little-endian. As an
+independent check, macOS `afconvert -f WAVE -d LEI16` over the 16-bit stereo,
+24-bit stereo, `sowt` and short-data fixtures produced **byte-identical** PCM to
+those references (mono differs only because `afconvert` keeps it mono).
+
+`make -C tests/codec test` covers probe, descriptor identity, stream info,
+sample-exact decode, end of stream, seek, seek to end, seek beyond end, the
+`UNSUPPORTED` answer, and the same file through the streaming source path. The
+mutation sweep now corrupts four AIFF fixtures too (9 fixtures, 600 iterations,
+4,504 opens), and `sanitize` passes under ASan/UBSan.
+
+### 14.4 What is still missing in this format family
+
+- 64-bit float AIFF (`fl64`) is refused like any other unknown compression.
+- a-law/µ-law and QuickTime IMA ADPCM inside AIFF are not decoded; they are in
+  §3.2's Rockbox column and would arrive with the general ADPCM work, not here.
+- No ALAC yet: `.m4a` next to a `.aiff` is a separate decoder (§12.5 keeps ALAC
+  next, because the MP4 demuxer it needs is the one AAC reuses).

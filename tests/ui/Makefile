@@ -100,6 +100,7 @@ $(AUDIO_TEST): test_audio.c ../../firmware/ui/music.c \
                ../../firmware/player/read_ahead.h \
                ../../firmware/player/wav.h ../../firmware/hal/6g/audio.h \
                ../../firmware/codec/codec.c \
+               ../../firmware/codec/aiff/aiff_codec.c \
                ../../firmware/codec/flac/flac_codec.c \
                ../../firmware/codec/flac/flac_decoder.c \
                ../../firmware/codec/mp3/mp3_codec.c \
@@ -117,6 +118,7 @@ $(AUDIO_TEST): test_audio.c ../../firmware/ui/music.c \
 	      ../../firmware/player/read_ahead.c \
 	      ../../firmware/ui/ui_text.c ../../firmware/ui/font_atlas.c \
 	      ../../firmware/codec/codec.c \
+	      ../../firmware/codec/aiff/aiff_codec.c \
 	      ../../firmware/codec/flac/flac_codec.c \
 	      ../../firmware/codec/flac/flac_decoder.c \
 	      ../../firmware/codec/mp3/mp3_codec.c \
