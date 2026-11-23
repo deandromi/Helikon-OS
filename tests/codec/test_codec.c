@@ -1839,6 +1839,9 @@ int main(void)
     /* COMM claims 1024 frames; the sound chunk carries 512. */
     if (check_aiff("aiff_short_data", "aiff", 44100u, 2u, 16u, 512u))
         return 1;
+    /* NaN, both infinities and values past full scale: clamped, not UB. */
+    if (check_aiff("aiff_fl32_range", "aifc", 44100u, 2u, 32u, 4u))
+        return 1;
     if (check_aiff_unsupported())
         return 1;
     if (check_aiff_source())

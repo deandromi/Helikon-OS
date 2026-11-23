@@ -265,7 +265,27 @@ def main():
     )
     report(name, os.path.getsize(path), 512)
 
-    # 9. An AIFC compression the decoder refuses: recognized container,
+    # 9. Float samples that are not in range: NaN, both infinities and values
+    #    past full scale. The decoder clamps, and NaN becomes silence rather
+    #    than a float-to-int conversion the standard leaves undefined.
+    special = [(0.0, float("nan")), (float("inf"), float("-inf")),
+               (40000.0, -40000.0), (0.5, -0.5)]
+    name = "aiff_fl32_range.aifc"
+    payload = bytearray()
+    for left, right in special:
+        payload += struct.pack(">f", left) + struct.pack(">f", right)
+    path = write(name, [
+        chunk(b"FVER", struct.pack(">I", 0xA2805140)),
+        comm(len(special), 2, 32, 44100, b"fl32"),
+        ssnd(bytes(payload)),
+    ], b"AIFC")
+    reference = [(0, 0), (32767, -32768), (32767, -32768), (16384, -16384)]
+    open(os.path.join(OUT, "aiff_fl32_range.pcm"), "wb").write(
+        pcm_16le(reference)
+    )
+    report(name, os.path.getsize(path), len(special))
+
+    # 10. An AIFC compression the decoder refuses: recognized container,
     #    unsupported codec. The probe must say UNSUPPORTED, not NOT_FOUND.
     frames = samples(64, 2, 16)
     name = "aiff_alaw.aifc"

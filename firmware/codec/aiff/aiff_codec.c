@@ -347,6 +347,14 @@ static int16_t aiff_one_sample(const uint8_t *sample,
         } converted;
         converted.bits = aiff_be32(sample);
         float scaled = converted.value * 32768.0f;
+        /*
+         * A float sample can be NaN: it is a legal IEEE payload and a corrupt
+         * file reaches here with one. NaN compares false to everything, so the
+         * range tests below would fall through to a float-to-int conversion
+         * that is undefined behaviour, not a wrong sample. NaN becomes silence.
+         */
+        if (scaled != scaled)
+            return 0;
         if (scaled >= 32767.0f)
             return 32767;
         if (scaled <= -32768.0f)
