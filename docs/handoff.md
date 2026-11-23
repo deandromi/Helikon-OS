@@ -50,9 +50,13 @@ stays unconfirmed, and none of this is a device claim.
 
 ## Open / next
 
-- The catalog tree can now be drained too: a `delete every item` phase in
-  `test_catalog_ops_props` would exercise the same collapse with 4 KiB nodes and
-  variable-length records, and would end at "only the root folder is left".
+- T-146 landed after this handoff was first written: `test_catalog_ops_props` now
+  drains the catalog too (files, then childless folders), requires the end state —
+  one leaf deep, the root's two records, every other node free, no children, the
+  header counting nothing, the check clean — and then refills with three creates.
+  It is the end-state half only: with 4 KiB nodes a catalog leaf is merged away
+  before it empties, so a leaked node in `collapse_empty_leaf` passes here and the
+  B-tree model test is what catches it (`problems 0x00080000`).
 - Index nodes are never merged, so a drained tree keeps one-child index nodes until
   the leaf under them goes. Emptiness now collapses them; merging two sparse index
   nodes is still unwritten and is the remaining depth-1-to-depth-2 gap.
