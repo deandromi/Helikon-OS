@@ -423,6 +423,40 @@ turning either `NO_SPACE` back into `UNSUPPORTED`.
 Teeth: dropping `map_set(header, node, 0)` from the free-node path makes the
 model test stop at step 54 with `problems 0x00080000` from `hfs_check_volume`.
 
+### 4.2 The write path under a corrupted volume
+
+`tests/hfsplus/test_writer_mutations.c` asks the question the read-path sweep does
+not: when the volume is already wrong, does the writer **fail closed**? It starts
+from a valid 1 MiB volume with a seeded root, corrupts one structural field, and
+then drives `hfs_volume_probe` → `hfs_check_volume` → `hfs_catalog_open` →
+`hfs_catalog_create_file` in a transaction. Two rules hold for every iteration:
+
+- **a refused write changes nothing** — the image must be byte-identical to the
+  mutated one, so nothing staged can reach the medium;
+- **a write never adds damage** — a volume the check called clean must still be
+  clean after the commit. On a volume that was already inconsistent the writer is
+  allowed to commit (the anti-corruption gate, not the writer, decides whether a
+  damaged volume is written at all), and the sweep only requires that the check
+  still runs.
+
+The curated set covers both volume-header copies, every fork record, and the
+catalog's header node and first leaf — the fields a writer trusts. Fields whose
+correct answer is a refusal (`nextCatalogID` 0, 1, 2 or `0xffffffff`; a full file count) are
+marked as such and must be refused, not guessed.
+
+```sh
+cd tests/hfsplus && ./test_writer_mutations              # 34 curated + 400 random
+cd tests/hfsplus && ./test_writer_mutations 12345 3000   # another seed, longer
+```
+
+It found issue #120: a volume header whose `nextCatalogID` is below 3 made the
+writer insert a record under a reserved CNID — the root's own ID when the field
+read 2 — and the structural check did not look at the field, so the volume was
+called clean until the first create. T-141 adds the writer guard and
+`HFS_CHECK_CATALOG_ID` in the check. Teeth: skipping the file-count update fails
+the sweep's pristine sanity case at once, and accepting a reserved CNID fails the
+curated case.
+
 Still `planned`:
 
 - forced root changes and split/merge cascades at node boundaries driven from
@@ -550,8 +584,11 @@ each index node's child pointer, level and key against the subtree it points at,
 each tree's free-node map against the nodes it can actually reach (a node marked
 used but unreachable is a leaked block, a node marked free but reachable would be
 handed out over live records, and the header's free count must match the map),
-and the file and folder counts the volume header claims against the records
-actually present. The root
+the file and folder counts the volume header claims against the records actually
+present, and the next catalog ID against the values a writer cannot use
+(`HFS_CHECK_CATALOG_ID` when it is below 3, which would create a record under a
+reserved ID, or `0xffffffff`, which cannot be followed because the increment
+wraps to zero). The root
 folder is excluded from the folder count because the format excludes it, and the
 padding bits of the bitmap's last byte are ignored because macOS leaves them
 zero — both rules came from running the check against real volumes, where the
@@ -563,7 +600,7 @@ counted rather than skipped: the 140 GiB volume reads 36,594,065 free blocks bot
 ways in about 0.2 s. The pass is I/O-bound and belongs off the boot path.
 
 ```sh
-make -C tests/hfsplus test_check            # 29 cases, one corruption each
+make -C tests/hfsplus test_check            # 30 cases, one corruption each
 make -C tests/image hfs-check
 ./tests/image/hfs-check disk.img            # 0 clean, 1 findings, 2 unusable
 ```

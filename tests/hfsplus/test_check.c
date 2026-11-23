@@ -122,6 +122,9 @@ static void make_clean_volume(void)
               CATALOG_BLOCK, CATALOG_BLOCKS);
     make_fork(352u, (uint64_t)ATTRIBUTES_BLOCKS * BLOCK_SIZE,
               ATTRIBUTES_BLOCKS, ATTRIBUTES_BLOCK, ATTRIBUTES_BLOCKS);
+    /* The next catalog ID a real formatter writes; a reserved one is a finding
+     * of its own (test_catalog_id_reserved). */
+    put_be32(test_image + 1024u + 64u, 16u);
     make_bitmap();
     make_tree(CATALOG_BLOCK, CATALOG_BLOCKS, 512u, CATALOG_BLOCKS);
     make_tree(EXTENTS_BLOCK, EXTENTS_BLOCKS, 512u, EXTENTS_BLOCKS);
@@ -254,6 +257,20 @@ static int test_free_mismatch(void)
     CHECK((report.problems & HFS_CHECK_FREE_MISMATCH) != 0u);
     CHECK(report.bitmap_counted == 1);
     CHECK(report.free_blocks_counted == BLOCKS - USED_BLOCKS);
+    return 0;
+}
+
+/* A next catalog ID of 0, 1 or 2 hands out a reserved CNID. */
+static int test_catalog_id_reserved(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    make_clean_volume();
+    put_be32(test_image + 1024u + 64u, 2u);   /* the root folder's own CNID */
+
+    if (probe_and_check(&volume, &report) != HFS_OK)
+        return 0; /* the mount refused it, which detects the corruption too */
+    CHECK((report.problems & HFS_CHECK_CATALOG_ID) != 0u);
     return 0;
 }
 
@@ -877,6 +894,7 @@ int main(void)
         { "fork size mismatch", test_fork_size_mismatch },
         { "allocation too small", test_allocation_too_small },
         { "free count mismatch", test_free_mismatch },
+        { "reserved next catalog id", test_catalog_id_reserved },
         { "bitmap padding ignored", test_bitmap_padding_ignored },
         { "allocation in two runs", test_allocation_two_runs },
         { "catalog count mismatch", test_catalog_count },

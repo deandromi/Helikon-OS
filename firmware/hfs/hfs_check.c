@@ -99,6 +99,24 @@ static void check_header(struct hfs_volume *volume, struct hfs_check_report *rep
         report->problems |= HFS_CHECK_BAD_BLOCK_COUNT;
     if (volume->free_blocks > volume->blocks)
         report->problems |= HFS_CHECK_FREE_EXCEEDS_TOTAL;
+
+    /*
+     * The next catalog ID is a writer input, not a structural count: a volume
+     * that says 0, 1 or 2 will hand a reserved CNID to the next created file, so
+     * the volume is refused a clean report before that happens.
+     */
+    uint8_t header[512];
+    if (volume->read != NULL && volume->length >= 1024u + sizeof(header) &&
+        volume->read(volume->context, volume->base + 1024u, header,
+                     sizeof(header)) == 0) {
+        uint32_t next_id = ((uint32_t)header[64] << 24) |
+                           ((uint32_t)header[65] << 16) |
+                           ((uint32_t)header[66] << 8) | header[67];
+        /* Below 3 is a reserved CNID; 0xffffffff is the one value a create
+         * cannot follow, because the increment wraps to zero. */
+        if (next_id < 3u || next_id == 0xffffffffu)
+            report->problems |= HFS_CHECK_CATALOG_ID;
+    }
 }
 
 /*
