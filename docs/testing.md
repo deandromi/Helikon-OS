@@ -386,7 +386,8 @@ cd tests/hfsplus && ./test_catalog_ops_props 2 1200       # another seed, longer
 ```
 
 The committed sweep is 600 operations (about 90 creates, 66 deletes, 102
-renames, 93 writes, 32 truncates), plain and under ASan/UBSan. It found one
+renames, 93 writes, 32 truncates and one case plus one composition collision),
+plain and under ASan/UBSan. It found one
 defect, issue #115: on a volume whose allocation block is 512 bytes, every
 B-tree node cost one transaction slot per sector, so a root split needed 34 slots
 and the catalog could never grow past depth 1. The fix is the staging coalescing
@@ -402,6 +403,26 @@ The sweep itself cannot reach that: it only ever asks for names the model says a
 free. Teeth: replacing `hfs_catalog_name_compare`'s `hfs_fast_unicode_compare` with
 a raw byte comparison makes the probe fail at once with `create fIjmjoaC: rc=0,
 expected BUSY`, and passes again when the fold comes back.
+
+Names are not ASCII either. Twelve letters of the alphabet are Latin-1
+precomposed forms — `é`, `ü`, `ñ`, `ç`, `Å`, `Ö` and friends — which HFS+
+canonical form decomposes into an ASCII base letter plus one combining mark. Every
+call passes the composed spelling, one character per letter, and the catalog has
+to store the decomposed one: the model keeps both, the typed form for the next
+delete, write, truncate or rename to hand back to the writer, and the canonical
+form for the children check to compare against the disk. So each entry point is
+asked to normalize the name before it builds a key, and a path that skipped the
+step shows up as a child whose stored bytes differ from the model's. A second
+probe asks the other direction: the decomposed spelling of a name that exists must
+be refused as `HFS_ERR_BUSY`, which is only true if the writer normalizes,
+because FastUnicodeCompare does not decompose and would otherwise see two names.
+Teeth, one mutation each: dropping `hfs_unicode_normalize_name` from
+`create_object` fails at step 0 (`lists id 16 as üfwgRZh, model has it as
+u + U+0308 fwgRZh`), dropping it from `delete_object` fails with `delete folder
+üfwgRZh rc=-8` (`NOT_FOUND`), and dropping it from the new name in
+`hfs_catalog_rename` fails at step 17. That the decomposition itself is the right
+one is the Unicode unit vectors' job; what this file catches is a write path that
+skips it, or applies it in one place and not another.
 
 The last phase empties the catalog: files first, then folders with no children,
 until only the root folder is left. It then requires the end state — the tree one
@@ -546,13 +567,13 @@ curated case.
 
 Landed since this section was written: forced root changes and split/merge
 cascades (T-143's ordered phase), mixed-case names whose folding decides both
-order and uniqueness (T-144), and the catalog drained to root-only and refilled
-(T-146).
+order and uniqueness (T-144), the catalog drained to root-only and refilled
+(T-146), and names in composed and decomposed forms in the same model, so the
+writer's normalization is exercised across splits instead of only by the unit
+tests (T-149, §3.6).
 
 Still `planned`:
 
-- names with composed and decomposed forms in the *same* model, so the writer's
-  normalization is exercised across splits and not only by the unit tests;
 - merging two sparse index nodes, which is the remaining reason a drained tree
   keeps one-child index nodes;
 - `fsck_hfs` on the result (macOS differential, §5) — the writer already runs
