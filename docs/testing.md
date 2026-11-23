@@ -422,6 +422,7 @@ merges and freed nodes. After every operation the test checks:
 - a refused call leaves the image byte-identical. Two refusals are legitimate:
   `HFS_ERR_UNSUPPORTED` when a merge or rebalance would need a case the writer
   does not implement, and `HFS_ERR_NO_SPACE` when the tree is genuinely full;
+  a delete that would empty the tree is **not** allowed to refuse (issue #125);
 - `hfs_check_volume` reports nothing and skips nothing: key order, the leaf
   chain, forks against the bitmap, the free-block count and node ownership.
 
@@ -429,6 +430,28 @@ merges and freed nodes. After every operation the test checks:
 cd tests/hfsplus && ./test_btree_model                # 1,800 operations
 cd tests/hfsplus && ./test_btree_model 2 2600         # another seed, longer
 ```
+
+After the random sweep an ordered pass runs, because random deletes rarely empty a
+leaf in the order that forces the cascades. It deletes the model's first key over
+and over — the first record of the leftmost leaf, so the parent key is rewritten
+every step — and then requires the canonical empty tree: `depth 0`, no root, no
+chain, `leafRecords 0`, every node but the header node back on the free-node map,
+and `hfs_check_volume` clean. Then it fills from empty with 120 ascending keys
+(rightmost splits, a root that grows out of depth 0), requires depth 2 or more,
+drains a second time, reopens the tree from the medium, and inserts three keys
+through the reopened handle, so an emptied tree has to be usable and not just
+consistent.
+
+That pass found issue #125 on its first run: the last delete of a deep tree
+answered `HFS_ERR_UNSUPPORTED`, because a long drain leaves one-child index nodes
+behind and the empty-leaf path only handled some of those shapes. The fix (T-143)
+is `collapse_empty_leaf`, which unlinks the emptied leaf, frees every ancestor
+left without a child up to a root that either keeps records or returns to depth 0,
+and stores the header on every success path — the first cut of it returned before
+`store_header`, and the model test caught that at once with `leaf_next returned -3`
+(the chain head still pointed at the freed leaf). A tree can now be emptied from
+the top, which the extents and catalog writers both need: a truncate to zero
+extents, or deleting the last file in a folder, reaches the same state.
 
 The committed sweep is 1,800 operations: about 860 inserts, 570 deletes and 370
 updates, reaching 270 keys at depth 3, with the tree growing from 64 to 70 nodes.

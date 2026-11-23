@@ -26,6 +26,17 @@
  *  - Nothing ever answers `HFS_ERR_FORMAT`, and `hfs_check_volume` never finds
  *    anything: a tree that its own structural check rejects is corrupt whatever
  *    the search results say.
+ *
+ * After the random sweep an ordered pass runs, because random deletes rarely
+ * empty a leaf in the order that forces the cascades. It drains the tree one
+ * ascending key at a time - the first record of the leftmost leaf, so the parent
+ * key is rewritten every step - and requires the canonical empty tree at the end:
+ * depth 0, no root, no chain, every node but the header back on the map. Then it
+ * fills from empty with ascending keys (rightmost splits, a root that grows out of
+ * depth 0), requires depth 2 or more, drains again, reopens the tree from the
+ * medium and inserts three keys through the reopened handle. The first version of
+ * that pass found issue #125: the last delete of a deep tree answered
+ * `HFS_ERR_UNSUPPORTED`, so a tree could not be emptied from the top.
  */
 #include "hfs_btree.h"
 #include "hfs_btree_tree.h"
@@ -579,20 +590,15 @@ static int image_unchanged(const char *what, size_t step)
     return 1;
 }
 
-static int do_insert(size_t step)
+/*
+ * One insert of an explicit key: 0 committed, 1 refused cleanly, -1 a defect.
+ * The two orders that matter are split out from the policy of which key to pick
+ * so the random loop and the ordered cascades share one implementation.
+ */
+static int insert_one(uint64_t id, uint32_t tag, size_t step)
 {
-    /* The model holds the working set; a sweep long enough to fill it is
-     * dominated by deletes anyway, so skip rather than grow the array. */
-    if (model_count >= MAX_ITEMS)
-        return 0;
-    uint32_t file_id = 1u + next_random() % MAX_FILE_ID;
-    uint32_t start_block = next_random() % MAX_START_BLOCK;
-    uint64_t id = make_id(file_id, start_block);
-    if (model_find(id) != SIZE_MAX)
-        return 0;
-
     uint8_t data[EXTENTS_DATA];
-    make_data(id, (uint32_t)step, data);
+    make_data(id, tag, data);
     uint8_t record[RECORD_BYTES];
     make_record(id, data, record);
     snapshot_image();
@@ -607,21 +613,37 @@ static int do_insert(size_t step)
     if (rc == HFS_ERR_NO_SPACE) {
         /* The tree is full: its map cannot widen and its fork cannot take
          * another extent. A legitimate refusal, and it must be a clean one. */
-        last_refused = 1;
-        return image_unchanged("refused insert", step);
+        return image_unchanged("refused insert", step) == 0 ? 1 : -1;
     }
-    fprintf(stderr, "  insert %u/%u returned %d\n", file_id, start_block, rc);
+    fprintf(stderr, "  insert %u/%u returned %d\n", id_file(id), id_start(id),
+            rc);
     fail_report("insert failed", step, "unexpected error");
-    return 1;
+    return -1;
 }
 
-static int do_delete(size_t step)
+static int do_insert(size_t step)
 {
-    if (model_count == 0)
+    /* The model holds the working set; a sweep long enough to fill it is
+     * dominated by deletes anyway, so skip rather than grow the array. */
+    if (model_count >= MAX_ITEMS)
         return 0;
-    size_t at = next_random() % model_count;
-    uint64_t id = model_id[at];
+    uint32_t file_id = 1u + next_random() % MAX_FILE_ID;
+    uint32_t start_block = next_random() % MAX_START_BLOCK;
+    uint64_t id = make_id(file_id, start_block);
+    if (model_find(id) != SIZE_MAX)
+        return 0;
+    int rc = insert_one(id, (uint32_t)step, step);
+    if (rc < 0)
+        return 1;
+    if (rc == 1)
+        last_refused = 1;
+    return 0;
+}
 
+/* One delete of a model index: the same three answers as insert_one. */
+static int delete_one_at(size_t at, size_t step)
+{
+    uint64_t id = model_id[at];
     uint8_t key[EXTENTS_KEY];
     memset(key, 0, sizeof(key));
     put_be32(key + 2, id_file(id));
@@ -637,21 +659,32 @@ static int do_delete(size_t step)
         return 0;
     }
     if (rc == HFS_ERR_UNSUPPORTED) {
-        /* The first record of a multi-record non-root node: not implemented,
-         * and the tree must be untouched. */
-        last_refused = 1;
-        return image_unchanged("refused delete", step);
+        /* A collapse this writer does not implement. It has to be clean. */
+        return image_unchanged("refused delete", step) == 0 ? 1 : -1;
     }
     if (rc == HFS_ERR_NOT_FOUND) {
         fprintf(stderr, "  delete %u/%u: present key answered NOT_FOUND\n",
                 id_file(id), id_start(id));
         fail_report("delete lost a key", step, "NOT_FOUND for a present key");
-        return 1;
+        return -1;
     }
     fprintf(stderr, "  delete %u/%u returned %d\n", id_file(id), id_start(id),
             rc);
     fail_report("delete failed", step, "unexpected error");
-    return 1;
+    return -1;
+}
+
+static int do_delete(size_t step)
+{
+    if (model_count == 0)
+        return 0;
+    size_t at = next_random() % model_count;
+    int rc = delete_one_at(at, step);
+    if (rc < 0)
+        return 1;
+    if (rc == 1)
+        last_refused = 1;
+    return 0;
 }
 
 static int do_update(size_t step)
@@ -678,6 +711,156 @@ static int do_update(size_t step)
             rc);
     fail_report("update failed", step, "unexpected error");
     return 1;
+}
+
+/* ------------------------------------------------------------------------- */
+/* Ordered cascades.                                                         */
+/* ------------------------------------------------------------------------- */
+
+#define CASCADE_KEYS 120u
+#define CASCADE_SPARE 3u
+
+/* Keys the random phase never picks: file IDs from 1000, starts from 4096. */
+static uint64_t cascade_id(uint32_t index)
+{
+    return make_id(1000u + index / 128u, 4096u + index % 128u);
+}
+
+/* The canonical empty tree: no root, no chain, every node back on the map. */
+static int verify_empty(size_t step, const char *what)
+{
+    if (model_count != 0u) {
+        fprintf(stderr, "  %s: model still holds %zu keys\n", what,
+                model_count);
+        fail_report("drain", step, "the model did not empty");
+        return 1;
+    }
+    if (!extents.empty || extents.depth != 0u || extents.root_node != 0u ||
+        extents.leaf_records != 0u || extents.first_leaf != 0u ||
+        extents.last_leaf != 0u) {
+        fprintf(stderr, "  %s: depth %u root %u records %u chain %u..%u\n",
+                what, extents.depth, extents.root_node, extents.leaf_records,
+                extents.first_leaf, extents.last_leaf);
+        fail_report("empty tree", step,
+                   "an emptied tree is not in the canonical empty state");
+        return 1;
+    }
+    /*
+     * Every node back on the map except the header node itself, which is always
+     * allocated: a freshly formatted tree reports totalNodes - 1 free.
+     */
+    if (extents.free_nodes + 1u != extents.total_nodes) {
+        fprintf(stderr, "  %s: %u of %u nodes free\n", what,
+                extents.free_nodes, extents.total_nodes);
+        fail_report("empty tree", step,
+                   "the drain did not return every node to the free map");
+        return 1;
+    }
+    return verify_volume(step);
+}
+
+/*
+ * Empty the tree in ascending key order: every step deletes the model's first
+ * key, which is the first record of the leftmost leaf. That is the order that
+ * rewrites a parent key from the new first record and then merges the leaf to
+ * the left, and the last steps have to collapse the root down to a leaf and
+ * finally to the empty tree. Returns 0 when it drained, 1 on a refused delete,
+ * -1 on a defect.
+ */
+static int drain_ascending(unsigned *refusals, size_t *step, size_t base)
+{
+    while (model_count > 0u) {
+        uint64_t id = model_id[0];
+        size_t at_step = base + (*step)++;
+        int rc = delete_one_at(0, at_step);
+        if (rc < 0)
+            return -1;
+        if (rc == 1) {
+            ++*refusals;
+            fprintf(stderr, "  cascade: deleting key %u/%u was refused with "
+                            "%zu keys left, depth %u\n",
+                    id_file(id), id_start(id), model_count, extents.depth);
+            return 1;
+        }
+        if ((*step % 16u) == 0u && verify_all(at_step) != 0)
+            return -1;
+    }
+    return 0;
+}
+
+/*
+ * The whole ordered pass: drain what the random phase built, check the canonical
+ * empty tree - in memory and again from the medium - then fill and drain the
+ * tree a second time in ascending order, and leave three keys behind so the
+ * final state is a tree that works after having been emptied.
+ */
+static int run_cascades(unsigned *refusals, size_t *steps)
+{
+    size_t base = 1000000u;   /* far from the random phase's step numbers */
+
+    int rc = drain_ascending(refusals, steps, base);
+    if (rc != 0)
+        return 1;
+    if (verify_empty(base + *steps, "first drain") != 0)
+        return 1;
+
+    for (uint32_t i = 0; i < CASCADE_KEYS; ++i) {
+        size_t at_step = base + (*steps)++;
+        int irc = insert_one(cascade_id(i), 0xc0de0000u ^ i, at_step);
+        if (irc < 0)
+            return 1;
+        if (irc == 1) {
+            ++*refusals;
+            fprintf(stderr, "  cascade: insert %u was refused after %u keys\n",
+                    i, i);
+            return 1;
+        }
+        if ((*steps % 16u) == 0u && verify_all(at_step) != 0)
+            return 1;
+    }
+    if (extents.depth < 2u) {
+        fprintf(stderr, "  cascade: %u ascending keys left depth %u\n",
+                CASCADE_KEYS, extents.depth);
+        fail_report("cascade depth", base + *steps,
+                   "the ascending fill did not grow a multi-level tree");
+        return 1;
+    }
+    if (verify_all(base + *steps) != 0)
+        return 1;
+
+    rc = drain_ascending(refusals, steps, base);
+    if (rc != 0)
+        return 1;
+    if (verify_empty(base + *steps, "second drain") != 0)
+        return 1;
+
+    /*
+     * The medium has to say the same thing the struct does: reopen the tree from
+     * the image, then insert through the reopened handle.
+     */
+    memset(&extents, 0, sizeof(extents));
+    static uint8_t scratch[32768];
+    if (hfs_btree_open(&extents, &volume, &volume.extents, scratch,
+                       sizeof(scratch)) != HFS_OK) {
+        fail_report("reopen", base + *steps,
+                   "the tree on the medium would not open after the drain");
+        return 1;
+    }
+    if (verify_empty(base + *steps, "reopened") != 0)
+        return 1;
+
+    for (uint32_t i = 0; i < CASCADE_SPARE; ++i) {
+        size_t at_step = base + (*steps)++;
+        int irc = insert_one(cascade_id(CASCADE_KEYS + i), i, at_step);
+        if (irc != 0) {
+            fail_report("reuse", at_step,
+                       "an emptied tree refused a fresh insert");
+            return 1;
+        }
+    }
+    if (verify_all(base + *steps) != 0)
+        return 1;
+    return 0;
 }
 
 int main(int argc, char **argv)
@@ -753,5 +936,15 @@ int main(int argc, char **argv)
            "%u refusals, %zu keys, depth %u, %u of %u nodes free\n",
            steps, inserts, deletes, updates, refusals, model_count,
            extents.depth, extents.free_nodes, extents.total_nodes);
+
+    unsigned cascade_refusals = 0;
+    size_t cascade_steps = 0;
+    if (run_cascades(&cascade_refusals, &cascade_steps) != 0) {
+        fprintf(stderr, "seed 0x%08x, cascades after step %u\n", seed, steps);
+        return 1;
+    }
+    printf("  btree model: %zu cascade steps, %u refusals, depth %u, %u of %u "
+           "nodes free, %zu keys\n", cascade_steps, cascade_refusals,
+           extents.depth, extents.free_nodes, extents.total_nodes, model_count);
     return 0;
 }
