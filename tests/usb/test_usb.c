@@ -493,6 +493,70 @@ static int check_msc(struct fake_disk *disk)
                "capacity16 states 4 TB"))
         return 1;
 
+    /*
+     * READ FORMAT CAPACITIES (0x23): three reserved bytes, the descriptor list
+     * length in bytes, one eight-byte descriptor (block count, code, reserved),
+     * then the current media's block length. A 4 TB window cannot be counted in
+     * 32 bits, so the count saturates the way READ CAPACITY(10) does.
+     */
+    uint8_t format_capacity_cdb[10] = { 0x23u, 0, 0, 0, 0, 0, 0, 0, 16u, 0 };
+    if (expect(run_command(&msc, 30u, format_capacity_cdb, 10u, 1, 16u, NULL, in,
+                           sizeof(in), &in_length, &csw) == 0,
+               "format capacities runs"))
+        return 1;
+    if (expect(csw == HELIKON_USB_CSW_PASSED && in_length == 16u,
+               "format capacities answers sixteen bytes"))
+        return 1;
+    if (expect(in[0] == 0u && in[1] == 0u && in[2] == 0u,
+               "format capacities starts with three reserved bytes"))
+        return 1;
+    if (expect(in[3] == 8u, "one descriptor is eight bytes"))
+        return 1;
+    uint32_t described = ((uint32_t)in[4] << 24) | ((uint32_t)in[5] << 16) |\
+                         ((uint32_t)in[6] << 8) | in[7];
+    if (expect(described == 0xffffffffu,
+               "a 4 TB window saturates the descriptor count"))
+        return 1;
+    if (expect(in[8] == 0x02u && in[9] == 0u && in[10] == 0u && in[11] == 0u,
+               "descriptor code says formatted media"))
+        return 1;
+    uint32_t format_block = ((uint32_t)in[12] << 24) |
+                            ((uint32_t)in[13] << 16) |
+                            ((uint32_t)in[14] << 8) | in[15];
+    if (expect(format_block == FAKE_SECTOR_SIZE,
+               "format capacities states the block length"))
+        return 1;
+
+    /* A host that asks for twelve bytes gets the header and the descriptor. */
+    format_capacity_cdb[8] = 12u;
+    if (expect(run_command(&msc, 31u, format_capacity_cdb, 10u, 1, 12u, NULL, in,
+                           sizeof(in), &in_length, &csw) == 0,
+               "short format capacities runs"))
+        return 1;
+    if (expect(csw == HELIKON_USB_CSW_PASSED && in_length == 12u &&
+                   in[3] == 8u && in[8] == 0x02u,
+               "a twelve-byte allocation still carries the descriptor"))
+        return 1;
+
+    /*
+     * MODE SENSE(10) header: a two-byte mode data length that counts its own
+     * tail, then medium type, the write-protect bit, two reserved bytes and the
+     * block descriptor length.
+     */
+    uint8_t mode_sense_cdb[10] = { 0x5au, 0, 0x3fu, 0, 0, 0, 0, 0, 8u, 0 };
+    if (expect(run_command(&msc, 32u, mode_sense_cdb, 10u, 1, 8u, NULL, in,
+                           sizeof(in), &in_length, &csw) == 0,
+               "mode sense ten runs"))
+        return 1;
+    if (expect(csw == HELIKON_USB_CSW_PASSED && in_length == 8u,
+               "mode sense ten answers eight bytes"))
+        return 1;
+    if (expect(in[0] == 0u && in[1] == 6u,
+               "mode sense ten counts the bytes after its length field"))
+        return 1;
+    if (expect((in[3] & 0x80u) == 0u, "a writable window is not protected"))
+        return 1;
+
     /* Write one sector above the old LBA28 limit, then read it back. */
     const uint32_t high_lba = 0x10000004u; /* 4 GiB above 128 GiB */
     uint8_t pattern[FAKE_SECTOR_SIZE];
@@ -594,6 +658,15 @@ static int check_msc(struct fake_disk *disk)
     if (expect(csw == HELIKON_USB_CSW_FAILED &&
                    ro.sense.key == HELIKON_USB_SENSE_DATA_PROTECT,
                "a read-only window reports DATA PROTECT"))
+        return 1;
+
+    /* The same command on the read-only window sets the write-protect bit. */
+    if (expect(run_command(&ro, 33u, mode_sense_cdb, 10u, 1, 8u, NULL, in,
+                           sizeof(in), &in_length, &csw) == 0,
+               "read-only mode sense runs"))
+        return 1;
+    if (expect(csw == HELIKON_USB_CSW_PASSED && (in[3] & 0x80u) != 0u,
+               "a read-only window reports write protect"))
         return 1;
 
     /* FORMAT UNIT is refused: the host formats by writing, not by asking us. */
