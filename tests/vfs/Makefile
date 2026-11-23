@@ -13,7 +13,7 @@ TH = ../hfsplus
 CODEC = ../../firmware/codec
 LIB = ../../firmware/lib
 PLAYER = ../../firmware/player
-TESTS = test_vfs test_vfs_write
+TESTS = test_vfs test_vfs_write test_vfs_bookmark
 
 # The VFS media adapter composes with the codec registry, whose MP3 descriptor
 # needs the vendored libmad objects.
@@ -55,12 +55,14 @@ test_vfs: test_vfs.c $(TH)/test_check.h \
 test: $(TESTS)
 	./test_vfs
 	./test_vfs_write
+	./test_vfs_bookmark
 
 sanitize:
 	$(MAKE) clean
 	$(MAKE) EXTRA_CFLAGS="-O1 -fsanitize=address,undefined -fno-omit-frame-pointer"
 	./test_vfs
 	./test_vfs_write
+	./test_vfs_bookmark
 
 test_vfs_write: test_vfs_write.c $(TH)/writer_fixture.c $(TH)/writer_fixture.h \
           $(TH)/test_check.h \
@@ -84,6 +86,30 @@ test_vfs_write: test_vfs_write.c $(TH)/writer_fixture.c $(TH)/writer_fixture.h \
           $(HFS)/hfs_unicode_data.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_vfs_write.c $(TH)/writer_fixture.c \
 	  $(VFS)/vfs.c $(VFS)/vfs_rw.c \
+	  $(HFS)/hfs_volume.c $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog_write.c \
+	  $(HFS)/hfs_catalog_compare.c $(HFS)/hfs_btree.c $(HFS)/hfs_btree_write.c \
+	  $(HFS)/hfs_btree_tree.c $(HFS)/hfs_extents.c $(HFS)/hfs_extents_write.c \
+	  $(HFS)/hfs_fork_io.c $(HFS)/hfs_bitmap.c $(HFS)/hfs_txn.c \
+	  $(HFS)/hfs_journal.c $(HFS)/hfs_volume_write.c $(HFS)/hfs_check.c \
+	  $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c \
+	  $(LIB)/mem.c $(LDFLAGS) -o $@
+
+# The resume bookmark through the journaled VFS: text -> temp file -> rename.
+test_vfs_bookmark: test_vfs_bookmark.c $(TH)/writer_fixture.c \
+          $(TH)/writer_fixture.h $(TH)/test_check.h \
+          $(VFS)/vfs.c $(VFS)/vfs.h $(VFS)/vfs_rw.c $(VFS)/vfs_rw.h \
+          $(PLAYER)/bookmark.c $(PLAYER)/bookmark.h \
+          $(PLAYER)/vfs_bookmark.c $(PLAYER)/vfs_bookmark.h \
+          $(HFS)/hfs_volume.c $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog_write.c \
+          $(HFS)/hfs_catalog_compare.c $(HFS)/hfs_btree.c \
+          $(HFS)/hfs_btree_write.c $(HFS)/hfs_btree_tree.c \
+          $(HFS)/hfs_extents.c $(HFS)/hfs_extents_write.c \
+          $(HFS)/hfs_fork_io.c $(HFS)/hfs_bitmap.c $(HFS)/hfs_txn.c \
+          $(HFS)/hfs_journal.c $(HFS)/hfs_volume_write.c $(HFS)/hfs_check.c \
+          $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c $(LIB)/format.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) test_vfs_bookmark.c $(TH)/writer_fixture.c \
+	  $(VFS)/vfs.c $(VFS)/vfs_rw.c \
+	  $(PLAYER)/bookmark.c $(PLAYER)/vfs_bookmark.c $(LIB)/format.c \
 	  $(HFS)/hfs_volume.c $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog_write.c \
 	  $(HFS)/hfs_catalog_compare.c $(HFS)/hfs_btree.c $(HFS)/hfs_btree_write.c \
 	  $(HFS)/hfs_btree_tree.c $(HFS)/hfs_extents.c $(HFS)/hfs_extents_write.c \

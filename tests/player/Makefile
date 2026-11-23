@@ -18,13 +18,14 @@ include ../libmad.mk
 .PHONY: test sanitize clean
 
 test: test_wav test_player test_read_ahead test_queue test_playlist \
-      test_cuesheet
+      test_cuesheet test_bookmark
 	./test_wav
 	./test_player
 	./test_read_ahead
 	./test_queue
 	./test_playlist
 	./test_cuesheet
+	./test_bookmark
 
 # The media path links the codec registry (libmad included), so it runs under
 # the same sanitizers as the codec suite.
@@ -45,6 +46,13 @@ test_cuesheet: test_cuesheet.c ../../firmware/player/cuesheet.c \
                ../../firmware/player/cuesheet.h ../../firmware/lib/mem.c
 	$(CC) $(CFLAGS) -o $@ test_cuesheet.c ../../firmware/player/cuesheet.c \
 	      ../../firmware/lib/mem.c
+
+# The record is text; nothing here needs a filesystem.
+test_bookmark: test_bookmark.c ../../firmware/player/bookmark.c \
+               ../../firmware/player/bookmark.h ../../firmware/lib/mem.c \
+               ../../firmware/lib/format.c
+	$(CC) $(CFLAGS) -o $@ test_bookmark.c ../../firmware/player/bookmark.c \
+	      ../../firmware/lib/mem.c ../../firmware/lib/format.c
 
 test_read_ahead: test_read_ahead.c ../../firmware/player/read_ahead.c \
                  ../../firmware/player/read_ahead.h
@@ -81,4 +89,4 @@ test_player: test_player.c ../../firmware/player/player.c \
 
 clean:
 	rm -rf test_wav test_player test_read_ahead test_queue test_playlist \
-	  build_mad *.dSYM
+	  test_cuesheet test_bookmark build_mad *.dSYM
