@@ -43,6 +43,46 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-23 (SCSI fixed responses, resume bookmarks, the seek matrix)
+
+## What happened
+
+- **Alpha 2.1.0 is published** as a normal release; the entry below it has the
+  assets and the honest limits. Nothing here changes that.
+- **T-064 merged (#145)**: the signed staged-update client, `vfs_rw` transaction
+  scopes, nested write paths and `tests/update` as the tenth host suite.
+- **Playlist export (#146)** writes M3U/PLS through a sink over `vfs_rw`; two
+  build fixes followed it — the playlist fuzz harness and `tests/musicdb` /
+  `tests/library` were missing `firmware/lib/format.c`.
+- **SCSI fixed responses (#148)**: `READ FORMAT CAPACITIES` answered the wrong
+  shape (the descriptor code sat on top of the block count, the capacity list
+  length was zero) and `MODE SENSE(10)` claimed no parameter data. Both fixed and
+  checked field by field on the 4 TB fake disk. Closes #147.
+- **Resume bookmarks (#149)**: `firmware/player/bookmark.c` is the record as
+  strict text and `vfs_bookmark.c` writes it to `/.helikon/resume.txt` through
+  the journaled VFS via a temporary sibling that is read back before the rename;
+  `tests/player/test_bookmark.c` and `tests/vfs/test_vfs_bookmark.c` cover both
+  halves. Nothing calls it yet.
+- **The seek/resume matrix (T-100)** landed for FLAC and AIFF and found a real
+  MP3 defect: a seek does not return the samples a sequential decode would, at
+  frame 0 and mid-file. Filed as **#150** with four confirmed causes (zeroed
+  `trim_skip`, output-vs-untrimmed frame coordinates, the missing bit-reservoir
+  backup, libmad's 576-sample first block). A patch fixing the first three is
+  written up in the issue and deliberately not merged; the MP3 rows go back into
+  `tests/codec/test_codec_matrix.c` with it.
+
+## Open, next
+
+- **#150 is the next real audio job.** Reimplement the seek as: anchor at
+  `wanted - 8` frames, walk headers, drop `(wanted - anchor) * frame_samples +
+  within` samples, and compensate libmad's 576-sample first block. Reinstating
+  the three MP3 rows is the acceptance test.
+- Nothing in the firmware mounts a volume read-write at boot, so neither the
+  bookmark, the playlist export nor the update client has a call site. A boot
+  path with an explicit opt-in is the next structural step.
+- Alpha 2.1.0's device round is still the owner's to run: launcher, Music hub,
+  Disk Mode, then the loader, with `fsck_hfs -fn` after each.
+
 # Handoff — 2026-11-23 (write VFS on a real volume, signed staged-update client)
 
 ## What happened
