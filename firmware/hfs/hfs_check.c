@@ -425,7 +425,7 @@ static void check_tree_nodes(struct hfs_volume *volume,
  */
 #define CHECK_KEY_MAX 516u
 
-/* The reader's own depth limit (`HFS_BTREE_MAX_DEPTH`); the walk stack matches it. */
+/* The reader's own depth limit (`CHECK_MAX_DEPTH`); the walk stack matches it. */
 #define CHECK_MAX_DEPTH 32u
 
 typedef int (*check_compare_fn)(const uint8_t *a, size_t a_length,
@@ -440,10 +440,11 @@ typedef int (*check_compare_fn)(const uint8_t *a, size_t a_length,
 struct leaf_walk {
     check_compare_fn compare;
     void (*record)(const uint8_t *record, size_t length, uint16_t key_length,
-                   struct hfs_check_report *report);
+                   struct hfs_check_report *report, void *context);
     uint32_t key_bit;
     uint32_t order_bit;
     uint32_t chain_bit;
+    void *context;
 };
 
 /*
@@ -510,7 +511,7 @@ static void walk_leaves(struct hfs_btree *btree, const struct leaf_walk *walk,
         }
 
         if (walk->record != NULL)
-            walk->record(record, length, key_length, report);
+            walk->record(record, length, key_length, report, walk->context);
         counted += 1u;
     }
 
@@ -530,6 +531,215 @@ static int catalog_key_compare(const uint8_t *a, size_t a_length,
 }
 
 /*
+ * The thread cross-check needs lookups while the leaf walk is running, so it uses
+ * a second B-tree handle over the same catalog. Two handles mean two scratch
+ * buffers, which is what keeps the record pointer the walk holds valid while a
+ * lookup reads nodes underneath it.
+ */
+/*
+ * Three sizes the check needs and the B-tree layer keeps to itself:
+ * `CHECK_CATALOG_KEY_FIXED` is the part of a catalog key that is always there
+ * (parent ID and name length), `CHECK_RECORD_PREFIX` is the 2-byte length that
+ * opens every B-tree record, and `CHECK_CHILD_SIZE` is an index record's child
+ * pointer. `CHECK_MAX_DEPTH` only bounds the lookups against a corrupt tree.
+ */
+#define CHECK_CATALOG_KEY_FIXED 6u
+#define CHECK_RECORD_PREFIX 2u
+#define CHECK_CHILD_SIZE 4u
+#define CHECK_MAX_DEPTH 32u
+
+struct catalog_lookup {
+    struct hfs_btree btree;
+    int usable;
+};
+
+static void write_be16(uint8_t *p, uint16_t value)
+{
+    p[0] = (uint8_t)(value >> 8);
+    p[1] = (uint8_t)value;
+}
+
+static void write_be32(uint8_t *p, uint32_t value)
+{
+    p[0] = (uint8_t)(value >> 24);
+    p[1] = (uint8_t)(value >> 16);
+    p[2] = (uint8_t)(value >> 8);
+    p[3] = (uint8_t)value;
+}
+
+/*
+ * An exact catalog key match, walked by hand because the check has no transaction
+ * to read through: 1 found with `record` pointing into the lookup's scratch, 0 no
+ * such key, -1 the tree could not be read or is not a tree. The walk is bounded by
+ * the tree's own depth limit, so a cycle in a corrupt tree cannot spin here.
+ */
+static int catalog_find(struct catalog_lookup *lookup, const uint8_t *key,
+                        size_t key_length, const uint8_t **record,
+                        size_t *record_length)
+{
+    if (lookup == NULL || lookup->usable == 0 || lookup->btree.empty != 0u)
+        return 0;
+    struct hfs_btree *btree = &lookup->btree;
+
+    uint32_t node_number = btree->root_node;
+    for (unsigned step = 0u; step <= CHECK_MAX_DEPTH; ++step) {
+        const uint8_t *node = NULL;
+        if (hfs_btree_read_node(btree, node_number, &node) != HFS_OK)
+            return -1;
+        uint16_t count = be16(node + 10);
+        if (count == 0u)
+            return -1;
+
+        if (node[8] == 0xffu) {
+            for (uint16_t i = 0u; i < count; ++i) {
+                const uint8_t *existing = NULL;
+                size_t existing_length = 0u;
+                if (hfs_btree_node_record(node, btree->node_size, i, &existing,
+                                          &existing_length) != HFS_OK)
+                    return -1;
+                if (existing_length < 2u)
+                    return -1;
+                uint16_t stored = be16(existing);
+                if ((size_t)stored + 2u > existing_length)
+                    return -1;
+                int cmp = catalog_key_compare(existing + 2, stored, key,
+                                              key_length);
+                if (cmp == 0) {
+                    *record = existing;
+                    *record_length = existing_length;
+                    return 1;
+                }
+                if (cmp > 0)
+                    return 0;
+            }
+            return 0;
+        }
+
+        if (node[8] != 0u)
+            return -1;
+        uint16_t child = 0u;
+        for (uint16_t i = 0u; i < count; ++i) {
+            const uint8_t *existing = NULL;
+            size_t existing_length = 0u;
+            if (hfs_btree_node_record(node, btree->node_size, i, &existing,
+                                      &existing_length) != HFS_OK)
+                return -1;
+            if (existing_length < 2u)
+                return -1;
+            uint16_t stored = be16(existing);
+            if ((size_t)stored + CHECK_RECORD_PREFIX + CHECK_CHILD_SIZE >
+                existing_length)
+                return -1;
+            int cmp = catalog_key_compare(existing + 2, stored, key,
+                                          key_length);
+            if (cmp <= 0)
+                child = i;
+            else
+                break;
+        }
+        const uint8_t *child_record = NULL;
+        size_t child_length = 0u;
+        if (hfs_btree_node_record(node, btree->node_size, child, &child_record,
+                                  &child_length) != HFS_OK)
+            return -1;
+        uint16_t stored = be16(child_record);
+        if ((size_t)stored + CHECK_RECORD_PREFIX + CHECK_CHILD_SIZE >
+            child_length)
+            return -1;
+        node_number = be32(child_record + CHECK_RECORD_PREFIX + stored);
+    }
+    return -1;
+}
+
+/*
+ * A file or folder record has to be threaded: the thread record keyed by its CNID
+ * carries the parent and the name the item is filed under, and a search by inode
+ * reads exactly that. So the thread has to exist, be the kind that pairs with the
+ * record (folder thread for a folder, file thread for a file), and carry the
+ * record's own parent and name byte for byte.
+ */
+static void check_object_thread(const uint8_t *record, uint16_t name_length,
+                                uint32_t parent, uint32_t cnid, uint16_t kind,
+                                struct catalog_lookup *lookup,
+                                struct hfs_check_report *report)
+{
+    uint8_t key[CHECK_CATALOG_KEY_FIXED];
+    write_be32(key, cnid);
+    write_be16(key + 4, 0u);
+
+    const uint8_t *thread = NULL;
+    size_t thread_length = 0u;
+    if (catalog_find(lookup, key, sizeof(key), &thread, &thread_length) != 1) {
+        report->problems |= HFS_CHECK_CATALOG_THREAD;
+        return;
+    }
+    uint16_t thread_key_length = be16(thread);
+    size_t field_offset = (size_t)thread_key_length + 2u;
+    if ((size_t)thread_key_length + 2u > thread_length ||
+        field_offset + 10u > thread_length) {
+        report->problems |= HFS_CHECK_CATALOG_THREAD;
+        return;
+    }
+    const uint8_t *field = thread + field_offset;
+    uint16_t type = be16(field);
+    uint16_t units = be16(field + 8);
+    size_t name_bytes = (size_t)name_length * 2u;
+    if (type != (kind == 1u ? 3u : 4u) || be32(field + 4) != parent ||
+        units != name_length ||
+        (size_t)units * 2u + 10u > thread_length - field_offset ||
+        memcmp(field + 10, record + 8, name_bytes) != 0)
+        report->problems |= HFS_CHECK_CATALOG_THREAD;
+}
+
+/*
+ * And the other direction: a thread record has to name something that is really
+ * filed under the parent and name it carries, with the CNID the thread is keyed
+ * by. A thread pointing at a name that does not exist is an inode lookup that
+ * resolves to nothing; a thread pointing at a name that belongs to another item is
+ * worse, because the lookup succeeds and returns the wrong file.
+ */
+static void check_thread_object(const uint8_t *record, uint16_t key_length,
+                                const uint8_t *field, size_t body_length,
+                                struct catalog_lookup *lookup,
+                                struct hfs_check_report *report)
+{
+    if (key_length != CHECK_CATALOG_KEY_FIXED)
+        return;   /* a thread key that names something is CATALOG_BODY's finding */
+    uint16_t type = be16(field);
+    uint32_t parent = be32(field + 4);
+    uint16_t units = be16(field + 8);
+    if ((size_t)units * 2u + 10u > body_length)
+        return;   /* the body check already reported it */
+
+    uint8_t key[6u + 255u * 2u];
+    if ((size_t)key_length + 2u + (size_t)units * 2u > 2u + sizeof(key))
+        return;
+    write_be32(key, parent);
+    write_be16(key + 4, units);
+    memcpy(key + 6, field + 10, (size_t)units * 2u);
+    size_t key_size = 6u + (size_t)units * 2u;
+
+    const uint8_t *object = NULL;
+    size_t object_length = 0u;
+    if (catalog_find(lookup, key, key_size, &object, &object_length) != 1) {
+        report->problems |= HFS_CHECK_CATALOG_THREAD;
+        return;
+    }
+    uint16_t object_key_length = be16(object);
+    size_t object_offset = (size_t)object_key_length + 2u;
+    if (object_offset + 10u > object_length) {
+        report->problems |= HFS_CHECK_CATALOG_THREAD;
+        return;
+    }
+    const uint8_t *body = object + object_offset;
+    uint16_t object_type = be16(body);
+    uint32_t cnid = be32(body + 8);
+    uint32_t thread_cnid = be32(record + 2);
+    if (object_type != (type == 3u ? 1u : 2u) || cnid != thread_cnid)
+        report->problems |= HFS_CHECK_CATALOG_THREAD;
+}
+
+/*
  * Catalog record bodies. The key names the parent and the name; the body must be
  * the structure its record type promises, because a reader that trusts a short
  * body reads whatever follows it in the node.
@@ -546,8 +756,9 @@ static int catalog_key_compare(const uint8_t *a, size_t a_length,
  */
 static void catalog_record(const uint8_t *record, size_t length,
                            uint16_t key_length,
-                           struct hfs_check_report *report)
+                           struct hfs_check_report *report, void *context)
 {
+    struct catalog_lookup *lookup = context;
     if (key_length < 6u) {
         report->problems |= HFS_CHECK_CATALOG_RECORD;
         return;
@@ -577,6 +788,9 @@ static void catalog_record(const uint8_t *record, size_t length,
         }
         if (be32(field + 8) < 2u)
             report->problems |= HFS_CHECK_CATALOG_BODY;
+        else
+            check_object_thread(record, name_length, parent, be32(field + 8),
+                                1u, lookup, report);
         if (parent != 1u)
             report->catalog_folders += 1u;
         break;
@@ -587,6 +801,9 @@ static void catalog_record(const uint8_t *record, size_t length,
         }
         if (be32(field + 8) < 2u)
             report->problems |= HFS_CHECK_CATALOG_BODY;
+        else
+            check_object_thread(record, name_length, parent, be32(field + 8),
+                                2u, lookup, report);
         report->catalog_files += 1u;
         break;
     case 3u: /* folder thread */
@@ -599,6 +816,9 @@ static void catalog_record(const uint8_t *record, size_t length,
         if (thread_name == 0u ||
             (uint32_t)thread_name * 2u + 10u > body_length)
             report->problems |= HFS_CHECK_CATALOG_BODY;
+        else
+            check_thread_object(record, key_length, field, body_length, lookup,
+                                report);
         break;
     }
     default:
@@ -635,9 +855,21 @@ static void check_catalog(struct hfs_volume *volume,
         return;
     }
 
+    /*
+     * A second handle over the same tree, for the thread cross-check: the walk's
+     * record pointer lives in the first handle's scratch, so lookups need their
+     * own.
+     */
+    static uint8_t lookup_scratch[HFS_MAX_NODE_SIZE + 1u];
+    static struct catalog_lookup lookup;
+    memset(&lookup, 0, sizeof(lookup));
+    lookup.usable =
+        hfs_btree_open(&lookup.btree, volume, &volume->catalog, lookup_scratch,
+                       sizeof(lookup_scratch)) == HFS_OK ? 1 : 0;
+
     static const struct leaf_walk walk = {
         catalog_key_compare, catalog_record, HFS_CHECK_CATALOG_RECORD,
-        HFS_CHECK_CATALOG_ORDER, HFS_CHECK_BTREE_CHAIN
+        HFS_CHECK_CATALOG_ORDER, HFS_CHECK_BTREE_CHAIN, &lookup
     };
     walk_leaves(&btree, &walk, report);
 
@@ -676,7 +908,7 @@ static void check_extents_keys(struct hfs_volume *volume,
     }
     static const struct leaf_walk walk = {
         extents_key_compare, NULL, HFS_CHECK_EXTENTS_ORDER,
-        HFS_CHECK_EXTENTS_ORDER, HFS_CHECK_BTREE_CHAIN
+        HFS_CHECK_EXTENTS_ORDER, HFS_CHECK_BTREE_CHAIN, NULL
     };
     walk_leaves(&btree, &walk, report);
 }

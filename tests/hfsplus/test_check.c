@@ -540,26 +540,32 @@ static void make_two_level_catalog(void)
     make_clean_volume();
     set_header_counts(1u, 1u);
 
-    /* Leaf 2: the folder "alpha" under the root folder. */
+    /*
+     * Leaf 2: the two items, a folder and a file, both under the root folder.
+     * Leaf 3: their thread records, keyed by CNID. The split is the one a real
+     * catalog makes: thread keys sort by CNID, which is above every parent-2 key,
+     * so they land after the items themselves.
+     */
     node_start(0xffu, 1u, 3u, 0u);
     leaf_add(record, make_folder_record(record, 2u, "alpha", 3u));
+    leaf_add(record, make_file_record(record, 2u, "one.txt", 16u));
     node_write(CATALOG_BLOCK, 2u);
 
-    /* Leaf 3: the file "one.txt" under the same folder. */
     node_start(0xffu, 1u, 0u, 2u);
-    leaf_add(record, make_file_record(record, 2u, "one.txt", 16u));
+    leaf_add(record, make_thread_record(record, 3u, 3u, 2u, "alpha"));
+    leaf_add(record, make_thread_record(record, 16u, 4u, 2u, "one.txt"));
     node_write(CATALOG_BLOCK, 3u);
 
     /* Index 1: the first key of each leaf, pointing at it. */
     node_start(0x00u, 2u, 0u, 0u);
     index_add(2u, "alpha", 2u);
-    index_add(2u, "one.txt", 3u);
+    index_add(3u, "", 3u);
     node_write(CATALOG_BLOCK, 1u);
 
     /* The two leaves are in use: the free-node map has to say so. */
     tree_map_used(CATALOG_BLOCK, 2u);
     tree_map_used(CATALOG_BLOCK, 3u);
-    tree_header(CATALOG_BLOCK, 2u, 1u, 2u, 2u, 3u);
+    tree_header(CATALOG_BLOCK, 2u, 1u, 4u, 2u, 3u);
 }
 
 /*
@@ -606,6 +612,103 @@ static int test_clean_file_record(void)
     CHECK(probe_and_check(&volume, &report) == HFS_OK);
     CHECK(report.problems == 0u);
     CHECK(report.catalog_files == 1u);
+    return 0;
+}
+
+/*
+ * A file record with no thread record. The item is reachable by name but not by
+ * CNID, which is how the reader resolves an inode and how macOS ties a file to
+ * its catalog entry, so it is damage even though nothing else looks wrong.
+ */
+static int test_thread_missing(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    uint8_t record[512];
+    make_clean_volume();
+    set_header_counts(1u, 0u);
+
+    leaf_start();
+    leaf_add(record, make_file_record(record, 2u, "one.txt", 16u));
+    leaf_install(CATALOG_BLOCK, 1u);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK((report.problems & HFS_CHECK_CATALOG_THREAD) != 0u);
+    return 0;
+}
+
+/* A thread record whose parent is not the parent its item is filed under. */
+static int test_thread_wrong_parent(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    uint8_t record[512];
+    make_clean_volume();
+    set_header_counts(1u, 0u);
+
+    leaf_start();
+    leaf_add(record, make_file_record(record, 2u, "one.txt", 16u));
+    leaf_add(record, make_thread_record(record, 16u, 4u, 3u, "one.txt"));
+    leaf_install(CATALOG_BLOCK, 1u);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK((report.problems & HFS_CHECK_CATALOG_THREAD) != 0u);
+    return 0;
+}
+
+/* A thread record that carries a different name than the one it threads. */
+static int test_thread_wrong_name(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    uint8_t record[512];
+    make_clean_volume();
+    set_header_counts(1u, 0u);
+
+    leaf_start();
+    leaf_add(record, make_file_record(record, 2u, "one.txt", 16u));
+    leaf_add(record, make_thread_record(record, 16u, 4u, 2u, "two.txt"));
+    leaf_install(CATALOG_BLOCK, 1u);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK((report.problems & HFS_CHECK_CATALOG_THREAD) != 0u);
+    return 0;
+}
+
+/* A folder threaded as a file: the pair no longer says what the record is. */
+static int test_thread_wrong_kind(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    uint8_t record[512];
+    make_clean_volume();
+    set_header_counts(0u, 1u);
+
+    leaf_start();
+    leaf_add(record, make_folder_record(record, 2u, "alpha", 3u));
+    leaf_add(record, make_thread_record(record, 3u, 4u, 2u, "alpha"));
+    leaf_install(CATALOG_BLOCK, 1u);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK((report.problems & HFS_CHECK_CATALOG_THREAD) != 0u);
+    return 0;
+}
+
+/* A thread record with nothing behind it: an inode that resolves to no name. */
+static int test_thread_orphan(void)
+{
+    struct hfs_volume volume;
+    struct hfs_check_report report;
+    uint8_t record[512];
+    make_clean_volume();
+    set_header_counts(0u, 0u);
+
+    leaf_start();
+    leaf_add(record, make_thread_record(record, 16u, 4u, 2u, "one.txt"));
+    leaf_install(CATALOG_BLOCK, 1u);
+
+    CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    CHECK((report.problems & HFS_CHECK_CATALOG_THREAD) != 0u);
     return 0;
 }
 
@@ -773,6 +876,8 @@ static int test_index_clean(void)
     make_two_level_catalog();
 
     CHECK(probe_and_check(&volume, &report) == HFS_OK);
+    if (report.problems != 0u)
+        fprintf(stderr, "  problems 0x%08x\n", report.problems);
     CHECK(report.problems == 0u);
     CHECK(report.catalog_depth == 2u);
     return 0;
@@ -907,6 +1012,11 @@ int main(void)
         { "catalog keys out of order", test_catalog_order },
         { "leaf chain count", test_catalog_leaf_count },
         { "thread key with a name", test_catalog_thread_key },
+        { "a file with no thread", test_thread_missing },
+        { "a thread with the wrong parent", test_thread_wrong_parent },
+        { "a thread with the wrong name", test_thread_wrong_name },
+        { "a thread with the wrong kind", test_thread_wrong_kind },
+        { "a thread with nothing behind it", test_thread_orphan },
         { "file body cut short", test_catalog_short_body },
         { "extents keys out of order", test_extents_order },
         { "clean index node", test_index_clean },

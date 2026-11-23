@@ -101,6 +101,16 @@
 /* A next-catalog-ID a writer cannot use: 0 and 1 are reserved, 2 is the root
  * folder, and 0xffffffff cannot be followed because the increment wraps. */
 #define HFS_CHECK_CATALOG_ID 0x00200000u
+/*
+ * A catalog record and its thread record disagree. Every file and folder record
+ * has a thread record keyed by its CNID that carries the parent and the name it
+ * is filed under, which is how a CNID is resolved back to a name. This bit means
+ * one of the two is missing, the kinds do not pair (folder with folder thread,
+ * file with file thread), or the parent or name the thread carries is not the one
+ * the record is keyed under - a search by inode would then land on the wrong
+ * item, or on nothing.
+ */
+#define HFS_CHECK_CATALOG_THREAD 0x00400000u
 
 /*
  * The allocation bitmap is counted up to this size. 8 MiB of bitmap describes
