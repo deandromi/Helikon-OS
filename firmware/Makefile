@@ -37,7 +37,7 @@ ARCH := -mcpu=arm926ej-s -marm -mno-thumb-interwork -mfloat-abi=soft
 CFLAGS := -std=c99 -O2 -g -ffreestanding -fno-builtin -nostdinc \
           -isystem $(GCC_INCLUDE) -DHELIKON_IMAGE_VERSION=$(VERSION) \
           -Ilib -Iboot -Iboard/$(BOARD) -Ihal/$(BOARD) -Iblock -Idiag -Ihfs \
-          -Ivfs -Iui -Idb -Iplayer -Icodec -Iusb \
+          -Ivfs -Iui -Idb -Iplayer -Icodec -Iusb -Iupdate -I../bootloader \
           -Wall -Wextra -Werror -Wconversion -Wshadow -Wundef \
           -Wpointer-arith -ffunction-sections -fdata-sections -fno-common \
           -fno-stack-protector -fno-unwind-tables \
@@ -91,6 +91,12 @@ VFS_SRC := vfs/vfs.c vfs/vfs_rw.c
 # catalog (T-126). Nothing calls it yet, so the linker drops it; the host test
 # `tests/library` drives this exact path over a real image.
 STORAGE_SRC := storage/mount.c storage/ata_block.c
+# The signed staged-update client (T-064). Compiled always so it cannot rot;
+# without a caller the linker drops it. The manifest and Ed25519 verifiers are
+# the loader's own files, shared rather than copied: one implementation, one
+# opinion about what a signed set is.
+UPDATE_SRC := update/update.c ../bootloader/manifest.c ../bootloader/keys.c \
+              ../bootloader/ed25519.c ../bootloader/loader_error.c
 # Helikon Disk Mode image (D-54): the whole disk as a writable USB LUN, for a
 # restore/format from a laptop. A separate image on purpose — the normal
 # firmware never exposes a writable LUN. `make -C firmware BOARD=6g DISKMODE=1`.
@@ -105,7 +111,8 @@ USB_SRC := usb/usb_descriptors.c usb/usb_control.c usb/usb_msc.c \
 
 ALL_SRC := $(BOOT_SRC) $(LIB_SRC) $(BOARD_SRC) $(HAL_SRC) $(BLOCK_SRC) \
            $(DIAG_SRC) $(HFS_ADAPTER_SRC) $(HFS_SRC) $(UI_SRC) \
-           $(PLAYER_SRC) $(LIBRARY_SRC) $(VFS_SRC) $(STORAGE_SRC) $(USB_SRC)
+           $(PLAYER_SRC) $(LIBRARY_SRC) $(VFS_SRC) $(STORAGE_SRC) $(USB_SRC) \
+           $(UPDATE_SRC)
 OBJS := $(patsubst %.c,$(BUILD)/%.o,$(patsubst %.S,$(BUILD)/%.o,$(ALL_SRC)))
 
 ifneq ($(HDB),)
