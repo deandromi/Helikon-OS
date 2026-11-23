@@ -12,6 +12,18 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-23 (a VFS call with no mount)
+
+Short one after T-150, from reading rather than from a failing test: `vfs_stat`,
+`vfs_file_open` and `vfs_dir_open` never looked at `vfs`. `&vfs->catalog` on NULL
+is a small non-NULL address, so the catalog's own guard did not fire and `/`
+answered `NOT_FOUND` — a missing mount indistinguishable from a missing file —
+while a path with a component read low memory. Three guards and a test that drives
+all nine entry points with no mount (it fails before the fix, passes after). Filed
+as #138, recorded as T-151.
+
+---
+
 # Handoff — 2026-11-23 (index nodes that finally merge)
 
 ## What happened
