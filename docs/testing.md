@@ -673,8 +673,20 @@ plus whatever the extents overflow tree supplies — so a large volume's bitmap 
 counted rather than skipped: the 140 GiB volume reads 36,594,065 free blocks both
 ways in about 0.2 s. The pass is I/O-bound and belongs off the boot path.
 
+A record and its thread record have to agree, in both directions: every file and
+folder record must have a thread record keyed by its CNID that carries the same
+parent and the same name bytes, and every thread record must name an item that
+really exists under that parent and name with the CNID the thread is keyed by
+(`HFS_CHECK_CATALOG_THREAD`). That is how a CNID is resolved back to a name, so a
+missing thread is an item no inode lookup can find, and a thread naming the wrong
+parent or name is worse: the lookup succeeds and returns the wrong file. The check
+does it by searching the catalog through a second B-tree handle rather than a
+table, so it costs one node buffer and no cap, and a catalog of any size is
+checked in full. It found nothing on a pristine 16 MiB macOS `HFS+J` volume, which
+is the rule: the pass must stay silent on what macOS writes.
+
 ```sh
-make -C tests/hfsplus test_check            # 30 cases, one corruption each
+make -C tests/hfsplus test_check            # 35 cases, one corruption each
 make -C tests/image hfs-check
 ./tests/image/hfs-check disk.img            # 0 clean, 1 findings, 2 unusable
 ```
@@ -684,7 +696,9 @@ each case: two sibling folders in the wrong key order, a thread key that carries
 a name, a file body cut from 248 bytes to 100, a header claiming one record more
 than its leaf holds, two extents records swapped, an index key that sorts after
 the subtree it points at, a child pointer past the last node, a leaf that claims
-to be an index node, and three clean catalogs — one folder, one file, and a real
+to be an index node, five thread-record disagreements (a file with no thread, a
+thread with the wrong parent, the wrong name, the wrong kind, and a thread with
+nothing behind it), and three clean catalogs — one folder, one file, and a real
 depth-2 tree with an index node over two leaves — that must report nothing at
 all. `test_check` also covers node ownership, one case each: a node marked used
 that the tree cannot reach, a reachable node left marked free, and a header free
