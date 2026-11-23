@@ -48,8 +48,22 @@ mutation sweep 34 curated + 400 random and 1,500-iteration runs over seeds 1/2/3
 Teeth are recorded per task row in `docs/tasks.md`. Host-only: no device run, F2
 stays unconfirmed, and none of this is a device claim.
 
+- **T-147 — the structural check now pairs records with their thread records.**
+  New bit `HFS_CHECK_CATALOG_THREAD`: a file or folder record needs a thread
+  record keyed by its CNID carrying the same parent and name bytes, and a thread
+  record needs an item that exists under the parent and name it claims. The
+  lookups search the catalog through a second B-tree handle, so there is no table
+  and no cap. `test_check` is 35 cases. It is silent on a pristine macOS volume
+  and on the same volume after the writer's random run.
+
 ## Open / next
 
+- The writer has no fuzzer: the seven harnesses cover ID3, Vorbis, HDB, the
+  manifest, the journal, playlists and cue sheets. A coverage-guided harness over
+  the *writer* — one valid image plus fuzzer-chosen mutations, then probe, check,
+  open and one catalog call — would explore paths the curated mutation sweep
+  reaches only one field at a time. It needs the fixture builder lifted out of
+  `test_writer_mutations.c` first.
 - T-146 landed after this handoff was first written: `test_catalog_ops_props` now
   drains the catalog too (files, then childless folders), requires the end state —
   one leaf deep, the root's two records, every other node free, no children, the
