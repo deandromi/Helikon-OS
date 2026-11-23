@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 #include "hfs_journal.h"
+#include "hfs_txn.h"
 #include "test_check.h"
 
 #include <stdint.h>
@@ -264,6 +265,38 @@ static int test_dirty_replay_failure(void)
     return 0;
 }
 
+/*
+ * Invariant 4: a dirty journal means no transaction may start. The gate is in
+ * hfs_txn_begin, because that is the only way a caller gets a transaction, and it
+ * has to refuse both kinds of dirt: a header whose start and end do not meet
+ * (committed, not replayed) and a volume header that says the journal was left
+ * dirty.
+ */
+static int test_dirty_refuses_transaction(void)
+{
+    struct hfs_journal journal;
+    static struct hfs_txn tx;
+
+    make_journal(TEST_SECTOR, TEST_SECTOR + TEST_SECTOR);
+    CHECK(open_clean(&journal) == HFS_OK);
+    CHECK(!hfs_journal_is_clean(&journal));
+    memset(&tx, 0, sizeof(tx));
+    CHECK(hfs_txn_begin(&tx, &journal) == HFS_ERR_DIRTY);
+    CHECK(tx.active == 0);
+
+    make_journal(TEST_SECTOR, TEST_SECTOR);
+    CHECK(open_clean(&journal) == HFS_OK);
+    CHECK(hfs_journal_is_clean(&journal));
+    journal.dirty = 1;
+    CHECK(hfs_txn_begin(&tx, &journal) == HFS_ERR_DIRTY);
+    CHECK(tx.active == 0);
+
+    journal.dirty = 0;
+    CHECK(hfs_txn_begin(&tx, &journal) == HFS_OK);
+    CHECK(tx.active == 1);
+    return 0;
+}
+
 struct test_case {
     const char *name;
     int (*run)(void);
@@ -280,7 +313,8 @@ int main(void)
         { "no space", test_no_space },
         { "bad target", test_bad_target },
         { "corrupt header", test_corrupt_header },
-        { "dirty replay failure", test_dirty_replay_failure }
+        { "dirty replay failure", test_dirty_replay_failure },
+        { "a dirty journal refuses a transaction", test_dirty_refuses_transaction }
     };
 
     int failures = 0;
