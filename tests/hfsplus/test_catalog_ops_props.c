@@ -40,6 +40,17 @@
  * truncating past the end must be refused with HFS_ERR_ARGUMENT, and a refused
  * call must not change a single byte of the image.
  *
+ * After the sweep the catalog is emptied on purpose: files first, then folders
+ * with no children, until only the root folder is left. That is the ordered
+ * counterpart to the random deletes, and what it promises is the end state - the
+ * tree one leaf deep with the root's two records, every other node back on the
+ * free-node map, no children, the volume header counting nothing, and the
+ * structural check finding nothing - followed by three fresh creates so a
+ * catalog that can be drained but not refilled does not pass. (The collapse of a
+ * leaf that empties under a one-child ancestor is the B-tree model test's
+ * coverage: with 4 KiB nodes a catalog leaf is merged away long before it is
+ * empty, and the model test's 512-byte nodes reach that shape on purpose.)
+ *
  * The fixture is a 1 MiB volume with 4096-byte B-tree nodes, which is the shape
  * a real volume has: several file records fit in one leaf, so inserts split
  * nodes and deletes merge them instead of every record owning a node of its own.
@@ -853,17 +864,12 @@ static int do_create(struct env *env, int kind, struct counters *count)
     return 0;
 }
 
-static int do_delete(struct env *env, struct counters *count)
+/* One delete of the model's item at `index`: 0 done, 1 the test failed. */
+static int delete_at(struct env *env, size_t index, struct counters *count)
 {
-    uint32_t live[MAX_ITEMS];
-    size_t live_count = 0;
-    for (size_t i = 0; i < MAX_ITEMS; ++i) {
-        if (items[i].kind != ITEM_FREE)
-            live[live_count++] = (uint32_t)i;
-    }
-    if (live_count == 0u)
+    struct item *item = &items[index];
+    if (item->kind == ITEM_FREE)
         return 0;
-    struct item *item = &items[live[next_random() % live_count]];
 
     uint8_t utf16[2u * MAX_NAME];
     size_t units = name_units(item->name, utf16);
@@ -906,6 +912,19 @@ static int do_delete(struct env *env, struct counters *count)
     item->kind = ITEM_FREE;
     ++count->deletes;
     return 0;
+}
+
+static int do_delete(struct env *env, struct counters *count)
+{
+    uint32_t live[MAX_ITEMS];
+    size_t live_count = 0;
+    for (size_t i = 0; i < MAX_ITEMS; ++i) {
+        if (items[i].kind != ITEM_FREE)
+            live[live_count++] = (uint32_t)i;
+    }
+    if (live_count == 0u)
+        return 0;
+    return delete_at(env, live[next_random() % live_count], count);
 }
 
 static int do_rename(struct env *env, struct counters *count)
@@ -1187,6 +1206,102 @@ static int case_probe(struct env *env, struct counters *count)
     return 0;
 }
 
+
+/*
+ * Empty the catalog. Files go first, then a folder with no children, until
+ * nothing is left but the root folder the fixture made. This is the ordered
+ * counterpart to the random sweep: it walks every leaf down to nothing, so the
+ * collapse of an emptied leaf and of every ancestor left without a child runs on
+ * real catalog records - two per file, a file record and a thread record, with
+ * names of different lengths in 4 KiB nodes.
+ *
+ * What must be true afterwards: the catalog holds exactly the root folder's two
+ * records (its file record and its thread record), the tree is one leaf deep
+ * with every other node back on the free-node map, the root folder lists no
+ * children, the volume header counts no files and no folders (it never counts
+ * the root), and the structural check finds nothing. Then three fresh creates
+ * prove the emptied catalog still works, because a tree that can be drained but
+ * not refilled would pass a weaker test.
+ */
+static int drain_catalog(struct env *env, struct counters *count)
+{
+    unsigned rounds = 0;
+    for (;;) {
+        int pick = -1;
+        for (size_t i = 0; i < MAX_ITEMS && pick < 0; ++i) {
+            if (items[i].kind == ITEM_FILE)
+                pick = (int)i;
+        }
+        for (size_t i = MAX_ITEMS; i-- > 0 && pick < 0;) {
+            if (items[i].kind == ITEM_FOLDER && children_of(items[i].cnid) == 0u)
+                pick = (int)i;
+        }
+        if (pick < 0)
+            break;
+        if (++rounds > 4u * MAX_ITEMS) {
+            fprintf(stderr, "  FAIL the drain made no progress after %u "
+                            "deletes\n", rounds);
+            return 1;
+        }
+        if (delete_at(env, (size_t)pick, count) != 0)
+            return 1;
+    }
+
+    /* Nothing but the root folder is left in the model. */
+    for (size_t i = 0; i < MAX_ITEMS; ++i) {
+        if (items[i].kind != ITEM_FREE) {
+            fprintf(stderr, "  FAIL the model still holds %s (%u)\n",
+                    items[i].name, (unsigned)items[i].cnid);
+            return 1;
+        }
+    }
+
+    struct hfs_btree *btree = &env->catalog.btree;
+    if (btree->depth != 1u || btree->leaf_records != 2u ||
+        btree->free_nodes + 2u != btree->total_nodes) {
+        fprintf(stderr, "  FAIL after the drain: depth %u, %u records, %u of "
+                        "%u nodes free\n",
+                btree->depth, btree->leaf_records, btree->free_nodes,
+                btree->total_nodes);
+        return 1;
+    }
+
+    struct hfs_catalog_iterator iterator;
+    CHECK(hfs_catalog_iter_init(&env->catalog, ROOT_CNID, &iterator) == HFS_OK);
+    struct hfs_entry entry;
+    CHECK(hfs_catalog_iter_next(&env->catalog, &iterator, &entry) == 0);
+
+    CHECK(get_be32(image + 1024 + 32) == 0u);
+    CHECK(get_be32(image + 1024 + 36) == 0u);
+    CHECK(check_world(env) == 0);
+
+    /*
+     * And it still takes records: three creates in the empty tree, then one
+     * delete, which leaves two children the world check has to agree with.
+     */
+    for (unsigned i = 0; i < 3u; ++i) {
+        CHECK(do_create(env, ITEM_FILE, count) == 0);
+        if (i == 0u && count->creates == 0u) {
+            fprintf(stderr, "  FAIL the emptied catalog refused a create\n");
+            return 1;
+        }
+    }
+    size_t live = 0;
+    for (size_t i = 0; i < MAX_ITEMS; ++i) {
+        if (items[i].kind != ITEM_FREE)
+            live++;
+    }
+    if (live == 0u) {
+        fprintf(stderr, "  FAIL three creates left the model empty\n");
+        return 1;
+    }
+    CHECK(check_world(env) == 0);
+    printf("  catalog drain: %u deletes to empty, then depth %u, %u of %u "
+           "nodes free and %zu children after the refill\n",
+           rounds, btree->depth, btree->free_nodes, btree->total_nodes, live);
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     uint32_t steps = DEFAULT_STEPS;
@@ -1268,6 +1383,7 @@ int main(int argc, char **argv)
 
     CHECK(case_probe(&env, &count) == 0);
     CHECK(check_world(&env) == 0);
+    CHECK(drain_catalog(&env, &count) == 0);
 
     printf("  catalog operations: %u steps, %u creates, %u deletes, "
            "%u renames, %u writes, %u truncates, %u refusals "

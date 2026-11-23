@@ -390,6 +390,21 @@ free. Teeth: replacing `hfs_catalog_name_compare`'s `hfs_fast_unicode_compare` w
 a raw byte comparison makes the probe fail at once with `create fIjmjoaC: rc=0,
 expected BUSY`, and passes again when the fold comes back.
 
+The last phase empties the catalog: files first, then folders with no children,
+until only the root folder is left. It then requires the end state — the tree one
+leaf deep holding exactly the root's two records, every other node back on the
+free-node map, the root folder listing no children, the volume header counting no
+files and no folders, `hfs_check_volume` clean — and three fresh creates, so a
+catalog that drains but cannot be refilled fails. The committed sweep ends with
+`24 deletes to empty, then depth 1, 62 of 64 nodes free and 3 children after the
+refill`.
+
+That phase is the end-state half, not the collapse half: with 4 KiB nodes a
+catalog leaf is merged away long before it empties, so a leaked node in
+`collapse_empty_leaf` does not show up here. The B-tree model test's 512-byte
+nodes do reach it, and removing the `free_node` of the emptied leaf makes it stop
+at `problems 0x00080000` (the node-ownership check).
+
 ### 3.7 What the property tests do not prove
 
 They compare the writer against a model of the same host code, so they cannot
