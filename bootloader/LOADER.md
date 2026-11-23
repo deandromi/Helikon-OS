@@ -24,6 +24,19 @@ The update flow stages new files under `/.helikon/update/` through the HFS+
 transaction engine and commits them to the paths above. A dirty or invalid
 journal makes the volume read-only; the bootloader does not replay it.
 
+The firmware side of that flow exists as `firmware/update/update.c` (T-064,
+host-tested, no caller and no device run yet). It verifies the staged set through
+the loader's own `manifest.c`/`keys.c`/`ed25519.c`, copies the installed pair
+into `/.helikon/recovery/` for a manual restore, parks the new image beside the
+installed one, and then replaces the image, rewrites `firmware.manifest` and
+stages a `TRYING` boot-state slot for the new facts **in one transaction**. Two
+files cannot be swapped atomically; one transaction can, which is why the VFS
+grew a transaction scope for this and why a cut leaves either the old set or the
+new one. The slot that described the replaced image is demoted to `FAILED` in the
+same commit: a `GOOD` slot still naming the old image would make the loader
+refuse to jump (§3), and `TRYING` is not selectable, so the next boot uses the
+verified default image and the firmware's self-test promotes it.
+
 ## 2. Firmware manifest
 
 A fixed 256-byte little-endian record:

@@ -293,6 +293,16 @@ Helikon-OS/
                             64 KiB in-FS journal: one transaction per call, a
                             clean journal and hfs_check_volume after each, and
                             every refusal proved byte-identical
+  tests/update/
+    Makefile                staged-update host test build/sanitizer targets
+    make_update_set.py      mints the really signed fixture sets from a fixed
+                            throwaway seed; --check guards drift
+    update_test_key.h       the fixture public key (generated, never a real key)
+    fixtures/               eight signed sets: good, next, bad-hash,
+                            wrong-board, bad-signature, development,
+                            short-image, same-version
+    test_update.c           verify/park/commit over the journaled fixture, with
+                            a byte-identical image after every refusal
   tools/hdb_build.py        HelikonDB reference builder and inspector
   tools/desktop/            macOS companion shell (SwiftPM, no feature modules)
     Sources/HelikonCompanion/App/       app entry, splash state and empty shell
@@ -462,7 +472,7 @@ MP3 or AIFF yet | No `malloc`; caller-owned fixed workspace; 16-bit ring output 
 | `firmware/hal/6g/usb.c/.h` | DesignWare OTG device driver over the `usb_hw.h` seam: PHY sequence, clock gates, core reset, FIFO budget, EP0/EP1/EP2 (PIO), the RX/TX pumps and the event queue; `usb_target.c` binds the seam to real registers, timer E and VIC IRQ 19 | USB lead | `docs/usb-device-stack.md` §2–§4, D-54 | `tests/usb/test_usb_hal` (mock registers): init values, EP0 enumeration, bulk in/out, bus reset, disconnect, spurious | Compile-only on target (cross-build passes, nothing calls it yet); no device run; PIO only, no DMA or cache assumptions |
 | `firmware/hal/6g/usb_hw.h` | S5L8702 USB constants (bases, IRQ 19, gates, PHY and DWC registers, FIFO budget) and the seam the driver is tested through | USB lead | `docs/usb-device-stack.md` §2 | constants pinned by `test_usb_hal` | Donor facts, not measurements; every value needs the T-109/P2 trace |
 | `firmware/diag/` | Events, counters, recovery | diagnostics lead | paper §11.2, `docs/failures.md` | log/export tests | Do not write logs on a failing filesystem; bounded RAM ring |
-| `firmware/update/` | Staged update and bootstate promotion | release lead | paper §16, `docs/release.md` | signed manifest, staging, bootstate tests | No silent install; no unsigned image; loader verifies |
+| `firmware/update/` | The signed staged-update client (T-064), plus the boot-state promotion path F2 owns: `update.c` verifies a set under `/.helikon/update/` through the loader's own manifest/Ed25519 verifiers, makes the `/.helikon/recovery/` copy, parks the new image beside the installed one, and swaps image + manifest + boot state in one transaction with a read-back of all three | release/update lead | D-31, D-01, D-02, paper §16, `docs/release.md`, [LOADER.md](../bootloader/LOADER.md) §1–§3 | `tests/update` over the journaled fixture with really signed sets: six refusal classes, park leaves the live pair alone, one-commit install, demotion of the replaced boot-state slot, downgrade refused | Host only; nothing calls it yet, so the linked image is unchanged; no silent install, no unsigned image, and no key material in the repository |
 | `tools/disk-mode-format.sh` | macOS host script for the whole-disk LUN: guards (whole disk, not the boot disk, backup record, typed confirmation), then APM + one HFS+ volume filling the disk, then eject | USB/release lead | `docs/disk-mode.md` §11.1, D-54 | `bash -n`, `--help`, refusals and a dry run against a disk image; no real iPod | Refuses without a backup record; never touches the boot disk; `--dry-run` changes nothing |
 | `tools/build-diagnostic-bootloader.sh` | Render the diagnostic image from a pinned donor checkout | boot/release lead | D-21, `bootloader/README.md` | Thumb build, `MOVE_AREA`, hash, `mks5lboot` dry-run | Uses a clean `git archive`; never modifies the donor checkout; image is unproven |
 | `tools/build-loader-bootloader.sh` | Render the DFU-only loader test image and signed test files | boot lead | D-01, D-02, T-049, `bootloader/LOADER_TEST.md` | test key reuse, manifest signature, image/marker/`MOVE_AREA`, HFS+ artifact check, `mks5lboot` dry-run | Test key stays under `build/`; only the public half is linked; device runs recorded in `docs/device-matrix.md`; production handoff disabled |
