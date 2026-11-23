@@ -445,7 +445,7 @@ correct answer is a refusal (`nextCatalogID` 0, 1, 2 or `0xffffffff`; a full fil
 marked as such and must be refused, not guessed.
 
 ```sh
-cd tests/hfsplus && ./test_writer_mutations              # 33 curated + 400 random
+cd tests/hfsplus && ./test_writer_mutations              # 34 curated + 400 random
 cd tests/hfsplus && ./test_writer_mutations 12345 3000   # another seed, longer
 ```
 

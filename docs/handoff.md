@@ -17,7 +17,7 @@ file grows. Do not rely on chat history for current state.
 ## What happened
 
 - **`tests/hfsplus/test_writer_mutations.c`** sweeps the *write* path: a valid
-  volume, one corrupted structural field (33 curated, plus a seeded random tail),
+  volume, one corrupted structural field (34 curated, plus a seeded random tail),
   then `probe → check → catalog open → create file` in a transaction. The rules
   are "a refused write changes nothing" (image byte-identical) and "a write never
   turns a clean volume inconsistent". Fields whose correct answer is a refusal are
@@ -34,7 +34,7 @@ file grows. Do not rely on chat history for current state.
 ## Evidence
 
 `make -C tests/hfsplus test` (164 cases) and `sanitize` exit 0; `test_check` 30/30;
-the committed sweep 33 curated + 400 random, and 3,000-iteration runs over seeds
+the committed sweep 34 curated + 400 random, and 3,000-iteration runs over seeds
 12345/7/99/555 — 2,971 commits, every clean-before case still clean. Teeth:
 skipping the file-count update fails the pristine sanity case, accepting a
 reserved CNID fails the curated case, and removing the check's new bit fails
