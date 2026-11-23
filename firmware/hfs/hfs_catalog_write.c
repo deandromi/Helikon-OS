@@ -157,14 +157,25 @@ static int update_valence(struct hfs_catalog *catalog, struct hfs_txn *tx,
                             compare, compare_context);
 }
 
-static int read_counts(const struct hfs_volume *volume, uint32_t *file_count,
-                       uint32_t *folder_count, uint32_t *next_cnid)
+/*
+ * The volume-header counters, read **through the transaction**.
+ *
+ * Reading them from the medium was a real bug with more than one object in a
+ * transaction: every create took the same `nextCatalogID`, so the second one's
+ * thread record collided with the first (BUSY from hfs_btree_insert), and the
+ * file/folder counts composed from the same stale base could lose a write. One
+ * object per transaction hid it completely, which is why it survived until the
+ * staged-update client needed three files in one commit (T-064).
+ */
+static int read_counts(struct hfs_txn *tx, const struct hfs_volume *volume,
+                       uint32_t *file_count, uint32_t *folder_count,
+                       uint32_t *next_cnid)
 {
     uint8_t header[512];
-    if (volume->read(volume->context,
-                     volume->base + HFS_VOLUME_HEADER_OFFSET, header,
-                     sizeof(header)))
-        return HFS_ERR_IO;
+    int rc = hfs_txn_read(tx, volume, HFS_VOLUME_HEADER_OFFSET, header,
+                          sizeof(header));
+    if (rc != HFS_OK)
+        return rc;
     *file_count = be32(header + 32);
     *folder_count = be32(header + 36);
     *next_cnid = be32(header + 64);
@@ -191,7 +202,7 @@ static int create_object(struct hfs_catalog *catalog, struct hfs_txn *tx,
     uint32_t file_count;
     uint32_t folder_count;
     uint32_t next_cnid;
-    rc = read_counts(volume, &file_count, &folder_count, &next_cnid);
+    rc = read_counts(tx, volume, &file_count, &folder_count, &next_cnid);
     if (rc != HFS_OK)
         return rc;
     /*
@@ -310,7 +321,7 @@ static int delete_object(struct hfs_catalog *catalog, struct hfs_txn *tx,
     uint32_t file_count;
     uint32_t folder_count;
     uint32_t next_cnid;
-    rc = read_counts(volume, &file_count, &folder_count, &next_cnid);
+    rc = read_counts(tx, volume, &file_count, &folder_count, &next_cnid);
     (void)next_cnid;
     if (rc != HFS_OK)
         return rc;
