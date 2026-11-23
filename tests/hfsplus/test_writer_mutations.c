@@ -7,16 +7,23 @@
  * when the volume is already wrong, does the writer **fail closed**?
  *
  * Every iteration starts from the same valid volume, corrupts one structural
- * field, and then tries to create a file through the catalog writer:
+ * field, and then walks the catalog writer down the path a caller would:
  *
  *   hfs_volume_probe -> hfs_check_volume (record the findings it already has)
  *                    -> hfs_catalog_open
- *                    -> hfs_catalog_create_file in a transaction
+ *                    -> create a file, rename it, write 1,500 bytes into it,
+ *                       truncate it back to zero, delete it
+ *
+ * Each of the five calls is its own transaction and its own decision, so a
+ * mutation that only trips the data path - the allocation bitmap, a fork record,
+ * the extents-overflow tree - is caught even though the create before it was
+ * fine. A call that answers an error ends the iteration: the ones after it
+ * would operate on state that was never committed.
  *
  * Two rules must hold, and they are the whole test:
  *
- *  - **A refused write changes nothing.** If `hfs_catalog_create_file` returns
- *    an error the image must be byte-identical to the mutated one. A refused
+ *  - **A refused write changes nothing.** If any of the five calls returns an
+ *    error the image must be byte-identical to the mutated one. A refused
  *    call may stage bytes in the transaction, but the caller discards them and
  *    none of them may reach the medium.
  *  - **A write never adds a kind of damage.** If the volume already had findings
@@ -427,6 +434,8 @@ struct counters {
     uint32_t write_committed;
     uint32_t write_committed_dirty;
     uint32_t delete_committed;
+    uint32_t data_committed;
+    uint32_t truncate_committed;
     uint32_t clean_before;
 };
 
@@ -523,6 +532,41 @@ static int exercise(uint32_t seed, uint32_t iteration,
     if (outcome != 0)
         return outcome == 2 ? 1 : 0;
     apply_txn(&tx);
+
+    /*
+     * Data next: a 1,500-byte append allocates blocks, writes the allocation
+     * bitmap and stages the volume header, which is the path a mutation in the
+     * bitmap or in a fork record reaches. It runs before the delete so the
+     * blocks it takes have to come back when the file goes.
+     */
+    static uint8_t payload[1500];
+    for (size_t i = 0; i < sizeof(payload); ++i)
+        payload[i] = (uint8_t)(0x30u + (uint8_t)(i % 0x30u));
+    memcpy(snapshot, image, sizeof(snapshot));
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    rc = hfs_catalog_write_file(&catalog, &tx, ROOT_CNID, renamed, 3, 0,
+                                payload, sizeof(payload),
+                                hfs_catalog_key_compare, NULL);
+    outcome = refused(rc, seed, iteration, mutation, "data write", counters);
+    if (outcome != 0)
+        return outcome == 2 ? 1 : 0;
+    apply_txn(&tx);
+    ++counters->data_committed;
+
+    /* Truncate to zero: the blocks and any overflow record have to come back. */
+    memcpy(snapshot, image, sizeof(snapshot));
+    memset(&tx, 0, sizeof(tx));
+    tx.journal = &journal;
+    tx.active = 1;
+    rc = hfs_catalog_truncate_to(&catalog, &tx, ROOT_CNID, renamed, 3, 0,
+                                 hfs_catalog_key_compare, NULL);
+    outcome = refused(rc, seed, iteration, mutation, "truncate", counters);
+    if (outcome != 0)
+        return outcome == 2 ? 1 : 0;
+    apply_txn(&tx);
+    ++counters->truncate_committed;
 
     /* And the delete frees the node the create took. */
     memcpy(snapshot, image, sizeof(snapshot));
@@ -646,12 +690,14 @@ int main(int argc, char **argv)
     }
 
     printf("  writer mutations: %zu curated + %u random, %u refused at probe, "
-           "%u at mount, %u at a write call, %u created, %u deleted (%u created "
+           "%u at mount, %u at a write call, %u created, %u wrote data, "
+           "%u truncated, %u deleted (%u created "
            "on a volume the check already called inconsistent), %u were clean "
            "before the write\n",
            sizeof(curated) / sizeof(curated[0]) - 1u, iterations,
            counters.probe_refused, counters.mount_refused,
            counters.write_refused, counters.write_committed,
+           counters.data_committed, counters.truncate_committed,
            counters.delete_committed, counters.write_committed_dirty,
            counters.clean_before);
     return 0;
