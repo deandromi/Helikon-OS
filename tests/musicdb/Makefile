@@ -46,8 +46,8 @@ $(SAN): test_hdb.c ../../firmware/db/hdb.c ../../firmware/db/hdb.h \
 LIB_INDEX_SRC := test_library_index.c ../../firmware/library/library.c \
                  ../../firmware/library/library.h ../../firmware/db/hdb.c \
                  ../../firmware/player/playlist.c ../../firmware/player/queue.c \
-                 ../../firmware/lib/crc32.c ../../firmware/lib/mem.c \
-                 ../../firmware/lib/string.c
+                 ../../firmware/lib/crc32.c ../../firmware/lib/format.c \
+                 ../../firmware/lib/mem.c ../../firmware/lib/string.c
 
 $(LIB_INDEX): $(LIB_INDEX_SRC)
 	@mkdir -p $(OUT)
@@ -55,7 +55,8 @@ $(LIB_INDEX): $(LIB_INDEX_SRC)
 	      test_library_index.c ../../firmware/library/library.c \
 	      ../../firmware/db/hdb.c ../../firmware/player/playlist.c \
 	      ../../firmware/player/queue.c ../../firmware/lib/crc32.c \
-	      ../../firmware/lib/mem.c ../../firmware/lib/string.c
+	      ../../firmware/lib/format.c ../../firmware/lib/mem.c \
+	      ../../firmware/lib/string.c
 
 $(LIB_INDEX_SAN): $(LIB_INDEX_SRC)
 	@mkdir -p $(OUT)
@@ -64,7 +65,8 @@ $(LIB_INDEX_SAN): $(LIB_INDEX_SRC)
 	      test_library_index.c ../../firmware/library/library.c \
 	      ../../firmware/db/hdb.c ../../firmware/player/playlist.c \
 	      ../../firmware/player/queue.c ../../firmware/lib/crc32.c \
-	      ../../firmware/lib/mem.c ../../firmware/lib/string.c
+	      ../../firmware/lib/format.c ../../firmware/lib/mem.c \
+	      ../../firmware/lib/string.c
 
 $(FIXTURE): ../../tools/hdb_build.py
 	@mkdir -p $(OUT)

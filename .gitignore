@@ -118,3 +118,4 @@ tests/update/test_update
 tests/update/*.dSYM/
 tests/player/test_bookmark
 tests/vfs/test_vfs_bookmark
+tests/vfs/test_vfs_playlist

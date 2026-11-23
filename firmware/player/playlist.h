@@ -98,4 +98,67 @@ int helikon_playlist_open(struct helikon_playlist_parser *parser,
 int helikon_playlist_next(struct helikon_playlist_parser *parser,
                           struct helikon_playlist_entry *entry);
 
+/*
+ * Export: the same text, written back out.
+ *
+ * A sink, not a buffer, for the same reason the parser streams: a 512-entry
+ * playlist is 512 paths and the firmware should not need all of them in RAM to
+ * save one. The sink is whatever holds the bytes — a file through `vfs_rw`, a
+ * pipe, a test array — and a short or failing write is a failing export, never a
+ * silently truncated playlist.
+ *
+ * The rules, each one a decision:
+ *
+ *   - M3U is written with an `#EXTM3U` header and `#EXTINF:<seconds>,<title>`
+ *     before each entry whose duration or title is known. A reader that ignores
+ *     both still gets a usable path list, which is why they are per-entry rather
+ *     than mandatory.
+ *   - Paths are written **absolute**, exactly as the catalog names them. A
+ *     relative form would be shorter and is what a hand-written playlist usually
+ *     looks like, but it would also mean the same list means something different
+ *     after the file is moved; the import side already resolves both forms, so
+ *     absolute costs nothing and cannot be wrong.
+ *   - PLS needs its entry count up front (`NumberOfEntries=` is the first record
+ *     a reader trusts), so the caller passes it at open. `FileN=`, `TitleN=`,
+ *     `LengthN=` and a closing `Version=2` are written; the import side reads PLS
+ *     by numeric index so writer order does not matter.
+ *   - A path must be absolute, control-character free and shorter than
+ *     `HELIKON_PLAYLIST_PATH_MAX`; a title must be control-character free and
+ *     shorter than `HELIKON_PLAYLIST_TITLE_MAX`. Anything else is ARGUMENT and
+ *     counted in `refused`: a playlist is a text file, and one with a newline in
+ *     the middle of a path is a corrupt file, not a clever one.
+ *   - An entry that is refused leaves the sink as it was except for the entries
+ *     already written. This is not atomic; the caller that wants atomicity writes
+ *     a temporary file and renames it (the update client's pattern), because a
+ *     playlist is not worth a transaction of its own.
+ */
+struct helikon_playlist_sink {
+    int (*write)(void *context, const void *data, size_t length);
+    void *context;
+};
+
+struct helikon_playlist_writer {
+    const struct helikon_playlist_sink *sink;
+    uint32_t written;
+    uint32_t refused;
+    uint8_t format;
+    uint8_t opened;
+};
+
+/*
+ * Prepare a writer. `format` is M3U or PLS (AUTO means M3U); `entries` is the
+ * PLS `NumberOfEntries` and is ignored for M3U.
+ */
+int helikon_playlist_write_open(struct helikon_playlist_writer *writer,
+                                const struct helikon_playlist_sink *sink,
+                                uint8_t format, uint32_t entries);
+
+/* Appends one entry. Returns HELIKON_OK, ARGUMENT (and counts it), or the
+ * sink's error. Writing after close is ARGUMENT. */
+int helikon_playlist_write_entry(struct helikon_playlist_writer *writer,
+                                 const struct helikon_playlist_entry *entry);
+
+/* Writes the closing record PLS wants; a no-op for M3U. */
+int helikon_playlist_write_close(struct helikon_playlist_writer *writer);
+
 #endif

@@ -56,7 +56,8 @@ bootloader/ed25519.c bootloader/keys.c firmware/lib/mem.c \
 firmware/lib/sha256.c" ;;
     journal) echo "firmware/hfs/hfs_journal.c firmware/lib/crc32.c \
 firmware/lib/mem.c firmware/lib/string.c" ;;
-    playlist) echo "firmware/player/playlist.c firmware/lib/mem.c" ;;
+    playlist) echo "firmware/player/playlist.c firmware/lib/format.c \
+firmware/lib/mem.c" ;;
     cuesheet) echo "firmware/player/cuesheet.c firmware/lib/mem.c" ;;
     writer) echo "tests/hfsplus/writer_fixture.c \
 firmware/hfs/hfs_catalog.c firmware/hfs/hfs_catalog_write.c \
