@@ -124,6 +124,8 @@ int vfs_mount(struct vfs *vfs, hfs_read_fn read, void *context,
                           catalog_scratch_size);
     if (rc != HELIKON_OK)
         return rc;
+    vfs->catalog_scratch = catalog_scratch;
+    vfs->catalog_scratch_size = catalog_scratch_size;
     vfs->extent_scratch = extent_scratch;
     vfs->extent_scratch_size = extent_scratch_size;
     if (vfs->volume.extents.blocks != 0u) {

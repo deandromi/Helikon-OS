@@ -454,6 +454,39 @@ after every operation, which re-walks the tree and checks key order, the leaf
 chain, every fork against the allocation bitmap, the free-block count and node
 ownership (T-137: a leaked node or a reachable node marked free is a finding).
 
+### 3.8 The write VFS, over a real journal
+
+`tests/vfs/test_vfs_write.c` drives `firmware/vfs/vfs_rw.c` over a volume that
+commits the way a device does. The fixture is the writer fixture plus a 64 KiB
+in-FS journal (`writer_fixture_build_journaled`): an info block that names the
+journal, a header with a valid Apple checksum, and a clean `start == end`. A
+transaction therefore goes **append -> flush -> replay** through the real
+`hfs_journal` and `hfs_txn`, not through the "apply the staged blocks by hand"
+shortcut the pure writer tests use.
+
+After every call the test checks two things that must both hold: the journal is
+clean again, and `hfs_check_volume` reports zero problems. Every refused call is
+preceded by a snapshot of all 1 MiB and followed by a byte comparison, so
+"atomic" is an assertion about the image rather than a claim about the code.
+The refusals cover a relative path, `/`, a nested path, `/..`, `/.`, a trailing
+slash, a missing parent, a duplicate name, unlinking a folder, `rmdir` on a file,
+a non-empty folder, truncating a folder, growing through truncate, and renaming
+onto an existing name.
+
+Two rules the test pins that are easy to lose in review:
+
+- **A commit invalidates open handles.** A handle caches the fork it read; a
+  write moves extents. The test reads through a handle, writes to the same file,
+  and requires the old handle to answer `ARGUMENT` and a re-opened one to read
+  the new bytes.
+- **A long write is a short write.** `VFS_RW_IO_MAX` bytes per call is applied
+  and counted, and the loop continues from there, so the caller can never
+  believe 24 KiB landed when 8 KiB did.
+
+A volume with no journal is refused with `UNSUPPORTED`: there is no
+non-journaled writer to fall back to (I-02), and the test asserts that no byte
+changes when a caller tries anyway.
+
 ### 4.1 The B-tree layer itself
 
 `tests/hfsplus/test_btree_model.c` drives **one tree** rather than the catalog:

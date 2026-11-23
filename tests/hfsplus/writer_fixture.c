@@ -17,6 +17,12 @@
 #define EXTENTS_NODES WRITER_EXTENTS_NODES
 #define ATTRIBUTES_BLOCK WRITER_ATTRIBUTES_BLOCK
 #define ATTRIBUTES_NODES WRITER_ATTRIBUTES_NODES
+#define JOURNAL_BLOCK WRITER_JOURNAL_BLOCK
+#define JOURNAL_BLOCKS WRITER_JOURNAL_BLOCKS
+#define JOURNAL_INFO_BLOCK WRITER_JOURNAL_INFO_BLOCK
+#define JOURNAL_SIZE WRITER_JOURNAL_SIZE
+#define JOURNAL_HEADER_SIZE WRITER_JOURNAL_HEADER_SIZE
+#define JOURNAL_BLOCK_LIST WRITER_JOURNAL_BLOCK_LIST
 #define VOLUME_HEADER WRITER_VOLUME_HEADER
 #define ALT_VOLUME_HEADER WRITER_ALT_VOLUME_HEADER
 #define ROOT_CNID WRITER_ROOT_CNID
@@ -100,7 +106,7 @@ static void make_tree(uint32_t block, uint32_t nodes, uint16_t max_key_length,
 }
 
 
-static void build_image(void)
+static void build_image(int journaled)
 {
     memset(image, 0, IMAGE_SIZE);
 
@@ -146,6 +152,10 @@ static void build_image(void)
     uint8_t *bitmap = image + BITMAP_BLOCK * BLOCK_SIZE;
     for (uint32_t block = 0; block < BLOCKS; ++block) {
         int used = block <= BITMAP_BLOCK || block >= BLOCKS - 2u ||
+                   (journaled != 0 &&
+                    ((block >= JOURNAL_BLOCK &&
+                      block < JOURNAL_BLOCK + JOURNAL_BLOCKS) ||
+                     block == JOURNAL_INFO_BLOCK)) ||
                    (block >= CATALOG_BLOCK &&
                     block < CATALOG_BLOCK +
                                 CATALOG_NODES * NODE_SIZE / BLOCK_SIZE) ||
@@ -164,6 +174,44 @@ static void build_image(void)
             ++used_blocks;
     }
     put_be32(header + 48, BLOCKS - used_blocks);
+
+    memcpy(image + ALT_VOLUME_HEADER, header, 512);
+}
+
+/*
+ * The journal, installed the way a formatted volume carries it: an info block
+ * that says where the journal lives, a journal header at that offset, and a
+ * clean start==end pair. The checksum is over the 44-byte header with its own
+ * field zeroed, which is what both the probe and `hfs_journal_open` verify.
+ */
+static uint32_t journal_checksum(const uint8_t *data, size_t length)
+{
+    uint32_t sum = 0u;
+    for (size_t index = 0u; index < length; ++index)
+        sum = (sum << 8) ^ (sum + data[index]);
+    return ~sum;
+}
+
+static void install_journal(void)
+{
+    uint8_t *header = image + VOLUME_HEADER;
+    put_be32(header + 4, (1u << 8) | (1u << 13)); /* unmounted | journaled */
+    put_be32(header + 12, JOURNAL_INFO_BLOCK);
+
+    uint8_t *info = image + JOURNAL_INFO_BLOCK * BLOCK_SIZE;
+    put_be32(info, 1u); /* kJIJournalInFSMask */
+    put_be64(info + 36, (uint64_t)JOURNAL_BLOCK * BLOCK_SIZE);
+    put_be64(info + 44, (uint64_t)JOURNAL_SIZE);
+
+    uint8_t *journal = image + JOURNAL_BLOCK * BLOCK_SIZE;
+    put_be32(journal, 0x4a4e4c78u);
+    put_be32(journal + 4, 0x12345678u);
+    put_be64(journal + 8, JOURNAL_HEADER_SIZE);
+    put_be64(journal + 16, JOURNAL_HEADER_SIZE);
+    put_be64(journal + 24, (uint64_t)JOURNAL_SIZE);
+    put_be32(journal + 32, JOURNAL_BLOCK_LIST);
+    put_be32(journal + 40, JOURNAL_HEADER_SIZE);
+    put_be32(journal + 36, journal_checksum(journal, 44u));
 
     memcpy(image + ALT_VOLUME_HEADER, header, 512);
 }
@@ -241,8 +289,38 @@ static int seed_root(struct hfs_volume *volume)
 /* A whole volume with a seeded root, ready for the writer. */
 int writer_fixture_build(struct hfs_volume *volume)
 {
-    build_image();
+    build_image(0);
     if (hfs_volume_probe(volume, writer_fixture_read, NULL, 0, IMAGE_SIZE) != HFS_OK)
         return 1;
     return seed_root(volume);
+}
+
+int writer_fixture_write(void *context, uint64_t offset, const void *buffer,
+                         size_t length)
+{
+    (void)context;
+    if (offset > IMAGE_SIZE || length > IMAGE_SIZE - (size_t)offset)
+        return -1;
+    memcpy(image + (size_t)offset, buffer, length);
+    return 0;
+}
+
+int writer_fixture_flush(void *context)
+{
+    (void)context;
+    return 0;
+}
+
+int writer_fixture_build_journaled(struct hfs_volume *volume)
+{
+    build_image(1);
+    install_journal();
+    if (hfs_volume_probe(volume, writer_fixture_read, NULL, 0, IMAGE_SIZE) !=
+        HFS_OK)
+        return 1;
+    if (volume->journaled == 0u)
+        return 1;
+    if (seed_root(volume) != 0)
+        return 1;
+    return 0;
 }
