@@ -59,7 +59,8 @@ SOURCES := test_library.c \
            $(CODEC)/flac/flac_codec.c \
            $(CODEC)/flac/flac_decoder.c $(CODEC)/mp3/mp3_codec.c \
            $(CODEC)/tag/id3v2.c $(CODEC)/tag/vorbis.c \
-           $(LIB)/crc32.c $(LIB)/mem.c $(LIB)/string.c $(LIBMAD_OBJ)
+           $(LIB)/crc32.c $(LIB)/format.c $(LIB)/mem.c $(LIB)/string.c \
+           $(LIBMAD_OBJ)
 
 .PHONY: all test macos macos-sanitize sanitize clean
 

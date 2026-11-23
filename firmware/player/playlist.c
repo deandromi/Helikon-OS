@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "format.h"
 #include "helikon_error.h"
 #include "mem.h"
 
@@ -553,4 +554,206 @@ int helikon_playlist_next(struct helikon_playlist_parser *parser,
     if (parser->format == HELIKON_PLAYLIST_PLS)
         return next_pls(parser, entry);
     return next_m3u(parser, entry);
+}
+
+/* ------------------------------------------------------------------------- */
+/* Export                                                                    */
+/* ------------------------------------------------------------------------- */
+
+/* Everything the writer needs to compose one line without allocating. */
+#define WRITE_LINE_MAX (HELIKON_PLAYLIST_PATH_MAX + HELIKON_PLAYLIST_TITLE_MAX + 64u)
+
+static int sink_write(struct helikon_playlist_writer *writer, const char *data,
+                      size_t length)
+{
+    if (length == 0u)
+        return HELIKON_OK;
+    if (writer->sink->write == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    return writer->sink->write(writer->sink->context, data, length);
+}
+
+static int sink_text(struct helikon_playlist_writer *writer, const char *text)
+{
+    return sink_write(writer, text, text_length(text, WRITE_LINE_MAX));
+}
+
+/* A path or title is refused, not repaired, when it cannot be written as text. */
+static int text_is_writable(const char *text, size_t limit, int absolute)
+{
+    if (text == NULL)
+        return 0;
+    size_t length = text_length(text, limit);
+    if (length == 0u || length >= limit)
+        return 0;
+    if (absolute != 0 && text[0] != '/')
+        return 0;
+    for (size_t index = 0u; index < length; ++index) {
+        unsigned char byte = (unsigned char)text[index];
+        /* No CR, LF, tab, NUL or any other control byte: each one ends or
+         * mangles a line in every reader there is. */
+        if (byte < 0x20u || byte == 0x7fu)
+            return 0;
+    }
+    return 1;
+}
+
+int helikon_playlist_write_open(struct helikon_playlist_writer *writer,
+                                const struct helikon_playlist_sink *sink,
+                                uint8_t format, uint32_t entries)
+{
+    if (writer == NULL || sink == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    if (format == HELIKON_PLAYLIST_AUTO)
+        format = HELIKON_PLAYLIST_M3U;
+    if (format != HELIKON_PLAYLIST_M3U && format != HELIKON_PLAYLIST_PLS)
+        return HELIKON_ERR_ARGUMENT;
+    if (format == HELIKON_PLAYLIST_PLS &&
+        entries > HELIKON_PLAYLIST_MAX_ENTRIES)
+        return HELIKON_ERR_ARGUMENT;
+
+    helikon_memset(writer, 0, sizeof(*writer));
+    writer->sink = sink;
+    writer->format = format;
+    writer->opened = 1u;
+
+    if (format == HELIKON_PLAYLIST_M3U)
+        return sink_text(writer, "#EXTM3U\n");
+
+    char line[WRITE_LINE_MAX];
+    size_t used = 0u;
+    static const char header[] = "[playlist]\nNumberOfEntries=";
+    helikon_memcpy(line, header, sizeof(header) - 1u);
+    used = sizeof(header) - 1u;
+    used += helikon_format_u32(line + used, sizeof(line) - used, entries);
+    line[used++] = '\n';
+    return sink_write(writer, line, used);
+}
+
+static int write_m3u_entry(struct helikon_playlist_writer *writer,
+                           const struct helikon_playlist_entry *entry)
+{
+    int rc = HELIKON_OK;
+    if (entry->duration_s != 0u || entry->has_duration != 0u ||
+        entry->has_title != 0u) {
+        char line[WRITE_LINE_MAX];
+        size_t used = 0u;
+        static const char prefix[] = "#EXTINF:";
+        helikon_memcpy(line, prefix, sizeof(prefix) - 1u);
+        used = sizeof(prefix) - 1u;
+        used += helikon_format_u32(line + used, sizeof(line) - used,
+                                   entry->duration_s);
+        line[used++] = ',';
+        if (entry->has_title != 0u) {
+            size_t length = text_length(entry->title, sizeof(entry->title));
+            if (length + used + 2u > sizeof(line))
+                return HELIKON_ERR_ARGUMENT;
+            helikon_memcpy(line + used, entry->title, length);
+            used += length;
+        }
+        line[used++] = '\n';
+        rc = sink_write(writer, line, used);
+        if (rc != HELIKON_OK)
+            return rc;
+    }
+    rc = sink_write(writer, entry->path,
+                    text_length(entry->path, sizeof(entry->path)));
+    if (rc != HELIKON_OK)
+        return rc;
+    return sink_text(writer, "\n");
+}
+
+static int write_pls_entry(struct helikon_playlist_writer *writer,
+                           const struct helikon_playlist_entry *entry)
+{
+    char line[WRITE_LINE_MAX];
+    size_t used = 0u;
+    uint32_t index = writer->written + 1u;
+
+    static const char key[] = "File";
+    helikon_memcpy(line, key, sizeof(key) - 1u);
+    used = sizeof(key) - 1u;
+    used += helikon_format_u32(line + used, sizeof(line) - used, index);
+    line[used++] = '=';
+
+    size_t length = text_length(entry->path, sizeof(entry->path));
+    if (length + used + 2u > sizeof(line))
+        return HELIKON_ERR_ARGUMENT;
+    helikon_memcpy(line + used, entry->path, length);
+    used += length;
+    line[used++] = '\n';
+    int rc = sink_write(writer, line, used);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    if (entry->has_title != 0u) {
+        static const char title[] = "Title";
+        helikon_memcpy(line, title, sizeof(title) - 1u);
+        used = sizeof(title) - 1u;
+        used += helikon_format_u32(line + used, sizeof(line) - used, index);
+        line[used++] = '=';
+        length = text_length(entry->title, sizeof(entry->title));
+        if (length + used + 2u > sizeof(line))
+            return HELIKON_ERR_ARGUMENT;
+        helikon_memcpy(line + used, entry->title, length);
+        used += length;
+        line[used++] = '\n';
+        rc = sink_write(writer, line, used);
+        if (rc != HELIKON_OK)
+            return rc;
+    }
+
+    if (entry->has_duration != 0u || entry->duration_s != 0u) {
+        static const char length_key[] = "Length";
+        helikon_memcpy(line, length_key, sizeof(length_key) - 1u);
+        used = sizeof(length_key) - 1u;
+        used += helikon_format_u32(line + used, sizeof(line) - used, index);
+        line[used++] = '=';
+        used += helikon_format_u32(line + used, sizeof(line) - used,
+                                   entry->duration_s);
+        line[used++] = '\n';
+        rc = sink_write(writer, line, used);
+        if (rc != HELIKON_OK)
+            return rc;
+    }
+    return HELIKON_OK;
+}
+
+int helikon_playlist_write_entry(struct helikon_playlist_writer *writer,
+                                 const struct helikon_playlist_entry *entry)
+{
+    if (writer == NULL || entry == NULL || writer->sink == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    if (writer->opened == 0u)
+        return HELIKON_ERR_ARGUMENT;
+    if (writer->written >= HELIKON_PLAYLIST_MAX_ENTRIES) {
+        ++writer->refused;
+        return HELIKON_ERR_ARGUMENT;
+    }
+    if (!text_is_writable(entry->path, sizeof(entry->path), 1) ||
+        (entry->has_title != 0u &&
+         !text_is_writable(entry->title, sizeof(entry->title), 0))) {
+        ++writer->refused;
+        return HELIKON_ERR_ARGUMENT;
+    }
+
+    int rc = writer->format == HELIKON_PLAYLIST_PLS
+                 ? write_pls_entry(writer, entry)
+                 : write_m3u_entry(writer, entry);
+    if (rc != HELIKON_OK)
+        return rc;
+    ++writer->written;
+    return HELIKON_OK;
+}
+
+int helikon_playlist_write_close(struct helikon_playlist_writer *writer)
+{
+    if (writer == NULL || writer->sink == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    if (writer->opened == 0u)
+        return HELIKON_ERR_ARGUMENT;
+    writer->opened = 0u;
+    if (writer->format == HELIKON_PLAYLIST_PLS)
+        return sink_text(writer, "Version=2\n");
+    return HELIKON_OK;
 }

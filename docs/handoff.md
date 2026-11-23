@@ -12,6 +12,37 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-23 (playlist export over the write VFS)
+
+## What happened
+
+- **Playlist export (T-122, second half).** `firmware/player/playlist.c` writes
+  M3U and PLS back out through a sink callback
+  (`int (*write)(void *, const void *, size_t)`), so the module still knows
+  nothing about a filesystem. Paths are absolute; a relative path, a control
+  byte or a CR in a title is counted and skipped; a sink error stops the export.
+  `firmware/player/vfs_playlist.c` is the sink over `vfs_rw`: it refuses a
+  read-only mount, unlinks the old file first (so a shorter playlist leaves no
+  tail) and writes in `VFS_RW_IO_MAX` chunks, so an export is one journaled
+  commit like any other metadata change.
+- `tests/vfs/Makefile` had absorbed a stray run line into the `test_vfs_write`
+  recipe, so `make test` compiled two binaries and then failed on a third that
+  never got built. Fixed, and the binary is in `.gitignore`.
+- Two build fixes followed the writer: the `playlist` fuzz harness and the
+  `tests/musicdb` / `tests/library` suites all link `playlist.c` and were
+  missing `firmware/lib/format.c`.
+- Evidence: `make -C tests/player test` and `sanitize` (`PASS playlist import and
+  export`), `make -C tests/vfs test` and `sanitize` (three binaries), the fuzz
+  replay over all eight harnesses, and the 6G launcher at 84,744 bytes.
+
+## Open, next
+
+- Nothing calls the writer: no UI action saves the queue, and no boot path mounts
+  a volume read-write.
+
+
+---
+
 # Handoff — 2026-11-23 (write VFS on a real volume, signed staged-update client)
 
 ## What happened

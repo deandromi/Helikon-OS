@@ -38,9 +38,10 @@ test_wav: test_wav.c ../../firmware/player/wav.c ../../firmware/player/wav.h \
 	      ../../firmware/lib/mem.c
 
 test_playlist: test_playlist.c ../../firmware/player/playlist.c \
-               ../../firmware/player/playlist.h ../../firmware/lib/mem.c
+               ../../firmware/player/playlist.h ../../firmware/lib/mem.c \
+               ../../firmware/lib/format.c
 	$(CC) $(CFLAGS) -o $@ test_playlist.c ../../firmware/player/playlist.c \
-	      ../../firmware/lib/mem.c
+	      ../../firmware/lib/mem.c ../../firmware/lib/format.c
 
 test_cuesheet: test_cuesheet.c ../../firmware/player/cuesheet.c \
                ../../firmware/player/cuesheet.h ../../firmware/lib/mem.c

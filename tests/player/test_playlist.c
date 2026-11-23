@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
- * Host tests for playlist import (T-093, the import half).
+ * Host tests for playlist import and export (T-093).
  *
  * The parser is the part of a playlist feature that has to be paranoid: the file
  * comes from a laptop, a download or a hand edit, and everything about it is a
@@ -362,17 +362,260 @@ static int check_pls_huge_index(void)
     return 0;
 }
 
+
+/* ------------------------------------------------------------------------- */
+/* Export                                                                    */
+/* ------------------------------------------------------------------------- */
+
+struct text_sink {
+    char text[4096];
+    size_t length;
+    int fail_after;      /* -1: never fail; otherwise fail on the Nth call */
+    int calls;
+};
+
+static int text_sink_write(void *context, const void *data, size_t length)
+{
+    struct text_sink *sink = context;
+    sink->calls += 1;
+    if (sink->fail_after >= 0 && sink->calls > sink->fail_after)
+        return HELIKON_ERR_IO;
+    if (sink->length + length > sizeof(sink->text))
+        return HELIKON_ERR_NO_SPACE;
+    memcpy(sink->text + sink->length, data, length);
+    sink->length += length;
+    return HELIKON_OK;
+}
+
+static void make_entry(struct helikon_playlist_entry *entry, const char *path,
+                       const char *title, uint32_t duration)
+{
+    memset(entry, 0, sizeof(*entry));
+    snprintf(entry->path, sizeof(entry->path), "%s", path);
+    if (title != NULL) {
+        snprintf(entry->title, sizeof(entry->title), "%s", title);
+        entry->has_title = 1u;
+    }
+    if (duration != 0u) {
+        entry->duration_s = duration;
+        entry->has_duration = 1u;
+    }
+}
+
+/*
+ * The round trip is the assertion that matters: what we write, our own reader has
+ * to read back to the same list. A format we can parse but not produce is a
+ * format we cannot save.
+ */
+static int check_export_m3u(void)
+{
+    struct text_sink sink;
+    memset(&sink, 0, sizeof(sink));
+    sink.fail_after = -1;
+    struct helikon_playlist_sink target = { text_sink_write, &sink };
+    struct helikon_playlist_writer writer;
+
+    if (expect(helikon_playlist_write_open(&writer, &target,
+                                          HELIKON_PLAYLIST_M3U, 0u) ==
+                   HELIKON_OK,
+               "m3u writer opens"))
+        return 1;
+    struct helikon_playlist_entry entry;
+    make_entry(&entry, "/Music/one.mp3", "One", 42u);
+    if (expect(helikon_playlist_write_entry(&writer, &entry) == HELIKON_OK,
+               "the first entry writes"))
+        return 1;
+    make_entry(&entry, "/Music/two.mp3", NULL, 0u);
+    if (expect(helikon_playlist_write_entry(&writer, &entry) == HELIKON_OK,
+               "a path with no metadata writes"))
+        return 1;
+    if (expect(helikon_playlist_write_close(&writer) == HELIKON_OK,
+               "m3u close"))
+        return 1;
+
+    const char expected[] =
+        "#EXTM3U\n"
+        "#EXTINF:42,One\n"
+        "/Music/one.mp3\n"
+        "/Music/two.mp3\n";
+    if (expect(sink.length == strlen(expected), "m3u byte count") ||
+        expect(memcmp(sink.text, expected, sink.length) == 0, "m3u bytes"))
+        return 1;
+
+    /* And back through the parser, with the folder-relative rule applied. */
+    struct helikon_playlist_parser parser;
+    if (expect(helikon_playlist_open(&parser, sink.text, sink.length, "/Music",
+                                     HELIKON_PLAYLIST_AUTO) == HELIKON_OK,
+               "our own m3u parses"))
+        return 1;
+    if (expect(helikon_playlist_next(&parser, &entry) == 1, "round trip: one"))
+        return 1;
+    /* The writer stores absolute paths, so the base changes nothing; the parser
+     * keeps an absolute entry as it is. */
+    if (expect(strcmp(entry.path, "/Music/one.mp3") == 0,
+               "round trip: the absolute path is unchanged"))
+        return 1;
+    if (expect(entry.has_title == 1u && strcmp(entry.title, "One") == 0,
+               "round trip: the title survives"))
+        return 1;
+    if (expect(entry.has_duration == 1u && entry.duration_s == 42u,
+               "round trip: the duration survives"))
+        return 1;
+    if (expect(helikon_playlist_next(&parser, &entry) == 1, "round trip: two"))
+        return 1;
+    if (expect(helikon_playlist_next(&parser, &entry) == 0,
+               "round trip: and the list ends"))
+        return 1;
+    if (expect(writer.written == 2u && writer.refused == 0u,
+               "the writer counted two entries"))
+        return 1;
+    return 0;
+}
+
+static int check_export_pls(void)
+{
+    struct text_sink sink;
+    memset(&sink, 0, sizeof(sink));
+    sink.fail_after = -1;
+    struct helikon_playlist_sink target = { text_sink_write, &sink };
+    struct helikon_playlist_writer writer;
+
+    if (expect(helikon_playlist_write_open(&writer, &target,
+                                          HELIKON_PLAYLIST_PLS, 2u) ==
+                   HELIKON_OK,
+               "pls writer opens"))
+        return 1;
+    struct helikon_playlist_entry entry;
+    make_entry(&entry, "/Music/one.mp3", "One", 42u);
+    if (expect(helikon_playlist_write_entry(&writer, &entry) == HELIKON_OK,
+               "pls entry one"))
+        return 1;
+    make_entry(&entry, "/Music/two.mp3", NULL, 0u);
+    if (expect(helikon_playlist_write_entry(&writer, &entry) == HELIKON_OK,
+               "pls entry two"))
+        return 1;
+    if (expect(helikon_playlist_write_close(&writer) == HELIKON_OK, "pls close"))
+        return 1;
+
+    const char expected[] =
+        "[playlist]\n"
+        "NumberOfEntries=2\n"
+        "File1=/Music/one.mp3\n"
+        "Title1=One\n"
+        "Length1=42\n"
+        "File2=/Music/two.mp3\n"
+        "Version=2\n";
+    if (expect(sink.length == strlen(expected), "pls byte count") ||
+        expect(memcmp(sink.text, expected, sink.length) == 0, "pls bytes"))
+        return 1;
+
+    struct helikon_playlist_parser parser;
+    if (expect(helikon_playlist_open(&parser, sink.text, sink.length, "/",
+                                     HELIKON_PLAYLIST_AUTO) == HELIKON_OK,
+               "our own pls parses"))
+        return 1;
+    if (expect(helikon_playlist_next(&parser, &entry) == 1, "pls round trip: one"))
+        return 1;
+    if (expect(strcmp(entry.path, "/Music/one.mp3") == 0, "pls round trip: path"))
+        return 1;
+    if (expect(helikon_playlist_next(&parser, &entry) == 1, "pls round trip: two"))
+        return 1;
+    if (expect(helikon_playlist_next(&parser, &entry) == 0, "pls round trip: end"))
+        return 1;
+    return 0;
+}
+
+/* An entry that cannot be text is refused and counted, not repaired. */
+static int check_export_refusals(void)
+{
+    struct text_sink sink;
+    memset(&sink, 0, sizeof(sink));
+    sink.fail_after = -1;
+    struct helikon_playlist_sink target = { text_sink_write, &sink };
+    struct helikon_playlist_writer writer;
+    if (expect(helikon_playlist_write_open(&writer, &target,
+                                          HELIKON_PLAYLIST_M3U, 0u) ==
+                   HELIKON_OK,
+               "writer opens for refusals"))
+        return 1;
+
+    struct helikon_playlist_entry entry;
+    make_entry(&entry, "relative.mp3", NULL, 0u);
+    if (expect(helikon_playlist_write_entry(&writer, &entry) ==
+                   HELIKON_ERR_ARGUMENT,
+               "a relative path is refused"))
+        return 1;
+    make_entry(&entry, "/new\nline.mp3", NULL, 0u);
+    if (expect(helikon_playlist_write_entry(&writer, &entry) ==
+                   HELIKON_ERR_ARGUMENT,
+               "a newline in a path is refused"))
+        return 1;
+    make_entry(&entry, "/with\ttab.mp3", NULL, 0u);
+    if (expect(helikon_playlist_write_entry(&writer, &entry) ==
+                   HELIKON_ERR_ARGUMENT,
+               "a tab in a path is refused"))
+        return 1;
+    make_entry(&entry, "/ok.mp3", "bad\rtitle", 0u);
+    if (expect(helikon_playlist_write_entry(&writer, &entry) ==
+                   HELIKON_ERR_ARGUMENT,
+               "a carriage return in a title is refused"))
+        return 1;
+    if (expect(writer.refused == 4u && writer.written == 0u,
+               "four refusals, nothing written"))
+        return 1;
+    if (expect(sink.length == strlen("#EXTM3U\n"),
+               "a refused entry leaves only the header"))
+        return 1;
+
+    /* A sink that fails is a failing export, never a silent truncation. */
+    struct text_sink broken;
+    memset(&broken, 0, sizeof(broken));
+    broken.fail_after = 1; /* the header succeeds, the first entry does not */
+    struct helikon_playlist_sink failing = { text_sink_write, &broken };
+    struct helikon_playlist_writer failing_writer;
+    if (expect(helikon_playlist_write_open(&failing_writer, &failing,
+                                          HELIKON_PLAYLIST_M3U, 0u) ==
+                   HELIKON_OK,
+               "the failing sink still opens"))
+        return 1;
+    make_entry(&entry, "/Music/one.mp3", "One", 1u);
+    if (expect(helikon_playlist_write_entry(&failing_writer, &entry) ==
+                   HELIKON_ERR_IO,
+               "the sink's error is the export's error"))
+        return 1;
+
+    /* Calls out of order are ARGUMENT. */
+    struct helikon_playlist_writer empty;
+    memset(&empty, 0, sizeof(empty));
+    if (expect(helikon_playlist_write_entry(&empty, &entry) ==
+                   HELIKON_ERR_ARGUMENT,
+               "writing before open is ARGUMENT"))
+        return 1;
+    if (expect(helikon_playlist_write_close(&writer) == HELIKON_OK,
+               "close once"))
+        return 1;
+    if (expect(helikon_playlist_write_close(&writer) == HELIKON_ERR_ARGUMENT,
+               "closing twice is ARGUMENT"))
+        return 1;
+    if (expect(helikon_playlist_write_entry(&writer, &entry) ==
+                   HELIKON_ERR_ARGUMENT,
+               "writing after close is ARGUMENT"))
+        return 1;
+    return 0;
+}
+
 int main(void)
 {
     if (check_basic_m3u() || check_comments_bom_crlf() || check_extinf() ||
         check_title_survives_blank_line() || check_path_resolution() ||
         check_escape_and_bad_entries() || check_nul_and_arguments() ||
-        check_pls() || check_pls_huge_index() || check_capacity())
+        check_pls() || check_pls_huge_index() || check_capacity() ||
+        check_export_m3u() || check_export_pls() || check_export_refusals())
         return 1;
     if (failures != 0u) {
         printf("FAIL playlist import\n");
         return 1;
     }
-    printf("PASS playlist import\n");
+    printf("PASS playlist import and export\n");
     return 0;
 }
