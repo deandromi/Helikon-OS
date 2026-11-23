@@ -283,12 +283,16 @@ Helikon-OS/
                             are built with AddressSanitizer only, so a UBSan
                             report is always this project's own code
   tests/vfs/
-    Makefile                read-only VFS host test build/sanitizer targets
+    Makefile                VFS host test build/sanitizer targets
     test_vfs.c              mount, path rules, open/read/seek/EOF, handle
                             generation, directory semantics, an extents-overflow
                             read (inline + overflow splice, position, seek) and
                             the VFS media->codec source seam on an HFS+ fixture
                             (shared hfsplus fixture builders)
+    test_vfs_write.c        the write half over the writer fixture plus a real
+                            64 KiB in-FS journal: one transaction per call, a
+                            clean journal and hfs_check_volume after each, and
+                            every refusal proved byte-identical
   tools/hdb_build.py        HelikonDB reference builder and inspector
   tools/desktop/            macOS companion shell (SwiftPM, no feature modules)
     Sources/HelikonCompanion/App/       app entry, splash state and empty shell
@@ -486,6 +490,7 @@ MP3 or AIFF yet | No `malloc`; caller-owned fixed workspace; 16-bit ring output 
 | `tools/installer/` | Guided install, backup, model checks | release lead | paper §28.4.3, `docs/release.md` | clean-device install, recovery | No `--single`; no format as first response; backup first |
 | `tools/desktop/` | macOS companion shell after the 2026-11-06 reset | host lead | [`companion-app.md`](companion-app.md), paper §28.4.2, D-09 | universal release build; `scripts/build-dmg.sh` creates and verifies the DMG; no test target yet | No feature code, device access, network or installer claim; ad-hoc signed, not notarized; no generated artwork |
 | `tests/` | Host volume/B-tree, disposable-image, Unicode and crash fixtures now; fuzz/model/device planned | test lead | `docs/testing.md`, `docs/fixtures.md`, `docs/validation.md` | all layers | No proprietary themes/art/fonts; no personal data; no disk images in repo |
+| `tests/image/vfs_write_host.c`, `tests/image/run-vfs-write-macos.sh` | The write VFS on a volume `hdiutil` formatted (`HFS+J`, Apple's journal layout): 20 KiB written in three short writes, truncate, mkdir, create, rename and unlink, each read back through the read VFS, then `hfs-check`, `fsck_hfs -fn` and a read-only macOS mount that has to see the same tree | test lead | `docs/testing.md` §3.8.1, T-065 | `make -C tests/image vfs-write-test`: structural check clean, `fsck_hfs` clean and no repair, macOS sees `/helikon-vfs.txt` (4096 B) and `/helikon-dir/moved.txt` | macOS only; creates and discards its own 16 MiB image; refuses a non-journaled or dirty volume; never repairs or formats anything |
 | `docs/adr/` | Long-form decisions | docs lead | `docs/decisions.md` | review | Only for decisions too large for `decisions.md`; do not duplicate |
 | `docs/disk-mode.md` | Canonical Helikon Disk Mode plan: writable-LUN exception, LUN layout, USB stack, LBA48 and capacity migration | firmware/USB lead | D-54, ADR-0005, paper §16.2/§28.4.2 | design review; no code/device claim | Normal USB stays read-only; Disk Mode is exclusive (I-16) |
 | `tests/usb/` | Three host suites: `test_usb` (SCSI/BOT/descriptors over a sparse 4 TB fake disk), `test_usb_hal` (the controller sequence against a mock DesignWare register file) and `test_disk_mode` (the mode machine with a fake transport, including the opt-in gate, a whole-disk window, a write above 128 GiB and eject); each has a `_sanitize` twin | USB/test lead | `docs/disk-mode.md`, `docs/usb-device-stack.md`, T-110–T-112 | `test` + `sanitize` green: CBW validation, control requests, capacity saturation, high-LBA write/read-back, sense, refusals, PHY/FIFO/mask values, EP0 enumeration, bulk in/out, bus reset, mode transitions | The mock proves sequences, not silicon; no device writes; no vendor commands |

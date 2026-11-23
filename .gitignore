@@ -99,6 +99,7 @@ tests/hfsplus/test_catalog_header
 *.profraw
 *.profdata
 tests/image/hfs_ops_test
+tests/image/vfs_write_host
 tests/hfsplus/test_image_mutation
 tests/hfsplus/test_image_mutation.dSYM/
 tests/hfsplus/test_bitmap_props
