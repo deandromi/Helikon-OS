@@ -25,6 +25,31 @@ static int storage_read(void *context, uint64_t offset, void *buffer,
                                   buffer, length);
 }
 
+/*
+ * The write callbacks put the partition offset back in, exactly as the read one
+ * does: the journal and the transaction engine speak volume-relative offsets and
+ * the disk does not.
+ */
+static int storage_write(void *context, uint64_t offset, const void *buffer,
+                         size_t length)
+{
+    struct helikon_storage *storage = context;
+    if (storage == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    if (storage->base > 0xFFFFFFFFFFFFFFFFu - offset)
+        return HELIKON_ERR_ARGUMENT;
+    return helikon_hfs_block_write(&storage->adapter, storage->base + offset,
+                                   buffer, length);
+}
+
+static int storage_flush(void *context)
+{
+    struct helikon_storage *storage = context;
+    if (storage == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    return helikon_hfs_block_flush(&storage->adapter);
+}
+
 int helikon_storage_mount(struct helikon_storage *storage,
                           const struct helikon_block_device *device,
                           uint32_t timeout_ms)
@@ -89,6 +114,43 @@ int helikon_storage_mount(struct helikon_storage *storage,
     return last;
 }
 
+int helikon_storage_enable_write(struct helikon_storage *storage)
+{
+    if (storage == NULL || storage->mounted == 0u)
+        return HELIKON_ERR_ARGUMENT;
+    if (storage->writable != 0u)
+        return HELIKON_OK;
+    /* A device that says it cannot write is believed before a path is read. */
+    if ((storage->device->info.flags & HELIKON_BLOCK_FLAG_READ_ONLY) != 0u)
+        return HELIKON_ERR_READ_ONLY;
+
+    /*
+     * The opt-in is a file on the volume, not a build flag: it survives a
+     * reflash, it is written by the one path the owner deliberately used
+     * (Disk Mode or the companion), and removing it is how writing is turned off
+     * again. A folder with that name is a typo, and a typo is not consent.
+     */
+    struct vfs_entry flag;
+    int rc = vfs_stat(&storage->vfs, HELIKON_STORAGE_WRITE_FLAG, &flag);
+    if (rc != HELIKON_OK)
+        return rc;
+    if (flag.kind != VFS_KIND_FILE)
+        return HELIKON_ERR_IS_DIR;
+
+    /*
+     * `vfs_rw_mount` is the whole gate: it refuses a volume without a journal
+     * (I-02), replays a dirty one and re-probes the volume before returning
+     * (D-04), and clears `rw->writable` when it fails. Nothing here relaxes it.
+     */
+    rc = vfs_rw_mount(&storage->rw, &storage->vfs, storage_write,
+                      storage_flush, storage);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    storage->writable = 1u;
+    return HELIKON_OK;
+}
+
 int helikon_storage_open_catalog(struct helikon_storage *storage)
 {
     if (storage == NULL || storage->mounted == 0u)
@@ -131,5 +193,9 @@ void helikon_storage_unmount(struct helikon_storage *storage)
         return;
     if (storage->catalog_open != 0u)
         hdb_vfs_close(&storage->catalog_io);
+    /* Abort any staged transaction before the object goes away: a scope left
+     * open is the one state a caller could carry into the next mount. */
+    if (storage->writable != 0u)
+        vfs_rw_close(&storage->rw);
     helikon_memset(storage, 0, sizeof(*storage));
 }

@@ -68,8 +68,10 @@ Helikon-OS/
     hal/6g/               clock, PMU, backlight, LCD, ATA read/write/flush, buttons, CPU, CS42L55/I2S/DMA
     block/                block device with read-only gate, bounce, APM/MBR/raw scan
     storage/              mount the music volume: partition scan, HFS+ probe,
-                          VFS mount and the catalog, read-only (mount.c/.h),
-                          and the ATA driver as a block device (ata_block.c/.h)
+                          VFS mount and the catalog, read-only until the
+                          volume's own `/.helikon/write-enabled` opts in
+                          (mount.c/.h), and the ATA driver as a block device
+                          (ata_block.c/.h)
     library/              HDB path index, playlist resolution into the queue, and
                           the storage-backed music source (volume + catalog +
                           index + queue + player, next/previous)
@@ -292,6 +294,10 @@ Helikon-OS/
                             read (inline + overflow splice, position, seek) and
                             the VFS media->codec source seam on an HFS+ fixture
                             (shared hfsplus fixture builders)
+    test_vfs_storage.c      the read-write gate over a block device built on the
+                            writer fixture: the opt-in file decides, four
+                            refusals prove byte-identical images, and one real
+                            commit lands through the mount
     test_vfs_write.c        the write half over the writer fixture plus a real
                             64 KiB in-FS journal: one transaction per call, a
                             clean journal and hfs_check_volume after each, and
@@ -462,6 +468,7 @@ is created; do not let it drift.
 | `firmware/hfs/hfs_catalog_write.c`, `hfs_btree_tree.c`, `hfs_bitmap.c`, `hfs_extents_write.c` | Catalog/bitmap/extents mutation | HFS+ lead | `docs/hfsplus-write-engine.md`, invariants I-03–I-15 | model/property/crash tests, `fsck_hfs` | No journal format, UI or boot policy; no direct writes outside a transaction |
 | `firmware/hfs/hfs_journal.c`, `hfs_txn.c` | Journal append/commit/replay, bounded transaction engine | journal lead | paper §9.3–§9.4, `docs/hfsplus-write-engine.md` | crash injection, idempotent replay | No product policy/UI; never delete/disable/zero the journal |
 | `firmware/hfs/hfs_check.c`, `tools/hfs-check.c` | Read-only structural check and its host CLI | HFS+ lead | D-11, `docs/testing.md` §5.3.2 | `tests/hfsplus/test_check`, real images | Never writes; skips what it cannot prove instead of guessing |
+| `firmware/storage/` | `mount.c`/`mount.h`: block device -> partition scan -> HFS+ probe -> VFS -> catalog, read-only by default; `helikon_storage_enable_write()` opens the same mount read-write only when `/.helikon/write-enabled` exists on it (a folder of that name is `IS_DIR`, a read-only device is `READ_ONLY`, a journal-less volume is still `UNSUPPORTED`), and `unmount` closes the writer; `ata_block.c` presents the ATA driver as the block device. Measured object: 293,800 B, of which the writer's staged blocks are 262,824 | storage lead | paper §16, T-126, D-57 | `tests/vfs/test_vfs_storage.c` (the flag decides, four refusals, a real commit through the mount), `tests/library` (read-only path) | Read-only by default; never creates the opt-in file itself; no boot-time caller yet |
 | `firmware/vfs/` | VFS over the HFS+ core: the read half (`vfs.c`/`vfs.h`) with mount, bounded path validation, generation-checked file/directory handles and stat/iterate/read/seek, and the write half (`vfs_rw.c`/`vfs_rw.h`) — create, mkdir, unlink, rmdir, rename/move, write and truncate, one journaled transaction per call, journal replay before the first write, fail-closed after a failed commit, and every open handle invalidated by a commit | VFS lead | paper §10, `docs/architecture.md`, T-056 | `tests/vfs` (9 read tests, sanitizer-clean, including an overflowed-fork read
 through `test_fs_image_make_overflow()`) and `tests/vfs/test_vfs_write.c`
 (the write half over the writer fixture plus a 64 KiB in-FS journal: after

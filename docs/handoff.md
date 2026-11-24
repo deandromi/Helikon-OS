@@ -12,6 +12,42 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-24 (the read-write mount gate, D-57)
+
+## What happened
+
+- **`helikon_storage_enable_write()` (T-126, D-57).** The boot mount stays
+  read-only. Writes open only when the volume carries `/.helikon/write-enabled`
+  as a file: absence is `NOT_FOUND` (the normal state), a folder is `IS_DIR`
+  (a typo is not consent), a read-only device is `READ_ONLY` before a path is
+  read, and a journal-less volume is still `UNSUPPORTED` because `vfs_rw_mount`
+  is the only gate. Every refusal leaves `writable` at 0 and the image
+  byte-identical; `unmount` closes the writer.
+- The four rejected alternatives are recorded in `docs/decisions.md` D-57.
+- `tests/vfs/test_vfs_storage.c` proves it on a 1 MiB block device built over
+  the writer fixture: four refusals plus a real create/write/read-back commit
+  through `storage.rw` with `hfs_check_volume` clean, each refusal
+  mutation-checked. Measured object: 293,800 B (writer 262,824 B); the suite
+  fails if the writer grows past 272 KiB.
+- Docs: `docs/tasks.md` T-126 row, `docs/testing.md` §3.8.3, `docs/file-map.md`,
+  `docs/decisions.md` D-57, `docs/log/2026-11-24.md`.
+
+## Evidence
+
+`make -C tests/vfs test` and `sanitize` → `PASS rw mount: ...`; host suites 10/10;
+static analysis 85 units / 0 findings (branch state, before the T-093 merge);
+6G image 80,840 B, `.bss` unchanged at 680,896 B because no image declares a
+`helikon_storage` yet. **No device run.**
+
+## Open, next
+
+- **The boot-time caller.** Nothing declares a `helikon_storage` in the
+  firmware, so the mount, the write gate, the resume session, the playlist
+  exporter and the update client are all still unreachable on a device. That is
+  the next task, and it is the one that turns this from tested code into a
+  firmware path.
+- Then A-B repeat (T-100 remainder), ALAC (T-069), file operations (T-094).
+
 # Handoff — 2026-11-24 (the resume policy, T-093 second half)
 
 ## What happened

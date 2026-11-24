@@ -89,6 +89,7 @@ re-litigate them.
 | D-54 | Helikon Disk Mode and the writable LUN | accepted | owner | §16.2, §28.4.2; D-09, D-38; [ADR-0005](adr/0005-helikon-disk-mode.md) |
 | D-55 | CE-ATA devices: LBA48 path or explicit rejection | proposed (open) | owner | §16.2; D-54; [disk-mode.md](disk-mode.md) |
 | D-56 | USB vendor/product ID for Helikon Disk Mode | proposed (open) | owner | §16; D-54; [disk-mode.md](disk-mode.md) |
+| D-57 | Enabling firmware writes: a volume-local opt-in file | accepted | owner | §9; I-02, I-04; D-03, D-07, D-54; `firmware/storage/mount.h` |
 
 The paper's §25 lists 17 decisions. D-18, D-19, D-20 and D-26 are added from §18,
 §28.4.4 and the bootloader recovery policy. D-18 and D-20 are accepted; D-19 was
@@ -1468,6 +1469,45 @@ not authorize a product change.
   in Disk Mode works the same for any pair, so the HAL work is not blocked.
 - **Follow-up:** the owner picks an option; one header constant changes and
   `tests/usb` pins the new value.
+
+## D-57 — Enabling firmware writes: a volume-local opt-in file
+
+- **Status:** accepted. **Owner:** owner (accepted in the 2026-11-18 blanket
+  acceptance of the session's proposals). **Date:** 2026-11-24. **Paper:** §9;
+  I-02, I-04; D-03, D-07, D-54.
+- **Context:** the firmware mounts the music volume read-only and has never
+  written to a real library, while the journaled writer, the resume bookmark,
+  the playlist exporter and the signed update client all exist and are tested.
+  Something has to decide whether a given device may be written to. The wrong
+  answers are all convenient: a build flag means the writable image is the one
+  somebody flashed by mistake; a boot chord is invisible in a screenshot and
+  impossible to audit afterwards; a partition attribute is written by tools this
+  project does not control; a "first mount is read-only, second is writable"
+  rule silently doubles the blast radius of one bug.
+- **Options:** (a) writable and read-only images, chosen at build time; (b) a
+  key combination at boot; (c) a file on the volume, `/.helikon/write-enabled`,
+  that only the owner's own deliberate path creates (Disk Mode, or the companion
+  through macOS's HFS+ support); (d) always writable once a journal is present.
+- **Decision:** (c). `helikon_storage_enable_write()` opens the volume read-write
+  only when `/.helikon/write-enabled` exists on that volume and is a file.
+  Absence is `NOT_FOUND` and the volume stays read-only, which is the normal
+  state. A folder with that name is `IS_DIR`, because a typo is not consent. The
+  gate does not relax anything underneath it: a volume with no journal is still
+  `UNSUPPORTED` (I-02), a dirty journal is still replayed before the first write
+  (I-04/D-04), a failed replay still leaves the volume read-only, and a device
+  that reports itself read-only answers `READ_ONLY` before a path is read.
+- **Consequences:** the opt-in travels with the library, survives a reflash and
+  a firmware downgrade, is visible in any file browser, and can be removed
+  without touching the firmware. Nothing in the firmware creates the file; that
+  is deliberate, because a firmware that can grant itself write access has not
+  implemented an opt-in. An image that never declares a
+  `struct helikon_storage` pays no memory for the writer, and one that does pays
+  262,824 bytes of staged blocks (measured).
+- **Follow-up:** the companion app and the Disk Mode runbook both get a sentence
+  saying this file is what turns writing on; a future settings screen may create
+  and remove it, but only behind an explicit confirmation. The host test is
+  `tests/vfs/test_vfs_storage.c`, and it fails if any of the four refusals is
+  removed.
 
 ## Adding a decision
 
