@@ -87,6 +87,7 @@ endif
 # Compiled always so it cannot rot; without a caller the linker drops it.
 LIBRARY_SRC := db/hdb.c db/hdb_vfs.c library/library.c \
                library/missing_tracks.c library/missing_tracks_io.c \
+               library/album_tracks.c \
                library/music_source.c
 # The write half, plus the two destinations that prove it has callers the player
 # will use (T-093). All are garbage-collected until something calls them.

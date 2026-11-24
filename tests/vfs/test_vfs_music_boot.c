@@ -28,6 +28,7 @@
 
 #include "hfs_check.h"
 #include "helikon_error.h"
+#include "album_tracks.h"
 #include "test_check.h"
 #include "vfs_bookmark.h"
 #include "writer_fixture.h"
@@ -334,6 +335,33 @@ static int check_catalog(const char *fixture)
     CHECK(boot.writable == 0u);
     CHECK(boot.storage.mounted == 1u);
     CHECK(boot.db->track_count > 0u);
+
+    /* The album page's access path: the count agrees with a straight scan, the
+     * n-th track is reachable, and both ends answer rather than crash. */
+    {
+        uint32_t album_id = 0u;
+        uint32_t expected = 0u;
+        for (uint32_t scan = 0u; scan < boot.db->track_count; ++scan) {
+            struct hdb_track track;
+            memset(&track, 0, sizeof(track));
+            if (hdb_track(boot.db, scan, &track) == HELIKON_OK &&
+                track.album_id == album_id)
+                ++expected;
+        }
+        CHECK(helikon_album_track_count(boot.db, album_id) == expected);
+        for (uint32_t row = 0u; row < expected; ++row) {
+            uint32_t track_index = 0u;
+            CHECK(helikon_album_track_at(boot.db, album_id, row, &track_index) ==
+                  HELIKON_OK);
+            CHECK(track_index < boot.db->track_count);
+        }
+        uint32_t past = 0u;
+        CHECK(helikon_album_track_at(boot.db, album_id, expected, &past) ==
+              HELIKON_ERR_NOT_FOUND);
+        CHECK(helikon_album_track_count(NULL, album_id) == 0u);
+        CHECK(helikon_album_track_at(boot.db, album_id, 0u, NULL) ==
+              HELIKON_ERR_ARGUMENT);
+    }
     CHECK(boot.db->file_size == (uint32_t)size);
     {
         /* The reader walks a real record, not just a header. */
