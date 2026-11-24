@@ -96,6 +96,69 @@ static void open_device(void)
     device.info = info;
 }
 
+
+/* --------------------------------------------------------------------------
+ * The ATA driver, over the same image
+ *
+ * `ata_block` deliberately reuses the driver's own functions as the block ops,
+ * so the boot path is only proved if the driver exists -- and on the host it
+ * does not. These four symbols are the driver for this suite: reads and writes
+ * land on the writer fixture image, exactly as the device callbacks above do,
+ * and the geometry comes from the `struct helikon_ata` the test fills in.
+ * ----------------------------------------------------------------------- */
+
+int helikon_ata_read(void *context, uint64_t lba, uint32_t count, void *buffer,
+                     uint32_t timeout_ms)
+{
+    (void)context;
+    (void)timeout_ms;
+    uint64_t offset = lba * WRITER_BLOCK_SIZE;
+    uint64_t length = (uint64_t)count * WRITER_BLOCK_SIZE;
+    if (offset > WRITER_IMAGE_SIZE || length > WRITER_IMAGE_SIZE - offset)
+        return HELIKON_ERR_ARGUMENT;
+    memcpy(buffer, writer_fixture_image() + offset, (size_t)length);
+    return HELIKON_OK;
+}
+
+int helikon_ata_write(void *context, uint64_t lba, uint32_t count,
+                      const void *buffer, uint32_t timeout_ms)
+{
+    (void)context;
+    (void)timeout_ms;
+    uint64_t offset = lba * WRITER_BLOCK_SIZE;
+    uint64_t length = (uint64_t)count * WRITER_BLOCK_SIZE;
+    if (offset > WRITER_IMAGE_SIZE || length > WRITER_IMAGE_SIZE - offset)
+        return HELIKON_ERR_ARGUMENT;
+    memcpy(writer_fixture_image() + offset, buffer, (size_t)length);
+    return HELIKON_OK;
+}
+
+int helikon_ata_flush(void *context, uint32_t timeout_ms)
+{
+    (void)context;
+    (void)timeout_ms;
+    return HELIKON_OK;
+}
+
+int helikon_ata_power(void *context, int on, uint32_t timeout_ms)
+{
+    (void)context;
+    (void)on;
+    (void)timeout_ms;
+    return HELIKON_OK;
+}
+
+/* A driver handle with a valid IDENTIFY: 512-byte sectors, the fixture's size. */
+static struct helikon_ata ata;
+
+static void open_ata(void)
+{
+    memset(&ata, 0, sizeof(ata));
+    ata.identify_valid = 1;
+    ata.sector_size = WRITER_BLOCK_SIZE;
+    ata.total_sectors = WRITER_IMAGE_SIZE / WRITER_BLOCK_SIZE;
+}
+
 /* --------------------------------------------------------------------------
  * Fixtures
  * ----------------------------------------------------------------------- */
@@ -301,6 +364,75 @@ static int check_catalog(const char *fixture)
     return 0;
 }
 
+
+/* --------------------------------------------------------------------------
+ * Through the driver, which is what a device does
+ * ----------------------------------------------------------------------- */
+
+static int check_from_ata(const char *fixture)
+{
+    size_t size = 0u;
+    if (load_fixture(fixture, &size))
+        return 1;
+    if (build_volume())
+        return 1;
+    if (direct_mount())
+        return 1;
+    if (direct_mkdir(HELIKON_STORAGE_DIR))
+        return 1;
+    if (copy_in(CATALOG_PATH, fixture_bytes, size))
+        return 1;
+
+    /* A read-only device: the library opens, saving does not, and the reason is
+     * the device rather than a missing opt-in -- so the same volume with the flag
+     * still reports 0 until the caller opens the device for writing. */
+    static const char flag[] = "helikon-write-enabled 1\n";
+    if (copy_in(FLAG_PATH, (const uint8_t *)flag, sizeof(flag) - 1u))
+        return 1;
+
+    open_ata();
+    memset(&boot, 0, sizeof(boot));
+    int rc = helikon_music_boot_from_ata(&boot, &ata, 0, 0u);
+    if (rc != HELIKON_OK) {
+        fprintf(stderr, "  FAIL from_ata on a read-only device said %d (%s)\n",
+                rc, hfs_strerror(rc));
+        return 1;
+    }
+    CHECK(boot.db != NULL);
+    CHECK(boot.writable == 0u);
+    CHECK(boot.error == HELIKON_ERR_READ_ONLY);
+    helikon_music_boot_close(&boot);
+
+    /* The same driver, opened for writing: now the opt-in is what decides. */
+    memset(&boot, 0, sizeof(boot));
+    rc = helikon_music_boot_from_ata(&boot, &ata, 1, 0u);
+    if (rc != HELIKON_OK) {
+        fprintf(stderr, "  FAIL from_ata on a writable device said %d (%s)\n",
+                rc, hfs_strerror(rc));
+        return 1;
+    }
+    CHECK(boot.db != NULL);
+    CHECK(boot.writable == 1u);
+    helikon_music_boot_close(&boot);
+
+    /* A driver with no IDENTIFY has no geometry to offer. */
+    struct helikon_ata blank;
+    memset(&blank, 0, sizeof(blank));
+    memset(&boot, 0, sizeof(boot));
+    rc = helikon_music_boot_from_ata(&boot, &blank, 1, 0u);
+    if (rc == HELIKON_OK) {
+        fprintf(stderr, "  FAIL a driver with no IDENTIFY mounted\n");
+        return 1;
+    }
+    CHECK(boot.db == NULL);
+    CHECK(boot.error == rc);
+    CHECK(helikon_music_boot_from_ata(NULL, &ata, 0, 0u) ==
+          HELIKON_ERR_ARGUMENT);
+    CHECK(helikon_music_boot_from_ata(&boot, NULL, 0, 0u) ==
+          HELIKON_ERR_ARGUMENT);
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
     const char *fixture = argc > 1 ? argv[1] : "fixtures/music.hdb";
@@ -310,7 +442,10 @@ int main(int argc, char **argv)
         return 1;
     if (check_catalog(fixture))
         return 1;
+    if (check_from_ata(fixture))
+        return 1;
     printf("PASS music boot: a missing catalog leaves nothing open, a real one "
-           "opens, and the opt-in is what makes it writable\n");
+           "opens, and the opt-in and the device gate decide whether it is "
+           "writable\n");
     return 0;
 }
