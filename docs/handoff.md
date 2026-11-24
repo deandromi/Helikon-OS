@@ -12,6 +12,39 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-24 (the first write the firmware can make, T-165)
+
+## What happened
+
+- `firmware/storage/write_test.c/.h`: the first code in the tree that asks for a
+  write at runtime. MOUNT check → D-57 gate → one transaction replacing
+  `/.helikon/write-test.txt` → read-back **through the read-only VFS** → compare.
+  Every failure names its stage.
+- The pattern is generated (`i * 31 + 7`), so the object is 8,208 bytes of
+  `.bss` and the compare cannot be satisfied by two copies of one buffer.
+- `tests/vfs/test_vfs_write_test.c`: no opt-in refuses at `GATE` with the image
+  byte-identical; a folder named `write-enabled` is `IS_DIR`; four bad arguments
+  are `ARGUMENT`; a commit reads back identical through a second freshly mounted
+  VFS; a replace grows to `VFS_RW_IO_MAX` and shrinks to 300 bytes with
+  `hfs_check_volume` clean each time.
+- Docs: T-165 row, `testing.md` §3.8.5, `file-map.md`, `state.md`, log.
+
+## Evidence
+
+`make -C tests/vfs test` + `sanitize` → 7 binaries green. Two mutations caught
+(inverted compare → VERIFY fails; ignored gate refusal → no-opt-in case fails).
+Static analysis 88 units / 0 findings. Plain 6G image 80,840 B, unchanged.
+**No image calls the module and there is no device run.**
+
+## Open, next
+
+- A diagnostic image that calls it: mount, run, draw the stage. That is the step
+  from host proof to something a human can run on a 6G, and it needs a small
+  report screen, not new storage code.
+- Beyond that the order stands: the Disk Mode device run (T-109→T-115), and the
+  user-facing tasks T-154–T-164 which all want the live catalog that now boots.
+
+---
 # Handoff — 2026-11-24 (the call site: a library build mounts the volume)
 
 ## What happened

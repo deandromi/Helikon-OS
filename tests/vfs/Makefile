@@ -21,7 +21,8 @@ STORAGE = ../../firmware/storage
 BLOCK = ../../firmware/block
 DB = ../../firmware/db
 TESTS = test_vfs test_vfs_write test_vfs_bookmark test_vfs_playlist \
-        test_vfs_session test_vfs_storage test_vfs_music_boot
+        test_vfs_session test_vfs_storage test_vfs_music_boot \
+        test_vfs_write_test
 
 # The VFS media adapter composes with the codec registry, whose MP3 descriptor
 # needs the vendored libmad objects.
@@ -68,6 +69,7 @@ test: $(TESTS)
 	./test_vfs_session
 	./test_vfs_storage
 	./test_vfs_music_boot
+	./test_vfs_write_test
 
 sanitize:
 	$(MAKE) clean
@@ -79,6 +81,7 @@ sanitize:
 	./test_vfs_session
 	./test_vfs_storage
 	./test_vfs_music_boot
+	./test_vfs_write_test
 
 test_vfs_write: test_vfs_write.c $(TH)/writer_fixture.c $(TH)/writer_fixture.h \
           $(TH)/test_check.h \
@@ -176,6 +179,38 @@ test_vfs_storage: test_vfs_storage.c $(TH)/writer_fixture.c \
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_vfs_storage.c $(TH)/writer_fixture.c \
 	  $(STORAGE)/mount.c $(BLOCK)/block.c $(BLOCK)/bounce.c \
 	  $(BLOCK)/partition.c $(HFS)/hfs_block_adapter.c \
+	  $(DB)/hdb.c $(DB)/hdb_vfs.c \
+	  $(VFS)/vfs.c $(VFS)/vfs_rw.c \
+	  $(LIB)/format.c \
+	  $(HFS)/hfs_volume.c $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog_write.c \
+	  $(HFS)/hfs_catalog_compare.c $(HFS)/hfs_btree.c $(HFS)/hfs_btree_write.c \
+	  $(HFS)/hfs_btree_tree.c $(HFS)/hfs_extents.c $(HFS)/hfs_extents_write.c \
+	  $(HFS)/hfs_fork_io.c $(HFS)/hfs_bitmap.c $(HFS)/hfs_txn.c \
+	  $(HFS)/hfs_journal.c $(HFS)/hfs_volume_write.c $(HFS)/hfs_check.c \
+	  $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c \
+	  $(LIB)/crc32.c $(LIB)/mem.c $(LDFLAGS) -o $@
+
+# The first firmware write: the sequence in `storage/write_test.c` over the
+# journaled fixture, including a fresh mount that must see the same bytes.
+test_vfs_write_test: test_vfs_write_test.c $(TH)/writer_fixture.c \
+          $(TH)/writer_fixture.h $(TH)/test_check.h \
+          $(STORAGE)/write_test.c $(STORAGE)/write_test.h \
+          $(STORAGE)/mount.c $(STORAGE)/mount.h \
+          $(BLOCK)/block.c $(BLOCK)/bounce.c $(BLOCK)/partition.c \
+          $(HFS)/hfs_block_adapter.c \
+          $(DB)/hdb.c $(DB)/hdb_vfs.c \
+          $(VFS)/vfs.c $(VFS)/vfs.h $(VFS)/vfs_rw.c $(VFS)/vfs_rw.h \
+          $(HFS)/hfs_volume.c $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog_write.c \
+          $(HFS)/hfs_catalog_compare.c $(HFS)/hfs_btree.c \
+          $(HFS)/hfs_btree_write.c $(HFS)/hfs_btree_tree.c \
+          $(HFS)/hfs_extents.c $(HFS)/hfs_extents_write.c \
+          $(HFS)/hfs_fork_io.c $(HFS)/hfs_bitmap.c $(HFS)/hfs_txn.c \
+          $(HFS)/hfs_journal.c $(HFS)/hfs_volume_write.c $(HFS)/hfs_check.c \
+          $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c $(LIB)/format.c
+	$(CC) $(CPPFLAGS) $(CFLAGS) test_vfs_write_test.c $(TH)/writer_fixture.c \
+	  $(STORAGE)/write_test.c $(STORAGE)/mount.c \
+	  $(BLOCK)/block.c $(BLOCK)/bounce.c $(BLOCK)/partition.c \
+	  $(HFS)/hfs_block_adapter.c \
 	  $(DB)/hdb.c $(DB)/hdb_vfs.c \
 	  $(VFS)/vfs.c $(VFS)/vfs_rw.c \
 	  $(LIB)/format.c \

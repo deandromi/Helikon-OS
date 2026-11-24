@@ -297,6 +297,9 @@ Helikon-OS/
     test_vfs_music_boot.c    the hub's boot path: a missing catalog leaves
                             nothing open, a real one opens and walks a
                             record, and the opt-in makes it writable
+    test_vfs_write_test.c   the first firmware write: the gate refuses, the
+                            pattern commits, a fresh mount sees it, and a
+                            replace grows and shrinks
     test_vfs_storage.c      the read-write gate over a block device built on the
                             writer fixture: the opt-in file decides, four
                             refusals prove byte-identical images, and one real
@@ -473,6 +476,7 @@ is created; do not let it drift.
 | `firmware/hfs/hfs_check.c`, `tools/hfs-check.c` | Read-only structural check and its host CLI | HFS+ lead | D-11, `docs/testing.md` §5.3.2 | `tests/hfsplus/test_check`, real images | Never writes; skips what it cannot prove instead of guessing |
 | `firmware/storage/` | `mount.c`/`mount.h`: block device -> partition scan -> HFS+ probe -> VFS -> catalog, read-only by default; `helikon_storage_enable_write()` opens the same mount read-write only when `/.helikon/write-enabled` exists on it (a folder of that name is `IS_DIR`, a read-only device is `READ_ONLY`, a journal-less volume is still `UNSUPPORTED`), and `unmount` closes the writer; `ata_block.c` presents the ATA driver as the block device. Measured object: 293,800 B, of which the writer's staged blocks are 262,824 | storage lead | paper §16, T-126, D-57 | `tests/vfs/test_vfs_storage.c` (the flag decides, four refusals, a real commit through the mount), `tests/library` (read-only path) | Read-only by default; never creates the opt-in file itself; no boot-time caller yet |
 | `firmware/storage/music_boot.c/.h` | the Music hub's boot path: mount, best-effort write gate, open `/.helikon/music.hdb`, and answer "is there a catalog"; failures leave `db` NULL and the mount gone | storage lead | T-126, D-57 | `tests/vfs/test_vfs_music_boot.c` (four answers, a real record, the unmount rule mutation-checked) | no ATA call site yet; an image that declares the object pays its 293,800 B |
+| `firmware/storage/write_test.c/.h` | the first firmware write and its proof: mount check, D-57 gate, one transaction replacing `/.helikon/write-test.txt`, read-back through the read-only VFS, compare; every failure names its stage | storage lead | T-165, D-57 | `tests/vfs/test_vfs_write_test.c` (six cases, two mutations caught), `hfs_check_volume` clean after each commit | Never creates the opt-in, never deletes its own file on failure; no image calls it yet |
 | `firmware/vfs/` | VFS over the HFS+ core: the read half (`vfs.c`/`vfs.h`) with mount, bounded path validation, generation-checked file/directory handles and stat/iterate/read/seek, and the write half (`vfs_rw.c`/`vfs_rw.h`) — create, mkdir, unlink, rmdir, rename/move, write and truncate, one journaled transaction per call, journal replay before the first write, fail-closed after a failed commit, and every open handle invalidated by a commit | VFS lead | paper §10, `docs/architecture.md`, T-056 | `tests/vfs` (9 read tests, sanitizer-clean, including an overflowed-fork read
 through `test_fs_image_make_overflow()`) and `tests/vfs/test_vfs_write.c`
 (the write half over the writer fixture plus a 64 KiB in-FS journal: after
