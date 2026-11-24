@@ -12,6 +12,35 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-24 (user-facing tasks recorded, T-154–T-164)
+
+## What happened
+
+- The owner reviewed a shortlist of user-visible features and picked eleven;
+  they are now `planned` rows in `docs/tasks.md` (T-154–T-164) and a table in
+  `docs/roadmap.md` §"User-facing bets", each with an explicit honest limit:
+  - on-device Year in Review (T-154), an interrogable and reproducible shuffle
+    (T-155), a missing-track list that never guesses a total (T-156);
+  - two deliberately labelled gimmicks: album-side mode (T-157) and the mixtape
+    builder (T-158);
+  - night mode with an alarm that cannot override the volume limit (T-159) and
+    a journalled plain-text notepad (T-160);
+  - three companion-app bets: "will it fit?" with no silent eviction (T-161),
+    cable-pull honesty that never says "no harm done" (T-162), and Last.fm
+    scrobbling with the network and credentials host-side (T-163);
+  - a battery report a human can act on, with "not reported by this device"
+    where the PMU is silent (T-164).
+- `docs/tasks.md` gained a dated note explaining the batch; `docs/roadmap.md`
+  gained the table. Docs only — no code, no evidence claim.
+
+## Open, next
+
+- **The boot-time caller is still the blocker**: nothing declares a
+  `helikon_storage`, so the mount, the write gate, the resume session and every
+  T-154–T-160 feature have nowhere to run on a device. It is the next coding
+  task and it has no row yet; it belongs in the T-125/T-126 family.
+- T-161–T-163 wait on the companion MVP (T-083).
+
 # Handoff — 2026-11-24 (the read-write mount gate, D-57)
 
 ## What happened
