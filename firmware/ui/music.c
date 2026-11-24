@@ -88,11 +88,20 @@ static struct helikon_player player;
 extern const uint8_t helikon_hdb_start[];
 extern const uint8_t helikon_hdb_end[];
 
-static struct hdb db;
+/*
+ * The catalog the hub draws from. A build with an embedded catalog opens the
+ * blob; a build with storage passes a `struct hdb` the mount already opened, so
+ * the hub itself never learns where the bytes came from.
+ */
+static struct hdb db_blob;
+static struct hdb *db;
 static uint16_t art_pixels[MUSIC_ART_SIZE * MUSIC_ART_SIZE];
 static struct helikon_screen *screen;
 static struct helikon_buttons *buttons;
 static struct helikon_clock *clock;
+
+static int run_hub_screens(void);
+static void draw_unavailable(const char *headline, const char *detail);
 
 #ifdef HELIKON_AUDIO_EMBEDDED
 static uint8_t visualizer_mode = (uint8_t)HELIKON_MUSIC_VISUALIZER_MODE;
@@ -342,7 +351,7 @@ static int read_string(uint32_t offset, char *buffer, uint32_t capacity)
 {
     if (buffer == NULL || capacity == 0u)
         return HELIKON_ERR_ARGUMENT;
-    int rc = hdb_string(&db, offset, buffer, capacity, NULL);
+    int rc = hdb_string(db, offset, buffer, capacity, NULL);
     if (rc == HELIKON_OK)
         return HELIKON_OK;
     buffer[0] = '\0';
@@ -357,7 +366,7 @@ static int read_string(uint32_t offset, char *buffer, uint32_t capacity)
      * again at the target column; the result is still one visible U+2026.
      */
     uint8_t header[2];
-    if (db.io.read(db.io.context, offset, header, sizeof(header)) != 0)
+    if (db->io.read(db->io.context, offset, header, sizeof(header)) != 0)
         return HELIKON_ERR_IO;
     uint32_t total = (uint32_t)header[0] |
                      ((uint32_t)header[1] << 8);
@@ -365,13 +374,13 @@ static int read_string(uint32_t offset, char *buffer, uint32_t capacity)
     if (copy > total)
         copy = total;
     if (copy != 0u &&
-        db.io.read(db.io.context, offset + 2u, buffer, copy) != 0) {
+        db->io.read(db->io.context, offset + 2u, buffer, copy) != 0) {
         buffer[0] = '\0';
         return HELIKON_ERR_IO;
     }
     if (copy < total) {
         uint8_t next = 0u;
-        if (db.io.read(db.io.context, offset + 2u + copy, &next, 1u) != 0) {
+        if (db->io.read(db->io.context, offset + 2u + copy, &next, 1u) != 0) {
             buffer[0] = '\0';
             return HELIKON_ERR_IO;
         }
@@ -398,12 +407,12 @@ static int load_art(uint32_t artwork_id)
     if (artwork_id == HDB_NO_ID)
         return 0;
     struct hdb_art art;
-    if (hdb_art(&db, artwork_id, &art) != HELIKON_OK)
+    if (hdb_art(db, artwork_id, &art) != HELIKON_OK)
         return 0;
     if (art.width != MUSIC_ART_SIZE || art.height != MUSIC_ART_SIZE)
         return 0;
     uint32_t length = 0u;
-    if (hdb_art_read(&db, artwork_id, art_pixels, sizeof(art_pixels),
+    if (hdb_art_read(db, artwork_id, art_pixels, sizeof(art_pixels),
                      &length) != HELIKON_OK)
         return 0;
     return length == sizeof(art_pixels);
@@ -475,10 +484,10 @@ static void draw_wall_cell(struct helikon_screen *target, uint32_t x,
 static uint32_t wall_count(enum wall_kind kind)
 {
     if (kind == WALL_ARTISTS)
-        return db.artist_count;
+        return db->artist_count;
     uint32_t count = 0u;
     uint32_t offset = 0u;
-    if (hdb_index(&db, HDB_INDEX_ALBUM_TITLE, &count, &offset) != HELIKON_OK)
+    if (hdb_index(db, HDB_INDEX_ALBUM_TITLE, &count, &offset) != HELIKON_OK)
         return 0u;
     return count;
 }
@@ -494,16 +503,16 @@ static int wall_item(enum wall_kind kind, uint32_t index,
 
     if (kind == WALL_ALBUMS) {
         uint32_t album_id = 0u;
-        if (hdb_index_get(&db, HDB_INDEX_ALBUM_TITLE, index, &album_id) !=
+        if (hdb_index_get(db, HDB_INDEX_ALBUM_TITLE, index, &album_id) !=
             HELIKON_OK)
             return HELIKON_ERR_NOT_FOUND;
         struct hdb_album album;
-        if (hdb_album(&db, album_id, &album) != HELIKON_OK)
+        if (hdb_album(db, album_id, &album) != HELIKON_OK)
             return HELIKON_ERR_NOT_FOUND;
         read_str(album.title_off, item->title, sizeof(item->title));
         item->artwork_id = album.artwork_id;
         struct hdb_artist artist;
-        if (hdb_artist(&db, album.artist_id, &artist) == HELIKON_OK)
+        if (hdb_artist(db, album.artist_id, &artist) == HELIKON_OK)
             read_str(artist.name_off, item->subtitle,
                      sizeof(item->subtitle));
         item->id = album_id;
@@ -511,7 +520,7 @@ static int wall_item(enum wall_kind kind, uint32_t index,
     }
 
     struct hdb_artist artist;
-    if (hdb_artist(&db, index, &artist) != HELIKON_OK)
+    if (hdb_artist(db, index, &artist) != HELIKON_OK)
         return HELIKON_ERR_NOT_FOUND;
     read_str(artist.name_off, item->title, sizeof(item->title));
     item->artwork_id = artist.image_id;
@@ -525,7 +534,7 @@ static int wall_item(enum wall_kind kind, uint32_t index,
 static uint32_t artist_track_count(uint32_t artist_id)
 {
     struct hdb_artist artist;
-    if (hdb_artist(&db, artist_id, &artist) != HELIKON_OK)
+    if (hdb_artist(db, artist_id, &artist) != HELIKON_OK)
         return 0u;
     return artist.track_count;
 }
@@ -536,11 +545,11 @@ static void artist_genre(uint32_t artist_id, char *buffer, uint32_t capacity)
         return;
     buffer[0] = '\0';
     struct hdb_artist artist;
-    if (hdb_artist(&db, artist_id, &artist) != HELIKON_OK)
+    if (hdb_artist(db, artist_id, &artist) != HELIKON_OK)
         return;
     for (uint32_t index = 0u; index < artist.album_count; ++index) {
         struct hdb_album album;
-        if (hdb_album(&db, artist.first_album + index, &album) != HELIKON_OK)
+        if (hdb_album(db, artist.first_album + index, &album) != HELIKON_OK)
             continue;
         read_str(album.genre_off, buffer, capacity);
         if (buffer[0] != '\0')
@@ -555,12 +564,12 @@ static int artist_album_at(uint32_t artist_id, uint32_t index,
     if (album_id == NULL)
         return HELIKON_ERR_ARGUMENT;
     struct hdb_artist artist;
-    if (hdb_artist(&db, artist_id, &artist) != HELIKON_OK ||
+    if (hdb_artist(db, artist_id, &artist) != HELIKON_OK ||
         index >= artist.album_count)
         return HELIKON_ERR_NOT_FOUND;
     uint32_t value = artist.first_album + index;
     struct hdb_album album;
-    if (hdb_album(&db, value, &album) != HELIKON_OK ||
+    if (hdb_album(db, value, &album) != HELIKON_OK ||
         album.artist_id != artist_id)
         return HELIKON_ERR_NOT_FOUND;
     *album_id = value;
@@ -574,7 +583,7 @@ static int artist_track_at(uint32_t artist_id, uint32_t index,
         return HELIKON_ERR_ARGUMENT;
 
     struct hdb_artist artist;
-    if (hdb_artist(&db, artist_id, &artist) != HELIKON_OK)
+    if (hdb_artist(db, artist_id, &artist) != HELIKON_OK)
         return HELIKON_ERR_NOT_FOUND;
 
     /*
@@ -587,7 +596,7 @@ static int artist_track_at(uint32_t artist_id, uint32_t index,
     for (uint32_t album_index = 0u; album_index < artist.album_count;
          ++album_index) {
         struct hdb_album album;
-        if (hdb_album(&db, artist.first_album + album_index, &album) !=
+        if (hdb_album(db, artist.first_album + album_index, &album) !=
             HELIKON_OK)
             continue;
         if (album.artist_id != artist_id)
@@ -600,7 +609,7 @@ static int artist_track_at(uint32_t artist_id, uint32_t index,
     }
     if (candidate != HDB_NO_ID) {
         struct hdb_track track;
-        if (hdb_track(&db, candidate, &track) == HELIKON_OK &&
+        if (hdb_track(db, candidate, &track) == HELIKON_OK &&
             track.artist_id == artist_id) {
             *track_id = candidate;
             return HELIKON_OK;
@@ -608,9 +617,9 @@ static int artist_track_at(uint32_t artist_id, uint32_t index,
     }
 
     uint32_t seen = 0u;
-    for (uint32_t track = 0u; track < db.track_count; ++track) {
+    for (uint32_t track = 0u; track < db->track_count; ++track) {
         struct hdb_track item;
-        if (hdb_track(&db, track, &item) != HELIKON_OK)
+        if (hdb_track(db, track, &item) != HELIKON_OK)
             continue;
         if (item.artist_id != artist_id)
             continue;
@@ -797,20 +806,20 @@ static uint32_t list_count(const struct list_spec *spec)
 {
     switch (spec->kind) {
     case LIST_ARTISTS:
-        return db.artist_count;
+        return db->artist_count;
     case LIST_ALBUMS:
     case LIST_SONGS: {
         uint32_t count = 0u;
         uint32_t offset = 0u;
         uint32_t type = spec->kind == LIST_ALBUMS ? HDB_INDEX_ALBUM_TITLE
                                                   : HDB_INDEX_TITLE;
-        if (hdb_index(&db, type, &count, &offset) != HELIKON_OK)
+        if (hdb_index(db, type, &count, &offset) != HELIKON_OK)
             return 0u;
         return count;
     }
     case LIST_ARTIST_ALBUMS: {
         struct hdb_artist artist;
-        if (hdb_artist(&db, spec->parent, &artist) != HELIKON_OK)
+        if (hdb_artist(db, spec->parent, &artist) != HELIKON_OK)
             return 0u;
         return artist.album_count;
     }
@@ -832,7 +841,7 @@ static int list_item(const struct list_spec *spec, uint32_t index,
     switch (spec->kind) {
     case LIST_ARTISTS: {
         struct hdb_artist artist;
-        if (hdb_artist(&db, index, &artist) != HELIKON_OK)
+        if (hdb_artist(db, index, &artist) != HELIKON_OK)
             return HELIKON_ERR_NOT_FOUND;
         read_str(artist.name_off, scratch, sizeof(scratch));
         copy_text(label, capacity, scratch);
@@ -844,17 +853,17 @@ static int list_item(const struct list_spec *spec, uint32_t index,
         uint32_t value = 0u;
         uint32_t type = spec->kind == LIST_ALBUMS ? HDB_INDEX_ALBUM_TITLE
                                                   : HDB_INDEX_TITLE;
-        if (hdb_index_get(&db, type, index, &value) != HELIKON_OK)
+        if (hdb_index_get(db, type, index, &value) != HELIKON_OK)
             return HELIKON_ERR_NOT_FOUND;
         if (spec->kind == LIST_ALBUMS) {
             struct hdb_album album;
-            if (hdb_album(&db, value, &album) != HELIKON_OK)
+            if (hdb_album(db, value, &album) != HELIKON_OK)
                 return HELIKON_ERR_NOT_FOUND;
             read_str(album.title_off, scratch, sizeof(scratch));
             copy_text(label, capacity, scratch);
         } else {
             struct hdb_track track;
-            if (hdb_track(&db, value, &track) != HELIKON_OK)
+            if (hdb_track(db, value, &track) != HELIKON_OK)
                 return HELIKON_ERR_NOT_FOUND;
             read_str(track.title_off, scratch, sizeof(scratch));
             copy_text(label, capacity, scratch);
@@ -864,12 +873,12 @@ static int list_item(const struct list_spec *spec, uint32_t index,
     }
     case LIST_ARTIST_ALBUMS: {
         struct hdb_artist artist;
-        if (hdb_artist(&db, spec->parent, &artist) != HELIKON_OK ||
+        if (hdb_artist(db, spec->parent, &artist) != HELIKON_OK ||
             index >= artist.album_count)
             return HELIKON_ERR_NOT_FOUND;
         uint32_t album_id = artist.first_album + index;
         struct hdb_album album;
-        if (hdb_album(&db, album_id, &album) != HELIKON_OK)
+        if (hdb_album(db, album_id, &album) != HELIKON_OK)
             return HELIKON_ERR_NOT_FOUND;
         read_str(album.title_off, scratch, sizeof(scratch));
         copy_text(label, capacity, scratch);
@@ -881,7 +890,7 @@ static int list_item(const struct list_spec *spec, uint32_t index,
         if (artist_track_at(spec->parent, index, &track_id) != HELIKON_OK)
             return HELIKON_ERR_NOT_FOUND;
         struct hdb_track track;
-        if (hdb_track(&db, track_id, &track) != HELIKON_OK)
+        if (hdb_track(db, track_id, &track) != HELIKON_OK)
             return HELIKON_ERR_NOT_FOUND;
         read_str(track.title_off, scratch, sizeof(scratch));
         if (track.track_no != 0u) {
@@ -923,7 +932,7 @@ static void list_title(const struct list_spec *spec, uint32_t count,
         break;
     case LIST_ARTIST_ALBUMS: {
         struct hdb_artist artist;
-        if (hdb_artist(&db, spec->parent, &artist) == HELIKON_OK) {
+        if (hdb_artist(db, spec->parent, &artist) == HELIKON_OK) {
             read_str(artist.name_off, title, capacity);
         } else {
             copy_text(title, capacity, "ALBUMS");
@@ -1561,7 +1570,7 @@ static uint32_t album_duration_ms(const struct hdb_album *album)
     uint32_t total = 0u;
     for (uint32_t index = 0u; index < album->track_count; ++index) {
         struct hdb_track track;
-        if (hdb_track(&db, album->first_track + index, &track) != HELIKON_OK)
+        if (hdb_track(db, album->first_track + index, &track) != HELIKON_OK)
             continue;
         if (track.duration_ms > 0xffffffffu - total)
             return 0xffffffffu;
@@ -1720,7 +1729,7 @@ static void draw_artists_list_screen(struct helikon_screen *target,
     uint32_t count = (flags & MUSIC_PREVIEW_EMPTY) != 0u
                          ? 0u
                          : ((flags & MUSIC_PREVIEW_LONG) != 0u ? 78u
-                                                              : db.artist_count);
+                                                              : db->artist_count);
     char count_text[32];
     if (count == 1u)
         copy_text(count_text, sizeof(count_text), "1 ARTIST");
@@ -1741,7 +1750,7 @@ static void draw_artists_list_screen(struct helikon_screen *target,
             struct hdb_artist artist;
             char sort[128];
             sort[0] = '\0';
-            if (hdb_artist(&db, top, &artist) == HELIKON_OK)
+            if (hdb_artist(db, top, &artist) == HELIKON_OK)
                 (void)read_string(artist.sort_off, sort, sizeof(sort));
             section[0] = artist_group_letter(sort);
         }
@@ -1775,7 +1784,7 @@ static void draw_artists_list_screen(struct helikon_screen *target,
             copy_text(counts, sizeof(counts), long_counts[slot]);
         } else {
             struct hdb_artist artist;
-            if (hdb_artist(&db, index, &artist) == HELIKON_OK) {
+            if (hdb_artist(db, index, &artist) == HELIKON_OK) {
                 has_record = 1;
                 if (read_string(artist.name_off, name, sizeof(name)) !=
                         HELIKON_OK ||
@@ -1841,7 +1850,7 @@ static void draw_artist_page(struct helikon_screen *target, uint32_t artist_id,
     draw_top_bar(target, "ARTISTS");
 
     struct hdb_artist artist;
-    if (hdb_artist(&db, artist_id, &artist) != HELIKON_OK) {
+    if (hdb_artist(db, artist_id, &artist) != HELIKON_OK) {
         helikon_text_draw(target, (int32_t)MUSIC_X, 60, MUSIC_FONT_12,
                           MUSIC_MUTED, "MISSING ARTIST", 288u);
         return;
@@ -1938,7 +1947,7 @@ static void draw_artist_page(struct helikon_screen *target, uint32_t artist_id,
                 if (artist_album_at(artist_id, index, &album_id) != HELIKON_OK)
                     continue;
                 struct hdb_album album;
-                if (hdb_album(&db, album_id, &album) != HELIKON_OK)
+                if (hdb_album(db, album_id, &album) != HELIKON_OK)
                     continue;
                 char title[128];
                 (void)read_string(album.title_off, title, sizeof(title));
@@ -2003,11 +2012,11 @@ static void draw_artist_page(struct helikon_screen *target, uint32_t artist_id,
             struct hdb_album latest_album;
             int have_first =
                 artist_album_at(artist_id, 0u, &first_id) == HELIKON_OK &&
-                hdb_album(&db, first_id, &first_album) == HELIKON_OK;
+                hdb_album(db, first_id, &first_album) == HELIKON_OK;
             int have_latest =
                 artist_album_at(artist_id, album_count - 1u, &latest_id) ==
                     HELIKON_OK &&
-                hdb_album(&db, latest_id, &latest_album) == HELIKON_OK;
+                hdb_album(db, latest_id, &latest_album) == HELIKON_OK;
             if (have_first)
                 (void)read_string(first_album.title_off, first_title,
                                   sizeof(first_title));
@@ -2067,7 +2076,7 @@ static void draw_artist_page(struct helikon_screen *target, uint32_t artist_id,
                 if (artist_track_at(artist_id, index, &track_id) != HELIKON_OK)
                     continue;
                 struct hdb_track track;
-                if (hdb_track(&db, track_id, &track) != HELIKON_OK)
+                if (hdb_track(db, track_id, &track) != HELIKON_OK)
                     continue;
                 char title[128];
                 char album_name[128];
@@ -2077,7 +2086,7 @@ static void draw_artist_page(struct helikon_screen *target, uint32_t artist_id,
                 if (title[0] == '\0')
                     copy_text(title, sizeof(title), "UNKNOWN TRACK");
                 struct hdb_album album;
-                if (hdb_album(&db, track.album_id, &album) == HELIKON_OK)
+                if (hdb_album(db, track.album_id, &album) == HELIKON_OK)
                     (void)read_string(album.title_off, album_name,
                                       sizeof(album_name));
                 int playable = (flags & MUSIC_PREVIEW_ALL_PLAYABLE) != 0u ||
@@ -2120,7 +2129,7 @@ static void draw_album_page(struct helikon_screen *target, uint32_t album_id,
     draw_top_bar(target, "ALBUM");
 
     struct hdb_album album;
-    if (hdb_album(&db, album_id, &album) != HELIKON_OK) {
+    if (hdb_album(db, album_id, &album) != HELIKON_OK) {
         helikon_text_draw(target, (int32_t)MUSIC_X, 60, MUSIC_FONT_12,
                           MUSIC_MUTED, "MISSING ALBUM", 288u);
         return;
@@ -2177,7 +2186,7 @@ static void draw_album_page(struct helikon_screen *target, uint32_t album_id,
     char artist[128];
     artist[0] = '\0';
     struct hdb_artist artist_record;
-    if (hdb_artist(&db, album.artist_id, &artist_record) == HELIKON_OK)
+    if (hdb_artist(db, album.artist_id, &artist_record) == HELIKON_OK)
         (void)read_string(artist_record.name_off, artist, sizeof(artist));
     if (artist[0] == '\0')
         copy_text(artist, sizeof(artist), "UNKNOWN ARTIST");
@@ -2228,7 +2237,7 @@ static void draw_album_page(struct helikon_screen *target, uint32_t album_id,
         uint32_t track_id = album.first_track +
                             (focus >= 0 ? (uint32_t)focus : track_top);
         struct hdb_track disc_track;
-        if (hdb_track(&db, track_id, &disc_track) == HELIKON_OK &&
+        if (hdb_track(db, track_id, &disc_track) == HELIKON_OK &&
             disc_track.disc_no != 0u)
             disc = disc_track.disc_no;
         char disc_label[24];
@@ -2244,7 +2253,7 @@ static void draw_album_page(struct helikon_screen *target, uint32_t album_id,
             if (index >= track_count)
                 break;
             struct hdb_track track;
-            if (hdb_track(&db, album.first_track + index, &track) !=
+            if (hdb_track(db, album.first_track + index, &track) !=
                 HELIKON_OK)
                 continue;
             int track_playable = album_track_playable(&album, index, flags);
@@ -2347,7 +2356,7 @@ static void draw_album_page(struct helikon_screen *target, uint32_t album_id,
         credits[0] = '\0';
         for (uint32_t index = 0u; index < album.track_count; ++index) {
             struct hdb_track track;
-            if (hdb_track(&db, album.first_track + index, &track) !=
+            if (hdb_track(db, album.first_track + index, &track) !=
                 HELIKON_OK)
                 continue;
             if (read_string(track.composer_off, credits, sizeof(credits)) ==
@@ -2446,12 +2455,12 @@ static void format_output_line(char *buffer, uint32_t capacity,
 static uint32_t track_number_for(uint32_t track_id)
 {
     struct hdb_track track;
-    if (hdb_track(&db, track_id, &track) != HELIKON_OK)
+    if (hdb_track(db, track_id, &track) != HELIKON_OK)
         return 0u;
     if (track.track_no != 0u)
         return track.track_no;
     struct hdb_album album;
-    if (hdb_album(&db, track.album_id, &album) == HELIKON_OK &&
+    if (hdb_album(db, track.album_id, &album) == HELIKON_OK &&
         track_id >= album.first_track)
         return track_id - album.first_track + 1u;
     return 0u;
@@ -2467,9 +2476,9 @@ static void format_track_line(char *buffer, uint32_t capacity,
     else
         append_u32(buffer, capacity, number);
     struct hdb_track track;
-    if (hdb_track(&db, track_id, &track) == HELIKON_OK) {
+    if (hdb_track(db, track_id, &track) == HELIKON_OK) {
         struct hdb_album album;
-        if (hdb_album(&db, track.album_id, &album) == HELIKON_OK &&
+        if (hdb_album(db, track.album_id, &album) == HELIKON_OK &&
             album.track_count != 0u) {
             append_text(buffer, capacity, " OF ");
             append_u32(buffer, capacity, album.track_count);
@@ -2499,17 +2508,17 @@ static void draw_now_playing_view(struct helikon_screen *target,
     artist[0] = '\0';
     album_name[0] = '\0';
     struct hdb_track track;
-    int have_track = hdb_track(&db, track_id, &track) == HELIKON_OK;
+    int have_track = hdb_track(db, track_id, &track) == HELIKON_OK;
     if (have_track)
         (void)read_string(track.title_off, title, sizeof(title));
     if (title[0] == '\0')
         copy_text(title, sizeof(title), "UNKNOWN TRACK");
     struct hdb_album album;
-    int have_album = hdb_album(&db, album_id, &album) == HELIKON_OK;
+    int have_album = hdb_album(db, album_id, &album) == HELIKON_OK;
     if (have_album) {
         (void)read_string(album.title_off, album_name, sizeof(album_name));
         struct hdb_artist artist_record;
-        if (hdb_artist(&db, album.artist_id, &artist_record) == HELIKON_OK)
+        if (hdb_artist(db, album.artist_id, &artist_record) == HELIKON_OK)
             (void)read_string(artist_record.name_off, artist, sizeof(artist));
     }
     if (artist[0] == '\0')
@@ -2711,7 +2720,7 @@ static void fill_now_playing_source(struct now_playing_data *data,
 static int album_exists(uint32_t album_id)
 {
     struct hdb_album album;
-    return hdb_album(&db, album_id, &album) == HELIKON_OK;
+    return hdb_album(db, album_id, &album) == HELIKON_OK;
 }
 
 static int now_playing_retryable(const struct helikon_player *playback)
@@ -3142,7 +3151,7 @@ static void run_album(uint32_t album_id);
 static void run_track_page(uint32_t track_id)
 {
     struct hdb_track track;
-    if (hdb_track(&db, track_id, &track) != HELIKON_OK) {
+    if (hdb_track(db, track_id, &track) != HELIKON_OK) {
         draw_track_missing_screen();
         wait_for_back();
         return;
@@ -3153,7 +3162,7 @@ static void run_track_page(uint32_t track_id)
         return;
     }
     int result = run_now_playing(track_id, track.album_id);
-    if (result == 1 && track.album_id < db.album_count) {
+    if (result == 1 && track.album_id < db->album_count) {
         run_album(track.album_id);
     }
 }
@@ -3161,7 +3170,7 @@ static void run_track_page(uint32_t track_id)
 static void run_album(uint32_t album_id)
 {
     struct hdb_album album;
-    if (hdb_album(&db, album_id, &album) != HELIKON_OK) {
+    if (hdb_album(db, album_id, &album) != HELIKON_OK) {
         helikon_screen_fill_rect(screen, 0u, 0u, screen->width, screen->height,
                                  MUSIC_PAPER);
         draw_top_bar(screen, "ALBUM");
@@ -3229,7 +3238,7 @@ static void run_album(uint32_t album_id)
 static void run_artist(uint32_t artist_id)
 {
     struct hdb_artist artist;
-    if (hdb_artist(&db, artist_id, &artist) != HELIKON_OK) {
+    if (hdb_artist(db, artist_id, &artist) != HELIKON_OK) {
         draw_artist_page(screen, artist_id, 0u, 0u, 0u, 0u, 0u);
         (void)helikon_screen_present_all(screen);
         wait_for_back();
@@ -3472,7 +3481,7 @@ static void run_albums(void)
 
 static void run_artists(void)
 {
-    uint32_t count = db.artist_count;
+    uint32_t count = db->artist_count;
     uint32_t selected = 0u;
     uint32_t top = 0u;
     draw_artists_list_screen(screen, selected, top, 0u);
@@ -3583,6 +3592,33 @@ static int run_hub(uint32_t *selected_io)
     }
 }
 
+/*
+ * A refused or empty catalog is not an error state to hide: it says what is
+ * wrong, what to do about it, and waits for a button. The same screen serves an
+ * image with no embedded catalog and a volume whose `/.helikon/music.hdb` is
+ * missing or malformed -- only the second line changes.
+ */
+static void draw_unavailable(const char *headline, const char *detail)
+{
+    draw_frame(screen, "MUSIC");
+    helikon_screen_set_foreground(screen, MUSIC_INK);
+    (void)helikon_text_draw(screen, 14, 73, MUSIC_FONT_17, MUSIC_INK, headline,
+                            MUSIC_COLUMN);
+    (void)helikon_text_draw(screen, 14, 97, MUSIC_FONT_11, MUSIC_MUTED, detail,
+                            MUSIC_COLUMN);
+    (void)helikon_screen_present_all(screen);
+    for (;;) {
+        uint32_t events = 0u;
+        int32_t wheel = 0;
+        int hold = 0;
+        if (helikon_buttons_poll(buttons, &events, &wheel, &hold, 20u) ==
+                HELIKON_OK &&
+            ((events & HELIKON_BUTTON_ANY) != 0u || hold))
+            return;
+        helikon_clock_delay_us(clock, 20000u);
+    }
+}
+
 int helikon_music_run(struct helikon_screen *screen_arg,
                       struct helikon_buttons *buttons_arg,
                       struct helikon_clock *clock_arg)
@@ -3599,27 +3635,34 @@ int helikon_music_run(struct helikon_screen *screen_arg,
         .context = NULL,
         .size = (uint32_t)(helikon_hdb_end - helikon_hdb_start)
     };
-    if (hdb_open(&db, &io) != HELIKON_OK) {
-        draw_frame(screen, "MUSIC");
-        helikon_screen_set_foreground(screen, MUSIC_INK);
-        (void)helikon_text_draw(screen, 14, 73, MUSIC_FONT_17, MUSIC_INK,
-                                "LIBRARY UNAVAILABLE", MUSIC_COLUMN);
-        (void)helikon_text_draw(screen, 14, 97, MUSIC_FONT_11, MUSIC_MUTED,
-                                "REBUILD THE IMAGE WITH A VALID HDB",
-                                MUSIC_COLUMN);
-        (void)helikon_screen_present_all(screen);
-        for (;;) {
-            uint32_t events = 0u;
-            int32_t wheel = 0;
-            int hold = 0;
-            if (helikon_buttons_poll(buttons, &events, &wheel, &hold, 20u) ==
-                    HELIKON_OK &&
-                ((events & HELIKON_BUTTON_ANY) != 0u || hold))
-                return HELIKON_OK;
-            helikon_clock_delay_us(clock, 20000u);
-        }
+    if (hdb_open(&db_blob, &io) != HELIKON_OK) {
+        draw_unavailable("LIBRARY UNAVAILABLE",
+                         "REBUILD THE IMAGE WITH A VALID HDB");
+        return HELIKON_OK;
     }
+    db = &db_blob;
+    return run_hub_screens();
+}
 
+int helikon_music_run_db(struct helikon_screen *screen_arg,
+                         struct helikon_buttons *buttons_arg,
+                         struct helikon_clock *clock_arg,
+                         struct hdb *opened)
+{
+    if (screen_arg == NULL || buttons_arg == NULL || clock_arg == NULL ||
+        opened == NULL)
+        return HELIKON_ERR_ARGUMENT;
+    screen = screen_arg;
+    buttons = buttons_arg;
+    clock = clock_arg;
+    db = opened;
+    helikon_text_init();
+    return run_hub_screens();
+}
+
+/* The hub itself, once `db` points at an open catalog. */
+static int run_hub_screens(void)
+{
     uint32_t selected = 0u;
     for (;;) {
         int choice = run_hub(&selected);
@@ -3644,6 +3687,17 @@ int helikon_music_run(struct helikon_screen *screen,
     (void)screen;
     (void)buttons;
     (void)clock;
+    return HELIKON_ERR_UNSUPPORTED;
+}
+
+int helikon_music_run_db(struct helikon_screen *screen,
+                         struct helikon_buttons *buttons,
+                         struct helikon_clock *clock, struct hdb *opened)
+{
+    (void)screen;
+    (void)buttons;
+    (void)clock;
+    (void)opened;
     return HELIKON_ERR_UNSUPPORTED;
 }
 

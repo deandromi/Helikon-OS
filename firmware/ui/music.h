@@ -11,10 +11,22 @@
 
 #include "buttons.h"
 #include "clock.h"
+#include "hdb.h"
 #include "screen.h"
 
 int helikon_music_run(struct helikon_screen *screen,
                       struct helikon_buttons *buttons,
                       struct helikon_clock *clock);
+
+/*
+ * The same browser over a catalog somebody else opened: the boot path mounts
+ * the volume, opens `/.helikon/music.hdb` and hands the reader a `struct hdb *`,
+ * so the hub never learns whether its bytes came from a signed image or from
+ * disk. `opened` must stay alive and open for the whole call; the hub does not
+ * close it, and the caller owns closing it after the call returns.
+ */
+int helikon_music_run_db(struct helikon_screen *screen,
+                         struct helikon_buttons *buttons,
+                         struct helikon_clock *clock, struct hdb *opened);
 
 #endif

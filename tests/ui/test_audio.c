@@ -386,10 +386,11 @@ int main(int argc, char **argv)
     screen = &target;
 
     const struct hdb_io io = { .read = blob_read, .context = NULL };
-    if (hdb_open(&db, &io) != HELIKON_OK) {
+    if (hdb_open(&db_blob, &io) != HELIKON_OK) {
         fprintf(stderr, "fixture HDB did not open\n");
         return 1;
     }
+    db = &db_blob;
     if (check_formatting() != 0)
         return 1;
 

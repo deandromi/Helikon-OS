@@ -182,16 +182,16 @@ static int fake_read(void *context, uint32_t offset, void *buffer,
 
 static int check_long_string(void)
 {
-    struct hdb saved = db;
+    struct hdb saved = *db;
     fake_source = fake_string;
     fake_source_size = sizeof(fake_string);
-    db.io.read = fake_read;
-    db.io.context = NULL;
-    db.string_offset = 0u;
-    db.string_bytes = sizeof(fake_string);
+    db->io.read = fake_read;
+    db->io.context = NULL;
+    db->string_offset = 0u;
+    db->string_bytes = sizeof(fake_string);
     char text[8];
     int rc = read_string(2u, text, sizeof(text));
-    db = saved;
+    *db = saved;
     if (rc != HELIKON_OK)
         return 1;
     if ((uint8_t)text[4] != 0xe2u || (uint8_t)text[5] != 0x80u ||
@@ -207,16 +207,16 @@ static uint8_t fake_utf8[] = {
 
 static int check_long_utf8(void)
 {
-    struct hdb saved = db;
+    struct hdb saved = *db;
     fake_source = fake_utf8;
     fake_source_size = sizeof(fake_utf8);
-    db.io.read = fake_read;
-    db.io.context = NULL;
-    db.string_offset = 0u;
-    db.string_bytes = sizeof(fake_utf8);
+    db->io.read = fake_read;
+    db->io.context = NULL;
+    db->string_offset = 0u;
+    db->string_bytes = sizeof(fake_utf8);
     char text[7];
     int rc = read_string(2u, text, sizeof(text));
-    db = saved;
+    *db = saved;
     if (rc != HELIKON_OK)
         return 1;
     if (text[0] != 'A' || text[1] != 'B')
@@ -237,11 +237,15 @@ int main(int argc, char **argv)
     helikon_text_init();
     screen = &target;
 
+    /* The same open the firmware does: the blob into the hub's own reader, then
+     * the hub is handed the pointer -- which is exactly what the storage path
+     * will do with an HDB it mounted. */
     const struct hdb_io io = { .read = blob_read, .context = NULL };
-    if (hdb_open(&db, &io) != HELIKON_OK) {
+    if (hdb_open(&db_blob, &io) != HELIKON_OK) {
         fprintf(stderr, "fixture HDB did not open\n");
         return 1;
     }
+    db = &db_blob;
 
     char path[256];
     draw_hub(&target, 0u);
