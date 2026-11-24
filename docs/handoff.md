@@ -73,10 +73,12 @@ file grows. Do not rely on chat history for current state.
 
 ## Open, next
 
-- **#150 is the next real audio job.** Reimplement the seek as: anchor at
-  `wanted - 8` frames, walk headers, drop `(wanted - anchor) * frame_samples +
-  within` samples, and compensate libmad's 576-sample first block. Reinstating
-  the three MP3 rows is the acceptance test.
+- **#150 is fixed** (see the log entry): the MP3 seek maps output frames to
+  untrimmed samples, walks headers from the first audio frame, backs up eight
+  frames for the bit reservoir and corroborates every resync with a following
+  header. All seven matrix rows pass, so the seek matrix is now a real gate.
+  What is left of T-100 is the per-codec *resume* policy in the player (which
+  second to resume at, and the A-B repeat that Rockbox has and we do not).
 - Nothing in the firmware mounts a volume read-write at boot, so neither the
   bookmark, the playlist export nor the update client has a call site. A boot
   path with an explicit opt-in is the next structural step.
