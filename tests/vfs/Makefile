@@ -264,6 +264,7 @@ test_vfs_music_boot: test_vfs_music_boot.c $(TH)/writer_fixture.c \
           fixtures/music.hdb \
           $(STORAGE)/music_boot.c $(STORAGE)/music_boot.h \
           $(STORAGE)/mount.c $(STORAGE)/mount.h \
+          $(LIBRARY)/album_tracks.c $(LIBRARY)/album_tracks.h \
           $(STORAGE)/ata_block.c $(STORAGE)/ata_block.h \
           $(HAL)/ata.h \
           $(BLOCK)/block.c $(BLOCK)/bounce.c $(BLOCK)/partition.c \
@@ -279,6 +280,7 @@ test_vfs_music_boot: test_vfs_music_boot.c $(TH)/writer_fixture.c \
           $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c $(LIB)/format.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_vfs_music_boot.c $(TH)/writer_fixture.c \
 	  $(STORAGE)/music_boot.c $(STORAGE)/mount.c \
+	  $(LIBRARY)/album_tracks.c \
 	  $(STORAGE)/ata_block.c \
 	  $(BLOCK)/block.c $(BLOCK)/bounce.c $(BLOCK)/partition.c \
 	  $(HFS)/hfs_block_adapter.c \
