@@ -12,6 +12,34 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-24 (the write-test image, T-165 image half)
+
+## What happened
+
+- `HELIKON_DIAG_WRITE_TEST` in `firmware_main.c`: writable board init, an
+  ordinary mount, `helikon_write_test_run`, then a report screen — PASS/FAIL,
+  stage, error, bytes written and read, the path, and one plain sentence. The
+  normal refusal reads `GATE / -8`, "No /.helikon/write-enabled. Nothing was
+  written."
+- `diag_finish` gives it the press-to-quit line and the power-off; the launcher
+  call site is `#ifdef`-split so the hub is never drawn in this image.
+
+## Evidence
+
+Raw 111,412 B, `.bss` 1,596,864 B; `helikon_write_test_run` and
+`helikon_write_stage_name` are in `nm`. Plain 6G build 80,840 B with neither
+symbol — the tree is garbage-collected without the flag.
+`make -C tests/vfs test` + `sanitize` still green (7 binaries).
+**No device run**: the report screen has never been on a panel.
+
+## Open, next
+
+- The owner run needs a volume with `/.helikon/write-enabled`, created from
+  outside the firmware (Disk Mode, or macOS). Then the stage is the whole test.
+- Device-free next: T-156 / T-155 / T-154, which want the live catalog the
+  library build now mounts.
+
+---
 # Handoff — 2026-11-24 (the first write the firmware can make, T-165)
 
 ## What happened

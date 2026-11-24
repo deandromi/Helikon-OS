@@ -36,6 +36,9 @@
 #ifdef HELIKON_DIAG_LIBRARY
 #include "music_boot.h"
 #endif
+#ifdef HELIKON_DIAG_WRITE_TEST
+#include "write_test.h"
+#endif
 #ifdef HELIKON_DIAG_IRQ
 #include "vic.h"
 #endif
@@ -776,7 +779,8 @@ static void ata_probe_view(struct boot_context *ctx,
 #endif
 
 #if defined(HELIKON_DIAG_EARLY_DISPLAY) || defined(HELIKON_DIAG_PMU_SPLIT) || \
-    defined(HELIKON_DIAG_PMU_PROBE) || defined(HELIKON_DIAG_I2C)
+    defined(HELIKON_DIAG_PMU_PROBE) || defined(HELIKON_DIAG_I2C) || \
+    defined(HELIKON_DIAG_WRITE_TEST)
 static void diag_finish(struct boot_context *ctx)
 {
     if (ctx->screen_ready) {
@@ -805,6 +809,89 @@ static void diag_finish(struct boot_context *ctx)
         helikon_clock_delay_us(&ctx->board.clock, 30000000u);
     }
     boot_power_off(ctx);
+}
+#endif
+
+#ifdef HELIKON_DIAG_WRITE_TEST
+/*
+ * The write-test image: the only code path in the tree that asks for a write at
+ * runtime, and it asks as loudly as the gate allows. Board init in its writable
+ * form, an ordinary mount, then one transaction and a read-back.
+ *
+ * The gate still decides. Without `/.helikon/write-enabled` the report reads
+ * `GATE` with `NOT_FOUND` and the volume is byte-identical to what it was, which
+ * is the result a library should produce. Nothing here creates the opt-in.
+ */
+static void paint_write_test(struct boot_context *ctx,
+                             const struct helikon_write_test *test, int rc)
+{
+    paint_title(ctx, "WRITE TEST");
+
+    helikon_screen_set_foreground(
+        &ctx->screen, rc == HELIKON_OK ? HELIKON_COLOR_SUCCESS
+                                       : HELIKON_COLOR_FAILURE);
+    helikon_screen_text(&ctx->screen, 16, 62, 6,
+                        rc == HELIKON_OK ? "PASS" : "FAIL");
+
+    char line[64];
+    helikon_strlcpy(line, "STAGE ", sizeof(line));
+    text_append(line, sizeof(line), helikon_write_stage_name(test->stage));
+    if (rc != HELIKON_OK) {
+        text_append(line, sizeof(line), "  ERR ");
+        append_i32(line, sizeof(line), rc);
+    }
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_INK);
+    helikon_screen_text(&ctx->screen, 16, 110, 2, line);
+
+    helikon_strlcpy(line, "WROTE ", sizeof(line));
+    append_u32(line, sizeof(line), test->length);
+    text_append(line, sizeof(line), "  READ ");
+    append_u32(line, sizeof(line), test->file_size);
+    text_append(line, sizeof(line), " B");
+    helikon_screen_text(&ctx->screen, 16, 130, 2, line);
+
+    helikon_screen_text(&ctx->screen, 16, 150, 2, HELIKON_WRITE_TEST_PATH);
+
+    helikon_screen_set_foreground(&ctx->screen, HELIKON_COLOR_NEUTRAL);
+    if (rc == HELIKON_OK) {
+        helikon_screen_text(&ctx->screen, 16, 180, 2,
+                            "Pattern verified in one");
+        helikon_screen_text(&ctx->screen, 16, 194, 2, "journaled transaction.");
+    } else if (rc == HELIKON_ERR_NOT_FOUND) {
+        helikon_screen_text(&ctx->screen, 16, 180, 2,
+                            "No /.helikon/write-enabled.");
+        helikon_screen_text(&ctx->screen, 16, 194, 2, "Nothing was written.");
+    } else {
+        helikon_screen_text(&ctx->screen, 16, 180, 2,
+                            "Stopped before the pattern");
+        helikon_screen_text(&ctx->screen, 16, 194, 2, "was verified.");
+    }
+    present_or_trace(ctx,
+                     rc == HELIKON_OK ? HELIKON_TRACE_INFO
+                                      : HELIKON_TRACE_ERROR,
+                     HELIKON_STAGE_PASS);
+}
+
+static void write_test_image(struct boot_context *ctx)
+{
+    static struct helikon_storage storage;
+    static struct helikon_write_test test;
+
+    helikon_memset(&test, 0, sizeof(test));
+    test.stage = HELIKON_WRITE_STAGE_MOUNT;
+
+    int rc = helikon_board_storage_init_writable(&ctx->board,
+                                                 BOOT_STORAGE_TIMEOUT_MS);
+    if (rc == HELIKON_OK) {
+        helikon_memset(&storage, 0, sizeof(storage));
+        rc = helikon_storage_mount(&storage, &ctx->board.block,
+                                   BOOT_STORAGE_TIMEOUT_MS);
+    }
+    if (rc == HELIKON_OK)
+        rc = helikon_write_test_run(&test, &storage, HELIKON_WRITE_TEST_BYTES);
+
+    paint_write_test(ctx, &test, rc);
+    diag_finish(ctx); /* draws the quit line and powers off */
 }
 #endif
 
@@ -1607,10 +1694,17 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
         library = music_boot.db;
     }
 #endif
+#ifdef HELIKON_DIAG_WRITE_TEST
+    /* The write-test image never draws the hub: the panel carries the report
+     * from the run, then the image powers off. */
+    (void)library;
+    write_test_image(ctx);
+#else
     (void)helikon_launcher_run(&ctx->screen, &ctx->board.buttons,
                                &ctx->board.clock, library);
     paint_message(ctx, "HOME", "POWER OFF");
     boot_power_off(ctx);
+#endif
 #endif
 
 #ifdef HELIKON_DIAG_IRQ

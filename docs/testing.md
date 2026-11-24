@@ -666,6 +666,19 @@ mutations were checked and both were caught: inverting the comparison fails with
 `invalid HFS+ structure` at `VERIFY`, and ignoring the gate's refusal fails the
 no-opt-in case.
 
+The image half is a link, not an assertion, so it is checked the same way the
+library build is:
+
+```sh
+PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g VERSION=<n> \
+    UI=1 EXTRA_CFLAGS="-DHELIKON_DIAG_LAUNCHER -DHELIKON_DIAG_WRITE_TEST"
+arm-elf-eabi-nm build/firmware/6g/firmware.elf | grep helikon_write_test_run
+```
+
+The symbol must be there, and the plain 6G image must not contain it. A green
+build is not a run: this image has never been on a device, so its report screen
+is unproven and is described that way everywhere.
+
 ### 4.1 The B-tree layer itself
 
 `tests/hfsplus/test_btree_model.c` drives **one tree** rather than the catalog:
