@@ -12,6 +12,45 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-24 (the call site: a library build mounts the volume)
+
+## What happened
+
+- `helikon_launcher_run` now takes a `struct hdb *library` it **borrows**: a
+  non-NULL catalog wins over the `HELIKON_HDB_EMBEDDED` blob, NULL is the old
+  behaviour, and the launcher never opens, validates or closes it.
+- `firmware_main.c` owns one `static struct helikon_music_boot` and, under the
+  opt-in `HELIKON_DIAG_LIBRARY`, runs `helikon_board_storage_init` →
+  `helikon_music_boot_from_ata(&music_boot, &ctx->board.ata, 0,
+  BOOT_STORAGE_TIMEOUT_MS)` → `library = music_boot.db`. No flag, no call.
+- The build found two real link defects, both fixed: `-Istorage` was missing
+  from the firmware include path, and `db/hdb_vfs.c` had never been in
+  `LIBRARY_SRC`, so `mount.c`'s catalog path had never been linked into any
+  image.
+- Docs: T-126 row, `testing.md` §3.8.4 (the nm check), `file-map.md` (ui and
+  boot rows), log.
+
+## Evidence
+
+Library build raw **115,000 B**, `.bss` 830,560 B,
+`arm-elf-eabi-nm … | grep -c helikon_music_boot` → 2. Plain 6G unchanged at
+80,840 B. `make -C tests/vfs test` green; `./tools/host-tests.sh clang` 10
+suites; static analysis 87 units / 0 findings. **No device run** — nothing has
+mounted a real disk through this path.
+
+## Open, next
+
+- A first writer behind the D-57 gate: pass `writable = 1`, create
+  `/.helikon/write-enabled`, and let one module (resume bookmark or playlist
+  export) actually write on a disposable volume. It is a one-argument change
+  with a device run behind it, not before.
+- The Disk Mode device run (T-109→T-115) is the only thing that turns >128 GiB
+  from a host test into a fact; it needs an iPod.
+- Device-free work that is now unblocked: T-156 (missing-track list), T-155
+  (interrogable shuffle), T-154 (Year in Review) all need exactly the live
+  catalog this call site provides.
+
+---
 # Handoff — 2026-11-24 (the Music hub's boot path, T-126 caller)
 
 ## What happened

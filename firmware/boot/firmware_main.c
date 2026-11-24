@@ -33,6 +33,9 @@
 #ifdef HELIKON_DIAG_LAUNCHER
 #include "launcher_run.h"
 #endif
+#ifdef HELIKON_DIAG_LIBRARY
+#include "music_boot.h"
+#endif
 #ifdef HELIKON_DIAG_IRQ
 #include "vic.h"
 #endif
@@ -1587,8 +1590,25 @@ void firmware_main(uintptr_t boot_info_pointer, uint32_t reserved)
     if (rc != HELIKON_OK)
         boot_fail(ctx, HELIKON_STAGE_INPUT, rc,
                   "The buttons did not initialize.");
+    struct hdb *library = NULL;
+#ifdef HELIKON_DIAG_LIBRARY
+    /*
+     * Library build: give the hub the volume's own catalog. The mount is
+     * read-only on purpose -- `from_ata` is passed `writable = 0`, so the write
+     * gate answers READ_ONLY and no image can save something it has not proven.
+     * A volume with no catalog, no HFS+ or no disk leaves `library` NULL and the
+     * embedded catalog is used exactly as before.
+     */
+    static struct helikon_music_boot music_boot;
+    if (helikon_board_storage_init(&ctx->board, BOOT_STORAGE_TIMEOUT_MS) ==
+            HELIKON_OK &&
+        helikon_music_boot_from_ata(&music_boot, &ctx->board.ata, 0,
+                                    BOOT_STORAGE_TIMEOUT_MS) == HELIKON_OK) {
+        library = music_boot.db;
+    }
+#endif
     (void)helikon_launcher_run(&ctx->screen, &ctx->board.buttons,
-                               &ctx->board.clock);
+                               &ctx->board.clock, library);
     paint_message(ctx, "HOME", "POWER OFF");
     boot_power_off(ctx);
 #endif

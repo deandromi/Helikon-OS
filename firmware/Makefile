@@ -37,7 +37,7 @@ ARCH := -mcpu=arm926ej-s -marm -mno-thumb-interwork -mfloat-abi=soft
 CFLAGS := -std=c99 -O2 -g -ffreestanding -fno-builtin -nostdinc \
           -isystem $(GCC_INCLUDE) -DHELIKON_IMAGE_VERSION=$(VERSION) \
           -Ilib -Iboot -Iboard/$(BOARD) -Ihal/$(BOARD) -Iblock -Idiag -Ihfs \
-          -Ivfs -Iui -Idb -Iplayer -Icodec -Iusb -Iupdate -I../bootloader \
+          -Ivfs -Iui -Idb -Iplayer -Icodec -Iusb -Iupdate -Istorage -I../bootloader \
           -Wall -Wextra -Werror -Wconversion -Wshadow -Wundef \
           -Wpointer-arith -ffunction-sections -fdata-sections -fno-common \
           -fno-stack-protector -fno-unwind-tables \
@@ -85,7 +85,8 @@ PLAYER_SRC := player/player.c player/wav.c player/vfs_media.c \
               codec/libmad/synth.c hal/$(BOARD)/audio.c
 endif
 # Compiled always so it cannot rot; without a caller the linker drops it.
-LIBRARY_SRC := db/hdb.c library/library.c library/music_source.c
+LIBRARY_SRC := db/hdb.c db/hdb_vfs.c library/library.c \
+               library/music_source.c
 # The write half, plus the two destinations that prove it has callers the player
 # will use (T-093). All are garbage-collected until something calls them.
 VFS_SRC := vfs/vfs.c vfs/vfs_rw.c player/vfs_playlist.c player/vfs_bookmark.c
