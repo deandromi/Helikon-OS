@@ -12,6 +12,37 @@ file grows. Do not rely on chat history for current state.
 
 ---
 
+# Handoff — 2026-11-24 (the Music hub's boot path, T-126 caller)
+
+## What happened
+
+- **`storage/music_boot.c` + `ui/music.c`'s `helikon_music_run_db`.** The hub can
+  now browse a `struct hdb *` that somebody else opened, and `music_boot` is the
+  object that opens it: mount, best-effort D-57 gate, catalog. A failure leaves
+  `db` NULL and the mount gone — never half-open — so the UI falls back to its
+  embedded catalog.
+- `tests/vfs/test_vfs_music_boot.c` proves the four answers over the writer
+  fixture with the committed 57,276-byte `fixtures/music.hdb`, walking a real
+  record; the unmount rule is mutation-checked.
+- Docs: T-126 row, testing §3.8.4, file-map, log.
+
+## Evidence
+
+`make -C tests/vfs test` + `sanitize` → `PASS music boot: ...`; host suites 10/10
+(includes the white-box `tests/ui` pair, adjusted for the pointer); static
+analysis 87 units / 0 findings; 6G image 80,840 B, unchanged because nothing
+calls the module yet. **No device run.**
+
+## Open, next
+
+- **The ATA call site in `firmware_main.c`** is the last step: initialise the
+  driver, build the block device, declare one `helikon_music_boot`, and pass
+  `db` (or NULL) to the launcher so SELECT on MUSIC reads the volume when there
+  is one and the signed blob when there is not. It needs an `tests/firmware`
+  test with ATA stubs, and it will grow every image that declares the object by
+  its measured 293,800 B.
+- Then the user-facing tasks T-154–T-164 have somewhere to run.
+
 # Handoff — 2026-11-24 (user-facing tasks recorded, T-154–T-164)
 
 ## What happened

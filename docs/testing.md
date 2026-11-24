@@ -600,6 +600,26 @@ allocates (`struct helikon_storage` 293,800 B, of which the writer is 262,824 B)
 and fails if the writer grows past 272 KiB, so the number in the docs stays a
 measurement instead of a memory.
 
+### 3.8.4 The Music hub's boot path
+
+`tests/vfs/test_vfs_music_boot.c` goes through `firmware/storage/music_boot.c`,
+the object a booting image owns, over the same 1 MiB block device the write-gate
+suite builds. It writes the committed 57,276-byte `tests/vfs/fixtures/music.hdb`
+into the volume through the journaled VFS (the same bytes `tests/ui` links as a
+blob, built by `tools/hdb_build.py fixture`) and then checks four answers:
+
+| Situation | Expected | Why it matters |
+|---|---|---|
+| volume with no catalog | `NOT_FOUND`, `db` NULL, mount gone | the UI falls back to its embedded catalog rather than a half-open mount |
+| zeroed image | a mount error, `db` NULL | a foreign volume is not a library |
+| catalog, no opt-in file | `OK`, `db` set, `writable` 0 | reading never depends on writing |
+| catalog and opt-in | `OK`, `writable` 1 | the D-57 gate is reported, not obeyed |
+
+The third row walks a real record (`hdb_track`) rather than trusting the header,
+and `helikon_music_boot_close` is required to clear both the catalog and the
+mount. Deleting the unmount on a failed catalog makes the suite fail, which is
+the rule the module exists for.
+
 ### 4.1 The B-tree layer itself
 
 `tests/hfsplus/test_btree_model.c` drives **one tree** rather than the catalog:

@@ -122,6 +122,8 @@ tests/vfs/test_vfs_session
 tests/vfs/test_vfs_session.dSYM/
 tests/vfs/test_vfs_playlist
 tests/vfs/test_vfs_storage
+tests/vfs/test_vfs_music_boot
+tests/vfs/test_vfs_music_boot.dSYM/
 tests/vfs/test_vfs_storage.dSYM/
 tests/codec/test_codec_matrix
 tests/codec/test_codec_matrix_sanitize
