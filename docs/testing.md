@@ -627,6 +627,24 @@ gate reports `READ_ONLY` (the honest answer for an image that has not proven a
 write), with `writable = 1` and the opt-in file present it reports writable, and
 a driver with no IDENTIFY is refused with `db` left NULL.
 
+The call site in `firmware/boot/firmware_main.c` is behind the opt-in
+`HELIKON_DIAG_LIBRARY`, so it cannot be proven by a host suite: the proof is a
+link, not an assertion. Build the library image and check that the storage chain
+is actually in the binary instead of being garbage-collected:
+
+```sh
+PATH="$HOME/.rockbox-toolchain/bin:$PATH" make -C firmware BOARD=6g VERSION=<n> \
+    UI=1 EXTRA_CFLAGS="-DHELIKON_DIAG_LAUNCHER -DHELIKON_DIAG_LIBRARY"
+arm-elf-eabi-nm build/firmware/6g/firmware.elf | grep -c helikon_music_boot
+arm-elf-eabi-size build/firmware/6g/firmware.elf
+```
+
+The first command must answer non-zero and the plain 6G image must stay at its
+old size, because without the flag the whole storage tree is discarded. A silent
+zero here is the failure mode this check exists for: an image that looks built,
+boots, and never touches the disk. The measured library build is 115,000 B raw
+with 830,560 B of `.bss` (one `helikon_music_boot` is 293.8 kB of that).
+
 ### 4.1 The B-tree layer itself
 
 `tests/hfsplus/test_btree_model.c` drives **one tree** rather than the catalog:
