@@ -7,6 +7,7 @@
  * nothing, and the adapter answering for a catalog that is not there.
  */
 #include "missing_tracks_io.h"
+#include "missing_tracks_db.h"
 
 #include <stdio.h>
 #include <string.h>
