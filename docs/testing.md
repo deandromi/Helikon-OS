@@ -1121,7 +1121,18 @@ control byte, a path at the length limit) and the file in
 `tests/vfs/test_vfs_bookmark.c`, which saves through the journaled write VFS on
 the fixture volume, replaces a longer record with a shorter one, reads every
 field back through the read VFS, and requires the journal and
-`hfs_check_volume` to be clean after each call. The
+`hfs_check_volume` to be clean after each call. The decision of *when* a
+position is worth a commit is a third module and a third suite:
+`firmware/player/session.c` holds the policy and `tests/vfs/test_vfs_session.c`
+pins it on the same journaled fixture — nothing is stored in the first three
+seconds, nothing in the last five, a save inside
+`HELIKON_RESUME_INTERVAL_MS` of the previous one answers BUSY and leaves the byte
+image untouched, `force` (pause and power-off) writes through, a record survives
+a fresh session, another track is not offered it, a file somebody else wrote is
+dropped rather than resumed, and a journal-less volume reports success while
+storing nothing. Each case ends by requiring the journal and `hfs_check_volume`
+to be clean, and the three limits were mutation-checked: setting any of them to
+zero makes the suite fail. The
 same suite holds the text parsers — playlists and cue sheets — because both are
 files from somewhere else whose every line is a claim:
 
