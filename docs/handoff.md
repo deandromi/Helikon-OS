@@ -3,7 +3,7 @@
 > Purpose: the latest session handoff and the reusable template.
 > Status: living document
 > Owner: session author; next agent reads this first
-> Last updated: 2026-11-23
+> Last updated: 2026-11-24
 > Source: `docs/state.md`, `docs/tasks.md`, repository history; D-54;
 > [`disk-mode.md`](disk-mode.md)
 
@@ -11,6 +11,52 @@ Keep the newest handoff at the top. Move older entries to `docs/log/` when this
 file grows. Do not rely on chat history for current state.
 
 ---
+
+# Handoff — 2026-11-24 (the resume policy, T-093 second half)
+
+## What happened
+
+- **`firmware/player/session.c` + `session.h`.** `bookmark.c` spells the record
+  and `vfs_bookmark.c` stores it; the new module is the policy in between, and
+  the policy is the part a listener feels:
+  - a position is written only between `HELIKON_RESUME_MIN_MS` (3 s) and
+    `HELIKON_RESUME_TAIL_MS` (5 s) before the known end, because resuming at
+    0:02 is starting over and resuming in the tail plays silence;
+  - at most one commit per `HELIKON_RESUME_INTERVAL_MS` (5 s), answered as BUSY
+    so a caller can tell "throttled" from "failed"; `force` is what pause and
+    power-off pass;
+  - a missing or malformed record opens as "nothing to resume" instead of
+    failing playback, and a volume with no writer reports success while storing
+    nothing;
+  - `helikon_session_resume_ms` compares whole paths, so a prefix match cannot
+    resume the wrong track.
+- `tests/vfs/test_vfs_session.c` pins all of it on
+  `writer_fixture_build_journaled()`, rebuilding the fixture per scenario,
+  requiring the journal and `hfs_check_volume` clean after each call. The three
+  limits were mutation-checked (each set to zero fails the suite; deleting the
+  tail branch fails it too).
+- Wiring: `tests/vfs/Makefile` (rule, `test`, `sanitize`, `TESTS`),
+  `firmware/Makefile` (`PLAYER_SRC`, AUDIO-gated), `.gitignore`. Docs:
+  `docs/tasks.md` T-093 row, `docs/testing.md` §player paragraph,
+  `docs/file-map.md`, `docs/log/2026-11-24.md`.
+
+## Evidence
+
+`make -C tests/vfs test` and `sanitize` → `PASS resume session: floor, tail,
+throttle, force and reload all hold, journal clean`; 6G AUDIO build links
+`player/session.o` (image 80,840 B); `./tools/host-tests.sh clang`;
+`./tools/static-analysis.sh`. **No device run**: nothing has resumed across a
+real power-off, and `docs/device-matrix.md` is unchanged.
+
+## Open, next
+
+- **The read-write mount (next).** Nothing mounts a volume read-write at boot, so
+  the resume session, the playlist exporter and the signed update client still
+  have no caller. Plan: mount read-only as today; if `/.helikon/write-enabled`
+  exists, attempt `vfs_rw_mount` — which replays a dirty journal and refuses a
+  journal-less volume — and stay read-only when it fails. Prove both outcomes in
+  `tests/library` over a real image.
+- Then A-B repeat (T-100 remainder), ALAC (T-069), file operations (T-094).
 
 # Handoff — 2026-11-23 (playlist export over the write VFS)
 
