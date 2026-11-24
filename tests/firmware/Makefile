@@ -35,7 +35,7 @@ FW_OBJS := $(BUILD)/lib/mem.o $(BUILD)/lib/string.o $(BUILD)/lib/crc32.o \
 TESTS := test_lib test_boot_info test_bootstate test_block test_ata_geometry \
          test_ata_block \
          test_stages test_ring test_pool test_screen test_trace test_hfs_file \
-         test_vic test_bounce_props
+         test_vic test_bounce_props test_missing
 
 .PHONY: all test sanitize clean
 
@@ -50,6 +50,14 @@ test_lib: test_lib.c test_check.h $(BUILD)/lib/mem.o $(BUILD)/lib/string.o \
 	$(HOSTCC) $(TEST_CFLAGS) test_lib.c $(BUILD)/lib/mem.o \
 	  $(BUILD)/lib/string.o $(BUILD)/lib/crc32.o $(BUILD)/lib/fixed.o \
 	  $(BUILD)/lib/format.o $(LDFLAGS) -o $@
+
+test_missing: test_missing.c test_check.h \
+             ../../firmware/library/missing_tracks.c \
+             ../../firmware/library/missing_tracks.h \
+             $(BUILD)/lib/mem.o $(BUILD)/lib/string.o $(BUILD)/lib/format.o
+	$(HOSTCC) $(TEST_CFLAGS) -I../../firmware/library test_missing.c \
+	  ../../firmware/library/missing_tracks.c $(BUILD)/lib/mem.o \
+	  $(BUILD)/lib/string.o $(BUILD)/lib/format.o $(LDFLAGS) -o $@
 
 test_boot_info: test_boot_info.c test_check.h $(BUILD)/boot/boot_info.o \
                 $(BUILD)/lib/mem.o $(BUILD)/lib/crc32.o
@@ -130,6 +138,7 @@ test_hfs_file: test_hfs_file.c test_check.h $(HFS_TEST_SRC)
 
 test: $(TESTS)
 	./test_lib
+	./test_missing
 	./test_boot_info
 	./test_bootstate
 	./test_block
