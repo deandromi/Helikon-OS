@@ -154,7 +154,7 @@ Firmware sources are analysed the way the device builds them (`-ffreestanding
 -nostdinc` and the compiler's own `stddef.h`/`stdint.h`); `bootloader/*` is
 analysed hosted, which is how its tests compile it. Vendored libmad and the
 donor-facing hardware glue are skipped: the first is not ours to change, the
-second pokes registers whose values only a device can confirm. **74 translation
+second pokes registers whose values only a device can confirm. **85 translation
 units currently analyse clean.**
 
 The exit status is not the signal. `clang --analyze` exits 0 whether or not it
@@ -573,6 +573,32 @@ What the suite requires:
 
 The fixture sets are 8 KiB images with 4 KiB read chunks, so the streaming copy
 loop runs more than once and the short-write path is covered.
+
+### 3.8.3 The write gate in front of the mount
+
+`tests/vfs/test_vfs_storage.c` is the only suite that goes *through*
+`firmware/storage/mount.c` with a writable device. It presents the writer fixture
+as a 1 MiB, 512-byte-sector block device (read, write and flush over the same
+image the fixture builds), mounts it with `helikon_storage_mount`, and then asks
+for writes:
+
+| Call | Expected | Why it matters |
+|---|---|---|
+| no `/.helikon/write-enabled` | `NOT_FOUND`, image unchanged | the normal state: a device that did not ask for writes is not written |
+| the flag is a folder | `IS_DIR`, image unchanged | a typo is not consent |
+| device flags say read-only | `READ_ONLY`, image unchanged | the driver's own gate is believed first |
+| the flag exists, the volume has no journal | `UNSUPPORTED` | I-02 still holds; the gate relaxes nothing underneath |
+| the flag exists, the volume is journaled | `OK`, `writable` set | and a create/write/read-back through the mounted storage lands on the image |
+
+The last row is a real commit, not a returned flag: the file is created through
+`storage.rw`, written, read back through the same mount, and `hfs_check_volume`
+must be quiet afterwards. `helikon_storage_unmount` must clear `writable`, so a
+staged transaction cannot survive into the next mount. The four refusals were
+mutation-checked: deleting the folder check, the device check or the `NOT_FOUND`
+propagation each makes the suite fail. The test also measures the object it
+allocates (`struct helikon_storage` 293,800 B, of which the writer is 262,824 B)
+and fails if the writer grows past 272 KiB, so the number in the docs stays a
+measurement instead of a memory.
 
 ### 4.1 The B-tree layer itself
 
