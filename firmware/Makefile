@@ -93,7 +93,8 @@ VFS_SRC := vfs/vfs.c vfs/vfs_rw.c player/vfs_playlist.c player/vfs_bookmark.c
 # Mounting the volume at boot: block device -> partition -> HFS+ -> VFS ->
 # catalog (T-126). Nothing calls it yet, so the linker drops it; the host test
 # `tests/library` drives this exact path over a real image.
-STORAGE_SRC := storage/mount.c storage/ata_block.c storage/music_boot.c
+STORAGE_SRC := storage/mount.c storage/ata_block.c storage/music_boot.c \
+               storage/write_test.c
 # The signed staged-update client (T-064). Compiled always so it cannot rot;
 # without a caller the linker drops it. The manifest and Ed25519 verifiers are
 # the loader's own files, shared rather than copied: one implementation, one

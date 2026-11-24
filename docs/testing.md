@@ -645,6 +645,27 @@ zero here is the failure mode this check exists for: an image that looks built,
 boots, and never touches the disk. The measured library build is 115,000 B raw
 with 830,560 B of `.bss` (one `helikon_music_boot` is 293.8 kB of that).
 
+### 3.8.5 The first write, and how it is proved
+
+`tests/vfs/test_vfs_write_test.c` runs `firmware/storage/write_test.c` over the
+same 1 MiB journaled fixture. The module is the caller the transaction engine
+never had, so the suite is written to fail if any of its refusals goes soft:
+
+| Case | What must hold |
+|---|---|
+| no `/.helikon/write-enabled` | `NOT_FOUND` at stage `GATE`, and the image is byte-identical afterwards |
+| a folder named `write-enabled` | `IS_DIR`, not consent |
+| zero length, above `VFS_RW_IO_MAX`, no mount, NULL test | `ARGUMENT`, nothing written |
+| opt-in present | commit succeeds, the file reads back identical and the report says `DONE` |
+| the same image, freshly mounted | a second `struct vfs` sees the same bytes -- a reboot would |
+| run again, longer then shorter | the file is replaced, `file_size` follows, `hfs_check_volume` clean each time |
+
+The read-back deliberately goes through the read-only VFS rather than the
+writer, because a writer agreeing with its own buffers is not the question. Two
+mutations were checked and both were caught: inverting the comparison fails with
+`invalid HFS+ structure` at `VERIFY`, and ignoring the gate's refusal fails the
+no-opt-in case.
+
 ### 4.1 The B-tree layer itself
 
 `tests/hfsplus/test_btree_model.c` drives **one tree** rather than the catalog:
