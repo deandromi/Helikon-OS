@@ -20,10 +20,20 @@
  *   5. A partial read then a seek to 0 then a read returns the first frames
  *      again: state after a seek does not depend on where the decoder was.
  *
- * The tolerance column is the codec's contract, not an excuse: FLAC, AIFF and
- * MP3 land on the requested frame here (MP3 counts frames from the headers it
- * walks), so their tolerance is zero. A codec that needs slack would say so in
- * its row, and the row would be a defect to fix rather than a setting.
+ * Every row lands on the requested frame exactly, so there is no tolerance
+ * column: a codec that needed slack would be a defect to fix rather than a
+ * setting. The MP3 rows are why that sentence is true — writing this table
+ * found that an MP3 seek returned samples shifted by the encoder delay, and,
+ * at frame 0, the tag frame's silent block (issue #150).
+ *
+ * Two pieces of arithmetic the rows depend on, and that a fixture of five
+ * frames makes easy to get wrong:
+ *
+ *   - `total_frames` counts the stream; a gapless codec trims `encoder_delay`
+ *     at the front and `padding` at the end, so the probes live inside
+ *     `total_frames - delay - padding`, which is what the decoder can produce.
+ *   - a probe near that end may run out mid-chunk; the comparison uses the
+ *     frames both paths actually produced.
  */
 #include "codec.h"
 
@@ -49,12 +59,9 @@ static const struct row rows[] = {
     { "fixtures/stereo24.flac", "flac" },
     { "fixtures/aiff_stereo16.aiff", "aiff" },
     { "fixtures/aiff_stereo24.aiff", "aiff" },
-    /*
-     * MP3 is missing on purpose, not by oversight: this matrix found that an
-     * MP3 seek does not return the samples a sequential decode would (issue
-     * #150), and a row that fails is not a gate. The rows go back the moment
-     * that defect is fixed; the fixtures stay in `fixtures/` with the rest.
-     */
+    { "fixtures/mp3_cbr_stereo16.mp3", "mp3" },
+    { "fixtures/mp3_vbr_stereo16.mp3", "mp3" },
+    { "fixtures/mp3_mpeg2_stereo16.mp3", "mp3" },
 };
 
 static uint8_t file_data[FILE_MAX];
@@ -88,7 +95,7 @@ static size_t load_file(const char *path)
 
 /* Decodes `frames` frames at `start` by reading from the top. The slow oracle. */
 static int decode_at(const struct helikon_codec_ops *ops, size_t size,
-                     uint32_t start, int16_t *out, size_t frames)
+                     uint32_t start, int16_t *out, size_t frames, size_t *got)
 {
     struct helikon_codec codec;
     int rc = helikon_codec_open(&codec, ops, file_data, size, workspace,
@@ -119,7 +126,9 @@ static int decode_at(const struct helikon_codec_ops *ops, size_t size,
     helikon_codec_close(&codec);
     if (rc != HELIKON_OK)
         return rc;
-    return count == frames ? HELIKON_OK : HELIKON_ERR_FORMAT;
+    if (got != NULL)
+        *got = count;
+    return HELIKON_OK;
 }
 
 
@@ -156,6 +165,21 @@ static int check_row(const struct row *row)
     if (expect(info.output_channels == 2u, row->fixture, "stereo output"))
         return 1;
 
+    /*
+     * `total_frames` counts the stream; `playable` counts what the decoder will
+     * hand out. They differ for a gapless stream: the encoder's delay and
+     * padding are trimmed, and a probe past `playable` can only read zero
+     * frames, so the probes live inside it.
+     */
+    uint32_t playable = info.total_frames;
+    if ((info.flags & HELIKON_CODEC_FLAG_GAPLESS) != 0u &&
+        info.encoder_delay + info.padding < playable) {
+        playable = info.total_frames - info.encoder_delay - info.padding;
+    }
+    if (expect(playable > READ_FRAMES, row->fixture,
+               "the playable stream is longer than one probe"))
+        return 1;
+
     /* duration_ms must agree with the frame count it reports. */
     uint64_t expected_ms = (uint64_t)info.total_frames * 1000ull /
                            (uint64_t)info.sample_rate;
@@ -169,26 +193,31 @@ static int check_row(const struct row *row)
     uint32_t probes[SEEK_POINTS];
     probes[0] = 0u;
     probes[1] = 1u;
-    probes[2] = info.total_frames / 4u;
-    probes[3] = info.total_frames / 2u;
-    probes[4] = (info.total_frames * 3u) / 4u;
-    probes[5] = info.total_frames - 1u;
-    probes[6] = info.total_frames > READ_FRAMES
-                    ? info.total_frames - READ_FRAMES
-                    : 0u;
+    probes[2] = playable / 4u;
+    probes[3] = playable / 2u;
+    probes[4] = (playable * 3u) / 4u;
+    probes[5] = playable - 1u;
+    probes[6] = playable - READ_FRAMES;
 
     for (size_t index = 0u; index < SEEK_POINTS; ++index) {
         uint32_t target = probes[index];
         size_t frames = READ_FRAMES;
-        if ((uint64_t)target + frames > info.total_frames)
-            frames = (size_t)(info.total_frames - target);
+        if ((uint64_t)target + frames > playable)
+            frames = (size_t)(playable - target);
         if (frames == 0u)
             continue;
 
-        rc = decode_at(ops, size, target, reference, frames);
+        size_t reference_frames = 0u;
+        rc = decode_at(ops, size, target, reference, frames,
+                       &reference_frames);
         if (expect(rc == HELIKON_OK, row->fixture,
                    "the sequential reference decodes"))
             return 1;
+        if (expect(reference_frames > 0u, row->fixture,
+                   "the sequential reference produced frames"))
+            return 1;
+        /* A stream can end inside the probe; compare what both produced. */
+        frames = reference_frames;
 
         struct helikon_codec codec;
         rc = helikon_codec_open(&codec, ops, file_data, size, workspace,
@@ -226,7 +255,7 @@ static int check_row(const struct row *row)
                             sizeof(workspace));
     if (expect(rc == HELIKON_OK, row->fixture, "open for the end probes"))
         return 1;
-    if (expect(helikon_codec_seek(&codec, info.total_frames) == HELIKON_OK,
+    if (expect(helikon_codec_seek(&codec, playable) == HELIKON_OK,
                row->fixture, "a seek to the end is legal")) {
         helikon_codec_close(&codec);
         return 1;
@@ -258,7 +287,7 @@ static int check_row(const struct row *row)
         return 1;
 
     /* Resume: a partial read, a seek to 0, and the same first frames again. */
-    rc = decode_at(ops, size, 0u, reference, READ_FRAMES);
+    rc = decode_at(ops, size, 0u, reference, READ_FRAMES, NULL);
     if (expect(rc == HELIKON_OK, row->fixture, "the first frames decode"))
         return 1;
 

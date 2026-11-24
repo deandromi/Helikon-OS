@@ -26,6 +26,22 @@
 #define MP3_MAX_RECOVERABLE 64u
 
 /*
+ * A seek walks frame headers from its anchor. A LAME TOC bucket is one
+ * hundredth of the file, so a real track needs a handful of steps; this
+ * ceiling only catches a table that describes a stream that is not there.
+ */
+#define MP3_SEEK_SCAN_FRAMES 20000u
+
+/*
+ * Layer III keeps a bit reservoir: a frame's main data may reference up to 511
+ * bytes carried by earlier frames. Starting the decoder exactly on the wanted
+ * frame therefore decodes it with an empty reservoir -- libmad reports
+ * BADDATAPTR and the samples are not the ones the file describes. A seek backs
+ * up this many frames, lets the reservoir fill, and drops their output.
+ */
+#define MP3_SEEK_BACKUP_FRAMES 8u
+
+/*
  * Pull-source window. libmad needs whole frames plus guard bytes and keeps
  * its bit reservoir in `main_data` (a copy), so a refill only has to preserve
  * the bytes from `stream.next_frame` onward.
@@ -704,6 +720,91 @@ static int mp3_read(struct helikon_codec *codec, int16_t *pcm,
     }
 }
 
+/*
+ * Resyncs the window to a *verified* frame header at or after `offset`. A
+ * candidate is accepted only when another header of the same version and layer
+ * follows it at exactly its frame length: main_data is full of plausible
+ * headers, and aligning to one of those lands the seek frames late (that is
+ * how a 5-frame CBR file ended up seeking two frames past its target).
+ */
+static int mp3_seek_sync(struct mp3_state *state, uint64_t offset,
+                         struct mp3_header *target, uint64_t *position)
+{
+    const uint64_t span = state->source->size;
+    if (span != 0u && offset >= span)
+        offset = span - 1u;
+    int rc = mp3_window_seek(state, offset);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    const size_t scan = (size_t)state->head.frame_bytes + 4u;
+    size_t start = 0u;
+    for (unsigned int tries = 0u; tries < 64u; ++tries) {
+        rc = mp3_next_sync(state->window, state->window_len, start, target,
+                           scan, &state->head);
+        if (rc != HELIKON_OK)
+            return rc;
+        if (mp3_chain_ok(state->window, state->window_len, target)) {
+            *position = state->window_base + target->offset;
+            return HELIKON_OK;
+        }
+        start = (size_t)target->offset + 1u;
+        if (start + 4u >= state->window_len)
+            return HELIKON_ERR_NOT_FOUND;
+    }
+    return HELIKON_ERR_NOT_FOUND;
+}
+
+/*
+ * Walks frame headers from the first audio frame to frame `wanted` and reports
+ * where it starts. Header walking needs no synthesis, so a seek costs one
+ * source read per window (32 KiB) rather than one decode per frame, and the
+ * landing frame is exact for constant and variable bitrate alike — a TOC only
+ * says where a byte fraction lives, never which frame index sits there.
+ */
+static int mp3_walk_from_head(struct mp3_state *state, uint32_t wanted,
+                              struct mp3_header *target, uint64_t *position)
+{
+    const uint64_t first_audio =
+        state->audio_start +
+        (state->xing.valid != 0u ? state->head.frame_bytes : 0u);
+    int rc = mp3_seek_sync(state, first_audio, target, position);
+    if (rc != HELIKON_OK)
+        return rc;
+
+    for (uint32_t index = 0u; index < wanted; ++index) {
+        struct mp3_header next;
+        const size_t next_start =
+            (size_t)(*position - state->window_base) + target->frame_bytes;
+        int step = HELIKON_ERR_NOT_FOUND;
+        if (next_start + 4u < state->window_len) {
+            step = mp3_next_sync(state->window, state->window_len, next_start,
+                                 &next, (size_t)target->frame_bytes + 4u,
+                                 &state->head);
+        }
+        if (step == HELIKON_OK && mp3_chain_ok(state->window, state->window_len,
+                                              &next)) {
+            *target = next;
+            *position = state->window_base + next.offset;
+            continue;
+        }
+        /* Out of window, or the next candidate is not a real frame. */
+        step = mp3_seek_sync(state, *position + target->frame_bytes, target,
+                             position);
+        if (step != HELIKON_OK)
+            return step; /* the stream ended before the requested frame */
+    }
+    return HELIKON_OK;
+}
+
+/*
+ * Seeks in *output* frames. The stream the decoder produced at open had
+ * `encoder_delay` samples trimmed off the front, so output frame N is untrimmed
+ * sample N + delay: seeking to N means starting at the audio frame that holds
+ * it and dropping the samples before it. Starting a few frames early also lets
+ * the Layer III bit reservoir refill, which a decoder that jumps straight to
+ * the frame does not have.
+ */
 static int mp3_seek(struct helikon_codec *codec, uint32_t frame)
 {
     if (codec == NULL || codec->state == NULL)
@@ -712,61 +813,73 @@ static int mp3_seek(struct helikon_codec *codec, uint32_t frame)
         return HELIKON_ERR_ARGUMENT;
 
     struct mp3_state *state = codec->state;
-    const uint64_t span = state->source->size;
+    const uint32_t frame_samples =
+        state->head.frame_samples != 0u ? state->head.frame_samples : 1152u;
+    const uint32_t delay = state->gapless != 0u ? state->xing.delay : 0u;
 
-    uint64_t offset;
-    unsigned int bucket = 0u;
-    int from_toc = 0;
-    if (state->xing.valid && codec->info.total_frames != 0u && span != 0u) {
-        /*
-         * The TOC holds 100 entries, so the bucket is 0..99. `frame` may equal
-         * total_frames (a seek to the end is legal), which would make the
-         * quotient 100 and read one byte past the table; the multiply is done
-         * in 64 bits because a frame count near UINT32_MAX overflows it.
-         */
-        bucket = (unsigned int)((uint64_t)frame * 100u /
-                                codec->info.total_frames);
-        if (bucket > 99u)
-            bucket = 99u;
-        from_toc = 1;
-        offset = state->audio_start + (uint64_t)state->xing.toc[bucket] *
-                                          span / 256u;
-    } else {
-        offset = state->audio_start +
-                 (uint64_t)(frame / state->head.frame_samples) *
-                     state->head.frame_bytes;
-    }
-    if (span != 0u && offset >= span)
-        offset = span - 1u;
+    const uint64_t untrimmed = (uint64_t)frame + delay;
+    const uint32_t wanted = (uint32_t)(untrimmed / frame_samples);
+    const uint32_t within = (uint32_t)(untrimmed % frame_samples);
+    /* Start `MP3_SEEK_BACKUP_FRAMES` early so the reservoir is not empty. */
+    const uint32_t anchor = wanted > MP3_SEEK_BACKUP_FRAMES
+                                ? wanted - MP3_SEEK_BACKUP_FRAMES
+                                : 0u;
 
-    /*
-     * Align the stream to a real frame header at or after the offset. The TOC
-     * is a byte-quantised map (256ths of the stream), so its last entries can
-     * land inside the final frame, where no header follows. A seek to the end
-     * of the file is legal and must not fail there: retreat through the
-     * earlier anchors, which is bounded by the table's 100 entries.
-     */
-    const size_t window = (size_t)state->head.frame_bytes + 4u;
-    int rc = mp3_window_seek(state, offset);
-    if (rc != HELIKON_OK)
-        return rc;
     struct mp3_header target;
-    rc = mp3_next_sync(state->window, state->window_len, 0u, &target, window,
-                       &state->head);
-    for (unsigned int retry = bucket; from_toc != 0 && rc != HELIKON_OK &&
-                                     retry > 0u; --retry) {
-        uint64_t anchor = state->audio_start +
-                          (uint64_t)state->xing.toc[retry - 1u] * span / 256u;
-        if (anchor >= span)
-            anchor = span - 1u;
-        rc = mp3_window_seek(state, anchor);
+    uint64_t position = 0u;
+    uint32_t index = anchor;
+    int rc;
+
+    if (anchor <= MP3_SEEK_SCAN_FRAMES) {
+        rc = mp3_walk_from_head(state, anchor, &target, &position);
         if (rc != HELIKON_OK)
             return rc;
-        rc = mp3_next_sync(state->window, state->window_len, 0u, &target,
-                           window, &state->head);
+    } else {
+        /*
+         * A stream long enough that walking from the head is not free: take the
+         * TOC bucket as a byte anchor, verify the frame there, and count forward
+         * from the frame the TOC's own byte value implies. That index is an
+         * estimate -- a TOC quantises bytes, not frames -- so the walk may land
+         * a frame or two from the target on a real VBR file. Below the scan
+         * ceiling, which is every fixture and the first eight minutes of any
+         * track, the walk from the head is exact.
+         */
+        const uint64_t span = state->source->size;
+        const uint32_t total = codec->info.total_frames;
+        unsigned int bucket = (unsigned int)((uint64_t)anchor * 100u / total);
+        if (bucket > 99u)
+            bucket = 99u;
+        for (;;) {
+            const uint64_t offset =
+                state->audio_start +
+                (uint64_t)state->xing.toc[bucket] * span / 256u;
+            rc = mp3_seek_sync(state, offset, &target, &position);
+            if (rc == HELIKON_OK) {
+                const uint32_t estimate = (uint32_t)(
+                    (uint64_t)state->xing.toc[bucket] * total / 256u);
+                index = (uint32_t)(((uint64_t)estimate + delay) / frame_samples);
+                if (index <= anchor)
+                    break;
+            }
+            if (bucket == 0u)
+                return rc != HELIKON_OK ? rc : HELIKON_ERR_UNSUPPORTED;
+            bucket -= 1u;
+        }
+        /* Never start past the requested frame: walk forward from the estimate. */
+        rc = mp3_walk_from_head(state, index, &target, &position);
+        if (rc != HELIKON_OK)
+            return rc;
+        while (index < anchor) {
+            rc = mp3_seek_sync(state, position + target.frame_bytes, &target,
+                               &position);
+            if (rc != HELIKON_OK)
+                break;
+            index += 1u;
+        }
     }
-    if (rc != HELIKON_OK)
-        return rc;
+
+    if (index > wanted)
+        return HELIKON_ERR_UNSUPPORTED; /* the anchor overshot: refuse to lie */
 
     mad_stream_buffer(&state->stream, state->window + target.offset,
                       (unsigned long)(state->window_len - target.offset));
@@ -779,7 +892,14 @@ static int mp3_seek(struct helikon_codec *codec, uint32_t frame)
     state->consecutive_errors = 0u;
     state->skip_frames_left = 0u;
     state->tail_active = 0u;
-    state->trim_skip = 0u; /* a seek starts past the encoder delay */
+    /*
+     * Drop the anchor's output up to the requested frame, including the samples
+     * before the requested one inside its own block. The read path already
+     * knows how to skip samples, so the reservoir refills without a second
+     * decoder.
+     */
+    state->trim_skip =
+        (uint32_t)((uint64_t)(wanted - index) * frame_samples + within);
     state->emitted = frame;
     state->frame_index = frame;
     return HELIKON_OK;

@@ -178,16 +178,22 @@ One table, one row per codec, and the decoded stream as the oracle:
 `tests/codec/test_codec_matrix.c` seeks to seven probe frames (0, 1, a quarter,
 a half, three quarters, the last frame and the last window), reads 97 frames and
 requires them to be byte-identical to what a sequential decode produces there;
-then it checks that a seek to `total_frames` is legal and reads nothing, that a
-seek past it is `ARGUMENT` and leaves the decoder seekable, that `duration_ms`
-agrees with `total_frames` and `sample_rate`, and that a partial read followed
-by a seek to 0 then a read returns the first frames again. FLAC (16- and 24-bit)
-and AIFF are the rows today.
+then it checks that a seek to the end of the playable stream is legal and reads
+nothing, that a seek past it is `ARGUMENT` and leaves the decoder seekable, that
+`duration_ms` agrees with `total_frames` and `sample_rate`, and that a partial
+read followed by a seek to 0 then a read returns the first frames again.
 
-MP3 is not a row yet, and that is the point of the harness: it found that an MP3
-seek does not return the samples a sequential decode would (issue #150), at
-frame 0 and mid-file. A row that fails is not a gate, so the MP3 rows come back
-with the fix.
+Seven rows: FLAC (16- and 24-bit), AIFF (16- and 24-bit) and three MP3 fixtures
+(MPEG-1 CBR, MPEG-1 VBR with a TOC, and MPEG-2 at 22.05 kHz). All of them pass,
+and the MP3 rows are the reason the harness exists: writing it found that an MP3
+seek returned samples shifted by the encoder delay — and, at frame 0, the Xing
+tag frame's silent block — so a "restart track" played a different stream from
+the open (issue #150). The fix is three parts: the seek maps output frame N to
+untrimmed sample N + `encoder_delay`; it walks frame headers from the first
+audio frame to the target (a TOC quantises bytes, never frame indices) and
+starts eight frames early so the Layer III bit reservoir refills; and every
+resync must be corroborated by a following header of the same version and layer
+before it is believed, because main data is full of plausible ones.
 
 ### 3.2 Mutation sweeps
 
