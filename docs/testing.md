@@ -620,6 +620,13 @@ and `helikon_music_boot_close` is required to clear both the catalog and the
 mount. Deleting the unmount on a failed catalog makes the suite fail, which is
 the rule the module exists for.
 
+The suite also defines the four ATA entry points over the same image and runs
+`helikon_music_boot_from_ata`, because `ata_block` reuses the driver's own
+functions as the block ops: with `writable = 0` the library still opens and the
+gate reports `READ_ONLY` (the honest answer for an image that has not proven a
+write), with `writable = 1` and the opt-in file present it reports writable, and
+a driver with no IDENTIFY is refused with `db` left NULL.
+
 ### 4.1 The B-tree layer itself
 
 `tests/hfsplus/test_btree_model.c` drives **one tree** rather than the catalog:

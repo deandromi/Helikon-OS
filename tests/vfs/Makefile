@@ -8,8 +8,10 @@ CPPFLAGS += -I../../firmware/vfs -I../../firmware/hfs -I../hfsplus \
             -I../../firmware/codec/mp3 -I../../firmware/codec/libmad \
             -I../../firmware/player -I../../firmware/storage \
             -I../../firmware/block -I../../firmware/db \
+            -I../../firmware/hal/6g \
             -idirafter ../../firmware/lib
 VFS = ../../firmware/vfs
+HAL = ../../firmware/hal/6g
 HFS = ../../firmware/hfs
 TH = ../hfsplus
 CODEC = ../../firmware/codec
@@ -192,6 +194,8 @@ test_vfs_music_boot: test_vfs_music_boot.c $(TH)/writer_fixture.c \
           fixtures/music.hdb \
           $(STORAGE)/music_boot.c $(STORAGE)/music_boot.h \
           $(STORAGE)/mount.c $(STORAGE)/mount.h \
+          $(STORAGE)/ata_block.c $(STORAGE)/ata_block.h \
+          $(HAL)/ata.h \
           $(BLOCK)/block.c $(BLOCK)/bounce.c $(BLOCK)/partition.c \
           $(HFS)/hfs_block_adapter.c \
           $(DB)/hdb.c $(DB)/hdb_vfs.c \
@@ -205,6 +209,7 @@ test_vfs_music_boot: test_vfs_music_boot.c $(TH)/writer_fixture.c \
           $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c $(LIB)/format.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) test_vfs_music_boot.c $(TH)/writer_fixture.c \
 	  $(STORAGE)/music_boot.c $(STORAGE)/mount.c \
+	  $(STORAGE)/ata_block.c \
 	  $(BLOCK)/block.c $(BLOCK)/bounce.c $(BLOCK)/partition.c \
 	  $(HFS)/hfs_block_adapter.c \
 	  $(DB)/hdb.c $(DB)/hdb_vfs.c \

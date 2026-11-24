@@ -55,6 +55,29 @@ int helikon_music_boot_open(struct helikon_music_boot *boot,
     return HELIKON_OK;
 }
 
+int helikon_music_boot_from_ata(struct helikon_music_boot *boot,
+                                struct helikon_ata *ata, int writable,
+                                uint32_t timeout_ms)
+{
+    if (boot == NULL || ata == NULL)
+        return HELIKON_ERR_ARGUMENT;
+
+    boot->db = NULL;
+    boot->error = HELIKON_OK;
+    boot->writable = 0u;
+
+    int rc = helikon_ata_block_init(&boot->ata_block, ata, writable);
+    if (rc != HELIKON_OK) {
+        /* No IDENTIFY, or geometry that does not add up: there is no device to
+         * mount, and saying so is better than mounting a guess. */
+        boot->error = rc;
+        return rc;
+    }
+
+    return helikon_music_boot_open(
+        boot, helikon_ata_block_device(&boot->ata_block), timeout_ms);
+}
+
 void helikon_music_boot_close(struct helikon_music_boot *boot)
 {
     if (boot == NULL)

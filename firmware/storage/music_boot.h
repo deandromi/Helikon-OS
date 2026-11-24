@@ -31,12 +31,15 @@
 
 #include <stdint.h>
 
+#include "ata.h"
+#include "ata_block.h"
 #include "block.h"
 #include "hdb.h"
 #include "mount.h"
 
 struct helikon_music_boot {
     struct helikon_storage storage;
+    struct helikon_ata_block ata_block;
     struct hdb *db; /* the open catalog, or NULL when there is none */
     int error;      /* why `db` is NULL: a taxonomy code, HELIKON_OK otherwise */
     uint8_t writable;
@@ -53,6 +56,20 @@ struct helikon_music_boot {
 int helikon_music_boot_open(struct helikon_music_boot *boot,
                             const struct helikon_block_device *device,
                             uint32_t timeout_ms);
+
+/*
+ * The same open, from the driver the firmware actually talks to: binds `ata` to
+ * a block device and then runs the mount/gate/catalog sequence above.
+ *
+ * `writable` is the device's own gate and it defaults to read-only at every call
+ * site in this tree: a block device that admits writes is a decision the caller
+ * makes, and the 6G has not proven one yet. When it is 0 the D-57 gate can only
+ * answer `READ_ONLY`, which is the honest answer rather than a lie about what the
+ * image can do.
+ */
+int helikon_music_boot_from_ata(struct helikon_music_boot *boot,
+                                struct helikon_ata *ata, int writable,
+                                uint32_t timeout_ms);
 
 /* Releases the catalog and the mount. Safe twice and after a failed open. */
 void helikon_music_boot_close(struct helikon_music_boot *boot);
