@@ -234,6 +234,7 @@ test_vfs_missing: test_vfs_missing.c $(TH)/writer_fixture.c \
           $(DB)/hdb.c $(DB)/hdb_vfs.c \
           $(LIBRARY)/missing_tracks.c $(LIBRARY)/missing_tracks.h \
           $(LIBRARY)/missing_tracks_io.c $(LIBRARY)/missing_tracks_io.h \
+          $(LIBRARY)/missing_tracks_db.h $(LIBRARY)/album_tracks.c \
           $(VFS)/vfs.c $(VFS)/vfs.h $(VFS)/vfs_rw.c $(VFS)/vfs_rw.h \
           $(HFS)/hfs_volume.c $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog_write.c \
           $(HFS)/hfs_catalog_compare.c $(HFS)/hfs_btree.c \
@@ -247,6 +248,7 @@ test_vfs_missing: test_vfs_missing.c $(TH)/writer_fixture.c \
 	  $(BLOCK)/partition.c $(HFS)/hfs_block_adapter.c \
 	  $(DB)/hdb.c $(DB)/hdb_vfs.c \
 	  $(LIBRARY)/missing_tracks.c $(LIBRARY)/missing_tracks_io.c \
+	  $(LIBRARY)/album_tracks.c \
 	  $(VFS)/vfs.c $(VFS)/vfs_rw.c \
 	  $(LIB)/format.c \
 	  $(HFS)/hfs_volume.c $(HFS)/hfs_catalog.c $(HFS)/hfs_catalog_write.c \

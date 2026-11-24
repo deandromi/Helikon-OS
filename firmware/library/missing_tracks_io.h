@@ -26,22 +26,6 @@
 #include "missing_tracks.h"
 #include "vfs_rw.h"
 
-struct hdb;
-
-/*
- * Builds a report for `album_index` from the catalog.
- *
- * Returns HELIKON_OK with `report` filled -- including when the report makes no
- * claim, which is an answer, not an error. Returns ARGUMENT for a NULL
- * argument, and whatever `hdb_album` answers for an index that does not exist.
- *
- * An album with more tracks than the report holds contributes the first
- * `HELIKON_MISSING_MAX` numbers; a total that large is refused by the core
- * before any list is built, so the truncation cannot change a claim.
- */
-int helikon_missing_from_album(const struct hdb *db, uint32_t album_index,
-                               struct helikon_missing_report *report);
-
 /*
  * Writes the report as plain text to `path`, through the journaled writer, in
  * one transaction.
