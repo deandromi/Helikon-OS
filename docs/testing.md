@@ -645,6 +645,28 @@ zero here is the failure mode this check exists for: an image that looks built,
 boots, and never touches the disk. The measured library build is 115,000 B raw
 with 830,560 B of `.bss` (one `helikon_music_boot` is 293.8 kB of that).
 
+### 3.8.6 Track numbers, without a guess
+
+`tests/firmware/test_missing.c` covers `firmware/library/missing_tracks.c`, the
+core behind "3 of 12 tracks". It is a pure function over an array of numbers, so
+the awkward cases can be stated exactly rather than staged through a catalog:
+
+| Case | Expected |
+|---|---|
+| 1..12 with a stated 12 | `12 of 12`, `Missing: none` |
+| 1, 2, 5 with a stated 12 | `3 of 12`, missing `3, 4, 6…12` |
+| total 0 | no claim, `total not stated` |
+| two discs | no claim, `multi-disc` -- the per-disc total is not in the database |
+| total above `HELIKON_MISSING_MAX` | no claim, `total too large` |
+| a track numbered 0 | counted as unnumbered, never fills a gap |
+| 3 and 3 | one slot filled, two tracks counted |
+| 13 of a stated 12 | counted, given no slot |
+| no tracks, stated 4 | four missing |
+| a 24-byte buffer | truncated, still NUL-terminated |
+
+The rule the suite exists for: a report that cannot support its claim says so and
+prints no gap list.
+
 ### 3.8.5 The first write, and how it is proved
 
 `tests/vfs/test_vfs_write_test.c` runs `firmware/storage/write_test.c` over the
