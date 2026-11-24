@@ -44,11 +44,15 @@ STORAGE := ../../firmware/storage
 BLOCK := ../../firmware/block
 
 SOURCES := test_library.c \
-           $(VFS)/vfs.c \
+           $(VFS)/vfs.c $(VFS)/vfs_rw.c \
            $(HFS)/hfs_volume.c $(HFS)/hfs_catalog.c \
            $(HFS)/hfs_catalog_compare.c $(HFS)/hfs_extents.c \
            $(HFS)/hfs_unicode.c $(HFS)/hfs_unicode_data.c \
            $(HFS)/hfs_btree.c \
+           $(HFS)/hfs_catalog_write.c $(HFS)/hfs_btree_write.c \
+           $(HFS)/hfs_btree_tree.c $(HFS)/hfs_extents_write.c \
+           $(HFS)/hfs_fork_io.c $(HFS)/hfs_bitmap.c $(HFS)/hfs_txn.c \
+           $(HFS)/hfs_journal.c $(HFS)/hfs_volume_write.c $(HFS)/hfs_check.c \
            $(DB)/hdb.c $(DB)/hdb_vfs.c \
            $(PLAYER)/player.c $(PLAYER)/wav.c $(PLAYER)/vfs_media.c \
            $(PLAYER)/read_ahead.c $(PLAYER)/playlist.c $(PLAYER)/queue.c \
