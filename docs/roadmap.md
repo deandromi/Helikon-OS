@@ -3,7 +3,7 @@
 > Purpose: sequence the work and make every phase's exit criterion explicit.
 > Status: living document
 > Owner: project owner; phase leads
-> Last updated: 2026-11-11
+> Last updated: 2026-11-24
 > Source: design paper §23, §24, §27, §28; Rockbox iPod Classic manual
 > `0d5c2b0604-261105`; [`competitive-roadmap.md`](competitive-roadmap.md);
 > [`disk-mode.md`](disk-mode.md)
@@ -202,6 +202,32 @@ measurably better at a small number of things:
 
 A bet without a metric and a recorded run is a slogan. The competitive matrix
 labels each row `match`, `exceed`, `differ` or `decline`.
+
+## User-facing bets (2026-11-24)
+
+The owner picked these from a shortlist of things a person actually feels, and
+they are recorded as T-154–T-164. They do not renumber the phases and they do
+not start before their dependencies; two of them are labelled gimmicks on
+purpose, because a roadmap that cannot say "this is for delight" ends up
+pretending every feature is safety work.
+
+| Promise | Task | Lane | Honest limit |
+|---|---|---|---|
+| "What did I actually listen to this year?" — computed on the device | T-154 | H2-B | local history only; the record is bounded and clearable |
+| A shuffle that explains itself and can be reproduced | T-155 | H2-B | a documented weight table, not a claim of learning |
+| "3 of 12 tracks from this album" | T-156 | H2-B | only when tags state a total; never guessed |
+| Play side A, then stop and ask (gimmick) | T-157 | H2-D | no file touched, no quality claim |
+| A playlist with a length (gimmick) | T-158 | H2-D | reports "44:12 of 45:00" instead of padding |
+| A bedside state: dim, big clock, alarm that ramps | T-159 | H1-E | never exceeds the volume limit in force |
+| A notepad that is really a journalled text file | T-160 | H2-D | bounded count and size, explicit refusal |
+| "Will it fit?" before a sync | T-161 | H1-F | no silent eviction, plan logged |
+| "Ejected safely" versus "unplugged while writing" | T-162 | H1-F | says what the check found, never "no harm done" |
+| Last.fm scrobbling, host-side and opt-in | T-163 | H1-F | device holds history, never credentials |
+| A battery report a human can act on | T-164 | H2-A | "not reported by this device" when the PMU is silent |
+
+Each row's acceptance test lives in [`tasks.md`](tasks.md). None of them
+authorises device work ahead of the phase-3 writer gate, and none of them is a
+support claim.
 
 ## Phase gates
 
