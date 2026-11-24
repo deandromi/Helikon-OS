@@ -74,6 +74,17 @@ void helikon_missing_report(const uint16_t *numbers, size_t count,
     }
 }
 
+/* Bounded length, local on purpose: this file is built by suites whose include
+ * order puts the system <string.h> first, and a module that needs one include
+ * order is a module that breaks in the next build. */
+static size_t text_length(const char *text, size_t limit)
+{
+    size_t length = 0u;
+    while (length < limit && text[length] != '\0')
+        ++length;
+    return length;
+}
+
 /* Appends `text` to `buffer` at `*used`, never past `capacity`, and returns the
  * new length. Truncation is silent here because the caller checks the result. */
 static size_t append(char *buffer, size_t capacity, size_t used,
@@ -82,7 +93,7 @@ static size_t append(char *buffer, size_t capacity, size_t used,
     if (used >= capacity)
         return used;
     size_t room = capacity - used;
-    size_t length = helikon_strlen(text, capacity);
+    size_t length = text_length(text, capacity);
     if (length >= room) {
         helikon_memcpy(buffer + used, text, room - 1u);
         buffer[capacity - 1u] = '\0';

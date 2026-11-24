@@ -129,3 +129,4 @@ tests/codec/test_codec_matrix
 tests/codec/test_codec_matrix_sanitize
 tests/vfs/test_vfs_write_test
 tests/firmware/test_missing
+tests/vfs/test_vfs_missing
