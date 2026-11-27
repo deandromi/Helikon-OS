@@ -1,6 +1,8 @@
 # Helikon-OS
 A new bootloader and firmware for the iPod Classic 6th and 7th Generation created from the ground up. I started work on this almost a month ago, experimenting with stuff and trying some things out, I'll soon release an Alpha version with a functional bootloader and native HFS+ read/write capabilities.
 
+**Important update! Both my implementation of the hfsplus-rockboxed-ipod and Helikon-OS will soon not receive future updates. I'm currently working on a new firmware/bootloader combo. I'm doing this because Helikon-OS and my hfsplus implementation were experiments and not really made for being a capable alternative to rockbox and other firmwares.**
+
 ![Helikon-OS poster](assets/branding/helikon-os-poster.png)
 
 
